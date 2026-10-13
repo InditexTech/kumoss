@@ -98,6 +98,29 @@ class TestSearchConfigRejects(unittest.TestCase):
         with self.assertRaises(ValidationError):
             SearchConfig(provider="searxng", endpoint="http://x", timeout=0.0)
 
+    def test_timeout_must_be_a_number(self):
+        with self.assertRaises(ValidationError):
+            SearchConfig(provider="searxng", endpoint="http://x", timeout="soon")
+
+    def test_max_results_boundaries_are_accepted(self):
+        for max_results in (1, 20):
+            with self.subTest(max_results=max_results):
+                self.assertEqual(
+                    SearchConfig(
+                        provider="searxng",
+                        endpoint="http://x",
+                        max_results=max_results,
+                    ).max_results,
+                    max_results,
+                )
+
+    def test_hosted_provider_may_carry_an_endpoint(self):
+        # The endpoint is only mandatory for `searxng`; hosted providers
+        # are not forbidden from declaring one (e.g. a self-hosted
+        # OpenAI-compatible search proxy).
+        config = SearchConfig(provider="tavily", endpoint="http://proxy:9000")
+        self.assertEqual(config.endpoint, "http://proxy:9000")
+
 
 if __name__ == "__main__":
     unittest.main()

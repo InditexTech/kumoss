@@ -163,3 +163,87 @@ class TestSearchServiceClient(unittest.IsolatedAsyncioTestCase):
                 await client.search("q")
 
         self.assertIn("searxng", ctx.exception.message)
+
+    async def test_empty_endpoint_passes_api_base_as_none(self):
+        # A hosted provider needs no endpoint; the facade must not forward
+        # an empty string as LiteLLM's `api_base`.
+        client = SearchServiceClient()
+        fake = MagicMock()
+        fake.results = []
+
+        with (
+            patch(
+                "src.infrastructure.external.search_service.system_config",
+                _config("tavily", endpoint=""),
+            ),
+            patch(
+                "src.infrastructure.external.search_service.litellm.asearch",
+                AsyncMock(return_value=fake),
+            ) as asearch,
+        ):
+            await client.search("q")
+
+        self.assertIsNone(asearch.call_args.kwargs["api_base"])
+
+    async def test_result_fields_missing_on_the_engine_object_default_to(self):
+        # Results come from arbitrary providers; an object without
+        # `title`/`url`/`snippet` (or with falsy values) must still map,
+        # never crash.
+        client = SearchServiceClient()
+        fake = MagicMock()
+        bare = object()
+        fake.results = [bare, _FakeResult("Kept", "https://x", "")]
+
+        with (
+            patch(
+                "src.infrastructure.external.search_service.system_config",
+                _config("searxng"),
+            ),
+            patch(
+                "src.infrastructure.external.search_service.litellm.asearch",
+                AsyncMock(return_value=fake),
+            ),
+        ):
+            results = await client.search("q")
+
+        self.assertEqual(
+            [(r.title, r.url, r.snippet) for r in results],
+            [("", "", ""), ("Kept", "https://x", "")],
+        )
+
+    async def test_response_without_a_results_attribute_is_empty(self):
+        client = SearchServiceClient()
+        fake = object()  # no `results` attribute at all
+
+        with (
+            patch(
+                "src.infrastructure.external.search_service.system_config",
+                _config("searxng"),
+            ),
+            patch(
+                "src.infrastructure.external.search_service.litellm.asearch",
+                AsyncMock(return_value=fake),
+            ),
+        ):
+            self.assertEqual(await client.search("q"), [])
+
+    async def test_engine_failure_message_does_not_leak_the_error(self):
+        # The typed message is generic: the raw backend exception text
+        # (which can carry internal URLs or credentials) stays in the log.
+        client = SearchServiceClient()
+
+        with (
+            patch(
+                "src.infrastructure.external.search_service.system_config",
+                _config("tavily"),
+            ),
+            patch(
+                "src.infrastructure.external.search_service.litellm.asearch",
+                AsyncMock(side_effect=RuntimeError("secret token abc leaked")),
+            ),
+            self.assertRaises(SearchEngineError) as ctx,
+        ):
+            await client.search("q")
+
+        self.assertNotIn("abc", ctx.exception.message)
+        self.assertIn("tavily", ctx.exception.message)

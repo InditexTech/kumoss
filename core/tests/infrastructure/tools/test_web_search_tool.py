@@ -17,6 +17,7 @@ import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.domains.dto import ToolCallDTO
+from src.infrastructure.exceptions import InferenceCallWebSearchNotSupported
 from src.infrastructure.external.search_service import (
     SearchEngineError,
     SearchResult,
@@ -138,6 +139,60 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         ):
             client_cls.return_value.search = AsyncMock(return_value=[])
             result = await self._run(registry, "obscure query")
+
+        self.assertTrue(result.success, result.error_message)
+        self.assertIn("returned no content", result.result["result"])
+        self.assertIn("Do NOT retry web_search", result.result["result"])
+
+    async def test_multiple_results_are_joined_in_order(self):
+        llm = _llm_with_web_search("from the llm")
+        registry = self._registry("searxng", llm=llm)
+
+        with (
+            self._tool_module_patch("searxng"),
+            patch(
+                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+            ) as client_cls,
+        ):
+            client_cls.return_value.search = AsyncMock(
+                return_value=_results(
+                    ("First", "https://one", "a"),
+                    ("Second", "https://two", "b"),
+                    ("Third", "https://three", "c"),
+                )
+            )
+            result = await self._run(registry, "q")
+
+        self.assertEqual(
+            result.result["result"],
+            "- First: a (https://one)\n"
+            "- Second: b (https://two)\n"
+            "- Third: c (https://three)",
+        )
+        llm.inference.assert_not_awaited()
+
+    async def test_llm_native_search_failure_is_reported_not_raised(self):
+        llm = _llm_with_web_search("unused")
+        llm.inference = AsyncMock(
+            side_effect=InferenceCallWebSearchNotSupported(
+                message="does not support native web search", error_code=400
+            )
+        )
+        registry = self._registry("", llm=llm)
+
+        with self._tool_module_patch(""):
+            result = await self._run(registry, "q")
+
+        self.assertTrue(result.success, result.error_message)
+        self.assertIn("Web search is unavailable", result.result["result"])
+        self.assertIn("Do NOT retry web_search", result.result["result"])
+
+    async def test_llm_native_empty_answer_reports_no_content(self):
+        llm = _llm_with_web_search("")
+        registry = self._registry("", llm=llm)
+
+        with self._tool_module_patch(""):
+            result = await self._run(registry, "q")
 
         self.assertTrue(result.success, result.error_message)
         self.assertIn("returned no content", result.result["result"])
