@@ -69,5 +69,7 @@ class SearchServiceClient:
                 url=str(getattr(r, "url", "") or ""),
                 snippet=str(getattr(r, "snippet", "") or ""),
             )
-            for r in (getattr(response, "results", None) or [])
+            # Enforce the cap locally: LiteLLM's SearXNG adapter ignores
+            # `max_results` and returns the engine's full first page.
+            for r in (getattr(response, "results", None) or [])[: cfg.max_results]
         ]

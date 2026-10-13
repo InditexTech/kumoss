@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 # SearxNG Deployment
 
-This repository contains a Docker setup for deploying SearxNG with JSON API support enabled.
+This repository contains a Docker setup for deploying SearxNG with JSON API support enabled, bundled with the Kumoss stack as the agents' web-search backend.
 
 ## Features
 
@@ -28,7 +28,7 @@ search:
 
 ## Quick Start
 
-### Using Docker Compose (Recommended)
+### Using the Kumoss docker-compose (Recommended)
 
 1. **Set the secret key** in the service's `.env` file:
 
@@ -39,30 +39,52 @@ search:
 
    The container entrypoint substitutes `SEARXNG_SECRET` into
    `settings.yml`'s `server.secret_key` at start. Leaving it unset makes
-   the container fall back to a public example key — acceptable for a
+   the container generate a random key at every start — acceptable for a
    throwaway local stack, never for a reachable deployment.
 
 2. **Start the service**:
    ```bash
-   docker-compose up -d
+   docker compose up -d searxng
    ```
 
 3. **Access SearxNG**:
-   - Web UI: http://localhost:8888
-   - JSON API: http://localhost:8888/search?q=your_query&format=json
+
+   The Compose service uses `expose` rather than `ports`, so the engine
+   is reachable only inside the `bridge-network` Docker network — the
+   core calls it at `http://searxng:8888`, and nothing is published on
+   the host. To reach it from the host (your machine), either publish
+   the port by overriding the service:
+
+   ```yaml
+   # docker-compose.override.yml
+   services:
+     searxng:
+       ports:
+         - "8888:8888"
+   ```
+
+   …or verify it from inside the network:
+
+   ```bash
+   docker exec kumoss-core-1 python -c \
+     "import httpx; print(httpx.get('http://searxng:8888/search?q=test&format=json', timeout=15).status_code)"
+   ```
+
+   With the port published, the Web UI is at http://localhost:8888 and
+   the JSON API at http://localhost:8888/search?q=your_query&format=json.
 
 ### Using Docker
 
 1. **Build the image**:
    ```bash
-   docker build -t searxng-custom .
+   docker build -t searxng-custom services/searxng
    ```
 
-2. **Run the container**:
+2. **Run the container** (this publishes the port on the host):
    ```bash
    docker run -d \
      -p 8888:8888 \
-     -v $(pwd)/settings.yml:/etc/searxng/settings.yml:ro \
+     -v $(pwd)/services/searxng/settings.yml:/etc/searxng/settings.yml:ro \
      -e SEARXNG_BASE_URL=http://localhost:8888 \
      -e SEARXNG_SECRET=your_random_secret_key_here \
      --name searxng \
@@ -71,7 +93,9 @@ search:
 
 ## API Usage
 
-Once running, you can query the JSON API:
+Once running, query the JSON API — from the host when the port is
+published (as in the standalone `docker run` above), otherwise from a
+container on the same network:
 
 ```bash
 # Simple search
@@ -109,12 +133,11 @@ Refer to the [SearxNG documentation](https://docs.searxng.org/) for all availabl
 ## Stopping the Service
 
 ```bash
-docker-compose down
+docker compose down searxng
 ```
 
 ## Logs
 
 ```bash
-docker-compose logs -f searxng
+docker compose logs -f searxng
 ```
-
