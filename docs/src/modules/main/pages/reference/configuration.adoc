@@ -445,7 +445,7 @@ and models].
 |string (LiteLLM model string, or a `model_name` alias when
 `model_list` is set)
 |`anthropic/claude-sonnet-5`
-|`vertex_ai/claude-sonnet-5-5`
+|`main` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |High-quality model used by the IaC generator, target generator, and
 report generator chains.
@@ -453,7 +453,7 @@ report generator chains.
 |`llm.small_model`
 |string
 |`anthropic/claude-haiku-4-5`
-|`vertex_ai/gemini-3.8-flash`
+|`small` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
 calls.
@@ -485,14 +485,17 @@ internal retries gets a fresh budget.
 |`llm.model_list`
 |list of LiteLLM Router entries
 |`[]`
-|not set
+|2 entries
 |Optional
 |Advanced routing: load balancing across entries that share a
 `model_name`, per-entry endpoints, and `os.environ/VAR` credential
 references. Router-level fallbacks between different models are *not*
 configurable today; the core passes only `model_list` to the Router.
 When non-empty, `model` and `small_model` must match a `model_name` and
-boot validation runs against the listed entries.
+boot validation runs against the listed entries. As shipped, the
+aliases are `main` (a self-hosted OpenAI-compatible endpoint with a
+per-entry `api_base` and `os.environ/`-referenced key) and `small`
+(`vertex_ai/claude-sonnet-5-5`).
 |===
 
 Validation: at boot the core asks LiteLLM which environment variables
