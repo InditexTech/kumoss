@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 # Merge with SearXNG's default settings, but remove the Tor/onion engines
 # (ahmia, torch) which fail to load in this container (no Tor networking).
 use_default_settings:
