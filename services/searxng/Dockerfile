@@ -1,4 +1,9 @@
-FROM searxng/searxng:latest
+# Pin the datetagged build that this service was validated against.
+# SearXNG is a rolling release (every master commit is a release), so
+# `:latest` would silently drift at each rebuild; bumps are deliberate:
+# `docker pull searxng/searxng:latest`, note its version printed at
+# container start, update the tag, rebuild and rerun the verification.
+FROM searxng/searxng:2026.10.13-22c64b8d3
 
 # Switch to root to set permissions
 USER root
