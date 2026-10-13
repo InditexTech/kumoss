@@ -104,6 +104,52 @@ class AdminConfig(BaseModel):
     default_root_email: str = ""
 
 
+class SearchConfig(BaseModel):
+    """Web search backend used by the core's ``web_search`` tool.
+
+    ``provider`` selects the LiteLLM search provider used for every
+    ``web_search`` tool call (see ``litellm.types.utils.SearchProviders``:
+    searxng, tavily, brave, perplexity, ...). When empty (the default) the
+    tool falls back to the previous behaviour — asking the configured LLM
+    provider to search natively (``web_search_options`` / the OpenAI
+    ``web_search_preview`` tool), which only works on providers that
+    implement it.
+
+    ``endpoint`` is the base URL of the search service (``api_base``).
+    Required for ``searxng``; optional (or unused) for hosted providers
+    that read credentials from their standard env vars. ``timeout`` is the
+    per-request HTTP budget in seconds and ``max_results`` caps the number
+    of results returned per query.
+    """
+
+    provider: str = ""
+    endpoint: str = ""
+    timeout: float = Field(default=30.0, gt=0)
+    max_results: int = Field(default=10, ge=1, le=20)
+
+    @model_validator(mode="after")
+    def _assert_provider(self) -> "SearchConfig":
+        if not self.provider:
+            if self.endpoint:
+                raise ConfigError(
+                    "web_search.endpoint is set but web_search.provider is "
+                    "empty; set web_search.provider (e.g. searxng) or clear "
+                    "the endpoint to use LLM-native web search."
+                )
+            return self
+        if self.provider not in {item.value for item in litellm.types.utils.SearchProviders}:
+            raise ConfigError(
+                f"web_search.provider '{self.provider}' is not a LiteLLM "
+                + "search provider; see litellm.types.utils.SearchProviders."
+            )
+        if self.provider == "searxng" and not self.endpoint:
+            raise ConfigError(
+                "web_search.provider 'searxng' requires web_search.endpoint "
+                + "(the base URL of the SearXNG instance)."
+            )
+        return self
+
+
 class LlmConfig(BaseModel):
     """LLM provider selection via LiteLLM Router.
 
@@ -511,6 +557,7 @@ class SystemConfig(BaseModel, frozen=True):
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
+    web_search: SearchConfig = Field(default_factory=SearchConfig)
     services: ServicesConfig = Field(default_factory=ServicesConfig)
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)

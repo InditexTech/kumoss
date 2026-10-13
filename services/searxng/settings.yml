@@ -1,0 +1,19 @@
+# Merge with SearXNG's default settings, but remove the Tor/onion engines
+# (ahmia, torch) which fail to load in this container (no Tor networking).
+use_default_settings:
+  engines:
+    remove:
+      - ahmia
+      - torch
+
+server:
+  # Substituted at container start by docker-entrypoint.sh from the
+  # SEARXNG_SECRET env var (services/searxng/.env — see env.sample).
+  secret_key: "${SEARXNG_SECRET}"
+  limiter: false
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json
