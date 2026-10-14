@@ -1,0 +1,23 @@
+docs/src/modules/main/nav.adoc
+  s_b1beea37e128ed::t_8639fbdc38734f 52
+docs/src/modules/main/pages/additional-information.adoc
+  s_b1beea37e128ed::t_3db60044ac43a9 7,161-165
+docs/src/modules/main/pages/roadmap.adoc
+  s_b1beea37e128ed::t_93d1aa6e0a3b0e 1-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06f156715e40cb41661f15b37271b6f87db3bb17",
+  "prompts": {},
+  "sessions": {
+    "s_b1beea37e128ed": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b7fc6407-7d5c-4608-95de-18042f106b6c",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
