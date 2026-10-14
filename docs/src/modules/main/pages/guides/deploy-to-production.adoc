@@ -177,7 +177,8 @@ each row below is a deployment decision.
 |Production decision
 
 |Core API
-|`core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001)
+|`core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001);
+published as `ghcr.io/inditextech/kumoss/core`
 |Ingress (`/api`), nothing else
 |Shared workspace volume
 |Run *one replica* (see
