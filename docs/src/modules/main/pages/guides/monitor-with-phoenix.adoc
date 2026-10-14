@@ -320,10 +320,10 @@ and artifacts.
 does not appear in a session search.* The attribute count hit
 `telemetry.otel_attribute_count_limit`; the SDK dropped the oldest
 attributes, which on LLM spans are the identity and kind fields, not the
-messages. Raise the limit and rebuild the core image.
+messages. Raise the limit and restart the core.
 
 *Traces from a different environment are mixed in.* The project prefix
-comes from `environment` in the core's baked-in `config.yaml`; rebuild
+comes from `environment` in the core's `config.yaml`; restart the core
 after changing it. Prompt tags follow the same value, so also read
 xref:main:guides/customize-prompts.adoc[Customize prompts] before
 changing it on an existing deployment.

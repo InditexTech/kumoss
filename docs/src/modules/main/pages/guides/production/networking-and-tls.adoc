@@ -93,14 +93,17 @@ sidecar to `hooks.slack.com` (or your channel).
 [#images-and-config-delivery]
 == Images and configuration delivery
 
-* Each release publishes the core image to
-  `ghcr.io/inditextech/kumoss/core` (tags `X.Y.Z`, `X.Y`, `X` and
-  `latest`; `linux/amd64` and `linux/arm64`). It is built with the
-  default `KUMOSS_UID`/`KUMOSS_GID` (`10001`) and the repository's
-  default `config.yaml`, so mount your own at `KUMOSS_CONFIG` (see
-  below). The sidecar and web images are not published; build them
-  yourself.
-* Build the images from the repository with your registry's tags. The
+* Each release publishes every Kumoss-built image to
+  `ghcr.io/inditextech/kumoss-<image>`: `core`, `iac`, `authz`,
+  `mapping`, `notifications`, and `proxy` (nginx with the web
+  application), tagged `X.Y.Z`, `X.Y`, `X` and `latest`, for
+  `linux/amd64` and `linux/arm64`. They are built with the default
+  `KUMOSS_UID`/`KUMOSS_GID` (`10001`), and the core image carries the
+  repository's default `config.yaml`, so mount your own at
+  `KUMOSS_CONFIG` (see below). Pin the `X.Y.Z` tag, or the digest, in
+  production.
+* To build the images yourself instead, build them from the repository
+  with your registry's tags. The
   core image copies `config.yaml` from the repository root at build
   time; to keep one image per version and vary configuration per
   environment, mount the file instead and set `KUMOSS_CONFIG` to its
@@ -119,5 +122,3 @@ sidecar to `hooks.slack.com` (or your channel).
 * Build the images from a release tag (`vX.Y.Z`). The core reports the
   version of the source it was built from in its OpenAPI document; set
   `APP_VERSION` only to override it, for example on a patched build.
-* `docker compose watch` and bind-mounted source directories are
-  development conveniences; do not use them in production.

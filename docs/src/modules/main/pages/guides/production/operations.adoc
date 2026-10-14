@@ -229,7 +229,7 @@ troubleshooting].
 |`storage.public_endpoint_url` is not reachable from browsers, or the
 presigned host differs from the endpoint users reach.
 |Point `storage.public_endpoint_url` at a browser-reachable address and
-rebuild the core image.
+restart the core with the updated configuration.
 
 |Every plan fails with `permission denied` on state or plan files
 |The shared workspace is not writable by uid `10001`, or the two
@@ -248,15 +248,15 @@ blocked or TLS-inspected.
 declares no backend of its own: `init` then falls back to local state,
 whose file dies with the workspace.
 |Add a backend to the repository, or remove the explicit `""` (a bucket
-name, or dropping the key, re-enables Kumoss-managed state) and rebuild
-the core image.
+name, or dropping the key, re-enables Kumoss-managed state) and restart
+the core with the updated configuration.
 
 |`init` fails with `InvalidAccessKeyId` after switching
 `storage.provider` to `S3`
 |`RUSTFS_ACCESS_KEY` and `RUSTFS_SECRET_KEY` are still set to
 `rustfsadmin`, so those keys were embedded into the state backend
 block.
-|Blank both and rebuild the core image.
+|Blank both and restart the core.
 
 |`init` fails on the state backend with `AccessDenied` or a
 credentials error
