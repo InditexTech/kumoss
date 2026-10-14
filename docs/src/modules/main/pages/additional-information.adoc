@@ -4,7 +4,7 @@
 This page gathers what does not fit under Guides or Reference:
 licensing of the default stack, how to reach the people behind a
 Kumoss deployment, where release notes and the changelog will be
-published, and where the FAQ lives.
+published, where the FAQ lives, and where to find the roadmap.
 
 == Licensing of the default stack
 
@@ -158,4 +158,9 @@ one.
 .xref:main:faq.adoc[FAQ]
 Answers to common questions about roles, requests, sessions, locks,
 and getting help.
+
+[card]
+.xref:main:roadmap.adoc[Roadmap]
+The direction Kumoss is heading, grouped by theme, with the status of
+each initiative.
 ====
