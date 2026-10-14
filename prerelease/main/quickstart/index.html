@@ -830,9 +830,9 @@ for their names. Every <code>.env</code> file is gitignored; never commit one.</
 <div class="sect2">
 <h3 id="2-write-config-yaml"><a class="anchor" href="#2-write-config-yaml"></a>2. Write config.yaml</h3>
 <div class="paragraph">
-<p><code>config.yaml</code> at the repository root is the single configuration file. It
-is baked into the core image at build time, so every edit needs
-<code>docker compose build core</code>.</p>
+<p><code>config.yaml</code> at the repository root is the single configuration file.
+Compose mounts it into the core container, and the core reads it at
+startup, so every edit needs <code>docker compose restart core</code>.</p>
 </div>
 <div class="sect3">
 <h4 id="what-to-edit-vs-keep-as-default"><a class="anchor" href="#what-to-edit-vs-keep-as-default"></a>What to Edit vs. Keep as Default</h4>
@@ -1109,24 +1109,26 @@ recreate the sidecar using <code>docker compose up -d iac</code> whenever you up
 </div>
 </div>
 <div class="sect2">
-<h3 id="5-build-and-start-kumoss"><a class="anchor" href="#5-build-and-start-kumoss"></a>5. Build and start Kumoss</h3>
+<h3 id="5-start-kumoss"><a class="anchor" href="#5-start-kumoss"></a>5. Start Kumoss</h3>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --build</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Add <code>-d</code> to run in the background. The first build downloads the base
-images, installs the Python dependencies, downloads both IaC engines, and
-compiles the web application.</p>
+<p>Add <code>-d</code> to run in the background. Compose pulls the Kumoss images for
+the checked-out release from <code>ghcr.io/inditextech/kumoss-*</code> (<code>linux/amd64</code>
+and <code>linux/arm64</code>). To run code changes from your checkout instead, add
+<code>--build</code>; the first build downloads the base images, installs the
+Python dependencies, downloads both IaC engines, and compiles the web
+application.</p>
 </div>
 <div class="paragraph">
-<p>After a later change to <code>config.yaml</code>, rebuild and restart the core:</p>
+<p>After a later change to <code>config.yaml</code>, restart the core:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> build</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> up</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compose</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> restart</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1325,8 +1327,8 @@ simply slower to start leaves the core stopped rather than retrying: run
 <code>KUMOSS_IAC_TOKEN</code> differs between <code>core/.env</code> and <code>services/iac/.env</code>.</p>
 </li>
 <li>
-<p><strong>A <code>config.yaml</code> change has no effect.</strong> Rebuild the core image with
-<code>docker compose build core</code>.</p>
+<p><strong>A <code>config.yaml</code> change has no effect.</strong> Restart the core with
+<code>docker compose restart core</code>; the file is read only at startup.</p>
 </li>
 <li>
 <p><strong><code>plan</code> or <code>apply</code> fails with a provider authentication error.</strong> The cloud

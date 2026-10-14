@@ -829,14 +829,16 @@ and the sidecar OpenAPI contracts in <code>contracts/</code>. See
 <p>Copy each <code>env.sample</code> to a <code>.env</code> next to it (<code>core/.env</code> is
 required), set the two model strings in <code>config.yaml</code>, and run <code>docker
 compose up --build</code>. <a href="../../quickstart/" class="xref page">Quickstart</a> is the step-by-step
-guide.</p>
+guide. <code>--build</code> matters: without it, Compose runs the published
+release images (<code>ghcr.io/inditextech/kumoss-*</code>) instead of your
+checkout. A <code>docker compose pull</code> later replaces locally built images
+with the published ones again.</p>
 </div>
 <div class="paragraph">
-<p><code>docker compose up --watch</code> syncs <code>core/</code> into the running container,
-but the server runs without <code>--reload</code> and does not pick up the change:
-run <code>docker compose restart core</code> after a sync (or <code>docker compose up
--d core</code>). It does not sync <code>config.yaml</code>, which is baked into the
-image.</p>
+<p>After a code change, rebuild and recreate the affected service, for
+example <code>docker compose up -d --build core</code>. An edit to <code>config.yaml</code>
+needs only <code>docker compose restart core</code>, because Compose bind-mounts
+that file.</p>
 </div>
 </div>
 </div>

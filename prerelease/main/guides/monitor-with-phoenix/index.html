@@ -1320,11 +1320,11 @@ and artifacts.</p>
 does not appear in a session search.</strong> The attribute count hit
 <code>telemetry.otel_attribute_count_limit</code>; the SDK dropped the oldest
 attributes, which on LLM spans are the identity and kind fields, not the
-messages. Raise the limit and rebuild the core image.</p>
+messages. Raise the limit and restart the core.</p>
 </div>
 <div class="paragraph">
 <p><strong>Traces from a different environment are mixed in.</strong> The project prefix
-comes from <code>environment</code> in the core&#8217;s baked-in <code>config.yaml</code>; rebuild
+comes from <code>environment</code> in the core&#8217;s <code>config.yaml</code>; restart the core
 after changing it. Prompt tags follow the same value, so also read
 <a href="../customize-prompts/" class="xref page">Customize prompts</a> before
 changing it on an existing deployment.</p>

@@ -824,10 +824,11 @@ sidecar READMEs under <code>services/</code>.</p>
 <ul>
 <li>
 <p>The core Dockerfile copies the repository&#8217;s <code>config.yaml</code> to
-<code>/etc/kumoss/config.yaml</code> <strong>at image build time</strong>. The file is baked
-into the image. Editing it on the host does nothing until you run
-<code>docker compose build core</code> and restart the container. <code>docker
-compose watch</code> syncs only <code>core/</code>, not the configuration.</p>
+<code>/etc/kumoss/config.yaml</code> <strong>at image build time</strong>, so every core image,
+including the published one, carries the repository&#8217;s default. The
+checked-in <code>docker-compose.yml</code> bind-mounts the repository&#8217;s
+<code>config.yaml</code> over that path, so with Compose an edit on the host
+takes effect after <code>docker compose restart core</code>.</p>
 </li>
 <li>
 <p>The <code>KUMOSS_CONFIG</code> environment variable overrides the path. The path
@@ -864,12 +865,12 @@ from the environment at boot or at use time.</p>
 </ul>
 </div>
 <div class="paragraph">
-<p>Changing any field therefore means: edit <code>config.yaml</code>, rebuild the
-core image, restart. "Requires rebuild" in the tables below always
-refers to that sequence. If you instead mount the file at the path in
-<code>KUMOSS_CONFIG</code>, the equivalent is: update the mounted file and restart
-the core — no image rebuild needed, because the container reads the
-file from disk at startup rather than from the baked-in copy.</p>
+<p>Changing any field therefore means: edit <code>config.yaml</code> and restart the
+core. "Requires restart" in the tables below always refers to that
+sequence. The file is read once at startup, so a running core never
+picks up an edit. If you run an image without a mounted file, the
+baked-in copy is the one read, and a change means rebuilding the core
+image from your edited checkout.</p>
 </div>
 </div>
 </div>
@@ -959,7 +960,7 @@ created or re-versioned by hand in Phoenix is found only if its version
 carries the tag for the current value.</p>
 </div>
 <div class="paragraph">
-<p>Requires rebuild: yes.</p>
+<p>Requires restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1040,7 +1041,7 @@ the default and the issuer host is <code>login.microsoftonline.com</code>,
 </table></div></div>
 <div class="paragraph">
 <p>Related environment variables: none. The SPA is a public PKCE client
-and the core needs only the issuer&#8217;s public keys. Requires rebuild:
+and the core needs only the issuer&#8217;s public keys. Requires restart:
 yes. The public route <code>GET /api/v1/auth/config</code> returns the effective
 values.</p>
 </div>
@@ -1091,7 +1092,7 @@ admin</a>. Ignored while authentication is disabled.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Requires rebuild: yes. This is the core&#8217;s mechanism and is unrelated to
+<p>Requires restart: yes. This is the core&#8217;s mechanism and is unrelated to
 the authorization sidecar&#8217;s <code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code>.</p>
 </div>
 </div>
@@ -1240,7 +1241,7 @@ above, the empty-token text in the <code>token_env</code> row.</p>
 <p>Related environment variables: the ones named by each <code>token_env</code>, in
 <code>core/.env</code>, with the same value in the sidecar&#8217;s <code>.env</code>. See
 <a href="../environment-variables/" class="xref page">Environment variables</a>.
-Requires rebuild: yes.</p>
+Requires restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1394,7 +1395,7 @@ write yourself. The full round-by-round flow is in
 <a href="../../architecture/end-to-end-flow/#compliance" class="xref page">Compliance gate</a>.</p>
 </div>
 <div class="paragraph">
-<p>Requires rebuild: yes. See <a href="../../guides-overview/" class="xref page">Guides</a> for
+<p>Requires restart: yes. See <a href="../../guides-overview/" class="xref page">Guides</a> for
 where each limit applies.</p>
 </div>
 </div>
@@ -1498,8 +1499,8 @@ guide</a>.</p>
 </div>
 <div class="paragraph">
 <p>Related environment variables: the provider&#8217;s credential variables in
-<code>core/.env</code>. Requires rebuild: yes for the YAML; a credential change
-only needs a container restart.</p>
+<code>core/.env</code>. Requires restart: yes, for the YAML and for a credential
+change.</p>
 </div>
 </div>
 </div>
@@ -1562,7 +1563,7 @@ neither see nor touch it.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Requires rebuild: yes.</p>
+<p>Requires restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1608,7 +1609,7 @@ fails when it is unreachable. A <code>postgresql://</code> scheme is rewritten t
 migrated by hand or dropped.</p>
 </div>
 <div class="paragraph">
-<p>Requires rebuild: yes for the field name; the URL value lives in
+<p>Requires restart: yes for the field name; the URL value lives in
 <code>core/.env</code>.</p>
 </div>
 </div>
@@ -1686,7 +1687,7 @@ points at the compose service, so the stack needs no Redis variable.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>Boot fails if Redis cannot be reached during initialisation. Requires
-rebuild: yes.</p>
+restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1757,7 +1758,7 @@ prompts and plans; do not enable this where logs are shared.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>The code default only works when the core runs outside Docker on the
-same host as Phoenix. Requires rebuild: yes.</p>
+same host as Phoenix. Requires restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1795,7 +1796,7 @@ API container. Set your real origin for a deployed instance.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Requires rebuild: yes.</p>
+<p>Requires restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1987,7 +1988,7 @@ the <strong>sidecar&#8217;s</strong> ambient credentials; an instance profile on
 alone is not enough.</p>
 </div>
 <div class="paragraph">
-<p>Requires rebuild: yes. Related environment variables in <code>core/.env</code>:
+<p>Requires restart: yes. Related environment variables in <code>core/.env</code>:
 <code>RUSTFS_ACCESS_KEY</code>, <code>RUSTFS_SECRET_KEY</code>, <code>STORAGE_ACCOUNT_KEY</code>.</p>
 </div>
 </div>
@@ -2075,7 +2076,7 @@ embed a password or token are rejected too; a bare userinfo username
 is accepted.</p>
 </div>
 <div class="paragraph">
-<p>Requires rebuild: yes for the YAML; token values live in <code>core/.env</code>.</p>
+<p>Requires restart: yes for the YAML; token values live in <code>core/.env</code>.</p>
 </div>
 </div>
 </div>
