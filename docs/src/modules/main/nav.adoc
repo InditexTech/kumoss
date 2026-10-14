@@ -49,6 +49,7 @@
 * Additional information
 * xref:main:additional-information.adoc[Overview]
 * xref:main:faq.adoc[FAQ]
+* xref:main:roadmap.adoc[Roadmap]
 * Contributing
 * xref:main:contributing.adoc[Contributing]
 * Events
