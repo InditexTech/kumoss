@@ -2,12 +2,11 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
+import { forwardRef } from "react";
 import SvgIcon from "@mui/material/SvgIcon";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import CloudOutlinedIcon from "@mui/icons-material/CloudOutlined";
 
-// Monochrome brand marks (24x24 path data from Simple Icons, CC0-1.0).
-// Rendered with fill: currentColor so they follow the light/dark scheme.
 const PROVIDER_PATHS: Record<string, string> = {
   azure:
     "M22.379 23.343a1.62 1.62 0 0 0 1.536-2.14v.002L17.35 1.76A1.62 1.62 0 0 0 15.816.657H8.184A1.62 1.62 0 0 0 6.65 1.76L.086 21.204a1.62 1.62 0 0 0 1.536 2.139h4.741a1.62 1.62 0 0 0 1.535-1.103l.977-2.892 4.947 3.675c.28.208.618.32.966.32m-3.084-12.531 3.624 10.739a.54.54 0 0 1-.51.713v-.001h-.03a.54.54 0 0 1-.322-.106l-9.287-6.9h4.853m6.313 7.006c.116-.326.13-.694.007-1.058L9.79 1.76a1.722 1.722 0 0 0-.007-.02h6.034a.54.54 0 0 1 .512.366l6.562 19.445a.54.54 0 0 1-.338.684",
@@ -22,16 +21,16 @@ interface ProviderIconProps extends SvgIconProps {
   provider: string;
 }
 
-// Brand mark for a terraform provider; "common" and unknown values fall
-// back to a generic cloud so stale sessions never break rendering.
-export default function ProviderIcon({ provider, ...props }: ProviderIconProps) {
-  // The wizard uses lowercase ids but reloaded sessions carry the
-  // backend's uppercase enum (e.g. "AZURE").
-  const path = PROVIDER_PATHS[provider.toLowerCase()];
-  if (!path) return <CloudOutlinedIcon {...props} />;
-  return (
-    <SvgIcon {...props}>
-      <path d={path} />
-    </SvgIcon>
-  );
-}
+const ProviderIcon = forwardRef<SVGSVGElement, ProviderIconProps>(
+  function ProviderIcon({ provider, ...props }, ref) {
+    const path = PROVIDER_PATHS[provider.toLowerCase()];
+    if (!path) return <CloudOutlinedIcon ref={ref} {...props} />;
+    return (
+      <SvgIcon ref={ref} {...props}>
+        <path d={path} />
+      </SvgIcon>
+    );
+  },
+);
+
+export default ProviderIcon;

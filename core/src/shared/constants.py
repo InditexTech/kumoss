@@ -94,6 +94,7 @@ class PromptsLibrary(Enum):
     COMPLIANCE_CHECKER = "compliance_checker"
     # messages
     STATUS_UPDATE = "status_update"
+    CHAT_REPLY = "chat_reply"
 
 
 @unique

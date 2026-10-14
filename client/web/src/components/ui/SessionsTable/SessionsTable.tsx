@@ -127,6 +127,10 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
 
   const [localSearches, setLocalSearches] = useState<Record<string, string>>(appliedSearches);
 
+  useEffect(() => {
+    setLocalSearches(appliedSearches);
+  }, [appliedSearches]);
+
   const filterFingerprint = filters
     .map((f) => searchParams.get(f.key) || "")
     .join("\0");
@@ -154,11 +158,15 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
     [setSearchParams],
   );
 
-  const applySearch = useCallback(
-    (key: string) => {
-      updateParams({ page: "", [key]: (localSearches[key] || "").trim() });
+  const flushSearches = useCallback(
+    (extra: Record<string, string> = {}) => {
+      const updates: Record<string, string> = { page: "", ...extra };
+      for (const sf of searchFields) {
+        updates[sf.key] = (localSearches[sf.key] || "").trim();
+      }
+      updateParams(updates);
     },
-    [localSearches, updateParams],
+    [localSearches, searchFields, updateParams],
   );
 
   const loadData = useCallback(async () => {
@@ -198,7 +206,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
 
   return (
     <div className={styles.container}>
-      <div className={styles.filters}>
+      <div className={styles.filters} role="search">
         {searchFields.map((sf) => (
           <TextField
             key={sf.key}
@@ -209,7 +217,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
               setLocalSearches((prev) => ({ ...prev, [sf.key]: e.target.value }))
             }
             onKeyDown={(e) =>
-              e.key === "Enter" && applySearch(sf.key)
+              e.key === "Enter" && flushSearches()
             }
             slotProps={{
               input: {
@@ -230,7 +238,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
               name={f.key}
               value={filterValues[f.key]}
               onChange={(e: SelectChangeEvent) =>
-                updateParams({ [f.key]: e.target.value, page: "" })
+                flushSearches({ [f.key]: e.target.value })
               }
               displayEmpty
               sx={{
@@ -263,7 +271,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
               value={String(pageSize)}
               onChange={(e: SelectChangeEvent) => {
                 setLocalItem(STORAGE_KEYS.SESSIONS_PAGE_SIZE, e.target.value);
-                updateParams({ pageSize: e.target.value, page: "" });
+                flushSearches({ pageSize: e.target.value });
               }}
               disableUnderline
               sx={{ fontSize: 14, fontWeight: 300 }}
@@ -284,7 +292,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
           <IconButton
             size="small"
             onClick={() =>
-              updateParams({ page: String(Math.max(1, page - 1)) })
+              flushSearches({ page: String(Math.max(1, page - 1)) })
             }
             disabled={page === 1}
           >
@@ -293,7 +301,7 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
           <IconButton
             size="small"
             onClick={() =>
-              updateParams({ page: String(Math.min(totalPages, page + 1)) })
+              flushSearches({ page: String(Math.min(totalPages, page + 1)) })
             }
             disabled={page >= totalPages}
           >

@@ -28,12 +28,12 @@ import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
-  buildAssistantMessage,
+  findSessionPr,
   type SessionOutcome,
 } from "@/services/workflows/session_outcome";
 import type {
+  AdminSessionDetail,
   OperationType,
-  SessionDetail,
   SessionStatus,
   SessionSummary,
 } from "@/types/api";
@@ -219,12 +219,12 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const isAdminView = variant === "admin";
   const { panelRole } = useAuth();
   const navigate = useNavigate();
-  const { updateSession } = useSession();
+  const { updateSession, updatePrDetails } = useSession();
   const { setMode } = useMode();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
-  const [detail, setDetail] = useState<SessionDetail | null>(null);
+  const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>({});
   const canToggleLock = isAdminView && panelRoleAtLeast(panelRole, "editor");
@@ -258,8 +258,15 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
     let cancelled = false;
     setLoadingDetail(true);
-    const fetchDetail = isAdminView ? getAdminSessionDetail : getSessionDetail;
-    fetchDetail(sessionId, { includeHistory: true })
+    // The admin view asks for the internal record too, as debug material;
+    // the user view can only ever receive the conversation.
+    const pending = isAdminView
+      ? getAdminSessionDetail(sessionId, {
+          includeChatHistory: true,
+          includeHistory: true,
+        })
+      : getSessionDetail(sessionId, { includeChatHistory: true });
+    pending
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -388,27 +395,23 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
     if (outcome.kind === "apply-results") {
       updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
-      handleCloseOverlay();
-      navigate(`/home/apply-results/${detail.uuid}`);
-      return;
-    }
-
-    if (outcome.kind === "rejected") {
-      updateSession({
-        ...patch,
-        history: [
-          ...(patch.history ?? []),
-          {
-            role: "assistant" as const,
-            content: buildAssistantMessage(outcome),
-          },
-        ],
-      });
     } else {
       updateSession(patch);
     }
+
+    const pr = findSessionPr(outcome.detail);
+    updatePrDetails(
+      pr
+        ? { number: pr.number, url: pr.url, merged: undefined, lastPrStep: undefined }
+        : { number: undefined, url: undefined, merged: undefined, lastPrStep: undefined },
+    );
+
     handleCloseOverlay();
-    navigate(`/home/results/${detail.uuid}`);
+    navigate(
+      outcome.kind === "apply-results"
+        ? `/home/apply-results/${detail.uuid}`
+        : `/home/results/${detail.uuid}`,
+    );
   }
 
   function handleCloseOverlay() {
@@ -457,7 +460,8 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
                 ? () => void handleToggleLock(detail.uuid, detail.is_blocked)
                 : undefined
             }
-            conversationHistory={
+            conversationHistory={normalizeHistory(detail.chat_history)}
+            debugHistory={
               isAdminView && detail.history
                 ? normalizeHistory(detail.history)
                 : undefined

@@ -150,9 +150,15 @@ class ApplicationFactory:
             )
         )
 
-    def _get_session_service(self, second_llm_service: LLMOrchestrationService):
+    def _get_session_service(
+        self,
+        second_llm_service: LLMOrchestrationService,
+        template_service: TemplateOrchestrationService,
+    ):
         return SessionService(
-            llm_service=second_llm_service, session_context=self.__ctx
+            llm_service=second_llm_service,
+            session_context=self.__ctx,
+            template_service=template_service,
         )
 
     def _get_template_service(
@@ -372,10 +378,10 @@ class ApplicationFactory:
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
@@ -427,10 +433,10 @@ class ApplicationFactory:
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
@@ -475,12 +481,12 @@ class ApplicationFactory:
         artifact_svc = self._get_artifact_storage_service()
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             call_dir=file_utils.project_root,
             llm_service=llm_svc,
             tool_service=tool_svc,
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
@@ -507,10 +513,10 @@ class ApplicationFactory:
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )

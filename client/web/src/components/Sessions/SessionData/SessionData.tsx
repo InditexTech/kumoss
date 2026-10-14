@@ -51,7 +51,15 @@ interface SessionDataProps {
   session: SessionDetail;
   onReload?: () => void;
   onToggleLock?: () => void;
+  /** The user-facing conversation: one turn per finished round. */
   conversationHistory?: HistoryEntry[];
+  /**
+   * The internal record the backend feeds to the LLM, shown to admins as
+   * debug material. It carries no contract — its shape follows whatever
+   * the prompting strategy needs — so it is labelled apart from the
+   * conversation rather than merged into it.
+   */
+  debugHistory?: HistoryEntry[];
 }
 
 interface SelectedArtifact {
@@ -78,6 +86,7 @@ export default function SessionData({
   onReload,
   onToggleLock,
   conversationHistory,
+  debugHistory,
 }: SessionDataProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const artifactParam = searchParams.get("artifact");
@@ -462,7 +471,10 @@ export default function SessionData({
                                       tabIndex={0}
                                       aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === " ") {
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
                                           e.preventDefault();
                                           setArtifactParam({ kind, artifact });
                                         }
@@ -480,7 +492,9 @@ export default function SessionData({
                                       </Typography>
                                       {targets.length > 0 && (
                                         <span
-                                          className={styles.timelineOpTargetChip}
+                                          className={
+                                            styles.timelineOpTargetChip
+                                          }
                                         >
                                           {targetCountLabel(targets.length)}
                                         </span>
@@ -606,7 +620,7 @@ export default function SessionData({
         </div>
       </div>
 
-      {/* ── Conversation History ── */}
+      {/* ── Conversation ── */}
       {conversationHistory && conversationHistory.length > 0 && (
         <div className={styles.fieldRow}>
           <Typography
@@ -614,7 +628,7 @@ export default function SessionData({
             component="span"
             className={styles.fieldLabel}
           >
-            History
+            Conversation
           </Typography>
           <div className={styles.historyList}>
             {conversationHistory.map((entry, i) => (
@@ -624,32 +638,51 @@ export default function SessionData({
         </div>
       )}
 
+      {/* ── Internal history (admin debug) ── */}
+      {debugHistory && debugHistory.length > 0 && (
+        <div className={styles.fieldRow}>
+          <Typography
+            variant="overline"
+            component="span"
+            className={styles.fieldLabel}
+          >
+            Internal history
+          </Typography>
+          <div className={styles.historyList}>
+            {debugHistory.map((entry, i) => (
+              <ChatMessage key={i} role={entry.role} content={entry.content} />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* ── Action Buttons ── */}
       <div className={styles.actions}>
-        {onToggleLock ? (
-          <button
-            type="button"
-            className={
-              session.is_blocked
-                ? styles.btnApplyInteractive
-                : styles.btnApplyOpenInteractive
-            }
-            title={session.is_blocked ? "Unlock apply" : "Lock apply"}
-            onClick={onToggleLock}
-          >
-            {lockIcon}
-            {lockLabel}
-          </button>
-        ) : (
-          <span
-            className={
-              session.is_blocked ? styles.btnApply : styles.btnApplyOpen
-            }
-          >
-            {lockIcon}
-            {lockLabel}
-          </span>
-        )}
+        {onReload &&
+          (onToggleLock ? (
+            <button
+              type="button"
+              className={
+                session.is_blocked
+                  ? styles.btnApplyInteractive
+                  : styles.btnApplyOpenInteractive
+              }
+              title={session.is_blocked ? "Unlock apply" : "Lock apply"}
+              onClick={onToggleLock}
+            >
+              {lockIcon}
+              {lockLabel}
+            </button>
+          ) : (
+            <span
+              className={
+                session.is_blocked ? styles.btnApply : styles.btnApplyOpen
+              }
+            >
+              {lockIcon}
+              {lockLabel}
+            </span>
+          ))}
         {onReload && (
           <button type="button" className={styles.btnReload} onClick={onReload}>
             <ReplayIcon className={styles.btnIcon} />
