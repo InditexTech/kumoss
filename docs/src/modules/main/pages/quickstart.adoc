@@ -27,9 +27,9 @@ for their names. Every `.env` file is gitignored; never commit one.
 
 === 2. Write config.yaml
 
-`config.yaml` at the repository root is the single configuration file. It
-is baked into the core image at build time, so every edit needs
-`docker compose build core`.
+`config.yaml` at the repository root is the single configuration file.
+Compose mounts it into the core container, and the core reads it at
+startup, so every edit needs `docker compose restart core`.
 
 ==== What to Edit vs. Keep as Default
 
@@ -155,23 +155,25 @@ ARM_TENANT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
 ----
 --
 
-=== 5. Build and start Kumoss
+=== 5. Start Kumoss
 
 [source,bash]
 ----
-docker compose up --build
+docker compose up
 ----
 
-Add `-d` to run in the background. The first build downloads the base
-images, installs the Python dependencies, downloads both IaC engines, and
-compiles the web application.
+Add `-d` to run in the background. Compose pulls the Kumoss images for
+the checked-out release from `ghcr.io/inditextech/kumoss` (`linux/amd64`
+and `linux/arm64`). To run code changes from your checkout instead, add
+`--build`; the first build downloads the base images, installs the
+Python dependencies, downloads both IaC engines, and compiles the web
+application.
 
-After a later change to `config.yaml`, rebuild and restart the core:
+After a later change to `config.yaml`, restart the core:
 
 [source,bash]
 ----
-docker compose build core
-docker compose up -d core
+docker compose restart core
 ----
 
 A change to a `.env` file needs the affected container recreated
@@ -301,8 +303,8 @@ RustFS.
   `docker compose up -d core` again.
 * *Every session fails at validation with a `401` from the IaC sidecar.*
   `KUMOSS_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
-* *A `config.yaml` change has no effect.* Rebuild the core image with
-  `docker compose build core`.
+* *A `config.yaml` change has no effect.* Restart the core with
+  `docker compose restart core`; the file is read only at startup.
 * *`plan` or `apply` fails with a provider authentication error.* The cloud
   credentials in `services/iac/.env` are absent, invalid, or insufficient.
 * *`plan` fails with `permission denied` on a file in the workspace.* The

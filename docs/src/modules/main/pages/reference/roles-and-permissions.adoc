@@ -246,8 +246,8 @@ administrator comes from one of two places:
 After that, the administrator manages everyone else from the Users
 tab. The bootstrap elevation is re-applied on every request of the
 root user, so demoting that user from the Users tab is undone the next
-time they call the API; clear `admin.default_root_email` and rebuild
-the core image first if a real demotion is needed.
+time they call the API; clear `admin.default_root_email` and restart
+the core first if a real demotion is needed.
 
 With authentication disabled there is no identity provider to sign out
 of, but the "Log out" action still works locally: it clears the user

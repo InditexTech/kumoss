@@ -1,11 +1,11 @@
 # Default Kumoss system config bundled with the docker-compose stack.
 #
-# This file is baked into the kumoss-core image at build time (the
-# Dockerfile copies it to /etc/kumoss/config.yaml, the path the core
-# reads by default; set KUMOSS_CONFIG to load a different file). Edits
-# here are NOT hot-reloaded — `docker compose watch` only syncs ./core —
-# so rebuild after changing it: `docker compose build core`. It carries
-# deployment-tunable knobs — no secrets.
+# This file is baked into the core image at build time (the Dockerfile
+# copies it to /etc/kumoss/config.yaml, the path the core reads by
+# default; set KUMOSS_CONFIG to load a different file), and
+# docker-compose.yml bind-mounts it over that path. The core reads it
+# only at startup, so restart after changing it: `docker compose restart
+# core`. It carries deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
 # names (GIT_USER, GIT_TOKEN, KUMOSS_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,

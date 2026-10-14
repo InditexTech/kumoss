@@ -603,8 +603,8 @@ Paste the output into both `core/.env` and the matching sidecar
 `dev-*-token` placeholders or an empty sidecar token outside an
 isolated workstation: an empty sidecar token disables its bearer check
 entirely.
-* *Never put secrets in `config.yaml`.* It is baked into the core image
-  and is meant to be shareable. Use the `*_env` fields to rename
+* *Never put secrets in `config.yaml`.* It is baked into every core
+  image and is meant to be shareable. Use the `*_env` fields to rename
   variables if your platform imposes naming conventions.
 * *Keep sidecars private.* The bundled sidecars compare bearer tokens
   in constant time, but they are still simple services: keep them on a

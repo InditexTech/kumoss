@@ -169,7 +169,12 @@ definition for your environment.
 == Reference topology
 
 The Compose stack defines eleven services on one network. In production
-each row below is a deployment decision.
+each row below is a deployment decision. Every image built from a
+Dockerfile in this repository is also published for each release as
+`ghcr.io/inditextech/kumoss/<image>` (`core`, `iac`, `authz`, `mapping`,
+`notifications`, `proxy`); see
+xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
+and configuration delivery].
 
 [cols="2,4,2,2,5",options="header"]
 |===
@@ -177,8 +182,7 @@ each row below is a deployment decision.
 |Production decision
 
 |Core API
-|`core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001);
-published as `ghcr.io/inditextech/kumoss/core`
+|`core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001)
 |Ingress (`/api`), nothing else
 |Shared workspace volume
 |Run *one replica* (see
