@@ -918,6 +918,15 @@ sidecar to <code>hooks.slack.com</code> (or your channel).</p>
 <div class="ulist">
 <ul>
 <li>
+<p>Each release publishes the core image to
+<code>ghcr.io/inditextech/kumoss/core</code> (tags <code>X.Y.Z</code>, <code>X.Y</code>, <code>X</code> and
+<code>latest</code>; <code>linux/amd64</code> and <code>linux/arm64</code>). It is built with the
+default <code>KUMOSS_UID</code>/<code>KUMOSS_GID</code> (<code>10001</code>) and the repository&#8217;s
+default <code>config.yaml</code>, so mount your own at <code>KUMOSS_CONFIG</code> (see
+below). The sidecar and web images are not published; build them
+yourself.</p>
+</li>
+<li>
 <p>Build the images from the repository with your registry&#8217;s tags. The
 core image copies <code>config.yaml</code> from the repository root at build
 time; to keep one image per version and vary configuration per

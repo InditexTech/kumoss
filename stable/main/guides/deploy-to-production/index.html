@@ -1048,7 +1048,8 @@ each row below is a deployment decision.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core API</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/Dockerfile</code> (Python 3.13, port 8000, user <code>kumoss</code> 10001)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/Dockerfile</code> (Python 3.13, port 8000, user <code>kumoss</code> 10001);
+published as <code>ghcr.io/inditextech/kumoss/core</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Ingress (<code>/api</code>), nothing else</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Shared workspace volume</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Run <strong>one replica</strong> (see
@@ -1306,7 +1307,13 @@ one central backend defined outside Kumoss, mount a file and point
 every other variable in the IaC sidecar&#8217;s environment are reachable by
 the provider plugins the generated HCL invokes, and by any
 <code>local-exec</code> provisioner in that HCL — generated code runs with the
-same privileges as the sidecar process. The job&#8217;s <code>workspace_path</code> is
+same privileges as the sidecar process. The seeded
+<code>general-guidelines-terraform</code> prompt tells the generator never to
+emit <code>null_resource</code>, <code>provisioner</code> blocks, or <code>data "external"</code>, and
+the compliance auditor receives the same rule, but this is a prompt
+instruction: neither the core nor the sidecar inspects the generated
+HCL, and no allowlist restricts provider sources. Repository code is
+not covered by the prompt at all. The job&#8217;s <code>workspace_path</code> is
 not restricted to <code>/workspaces</code> by the sidecar itself. Treat the
 sidecar as reachable only from the core and give it nothing more than
 the cloud identity it needs.</p>

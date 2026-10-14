@@ -1846,6 +1846,14 @@ rules encode a policy, not yours.</p>
 boot.</p>
 </li>
 <li>
+<p>Keep the "No arbitrary command execution" section when you replace
+the body of <code>general-guidelines-terraform</code>. It is the only instruction
+that keeps <code>null_resource</code>, <code>provisioner</code> blocks, and
+<code>data "external"</code> out of generated code, and nothing enforces it
+outside the prompt, see
+<a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
+</li>
+<li>
 <p>Decide who may edit prompts. Anyone with access to the Phoenix UI can
 change what the agents generate. Phoenix has no authentication in the
 default stack.</p>
