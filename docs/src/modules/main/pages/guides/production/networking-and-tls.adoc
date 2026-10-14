@@ -93,6 +93,13 @@ sidecar to `hooks.slack.com` (or your channel).
 [#images-and-config-delivery]
 == Images and configuration delivery
 
+* Each release publishes the core image to
+  `ghcr.io/inditextech/kumoss/core` (tags `X.Y.Z`, `X.Y`, `X` and
+  `latest`; `linux/amd64` and `linux/arm64`). It is built with the
+  default `KUMOSS_UID`/`KUMOSS_GID` (`10001`) and the repository's
+  default `config.yaml`, so mount your own at `KUMOSS_CONFIG` (see
+  below). The sidecar and web images are not published; build them
+  yourself.
 * Build the images from the repository with your registry's tags. The
   core image copies `config.yaml` from the repository root at build
   time; to keep one image per version and vary configuration per
