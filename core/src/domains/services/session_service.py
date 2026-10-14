@@ -30,6 +30,8 @@ class SessionService:
         self.__llm_service = llm_service
         self.__ctx: SessionContext = session_context
         self.__template_svc = template_service
+        self.__round_query: str | None = None
+        self.__rejected: bool = False
 
     async def update_status(
         self,
@@ -108,7 +110,7 @@ class SessionService:
     async def __chat_reply(self, query: str) -> str:
         """Infer the user-facing reply from the internal history alone."""
         return await self.__llm_service.generate_text(
-            query=f'Write the chat reply for the latest round history. The user asked: "{query}"',
+            query=query,
             prompt=await self.__template_svc.render(PromptsLibrary.CHAT_REPLY),
             history=self.__ctx.history,
         )

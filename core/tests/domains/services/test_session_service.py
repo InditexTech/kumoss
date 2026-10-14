@@ -44,6 +44,7 @@ def _ctx(history: list[dict[str, str]] | None = None) -> SessionContext:
         iac_path="infra",
         operation_type=OperationType.GENERATE,
         history=history,
+        chat_history=[],
     )
 
 
