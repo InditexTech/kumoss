@@ -1,5 +1,5 @@
 = Roadmap
-:description: Where Kumoss is heading: continuous operations, the full path between cloud and code, measurable quality and governance, agent interoperability, and simpler deployment.
+:description: Where Kumoss is heading: continuous operations, the full path between cloud and code, measurable quality and governance, cost management, agent interoperability, and simpler deployment.
 
 This page describes the direction of Kumoss. It groups the planned work
 into themes and summarizes each initiative in a few lines, so that users,
@@ -18,7 +18,7 @@ Kumoss does today.
 
 == How to read the roadmap
 
-The initiatives are grouped into five themes. Each initiative carries
+The initiatives are grouped into six themes. Each initiative carries
 one of two statuses:
 
 * label:blue[In progress]: active development is under way.
@@ -59,6 +59,16 @@ indicate priority.
 |label:grey[Planned]
 
 |<<governance-overview,Multicloud governance overview>>
+|label:grey[Planned]
+
+.3+|<<cost-management,Cost management (FinOps)>>
+|<<cost-estimates,Accurate cost estimates and cost guardrails>>
+|label:grey[Planned]
+
+|<<cost-overview,Cost overview by resource and project>>
+|label:grey[Planned]
+
+|<<finops-integrations,Integration with FinOps tools and assistants>>
 |label:grey[Planned]
 
 .2+|<<agent-interoperability,Agent interoperability>>
@@ -169,6 +179,43 @@ managed as code and how many comply with or violate the active
 policies. Platform and security teams will see their compliance posture
 at a glance and move from a finding straight to the session that fixes
 it.
+
+[#cost-management]
+== Cost management (FinOps)
+
+Make the cost of infrastructure visible before and after every change,
+and connect Kumoss to the tools that FinOps teams already use.
+
+[#cost-estimates]
+=== Accurate cost estimates and cost guardrails
+
+Cost estimates for each plan will come from cloud pricing data instead
+of a language-model approximation, and will cover usage-based resources
+where pricing allows. Teams will set cost thresholds per project or
+environment that send a change for review before it is applied when the
+threshold is exceeded.
+
+Today the estimate is an approximation for comparison; see
+xref:main:guides/follow-a-session.adoc[Follow a session].
+
+[#cost-overview]
+=== Cost overview by resource and project
+
+A cost overview will show what each resource, project, and cloud costs,
+combining billing data with the infrastructure Kumoss manages.
+Administrators will spot idle or oversized resources and turn them into
+a request that fixes them, in the same view as the
+<<governance-overview,governance overview>>.
+
+[#finops-integrations]
+=== Integration with FinOps tools and assistants
+
+Kumoss will exchange cost data with external FinOps platforms and
+AI-based FinOps assistants through an open contract, using the
+https://focus.finops.org[FinOps Open Cost and Usage Specification
+(FOCUS)] where possible. FinOps tools will be able to ask Kumoss for a
+cost-saving change as a reviewed pull request, and Kumoss will use their
+recommendations as context when it generates code.
 
 [#agent-interoperability]
 == Agent interoperability
