@@ -25,7 +25,7 @@ Copy each `env.sample` to a `.env` next to it (`core/.env` is
 required), set the two model strings in `config.yaml`, and run `docker
 compose up --build`. xref:main:quickstart.adoc[] is the step-by-step
 guide. `--build` matters: without it, Compose runs the published
-release images (`ghcr.io/inditextech/kumoss/*`) instead of your
+release images (`ghcr.io/inditextech/kumoss-*`) instead of your
 checkout. A `docker compose pull` later replaces locally built images
 with the published ones again.
 

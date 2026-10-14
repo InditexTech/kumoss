@@ -171,7 +171,7 @@ definition for your environment.
 The Compose stack defines eleven services on one network. In production
 each row below is a deployment decision. Every image built from a
 Dockerfile in this repository is also published for each release as
-`ghcr.io/inditextech/kumoss/<image>` (`core`, `iac`, `authz`, `mapping`,
+`ghcr.io/inditextech/kumoss-<image>` (`core`, `iac`, `authz`, `mapping`,
 `notifications`, `proxy`); see
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].

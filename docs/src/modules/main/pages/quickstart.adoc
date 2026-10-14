@@ -163,7 +163,7 @@ docker compose up
 ----
 
 Add `-d` to run in the background. Compose pulls the Kumoss images for
-the checked-out release from `ghcr.io/inditextech/kumoss` (`linux/amd64`
+the checked-out release from `ghcr.io/inditextech/kumoss-*` (`linux/amd64`
 and `linux/arm64`). To run code changes from your checkout instead, add
 `--build`; the first build downloads the base images, installs the
 Python dependencies, downloads both IaC engines, and compiles the web
