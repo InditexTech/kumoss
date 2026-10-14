@@ -1,0 +1,19 @@
+README.md
+  s_5be9bc397b7003::t_99d34cef03ed5a 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "75f6255fe5ef406277bbc3d04b4f9d0974fe00d1",
+  "prompts": {},
+  "sessions": {
+    "s_5be9bc397b7003": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "37dc0e6e-13a5-4bc6-8d27-98b0cbf9a29f",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
