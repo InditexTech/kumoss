@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.6](https://github.com/InditexTech/kumoss/compare/v1.0.5...v1.0.6) (2026-10-14)
+
+
+### Documentation
+
+* add the multicloud governance overview to the roadmap ([a3c367f](https://github.com/InditexTech/kumoss/commit/a3c367f4982149d5bbd48cbd7e842d5163d9f909))
+* add the multicloud governance overview to the roadmap ([b28241f](https://github.com/InditexTech/kumoss/commit/b28241f75bc3e696877f9027f02d96dff9557fbd))
+
 ## [1.0.5](https://github.com/InditexTech/kumoss/compare/v1.0.4...v1.0.5) (2026-10-14)
 
 
