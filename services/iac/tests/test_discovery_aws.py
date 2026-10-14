@@ -235,6 +235,50 @@ def test_the_page_cap_fails_the_listing() -> None:
             ),
             id="kubernetes-tagged",
         ),
+        pytest.param(
+            resource(
+                "arn:aws:ec2:eu-west-1:123456789012:security-group-rule/sgr-00000000000000001",
+                ResourceType="ec2:security-group-rule",
+            ),
+            id="security-group-rule",
+        ),
+        pytest.param(
+            resource(
+                "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-00000000000000001",
+                ResourceType="ec2:security-group",
+                Properties=[{"Name": "group-name", "Data": "default"}],
+            ),
+            id="default-security-group",
+        ),
+        pytest.param(
+            resource(
+                "arn:aws:ec2:eu-west-2:123456789012:route-table/rtb-00000000000000001",
+                ResourceType="ec2:route-table",
+                Properties=[{"Name": "main", "Data": "true"}],
+            ),
+            id="default-route-table",
+        ),
+        pytest.param(
+            resource(
+                "arn:aws:memorydb:ap-southeast-2:123456789012:acl/open-access",
+                ResourceType="memorydb:acl",
+            ),
+            id="memorydb-open-access-acl",
+        ),
+        pytest.param(
+            resource(
+                "arn:aws:resource-explorer-2:us-east-2:123456789012:index/00000000-0000-4000-8000",
+                ResourceType="resource-explorer-2:index",
+            ),
+            id="resource-explorer-index",
+        ),
+        pytest.param(
+            resource(
+                "arn:aws:resource-explorer-2:us-east-2:123456789012:view/default",
+                ResourceType="resource-explorer-2:view",
+            ),
+            id="resource-explorer-view",
+        ),
     ],
 )
 def test_managed_resources_are_dropped(entry: dict[str, Any]) -> None:
@@ -245,4 +289,21 @@ def test_user_tags_do_not_exclude_a_resource() -> None:
     entry = tagged("arn:aws:ec2:eu-west-1:1:instance/i-3", "Environment")
     assert list_ids(session_for([{"Resources": [entry]}])) == [
         "arn:aws:ec2:eu-west-1:1:instance/i-3"
+    ]
+
+
+def test_user_custom_security_group_and_route_table_survive() -> None:
+    sg = resource(
+        "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-custom",
+        ResourceType="ec2:security-group",
+        Properties=[{"Name": "group-name", "Data": "web-servers"}],
+    )
+    rtb = resource(
+        "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-custom",
+        ResourceType="ec2:route-table",
+        Properties=[{"Name": "main", "Data": "false"}],
+    )
+    assert list_ids(session_for([{"Resources": [sg, rtb]}])) == [
+        "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-custom",
+        "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-custom",
     ]

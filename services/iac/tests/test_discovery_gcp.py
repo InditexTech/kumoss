@@ -178,6 +178,27 @@ def test_project_numbers_become_the_project_id(monkeypatch: pytest.MonkeyPatch) 
             },
             id="cloudbuild-bucket",
         ),
+        pytest.param(
+            {
+                "name": "//iap.googleapis.com/projects/123456789/brands/123456789",
+                "assetType": "iap.googleapis.com/Brand",
+            },
+            id="iap-brand",
+        ),
+        pytest.param(
+            {
+                "name": "//iap.googleapis.com/projects/123456789/brands/123456789/identityAwareProxyClients/client-123.apps.googleusercontent.com",
+                "assetType": "iap.googleapis.com/IdentityAwareProxyClient",
+            },
+            id="iap-client",
+        ),
+        pytest.param(
+            {
+                "name": "//iap.googleapis.com/projects/proj-1/iap_web/iapSettings",
+                "assetType": "iap.googleapis.com/IapSettings",
+            },
+            id="iap-settings",
+        ),
     ],
 )
 def test_managed_assets_are_dropped(
@@ -240,6 +261,9 @@ def test_iam_bindings_become_one_id_per_role_and_member(
                     "user:ada@example.com",
                     "serviceAccount:app@proj-1.iam.gserviceaccount.com",
                     "serviceAccount:service-1@compute-system.iam.gserviceaccount.com",
+                    "serviceAccount:service-123456789012@gcp-sa-iap.iam.gserviceaccount.co",
+                    "serviceAccount:service-999@gcp-sa-pubsub.iam.gserviceaccount.com",
+                    "serviceAccount:123456789@cloudservices.gserviceaccount.com",
                     "deleted:user:gone@example.com",
                 ],
             },

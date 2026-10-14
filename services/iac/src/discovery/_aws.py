@@ -31,7 +31,14 @@ class AwsScopeLister:
     _PAGE_CAP: ClassVar[int] = 200
     _CONNECT_TIMEOUT: ClassVar[int] = 10
     _READ_TIMEOUT: ClassVar[int] = 60
-    _EXCLUDED_TYPES: ClassVar[frozenset[str]] = frozenset({"ec2:network-interface"})
+    _EXCLUDED_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {
+            "ec2:network-interface",
+            "ec2:security-group-rule",
+            "resource-explorer-2:index",
+            "resource-explorer-2:view",
+        }
+    )
     _MANAGED_TAG_PREFIXES: ClassVar[tuple[str, ...]] = (
         "aws:",
         "eks:",
@@ -45,6 +52,8 @@ class AwsScopeLister:
     _MANAGED_ROLE_PATHS: ClassVar[tuple[str, ...]] = (
         ":role/aws-service-role/",
         ":role/aws-reserved/sso.amazonaws.com/",
+        ":acl/open-access",
+        ":resource-explorer-2:",
     )
 
     def __init__(
@@ -193,8 +202,26 @@ class AwsScopeLister:
                 continue
             if self._managed_tags(entry):
                 continue
+            if self._is_default_managed(entry):
+                continue
             kept.append(arn)
         return kept
+
+    def _is_default_managed(self, resource: dict[str, Any]) -> bool:
+        res_type = as_text(resource.get("ResourceType"))
+        for raw in as_list(resource.get("Properties")):
+            prop = as_mapping(raw)
+            name = as_text(prop.get("Name"))
+            data = prop.get("Data")
+            if res_type == "ec2:security-group":
+                if name.lower() in ("group-name", "groupname") and as_text(data).lower() == "default":
+                    return True
+                if name.lower() in ("isdefault", "default") and str(data).lower() == "true":
+                    return True
+            elif res_type == "ec2:route-table":
+                if name.lower() in ("main", "association.main", "isdefault") and str(data).lower() == "true":
+                    return True
+        return False
 
     def _managed_tags(self, resource: dict[str, Any]) -> bool:
         for raw in as_list(resource.get("Properties")):
