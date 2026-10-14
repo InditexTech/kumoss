@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.4](https://github.com/InditexTech/kumoss/compare/v1.0.3...v1.0.4) (2026-10-14)
+
+
+### Documentation
+
+* document the published GHCR core image ([86a5915](https://github.com/InditexTech/kumoss/commit/86a5915ab830b7d11a07a653bd9963d7813c0e55))
+
 ## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-13)
 
 
