@@ -1016,9 +1016,10 @@ credential keys is
 </div>
 <div class="paragraph">
 <p>Changing a model identifier to a different provider means changing the
-credential variables too. <code>config.yaml</code> is baked into the core image,
-so a model change requires <code>docker compose build core</code>; a credential
-change in <code>core/.env</code> only requires restarting the core container.</p>
+credential variables too. A model change in <code>config.yaml</code> requires
+<code>docker compose restart core</code>; a credential change in <code>core/.env</code>
+requires <code>docker compose up -d core</code>, which recreates the container
+(<code>restart</code> does not reload <code>.env</code> files).</p>
 </div>
 </div>
 </div>

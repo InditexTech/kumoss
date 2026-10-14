@@ -807,10 +807,10 @@ minimal configuration is two fields in <code>config.yaml</code>:</p>
 <div class="paragraph">
 <p>Leaving <code>issuer_url</code> blank disables authentication entirely, the
 checked-in default: every request resolves to a fixed dev identity and
-acts as a local developer with top roles. <code>config.yaml</code> is baked into the
-<code>kumoss-core</code> image at build time, so enabling authentication requires
-<code>docker compose build core</code>; to load a different file, point the
-<code>KUMOSS_CONFIG</code> env var at its path.</p>
+acts as a local developer with top roles. The core reads <code>config.yaml</code>
+only at startup, so enabling authentication requires <code>docker compose
+restart core</code>; to load a different file, point the <code>KUMOSS_CONFIG</code> env
+var at its path.</p>
 </div>
 </div>
 </div>
@@ -826,9 +826,8 @@ JWKS endpoint, and issues JWT access tokens (RS*/ES*/PS* signed)
 carrying <code>iss</code>, <code>sub</code>, <code>aud</code>, and <code>exp</code>.</p>
 </li>
 <li>
-<p>The ability to rebuild and redeploy the core image, since
-<code>config.yaml</code> changes take effect only after <code>docker compose build
-core</code>.</p>
+<p>The ability to update the core&#8217;s <code>config.yaml</code> and restart the core,
+since <code>config.yaml</code> changes take effect only at startup.</p>
 </li>
 </ul>
 </div>
@@ -1090,8 +1089,8 @@ emits both claims in access tokens.</p>
 <div class="paragraph">
 <p>The elevation is re-applied on every authenticated request, not only at
 login: demoting that user in the admin panel reverts on their next
-request. To demote them, clear <code>admin.default_root_email</code> and rebuild
-the core image.</p>
+request. To demote them, clear <code>admin.default_root_email</code> and restart
+the core.</p>
 </div>
 <div class="paragraph">
 <p>For every other IdP, grant the first admin&#8217;s roles directly in the
@@ -1164,8 +1163,8 @@ the authorization server&#8217;s audience setting.</p>
 port).</p>
 </li>
 <li>
-<p><strong>Config changes have no effect.</strong> Rebuild the core image (<code>docker
-compose build core</code>); the file is baked in.</p>
+<p><strong>Config changes have no effect.</strong> Restart the core (<code>docker compose
+restart core</code>); the file is read only at startup.</p>
 </li>
 <li>
 <p><strong>A <code>core_db_data</code> volume predates authentication.</strong> A volume created

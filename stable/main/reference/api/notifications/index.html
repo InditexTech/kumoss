@@ -1133,8 +1133,8 @@ unreachable. Check the webhook URL is still valid in Slack.</p>
 <li>
 <p><strong>Nothing arrives and the core logs <code>Failed to send '&lt;kind&gt;'
 notification</code>.</strong> Check the <code>services.notifications</code> block in
-<code>config.yaml</code>, and that the core image was rebuilt after the change
-— <code>config.yaml</code> is baked into the image.</p>
+<code>config.yaml</code>, and that the core was restarted after the change
+— the file is read only at startup.</p>
 </li>
 </ul>
 </div>

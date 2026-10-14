@@ -1112,7 +1112,7 @@ troubleshooting</a>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>storage.public_endpoint_url</code> is not reachable from browsers, or the
 presigned host differs from the endpoint users reach.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Point <code>storage.public_endpoint_url</code> at a browser-reachable address and
-rebuild the core image.</p></td>
+restart the core with the updated configuration.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Every plan fails with <code>permission denied</code> on state or plan files</p></td>
@@ -1134,8 +1134,8 @@ blocked or TLS-inspected.</p></td>
 declares no backend of its own: <code>init</code> then falls back to local state,
 whose file dies with the workspace.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Add a backend to the repository, or remove the explicit <code>""</code> (a bucket
-name, or dropping the key, re-enables Kumoss-managed state) and rebuild
-the core image.</p></td>
+name, or dropping the key, re-enables Kumoss-managed state) and restart
+the core with the updated configuration.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails with <code>InvalidAccessKeyId</code> after switching
@@ -1143,7 +1143,7 @@ the core image.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_ACCESS_KEY</code> and <code>RUSTFS_SECRET_KEY</code> are still set to
 <code>rustfsadmin</code>, so those keys were embedded into the state backend
 block.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Blank both and rebuild the core image.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Blank both and restart the core.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails on the state backend with <code>AccessDenied</code> or a

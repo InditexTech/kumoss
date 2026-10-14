@@ -933,9 +933,9 @@ on</strong>.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><code>config.yaml</code> is baked into the core image, so rebuild after the change
-(<code>docker compose build core &amp;&amp; docker compose up -d core</code>), or mount the
-file and point <code>KUMOSS_CONFIG</code> at it, as described in
+<p>The core reads <code>config.yaml</code> only at startup, so restart it after the
+change (<code>docker compose restart core</code>). Outside Compose, mount the file
+and point <code>KUMOSS_CONFIG</code> at it, as described in
 <a href="../production/networking-and-tls/#images-and-config-delivery" class="xref page">Images
 and configuration delivery</a>.</p>
 </div>
@@ -1356,8 +1356,8 @@ apply, the state object&#8217;s modification time must change:</p>
 resources that already exist</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Managed state is on and its override replaces the repository&#8217;s
 backend</strong> (see <a href="#precedence">Which value wins</a>). The log line above
-appears. Set <code>storage.terraform_state_bucket: ""</code> and rebuild the core
-image.</p></td>
+appears. Set <code>storage.terraform_state_bucket: ""</code> and restart the
+core.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Every session plans against empty state, and nothing is ever recorded</p></td>
@@ -1418,7 +1418,8 @@ lives in another subscription.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails with <code>InvalidAccessKeyId</code> after switching to <code>provider: S3</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> are still <code>rustfsadmin</code> in
-<code>core/.env</code> and were embedded in the override. Blank both and rebuild.</p></td>
+<code>core/.env</code> and were embedded in the override. Blank both and recreate
+the core (<code>docker compose up -d core</code>).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>init</code> fails to dial the endpoint (<code>connection refused</code>, DNS failure)</p></td>
