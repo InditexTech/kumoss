@@ -40,11 +40,11 @@ storage:
   terraform_state_bucket: ""
 ----
 +
-Rebuild the core so the baked-in configuration changes:
+Restart the core so it reads the new configuration:
 +
 [source,bash]
 ----
-docker compose build core && docker compose up -d core
+docker compose restart core
 ----
 +
 No state bucket is created at boot, and no `backend_override.tf` is

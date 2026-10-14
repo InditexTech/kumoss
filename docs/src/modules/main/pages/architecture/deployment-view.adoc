@@ -70,10 +70,12 @@ repository ships no Kubernetes manifests or Helm charts.
   then object-storage bucket creation, then Phoenix prompt seeding.
   Failure of any step aborts boot. Git credential configuration follows
   and is best-effort.
-* Configuration comes from a single `config.yaml`, baked into the image
-  at `/etc/kumoss/config.yaml` by the core Dockerfile, so changes
-  require an image rebuild unless `KUMOSS_CONFIG` points at a file
-  mounted elsewhere in the container.
+* Configuration comes from a single `config.yaml`, read once at
+  startup from `/etc/kumoss/config.yaml` (or the path in
+  `KUMOSS_CONFIG`). The core Dockerfile bakes the repository's copy into
+  the image, and the checked-in Compose file bind-mounts it over that
+  path, so a change needs a core restart; without a mount, it needs an
+  image rebuild.
 * Secrets never appear in the file: `*_env` fields name environment
   variables (database URL, service bearer tokens, storage keys, git
   personal access token), and the core validates at boot that every
@@ -86,7 +88,7 @@ repository ships no Kubernetes manifests or Helm charts.
   boot; discovery and JWKS are fetched lazily on the first request, so a
   wrong or unreachable issuer surfaces as a `401` at first login, not at
   boot. Operationally, what matters here is that
-  enabling or changing OIDC means `docker compose build core`, and that
+  enabling or changing OIDC means `docker compose restart core`, and that
   the IdP must have `<origin>/auth/callback` registered as the SPA
   redirect URI.
 
