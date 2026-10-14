@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.5](https://github.com/InditexTech/kumoss/compare/v1.0.4...v1.0.5) (2026-10-14)
+
+
+### Documentation
+
+* add a public roadmap page ([f65f260](https://github.com/InditexTech/kumoss/commit/f65f260dd23c6cc572a7d751260bc8bf6a106a18))
+* add a public roadmap page ([06f1567](https://github.com/InditexTech/kumoss/commit/06f156715e40cb41661f15b37271b6f87db3bb17))
+
 ## [1.0.4](https://github.com/InditexTech/kumoss/compare/v1.0.3...v1.0.4) (2026-10-14)
 
 
