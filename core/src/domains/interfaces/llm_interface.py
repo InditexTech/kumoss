@@ -17,7 +17,6 @@ class ILLMProvider(ABC):
         tools: list[ToolDefinitionDTO] | None = None,
         history: History = None,
         thinking: bool = False,
-        web_search: bool = False,
         notice: str | None = None,
     ) -> LLMResponseDTO:
         """
@@ -29,7 +28,6 @@ class ILLMProvider(ABC):
             tools: List of available tools in LLM-compatible format
             history: Conversation history
             thinking: Whether to enable thinking mode
-            web_search: Whether to enable web search
             notice: Harness note sent as a user message after msg, for this
                 call only (it is not part of the history)
 

@@ -5,11 +5,11 @@
 """Web search backend validation.
 
 ``SearchConfig`` wires the agents' ``web_search`` tool to a LiteLLM
-search provider. The default (empty provider, empty endpoint) keeps the
-LLM-native fallback and never fails; a named provider must be known to
-LiteLLM, ``searxng`` must carry its endpoint, and a half-configured
-endpoint without a provider is rejected at boot instead of being
-silently ignored.
+search provider. The default is the bundled SearXNG sidecar, since the
+tool has no LLM-native fallback left to degrade to. A named provider
+must be known to LiteLLM, ``searxng`` must carry its endpoint, and a
+half-configured endpoint without a provider is rejected at boot instead
+of being silently ignored.
 """
 
 import unittest
@@ -26,12 +26,13 @@ def _search_providers() -> set[str]:
 
 
 class TestSearchConfigAccepts(unittest.TestCase):
-    def test_defaults_use_the_llm_native_fallback(self):
+    def test_defaults_point_at_a_local_searxng(self):
         config = SearchConfig()
-        self.assertEqual(config.provider, "")
-        self.assertEqual(config.endpoint, "")
+        self.assertEqual(config.provider, "searxng")
+        self.assertEqual(config.endpoint, "http://localhost:8888")
         self.assertEqual(config.timeout, 30.0)
         self.assertEqual(config.max_results, 10)
+        self.assertEqual(config.max_page_chars, 6000)
 
     def test_accepts_searxng_with_an_endpoint(self):
         config = SearchConfig(provider="searxng", endpoint="http://searxng:8888")
@@ -63,7 +64,7 @@ class TestSearchConfigRejects(unittest.TestCase):
 
     def test_searxng_requires_an_endpoint(self):
         with self.assertRaises(ValidationError) as ctx:
-            SearchConfig(provider="searxng")
+            SearchConfig(provider="searxng", endpoint="")
         self.assertIn(
             "web_search.provider 'searxng' requires web_search.endpoint",
             str(ctx.exception),
@@ -71,13 +72,23 @@ class TestSearchConfigRejects(unittest.TestCase):
 
     def test_endpoint_without_a_provider_is_rejected(self):
         # A half-configured state: silently ignoring the endpoint would
-        # look like the engine is used while the LLM-native path runs.
+        # look like the engine is used while web search is in fact off.
         with self.assertRaises(ValidationError) as ctx:
-            SearchConfig(endpoint="http://searxng:8888")
+            SearchConfig(provider="", endpoint="http://searxng:8888")
         self.assertIn(
             "web_search.endpoint is set but web_search.provider",
             str(ctx.exception),
         )
+
+    def test_max_page_chars_out_of_bounds_fail(self):
+        for max_page_chars in (499, 20_001):
+            with self.subTest(max_page_chars=max_page_chars):
+                with self.assertRaises(ValidationError):
+                    SearchConfig(
+                        provider="searxng",
+                        endpoint="http://x",
+                        max_page_chars=max_page_chars,
+                    )
 
     def test_provider_with_surrounding_blanks_is_rejected(self):
         # No silent trimming: " searxng " is treated as an unknown

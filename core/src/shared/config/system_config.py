@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 
 import litellm
 from litellm.router import Router
+from litellm.types.utils import SearchProviders
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
@@ -109,23 +110,28 @@ class SearchConfig(BaseModel):
 
     ``provider`` selects the LiteLLM search provider used for every
     ``web_search`` tool call (see ``litellm.types.utils.SearchProviders``:
-    searxng, tavily, brave, perplexity, ...). When empty (the default) the
-    tool falls back to the previous behaviour — asking the configured LLM
-    provider to search natively (``web_search_options`` / the OpenAI
-    ``web_search_preview`` tool), which only works on providers that
-    implement it.
+    searxng, tavily, brave, perplexity, ...). It must be set: the tool has
+    no LLM-native search fallback, so an empty provider disables web
+    search entirely.
 
     ``endpoint`` is the base URL of the search service (``api_base``).
     Required for ``searxng``; optional (or unused) for hosted providers
     that read credentials from their standard env vars. ``timeout`` is the
-    per-request HTTP budget in seconds and ``max_results`` caps the number
-    of results returned per query.
+    per-request HTTP budget in seconds — it covers both the search call
+    and each individual page read — and ``max_results`` caps the number of
+    results returned per query.
+
+    ``max_page_chars`` truncates the readable text extracted from each
+    result page. The tool's worst-case payload is ``max_results *
+    max_page_chars`` characters of tool result, so raise it for richer
+    source material at the cost of the calling agent's context.
     """
 
-    provider: str = ""
-    endpoint: str = ""
+    provider: str = SearchProviders.SEARXNG.value
+    endpoint: str = "http://localhost:8888"
     timeout: float = Field(default=30.0, gt=0)
     max_results: int = Field(default=10, ge=1, le=20)
+    max_page_chars: int = Field(default=6000, ge=500, le=20000)
 
     @model_validator(mode="after")
     def _assert_provider(self) -> "SearchConfig":
@@ -134,12 +140,10 @@ class SearchConfig(BaseModel):
                 raise ConfigError(
                     "web_search.endpoint is set but web_search.provider is "
                     "empty; set web_search.provider (e.g. searxng) or clear "
-                    "the endpoint to use LLM-native web search."
+                    "the endpoint to disable web search."
                 )
             return self
-        if self.provider not in {
-            item.value for item in litellm.types.utils.SearchProviders
-        }:
+        if self.provider not in {item.value for item in SearchProviders}:
             raise ConfigError(
                 f"web_search.provider '{self.provider}' is not a LiteLLM "
                 + "search provider; see litellm.types.utils.SearchProviders."

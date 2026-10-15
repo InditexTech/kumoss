@@ -22,8 +22,6 @@ from src.domains.dto import (
     ReconciliationReport,
 )
 from src.infrastructure.exceptions import (
-    InferenceCallAPIError,
-    InferenceCallWebSearchNotSupported,
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
@@ -404,44 +402,26 @@ class ToolRegistryStatic(IToolRegistry):
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
-        if system_config.web_search.provider:
-            try:
-                results = await SearchServiceClient().search(query)
-            except SearchEngineError as e:
-                return {
-                    "query": query,
-                    "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
-                }
-            if not results:
-                return {
-                    "query": query,
-                    "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
-                }
+        if not system_config.web_search.provider:
             return {
                 "query": query,
-                "result": "\n".join(
-                    f"- {r.title}: {r.snippet} ({r.url})" for r in results
-                ),
+                "result": "Web search is unavailable: no provider configured. Do NOT retry web_search.",
             }
         try:
-            response = await self.__llm.inference(msg=query, web_search=True)
-        except (
-            InferenceCallWebSearchNotSupported,
-            InferenceCallAPIError,
-        ) as e:
+            results = await SearchServiceClient().search(query)
+        except SearchEngineError as e:
             return {
                 "query": query,
                 "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
             }
-
-        if not response.text:
+        if not results:
             return {
                 "query": query,
                 "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
             }
         return {
             "query": query,
-            "result": response.text,
+            "result": "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results),
         }
 
     def _handle_compliance_findings(

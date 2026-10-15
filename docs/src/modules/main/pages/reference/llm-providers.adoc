@@ -106,9 +106,11 @@ must provide:
 * *Long context.* The generator receives the composed conventions, the
   repository excerpts it reads, and the plan output; models with short
   context windows truncate silently.
-* Optional: native `web_search_options` support, which LiteLLM reports
-  per model. Without it the web-search tool falls back to the OpenAI
-  Responses API path, which only works on OpenAI-compatible endpoints.
+Native `web_search_options` support is *not* among them. The web-search
+tool calls a search engine directly and reads the result pages itself,
+so live results need nothing from the provider beyond ordinary
+completions — see
+xref:reference/configuration.adoc#_web_search[`web_search`].
 
 The shipped models (Claude Sonnet on Vertex AI for the small role,
 `vertex_ai/`, wired through `llm.model_list`, plus an on-prem

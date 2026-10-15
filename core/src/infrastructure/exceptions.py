@@ -23,18 +23,6 @@ class InferenceCallThinkingToolError(ExceptionHandler):
     pass
 
 
-class InferenceCallWebSearchNotSupported(ExceptionHandler):
-    """Raised when an inference is invoked with web search enabled but the model does not support it"""
-
-    pass
-
-
-class InferenceCallWebSearchTools(ExceptionHandler):
-    """Raised when an inference is invoked with tools and web search enabled"""
-
-    pass
-
-
 class InferenceCallAPIError(ExceptionHandler):
     """Raised when all attemps have been exhausted"""
 
@@ -103,6 +91,12 @@ class WebSearchToolNoContent(ExceptionHandler):
 
 class SearchEngineError(ExceptionHandler):
     """Raised when the configured search engine call fails"""
+
+    pass
+
+
+class PageReadError(ExceptionHandler):
+    """Raised when a page could not be read or parsed"""
 
     pass
 
