@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/">
     <link rel="prev" href="../database-schema/">
     <link rel="next" href="core/">
-    <meta name="description" content="The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.">
+    <meta name="description" content="The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client (IaC, notifications, repository mapping, authorization).">
     <meta name="generator" content="Antora 3.2.1">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -772,7 +772,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">HTTP APIs</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">HTTP APIs</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The two HTTP surfaces in a Kumoss deployment — the core&#x27;s own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The two HTTP surfaces in a Kumoss deployment — the core&#x27;s own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client (IaC, notifications, repository mapping, authorization).</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -809,19 +809,22 @@ exposes.</p>
 <p>The <strong>sidecar contracts</strong> are four hand-written OpenAPI 3.1 documents in
 <code>contracts/openapi/</code>. They define what the core expects of the
 authorization, IaC, mapping, and notifications services. Here the
-specification is the source of truth and the services under
-<code>services/</code> are reference implementations of it — the core calls them
-through a generated client and never imports an implementation
-directly. Each sidecar page below documents its contract and folds in
-the behaviour of the bundled reference implementation.</p>
+specification is the source of truth. Kumoss bundles services for IaC
+and notifications under <code>services/</code>, while mapping and authorization
+are optional extension points you implement yourself — the core calls
+every service through a generated client and never imports an
+implementation directly. Each sidecar page below documents its
+contract and, where Kumoss bundles one, the behaviour of the bundled
+implementation.</p>
 </div>
 <div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="core/" class="xref page">Core API</a></div><p>Every route under <code>/api/v1</code>, grouped by router, with the role each one
 requires and the shape it returns.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="iac/" class="xref page">IaC sidecar API</a></div><p>The mandatory sidecar: one IaC engine command per asynchronous job,
 polled by the core. Scope injection, import discovery, and state
 backends.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="notifications/" class="xref page">Notifications sidecar API</a></div><p>Channel-agnostic notification dispatch. The bundled implementation
 posts to a Slack incoming webhook.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="mapping/" class="xref page">Mapping sidecar API</a></div><p>Resolves a business identifier into a repository URL, branch, and
-sub-path. The bundled implementation is an identity passthrough.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="authz/" class="xref page">Authorization sidecar API</a></div><p>Per-resource cloud access decisions. Consulted from exactly one core
-route, and disabled by default.</p></div></div></div></div>
+sub-path. No bundled implementation; while disabled the core answers
+with an identity passthrough.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="authz/" class="xref page">Authorization sidecar API</a></div><p>Per-resource cloud access decisions. Consulted from exactly one core
+route, and disabled by default. No bundled implementation.</p></div></div></div></div>
 </div>
 </div>
 <div class="sect1">
@@ -876,8 +879,8 @@ page has a Conformance section with the command.</p>
 <p><strong>Authentication</strong> is a per-service bearer token
 (<code>Authorization: Bearer &lt;token&gt;</code>). The core reads the value from the
 environment variable named by <code>services.&lt;name&gt;.token_env</code>; the
-sidecar reads it from its own variable. The two must match. Every
-reference implementation treats a blank token as "accept every
+sidecar reads it from its own variable. The two must match. Both
+bundled implementations treat a blank token as "accept every
 request", which is acceptable only on an isolated workstation.</p>
 </li>
 <li>
@@ -889,10 +892,11 @@ request", which is acceptable only on an isolated workstation.</p>
 </div>
 <div class="paragraph">
 <p>Each service is addressed through <code>services.&lt;name&gt;.endpoint</code>. The
-checked-in defaults are the compose-network names:
-<code>http://iac:8082</code>, <code>http://notifications:8080</code>,
-<code>http://mapping:8081</code>, and <code>http://authz:8083</code>. Only the IaC
-service is mandatory; the other three default to <code>enabled: false</code>. See
+checked-in defaults for the bundled services are the compose-network
+names <code>http://iac:8082</code> and <code>http://notifications:8080</code>; <code>mapping</code>
+and <code>authz</code> ship with <code>enabled: false</code> and an empty <code>endpoint</code>, which
+you point at your own implementation when you enable them. Only the
+IaC service is mandatory. See
 <a href="../configuration/#config-services" class="xref page">the <code>services</code>
 section</a> of the configuration reference.</p>
 </div>

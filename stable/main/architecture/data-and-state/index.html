@@ -969,18 +969,6 @@ via git pushes and artifact uploads, not the volume.</p>
 </div>
 </div>
 </div>
-<div class="sect1">
-<h2 id="authz-sidecar-persistence"><a class="anchor" href="#authz-sidecar-persistence"></a>authz sidecar persistence</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>authz persistence is a JSON file (<code>/data/roles.json</code>, container-local
-in the shipped Compose file; set <code>KUMOSS_AUTHZ_ROLE_STORE</code> to a mounted
-path to keep it), rewritten atomically under a process lock. It backs
-the sidecar&#8217;s own user/role endpoints, which the core does not call;
-Kumoss&#8217;s roles live in core-db.</p>
-</div>
-</div>
-</div>
 </article>
   </div>
 </main>

@@ -1228,11 +1228,10 @@ re-fetches <code>GET /api/v1/users/me</code> and puts the browser straight back
 in as the dev identity.</p>
 </div>
 <div class="paragraph">
-<p>Do not confuse this with the authorization sidecar.
-<code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code> grants the sidecar&#8217;s <strong>own</strong> <code>admin</code>
-role inside the sidecar&#8217;s JSON role store. The core never reads that
-store; the sidecar is consulted only for the cloud-project
-authorization check described above, and only when
+<p>Do not confuse this with the authorization sidecar. An authorization
+service you implement may keep users and roles of its own, but the
+core never reads them; the sidecar is consulted only for the
+cloud-project authorization check described above, and only when
 <code>services.authz.enabled</code> is <code>true</code>.</p>
 </div>
 </div>

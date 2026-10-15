@@ -928,10 +928,10 @@ sidecar to <code>hooks.slack.com</code> (or your channel).</p>
 <ul>
 <li>
 <p>Each release publishes every Kumoss-built image to
-<code>ghcr.io/inditextech/kumoss-&lt;image&gt;</code>: <code>core</code>, <code>iac</code>, <code>authz</code>,
-<code>mapping</code>, <code>notifications</code>, and <code>proxy</code> (nginx with the web
-application), tagged <code>X.Y.Z</code>, <code>X.Y</code>, <code>X</code> and <code>latest</code>, for
-<code>linux/amd64</code> and <code>linux/arm64</code>. They are built with the default
+<code>ghcr.io/inditextech/kumoss-&lt;image&gt;</code>: <code>core</code>, <code>iac</code>,
+<code>notifications</code>, and <code>proxy</code> (nginx with the web application),
+tagged <code>X.Y.Z</code>, <code>X.Y</code>, <code>X</code> and <code>latest</code>, for <code>linux/amd64</code> and
+<code>linux/arm64</code>. They are built with the default
 <code>KUMOSS_UID</code>/<code>KUMOSS_GID</code> (<code>10001</code>), and the core image carries the
 repository&#8217;s default <code>config.yaml</code>, so mount your own at
 <code>KUMOSS_CONFIG</code> (see below). Pin the <code>X.Y.Z</code> tag, or the digest, in

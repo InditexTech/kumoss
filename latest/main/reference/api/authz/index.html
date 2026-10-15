@@ -800,11 +800,12 @@ cloud resource?</strong> — a question about a subscription, a project, or an
 account, asked before Kumoss runs anything against a live environment.</p>
 </div>
 <div class="paragraph">
-<p>Contract: <code>contracts/openapi/authz.v1.yaml</code>. Default endpoint:
-<code>http://authz:8083</code>. Bearer token: the value of the variable named by
-<code>services.authz.token_env</code>, <code>KUMOSS_AUTHZ_TOKEN</code> by default. The
-service is <strong>optional</strong> and ships disabled (<code>services.authz.enabled:
-false</code>).</p>
+<p>Contract: <code>contracts/openapi/authz.v1.yaml</code>. Kumoss bundles no
+implementation of it: authorization is an optional extension point you
+implement yourself and point <code>services.authz.endpoint</code> at. Bearer
+token: the value of the variable named by <code>services.authz.token_env</code>,
+<code>KUMOSS_AUTHZ_TOKEN</code> by default. The service is <strong>optional</strong> and ships
+disabled (<code>services.authz.enabled: false</code>, <code>endpoint: ""</code>).</p>
 </div>
 <div class="admonitionblock important">
 <table>
@@ -817,8 +818,8 @@ false</code>).</p>
 <p><strong>Kumoss&#8217;s own roles do not live here.</strong> The operation roles (<code>developer</code>
 &lt; <code>devops</code>) and panel roles (<code>viewer</code> &lt; <code>editor</code> &lt; <code>admin</code>) that decide
 what a signed-in user can do are rows in the core database, managed
-from the admin panel. This service has a role store of its own, and it
-has no effect on any of that. See
+from the admin panel. The contract&#8217;s user and role endpoints describe
+an implementation&#8217;s own store, which has no effect on any of that. See
 <a href="../../roles-and-permissions/" class="xref page">Roles and permissions</a>.</p>
 </div>
 </td>
@@ -836,8 +837,8 @@ has no effect on any of that. See
 <div class="paragraph">
 <p><code>POST /api/v1/auth/authorize</code> — and nothing else in the core — forwards
 to <code>POST /v1/check</code>. The other five <code>/v1</code> paths exist for callers of
-this service directly, or for an organization building on the bundled
-implementation, to administer that service&#8217;s own user and role store.
+this service directly, or for an implementation that keeps a role
+store of its own, to administer that service&#8217;s own users and roles.
 The generated client contains methods for them; nothing in the core
 invokes them.</p>
 </div>
@@ -874,8 +875,26 @@ enabled, the core <strong>never</strong> fails open:</p>
 </table></div></div>
 <div class="paragraph">
 <p>A <code>422</code> from the sidecar is therefore visible at the browser as a
-<code>502</code>, which matters for one specific shape of request — see
-<a href="#the-bundled-implementation">The bundled implementation</a>.</p>
+<code>502</code>, which matters for one specific shape of request:</p>
+</div>
+<div class="admonitionblock warning">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-warning" title="Warning"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p><strong>A long IaC path produces a <code>502</code>.</strong> The web application sends the
+repository URL as <code>project</code> and the IaC path as <code>environment</code>. The
+contract caps <code>environment</code> at 32 characters, so a longer path fails
+schema validation with <code>422</code> — which the core, refusing to fail open,
+surfaces as <code>502</code>. This only bites when <code>services.authz.enabled</code> is
+<code>true</code>.</p>
+</div>
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
@@ -1027,14 +1046,13 @@ email.</p></td>
 <pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "authorized"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "portal_url"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">null</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "reason"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"Permissive OSS reference impl: all checks return true. Replace this implementation with real authorization logic (e.g., cloud SPN access check) for production."</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "reason"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">null</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>That is the bundled implementation&#8217;s actual answer. A policy-backed
-implementation puts its own explanation in <code>reason</code> and a console deep
-link in <code>portal_url</code>; the bundled one always leaves <code>portal_url</code> null.</p>
+<p>A policy-backed implementation puts its own explanation in <code>reason</code>
+and a console deep link in <code>portal_url</code>; both may be null.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1104,119 +1122,6 @@ challenge.</p></td>
 </tr>
 </tbody>
 </table></div></div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="the-bundled-implementation"><a class="anchor" href="#the-bundled-implementation"></a>The bundled implementation</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p><code>services/authz/</code> is <strong>permissive by default</strong>: <code>POST /v1/check</code> returns
-<code>authorized: true</code> unconditionally. It exists so a fresh deployment
-works end to end, and it is the reason the service ships disabled — an
-enabled permissive authorizer is worse than none, because it looks
-like a control.</p>
-</div>
-<div class="admonitionblock note">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-note" title="Note"></i>
-</td>
-<td class="content">
-<div class="paragraph">
-<p><strong>The contract&#8217;s description of this implementation is stale.</strong> Both the
-document summary and the <code>POST /v1/check</code> description say the
-reference implementation answers "based on whether the service&#8217;s own
-Service Principal can resolve the resource". It does not: the handler
-makes no cloud call, resolves no credentials, and has no Service
-Principal. It branches on <code>KUMOSS_AUTHZ_PERMISSIVE</code> alone — true
-returns <code>authorized: true</code>, false returns <code>authorized: false</code> with a
-<code>reason</code> naming the cloud and project. This page describes the code&#8217;s
-actual behaviour.</p>
-</div>
-</td>
-</tr>
-</table>
-</div>
-<div class="paragraph">
-<p><code>KUMOSS_AUTHZ_PERMISSIVE</code> is the only knob Kumoss&#8217;s own flow
-exercises. Setting it to <code>false</code> flips the default to <code>authorized:
-false</code>, which makes a misconfiguration visible instead of silently
-allowing everything. A production deployment replaces the body of
-<code>/v1/check</code> with real logic — directory groups, a CMDB-driven policy,
-a cloud IAM query — rather than tuning this flag.</p>
-</div>
-<div class="paragraph">
-<p>The other endpoints are backed by a JSON file at
-<code>KUMOSS_AUTHZ_ROLE_STORE</code>, default <code>/data/roles.json</code>, a
-container-local path, so role assignments are lost when the container
-is recreated. Point it at a mounted path if they need to survive. When
-<code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code> is set, the record with that email is
-granted the <code>admin</code> role at startup, and that email is also the
-record&#8217;s key and <code>id</code>. Again: this store governs only this service&#8217;s
-own administrative endpoints.</p>
-</div>
-<div class="admonitionblock warning">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-warning" title="Warning"></i>
-</td>
-<td class="content">
-<div class="paragraph">
-<p><strong>A long IaC path produces a <code>502</code>.</strong> The web application sends the
-repository URL as <code>project</code> and the IaC path as <code>environment</code>. The
-contract caps <code>environment</code> at 32 characters, so a longer path fails
-schema validation with <code>422</code> — which the core, refusing to fail open,
-surfaces as <code>502</code>. This only bites when <code>services.authz.enabled</code> is
-<code>true</code>.</p>
-</div>
-</td>
-</tr>
-</table>
-</div>
-<div class="sect2">
-<h3 id="configuration"><a class="anchor" href="#configuration"></a>Configuration</h3>
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 28.5714%;">
-<col style="width: 14.2857%;">
-<col style="width: 57.1429%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Required</th>
-<th class="tableblock halign-left valign-top">Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token clients must present. Blank accepts every request.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_PERMISSIVE</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Default <code>true</code> — <code>/v1/check</code> answers true unconditionally. Set
-<code>false</code> for an explicit-deny default.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROLE_STORE</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path to the roles JSON file, default <code>/data/roles.json</code>. Configures
-this service&#8217;s own store only; Kumoss never reads it.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Email granted the <code>admin</code> role at startup, in this service&#8217;s own
-store.</p></td>
-</tr>
-</tbody>
-</table></div></div>
-</div>
 </div>
 </div>
 <div class="sect1">

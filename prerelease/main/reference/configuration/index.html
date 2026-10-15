@@ -852,10 +852,11 @@ at all.</p>
 with a message containing the <code>ConfigError</code> text quoted in the tables
 below. Section errors are aggregated: a file with a bad <code>oidc</code>, <code>llm</code>,
 and <code>storage</code> section reports all three at once, and inside <code>llm</code>
-every missing credential variable is listed together. One check is
-the exception — the bearer-token check on <code>services.*</code> runs on the
-assembled model, only after every section has validated, so it can
-surface on the next boot attempt after a section error is fixed.</p>
+every missing credential variable is listed together. Two checks are
+the exception — the bearer-token and enabled-endpoint checks on
+<code>services.*</code> run on the assembled model, only after every section has
+validated, so they can surface on the next boot attempt after a
+section error is fixed.</p>
 </li>
 <li>
 <p><strong>Secrets never belong in <code>config.yaml</code>.</strong> Fields whose name ends in
@@ -1092,8 +1093,7 @@ admin</a>. Ignored while authentication is disabled.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Requires restart: yes. This is the core&#8217;s mechanism and is unrelated to
-the authorization sidecar&#8217;s <code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code>.</p>
+<p>Requires restart: yes.</p>
 </div>
 </div>
 </div>
@@ -1102,8 +1102,11 @@ the authorization sidecar&#8217;s <code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code>.</p
 <div class="sectionbody">
 <div class="paragraph">
 <p>Wiring for the four sidecars. Each sidecar implements an OpenAPI
-contract in <code>contracts/openapi/</code>, and any implementation of the
-contract can replace the bundled one by changing <code>endpoint</code>.</p>
+contract in <code>contracts/openapi/</code>. Kumoss bundles services for IaC and
+notifications, and any implementation of their contract can replace
+the bundled one by changing <code>endpoint</code>; mapping and authorization are
+optional extension points you implement yourself and point <code>endpoint</code>
+at.</p>
 </div>
 <div class="paragraph">
 <p>Common fields, available under <code>services.notifications</code>,
@@ -1140,22 +1143,24 @@ none because the core cannot run without it.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Whether the core calls the sidecar. A disabled sidecar is never
 contacted: mapping is done locally, notifications are dropped, and
 authorization answers "authorized". Compose still starts the
-container. An <code>enabled</code> key under <code>services.iac</code> is ignored.</p></td>
+bundled notifications container; mapping and authorization have no
+bundled container. An <code>enabled</code> key under <code>services.iac</code> is ignored.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>services.&lt;name&gt;.endpoint</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (base URL)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code> for <code>notifications</code>, <code>mapping</code>, <code>authz</code>; <strong><code>http://iac:8082</code></strong> for
 <code>iac</code> (its own code default, not just the shipped value)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://notifications:8080</code>, <code>http://mapping:8081</code>,
-<code>http://authz:8083</code>, <code>http://iac:8082</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://notifications:8080</code>, <code>http://iac:8082</code>; <code>""</code> for
+<code>mapping</code> and <code>authz</code> (no bundled implementation)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional (needed when enabled; always for <code>iac</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Base URL the core calls, resolvable from inside the core container.
 <strong>An empty <code>services.iac.endpoint</code> aborts the boot</strong> with
 <code>services.iac.endpoint is empty; the IaC service is mandatory. Point it
-at an implementation of the iac contract.</code> The three optional sidecars
-have no equivalent check: an enabled sidecar with an empty endpoint
-fails on the first call instead.</p></td>
+at an implementation of the iac contract.</code> <strong>An enabled optional sidecar
+with an empty endpoint also aborts the boot</strong>, with <code>Enabled services
+have no endpoint: services.&lt;name&gt;.endpoint. Point each at an
+implementation of its contract, or flip it to enabled: false.</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>services.&lt;name&gt;.token_env</code></p></td>
@@ -2213,8 +2218,8 @@ control below must be set explicitly.</p>
 </div>
 <div class="paragraph">
 <p>Points that this example relies on but that the file cannot express:
-the mapping and authz endpoints must be real implementations of their
-contracts (the bundled ones are a passthrough and a permissive stub);
+the mapping and authz endpoints must be your own implementations of
+their contracts (Kumoss bundles neither);
 Phoenix must be reachable at <code>collector_url</code> for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every <code><strong><em>TOKEN</code>, <code>STORAGE_ACCOUNT_KEY</code>,

@@ -805,10 +805,10 @@ and state each component owns, and the deployment topology.</p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../_images/system-architecture.png" alt="Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network">
+<img src="../_images/system-architecture.png" alt="Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the bundled iac and notifications sidecars with the optional mapping and authz contracts, and the data and observability containers on one Compose network">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../_attachments/system-architecture.html" data-archify-title="Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network">
+<p class="archify-actions" data-archify-src="../_attachments/system-architecture.html" data-archify-title="Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the bundled iac and notifications sidecars with the optional mapping and authz contracts, and the data and observability containers on one Compose network">
   <span class="archify-hint">Pan, zoom, search, trace a relationship, switch themes.</span>
   <a class="archify-full" href="../_attachments/system-architecture.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -1152,8 +1152,9 @@ and state each component owns, and the deployment topology.</p>
 <code>oidc.issuer_url</code> is set.</p>
 </div>
 <div class="paragraph">
-<p>The diagram condenses some detail. The four sidecars share one node
-(<code>authz :8083</code>, <code>mapping :8081</code>, <code>iac :8082</code>, <code>notifications :8080</code>); the
+<p>The diagram condenses some detail. The sidecars share one node: the
+bundled <code>iac :8082</code> and <code>notifications :8080</code>, plus the optional mapping
+and authz contracts, whose implementations you provide yourself; the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the <code>workspaces</code> volume,
 <code>phoenix-db</code> and the notification and storage backends are carried in the
@@ -1227,12 +1228,12 @@ layer — they live in <code>core/src/clients</code>, a sibling package.</p></td
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">authz service</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud project access checks, disabled by default. Disabled, the core
-answers "authorized" without calling it; enabled, an unreachable sidecar is
-an error, never an allow. Its user and role endpoints are unused — Kumoss
-keeps those in core-db.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Called from the authorize route with the caller&#8217;s identity; container-local
-JSON role store</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud project access checks, disabled by default and not bundled: provide
+your own implementation of the contract. Disabled, the core answers
+"authorized" without calling it; enabled, an unreachable sidecar is an
+error, never an allow. The contract&#8217;s user and role endpoints are unused —
+Kumoss keeps those in core-db.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called from the authorize route with the caller&#8217;s identity</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">iac service</p></td>
@@ -1245,8 +1246,10 @@ deployments are expected to supply their own.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">mapping service</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Resolves a business identifier to a repository URL, plus a best-effort
-terraform provider and cloud scope (<code>null</code> means unknown, ask the user);
-the reference implementation is an identity passthrough.</p></td>
+terraform provider and cloud scope (<code>null</code> means unknown, ask the user).
+Disabled by default and not bundled: provide your own implementation;
+disabled, the core treats the identifier as the repository URL (identity
+passthrough).</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Called through a core passthrough route</p></td>
 </tr>
 <tr>

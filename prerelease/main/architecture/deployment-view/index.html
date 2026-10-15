@@ -1158,7 +1158,7 @@ on purpose.</p>
 <p>Named volumes are written into each container&#8217;s subtitle instead of
 being drawn as separate nodes (<code>core_db_data</code>, <code>phoenix_db_data</code>,
 <code>object_storage_data</code>, and <code>workspaces</code>), and <code>phoenix-db</code> is folded
-into the phoenix node, so the eleventh container of the stack is not a
+into the phoenix node, so the ninth container of the stack is not a
 box of its own. Two edges are left out because the
 <a href="../" class="xref page">system architecture diagram</a> already
 carries them — the core&#8217;s OTLP traces and prompt calls to Phoenix, and
@@ -1196,22 +1196,22 @@ repository ships no Kubernetes manifests or Helm charts.</p>
 <div class="ulist">
 <ul>
 <li>
-<p>All eleven containers share one Docker bridge network. Only <code>proxy</code>
+<p>All nine containers share one Docker bridge network. Only <code>proxy</code>
 publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
 (presigned object-storage access); every other service is
 internal-only via <code>expose</code>.</p>
 </li>
 <li>
 <p>Compose <code>depends_on</code> orders start-up (it does not health-check): core
-waits for core-db, Redis, object storage, and all four sidecars; the
+waits for core-db, Redis, object storage, and the iac and
+notifications sidecars; the
 proxy waits for core, Phoenix, and object storage. The core has no
 Compose dependency on Phoenix, which is why its prompt seeder
 retries.</p>
 </li>
 <li>
 <p>Four named volumes persist state: <code>core_db_data</code>, <code>phoenix_db_data</code>,
-<code>object_storage_data</code>, and <code>workspaces</code>. The authz sidecar&#8217;s JSON
-role store has no volume and does not survive container recreation.</p>
+<code>object_storage_data</code>, and <code>workspaces</code>.</p>
 </li>
 </ul>
 </div>
@@ -1323,9 +1323,11 @@ alone.</p>
 </li>
 <li>
 <p><strong>Contract-first sidecars.</strong> OpenAPI specifications are the
-authoritative boundary, with generated clients on one side and
-intentionally minimal reference implementations on the other,
-inviting substitution in enterprise deployments.</p>
+authoritative boundary, with generated clients on one side and, on
+the other, intentionally minimal bundled implementations for IaC and
+notifications, inviting substitution in enterprise deployments; the
+mapping and authorization contracts ship without an implementation,
+as optional extension points you implement yourself.</p>
 </li>
 <li>
 <p><strong>Deliberately direct execution.</strong> Pipelines run as in-process

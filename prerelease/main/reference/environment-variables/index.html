@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/environment-variables/">
     <link rel="prev" href="../configuration/">
     <link rel="next" href="../llm-providers/">
-    <meta name="description" content="Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.">
+    <meta name="description" content="Every environment variable Kumoss reads: the core, the bundled IaC and notifications sidecars, the IaC engine, and the LLM providers.">
     <meta name="generator" content="Antora 3.2.1">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -772,7 +772,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Environment variables</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Environment variables and secrets</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Every environment variable Kumoss reads: the core, the bundled IaC and notifications sidecars, the IaC engine, and the LLM providers.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -797,9 +797,12 @@
 <p>Kumoss keeps every secret in environment variables. <code>config.yaml</code> holds
 only non-secret settings and, where a secret is needed, the <em>name</em> of
 the variable that carries it (fields ending in <code>_env</code>). This page
-documents every variable in <code>core/env.sample</code> and in the four sidecar
-<code>env.sample</code> files, plus the variables that the IaC engine and the LLM
-providers read on their own.</p>
+documents every variable in <code>core/env.sample</code> and in the two bundled
+sidecar <code>env.sample</code> files (IaC and notifications), plus the variables
+that the IaC engine and the LLM providers read on their own. Mapping
+and authorization have no bundled sidecar: they are optional extension
+points you implement yourself, so the only variables Kumoss reads for
+them are the core-side tokens.</p>
 </div>
 <div class="paragraph">
 <p>Each <code>env.sample</code> is a template: copy it to a <code>.env</code> file next to it
@@ -883,10 +886,10 @@ call</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-mapping-token</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the mapping sidecar, sent when
-<code>services.mapping.enabled</code> is true. Must equal
-<code>KUMOSS_MAPPING_TOKEN</code> in <code>services/mapping/.env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">commented out in the sample</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for your own mapping implementation, sent when
+<code>services.mapping.enabled</code> is true. Must equal the token that
+implementation expects. Needed only when you enable it.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
 </tr>
 <tr>
@@ -901,10 +904,10 @@ call</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-authz-token</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the authorization sidecar, sent when
-<code>services.authz.enabled</code> is true. Must equal
-<code>KUMOSS_AUTHZ_TOKEN</code> in <code>services/authz/.env</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">commented out in the sample</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for your own authorization implementation, sent when
+<code>services.authz.enabled</code> is true. Must equal the token that
+implementation expects. Needed only when you enable it.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
 </tr>
 <tr>
@@ -1336,51 +1339,6 @@ backends</a>.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="mapping-sidecar-servicesmappingenv-sample"><a class="anchor" href="#mapping-sidecar-servicesmappingenv-sample"></a>Mapping sidecar (<code>services/mapping/env.sample</code>)</h2>
-<div class="sectionbody">
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 15.3846%;">
-<col style="width: 15.3846%;">
-<col style="width: 15.3846%;">
-<col style="width: 38.4615%;">
-<col style="width: 15.3847%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Requirement</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Meaning</th>
-<th class="tableblock halign-left valign-top">Checked</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>POST /v1/resolve</code>. Must equal the core&#8217;s
-<code>KUMOSS_MAPPING_TOKEN</code>.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
-</tr>
-</tbody>
-</table></div></div>
-<div class="paragraph">
-<p>The bundled mapping service is an identity passthrough: it returns the
-identifier it receives as both <code>repo_url</code> and <code>identifier</code>, echoes back
-any <code>terraform_provider</code> it was sent, and always answers <code>null</code> for
-<code>scope_id</code> — it knows nothing it was not told, and <code>null</code> means "ask the
-user". While <code>services.mapping.enabled</code> is <code>false</code> (the default) the
-core performs that same mapping itself and never calls the service.
-Once enabled, a sidecar that times out or is unreachable makes the
-wizard&#8217;s resolve step fail with <code>504</code> or <code>502</code>, and so does a response
-the core cannot parse or one naming a provider outside the contract&#8217;s
-enum; there is no silent fallback.</p>
-</div>
-</div>
-</div>
-<div class="sect1">
 <h2 id="notifications-sidecar-servicesnotificationsenv-sample"><a class="anchor" href="#notifications-sidecar-servicesnotificationsenv-sample"></a>Notifications sidecar (<code>services/notifications/env.sample</code>)</h2>
 <div class="sectionbody">
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1454,89 +1412,46 @@ would rather not see it.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="authorization-sidecar-servicesauthzenv-sample"><a class="anchor" href="#authorization-sidecar-servicesauthzenv-sample"></a>Authorization sidecar (<code>services/authz/env.sample</code>)</h2>
+<h2 id="mapping-and-authorization-no-bundled-sidecar"><a class="anchor" href="#mapping-and-authorization-no-bundled-sidecar"></a>Mapping and authorization (no bundled sidecar)</h2>
 <div class="sectionbody">
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 15.3846%;">
-<col style="width: 15.3846%;">
-<col style="width: 15.3846%;">
-<col style="width: 38.4615%;">
-<col style="width: 15.3847%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Requirement</th>
-<th class="tableblock halign-left valign-top">Default</th>
-<th class="tableblock halign-left valign-top">Meaning</th>
-<th class="tableblock halign-left valign-top">Checked</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_TOKEN</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended when the sidecar is enabled</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>/v1/*</code>. Must equal the core&#8217;s <code>KUMOSS_AUTHZ_TOKEN</code>.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">empty</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">When set, the sidecar grants its own <code>admin</code> role to a user record
-keyed by this email at startup.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_PERMISSIVE</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> (case-insensitive): <code>POST /v1/check</code> answers
-<code>authorized: true</code> for every request. Any other value: it answers
-<code>authorized: false</code> for every request. Neither value implements a real
-policy.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">At boot</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_AUTHZ_ROLE_STORE</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>/data/roles.json</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Path of the JSON file holding the sidecar&#8217;s user-to-roles map. The
-path is container-local in the shipped Compose file (no volume is
-mounted), so assignments are lost when the container is recreated;
-point it at a mounted path if you need them to survive.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">On first write</p></td>
-</tr>
-</tbody>
-</table></div></div>
 <div class="paragraph">
-<p>Two things to keep apart:</p>
+<p>Kumoss bundles no mapping or authorization service, so there is no
+<code>env.sample</code> for either. The core reads only <code>KUMOSS_MAPPING_TOKEN</code> and
+<code>KUMOSS_AUTHZ_TOKEN</code> (see the core table above), and only when the
+matching <code>services.&lt;name&gt;.enabled</code> is <code>true</code>. Any other variables are
+whatever your own implementation needs.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>The bundled authorization sidecar is a <strong>permissive reference
-implementation</strong>. It exists so that the contract in
-<code>contracts/openapi/authz.v1.yaml</code> has a runnable example. The core
-consults it only from <code>POST /v1/auth/authorize</code> (a cloud-project
-access check) and only when <code>services.authz.enabled</code> is <code>true</code>.
-Enabling it without replacing the logic changes nothing about who is
-allowed to do what. While disabled, the core answers "authorized"
-without any call; once enabled, an unreachable or slow sidecar makes
-the preflight fail with <code>502</code> or <code>504</code> rather than allowing the
-request.</p>
+<p><strong>Mapping.</strong> While <code>services.mapping.enabled</code> is <code>false</code> (the default)
+the core never calls a service and performs an identity passthrough
+itself: it returns the identifier as both <code>repo_url</code> and
+<code>identifier</code>, echoes back any <code>terraform_provider</code> it was sent, and
+answers <code>null</code> for <code>scope_id</code> — it knows nothing it was not told, and
+<code>null</code> means "ask the user". Once enabled, a service that times out
+or is unreachable makes the wizard&#8217;s resolve step fail with <code>504</code> or
+<code>502</code>, and so does a response the core cannot parse or one naming a
+provider outside the contract&#8217;s enum; there is no silent fallback.</p>
 </li>
 <li>
-<p>The sidecar&#8217;s <code>admin</code> and <code>user</code> roles, its root-admin bootstrap, and
-its <code>/v1/users</code> endpoints belong to the sidecar alone. Kumoss&#8217;s own
-operation roles (<code>developer</code>, <code>devops</code>) and admin-panel roles
-(<code>viewer</code>, <code>editor</code>, <code>admin</code>) live in the core database and are
-documented in the <a href="../../guides/administer-users-and-locks/" class="xref page">Admin
-portal</a> guide.</p>
+<p><strong>Authorization.</strong> The core consults the service only from <code>POST
+/v1/auth/authorize</code> (a cloud-project access check) and only when
+<code>services.authz.enabled</code> is <code>true</code>. While disabled, the core answers
+"authorized" without any call; once enabled, an unreachable or slow
+service makes the preflight fail with <code>502</code> or <code>504</code> rather than
+allowing the request. Kumoss&#8217;s own operation roles (<code>developer</code>,
+<code>devops</code>) and admin-panel roles (<code>viewer</code>, <code>editor</code>, <code>admin</code>) live in
+the core database, not in this service, and are documented in the
+<a href="../../guides/administer-users-and-locks/" class="xref page">Admin portal</a> guide.</p>
 </li>
 </ul>
+</div>
+<div class="paragraph">
+<p>To enable either, set <code>enabled: true</code>, point <code>endpoint</code> at your
+implementation, and set the token variable in <code>core/.env</code>. The core
+refuses to boot when an enabled service has an empty <code>endpoint</code> or an
+empty token.</p>
 </div>
 </div>
 </div>
@@ -1615,7 +1530,8 @@ names, and the limits of boot-time validation are documented in
 </div>
 <div class="paragraph">
 <p>Paste the output into both <code>core/.env</code> and the matching sidecar
-<code>.env</code>. Generate a distinct value per sidecar. Do not reuse the
+<code>.env</code> (or your own mapping or authorization implementation&#8217;s
+configuration). Generate a distinct value per sidecar. Do not reuse the
 <code>dev-*-token</code> placeholders or an empty sidecar token outside an
 isolated workstation: an empty sidecar token disables its bearer check
 entirely.</p>
@@ -1633,9 +1549,8 @@ private network that only the core can reach, and rotate tokens on a
 schedule.</p>
 </li>
 <li>
-<p><strong>All five Kumoss-built images run unprivileged.</strong> The core, IaC,
-mapping, notifications, and authorization Dockerfiles each create and
-switch to the <code>kumoss</code> user (uid/gid <code>10001</code> by default, from the
+<p><strong>The core, IaC, and notifications images run unprivileged.</strong> Their
+Dockerfiles each create and switch to the <code>kumoss</code> user (uid/gid <code>10001</code> by default, from the
 <code>KUMOSS_UID</code> / <code>KUMOSS_GID</code> build args). The <code>proxy</code> service is the
 upstream nginx image, which starts as root and drops privileges for
 its worker processes. Apply your platform&#8217;s pod or container security
@@ -1710,9 +1625,7 @@ The Vertex AI set is shown in the next example.</p>
 <span class="line"><span></span></span>
 <span class="line"><span># Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)</span></span>
 <span class="line"><span>KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
-<span class="line"><span>KUMOSS_MAPPING_TOKEN=unused-while-disabled</span></span>
 <span class="line"><span>KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled</span></span>
-<span class="line"><span>KUMOSS_AUTHZ_TOKEN=unused-while-disabled</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Git push credentials</span></span>
 <span class="line"><span>GIT_USER=kumoss-bot</span></span>
@@ -1763,8 +1676,12 @@ The Vertex AI set is shown in the next example.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  mapping</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Your own implementation of contracts/openapi/mapping.v1.yaml.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://mapping.kumoss.example.invalid"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  authz</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Your own implementation of contracts/openapi/authz.v1.yaml.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://authz.kumoss.example.invalid"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # No enabled flag: the IaC sidecar is mandatory and always called.</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://iac:8082"</span></span></span></code></pre>
@@ -1837,14 +1754,6 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 </div>
 <div class="paragraph">
-<p><code>services/mapping/.env</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002</span></span></span></code></pre>
-</div>
-</div>
-<div class="paragraph">
 <p><code>services/notifications/.env</code>:</p>
 </div>
 <div class="listingblock">
@@ -1852,17 +1761,6 @@ fails with a JSON-parsing error rather than a missing-file error.
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003</span></span>
 <span class="line"><span>SLACK_WEBHOOK_URL=https://hooks.slack.example.invalid/services/T000/B000/example</span></span>
 <span class="line"><span>LOG_LEVEL=INFO</span></span></span></code></pre>
-</div>
-</div>
-<div class="paragraph">
-<p><code>services/authz/.env</code>:</p>
-</div>
-<div class="listingblock">
-<div class="content">
-<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004</span></span>
-<span class="line"><span>KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid</span></span>
-<span class="line"><span>KUMOSS_AUTHZ_PERMISSIVE=true</span></span>
-<span class="line"><span>KUMOSS_AUTHZ_ROLE_STORE=/data/roles.json</span></span></span></code></pre>
 </div>
 </div>
 </div>

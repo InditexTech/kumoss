@@ -900,10 +900,10 @@ cloud keys, egress limited to registries and cloud APIs.</p>
 bundled reference consciously accepted for production after review.</p>
 </li>
 <li>
-<p>Mapping, notifications, and authorization containers already run as
-the unprivileged <code>kumoss</code> user (10001) in the bundled images; the
-<code>proxy</code> (nginx) image starts as root and drops privileges only for
-its workers — give it a non-root image or a Kubernetes
+<p>The bundled notifications container already runs as the unprivileged
+<code>kumoss</code> user (10001); give your own mapping and authorization
+services the same treatment. The <code>proxy</code> (nginx) image starts as root
+and drops privileges only for its workers — give it a non-root image or a Kubernetes
 <code>runAsNonRoot</code> treatment if your policy requires it.</p>
 </li>
 <li>

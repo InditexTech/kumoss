@@ -1010,9 +1010,10 @@ locks</a>.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>An integration point between Kumoss and an organization&#8217;s systems,
-implementing an OpenAPI contract. Any implementation of the contract can
-replace the bundled reference by pointing <code>services.&lt;name&gt;.endpoint</code> in
-<code>config.yaml</code> at it.</p>
+implementing an OpenAPI contract. Kumoss bundles the <code>iac</code> and
+<code>notifications</code> sidecars; for <code>mapping</code> and <code>authz</code>, provide your own
+implementation. Any implementation of a contract is used by pointing
+<code>services.&lt;name&gt;.endpoint</code> in <code>config.yaml</code> at it.</p>
 </div>
 <div class="paragraph">
 <p>See <a href="../reference/api/" class="xref page">HTTP APIs</a>.</p>

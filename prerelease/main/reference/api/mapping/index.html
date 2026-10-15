@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/mapping/">
     <link rel="prev" href="../notifications/">
     <link rel="next" href="../authz/">
-    <meta name="description" content="The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.">
+    <meta name="description" content="The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.">
     <meta name="generator" content="Antora 3.2.1">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -773,7 +773,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Mapping sidecar API</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Mapping sidecar API</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -811,11 +811,13 @@ any field the mapper answers, so a confident wrong answer is worse than
 returns <code>null</code> whenever its catalogue is not authoritative.</p>
 </div>
 <div class="paragraph">
-<p>Contract: <code>contracts/openapi/mapping.v1.yaml</code>. Default endpoint:
-<code>http://mapping:8081</code>. Bearer token: the value of the variable named
-by <code>services.mapping.token_env</code>, <code>KUMOSS_MAPPING_TOKEN</code> by default.
-The service is <strong>optional</strong> and ships disabled
-(<code>services.mapping.enabled: false</code>).</p>
+<p>Contract: <code>contracts/openapi/mapping.v1.yaml</code>. Kumoss bundles no
+implementation of it: repository mapping is an optional extension point
+you implement yourself and point <code>services.mapping.endpoint</code> at.
+Bearer token: the value of the variable named by
+<code>services.mapping.token_env</code>, <code>KUMOSS_MAPPING_TOKEN</code> by default. The
+service is <strong>optional</strong> and ships disabled
+(<code>services.mapping.enabled: false</code>, <code>endpoint: ""</code>).</p>
 </div>
 <div class="paragraph">
 <p>It is internal-only. The browser never reaches it: the core forwards
@@ -1046,75 +1048,30 @@ There is no silent fallback once the sidecar is enabled.</p>
 </div>
 <div class="paragraph">
 <p>When the sidecar is disabled (the shipped default) the core answers
-byte-for-byte what the bundled service would for an <code>https://</code> URL:
-<code>repo_url</code> and <code>identifier</code> both echo the input, <code>terraform_provider</code>
-echoes whatever was sent, and <code>scope_id</code> is <code>null</code>. Toggling
-<code>services.mapping.enabled</code> therefore changes nothing for a user who
-pastes an HTTPS repository URL. Any other input is echoed unchecked too
-(where the bundled service answers <code>404</code>); the next request that uses
-it as <code>repo_uri</code> is rejected with <code>422</code>.</p>
+with an <strong>identity passthrough</strong> and makes no call: <code>repo_url</code> and
+<code>identifier</code> both echo the input, <code>terraform_provider</code> echoes whatever
+was sent, and <code>scope_id</code> is <code>null</code>. Nothing is truncated and nothing is
+guessed: sniffing <code>azure</code> out of a <code>dev.azure.com</code> URL would conflate
+"hosted on Azure DevOps" with "deploys to Azure", and a guess is a
+question the user never gets to correct. This is exactly right for
+users who paste real HTTPS git URLs already. Any other input is echoed
+unchecked too; the next request that uses it as <code>repo_uri</code> is rejected
+with <code>422</code>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="the-bundled-implementation"><a class="anchor" href="#the-bundled-implementation"></a>The bundled implementation</h2>
+<h2 id="providing-your-own-implementation"><a class="anchor" href="#providing-your-own-implementation"></a>Providing your own implementation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>services/mapping/</code> is an <strong>identity passthrough</strong>. An <code>https://</code>
-<code>identifier</code> comes back as both <code>repo_url</code> and <code>identifier</code>,
-<code>terraform_provider</code> echoes what the caller sent, and <code>scope_id</code> is
-always <code>null</code>. Nothing is truncated and nothing is guessed: sniffing
-<code>azure</code> out of a <code>dev.azure.com</code> URL would conflate "hosted on Azure
-DevOps" with "deploys to Azure", and a guess is a question the user
-never gets to correct. Any other identifier — a bare name, an SSH or
-<code>file://</code> URL, a path — cannot be resolved and answers <code>404</code>. It exists
-so a fresh deployment works end to end without anyone writing a real
-mapper, and it is exactly right for users who pass real HTTPS git URLs
-already.</p>
-</div>
-<div class="paragraph">
-<p>A catalogue-backed implementation replaces it: look the identifier up
-in a CMDB, Backstage, or a shared spreadsheet and return the canonical
-IaC repository, plus the provider and scope when the catalogue is
+<p>A catalogue-backed implementation looks the identifier up in a CMDB,
+Backstage, or a shared spreadsheet and returns the canonical IaC
+repository, plus the provider and scope when the catalogue is
 authoritative for them. The contract carries the result and says
-nothing about where the lookup data lives.</p>
-</div>
-<div class="sect2">
-<h3 id="responses-it-never-produces"><a class="anchor" href="#responses-it-never-produces"></a>Responses it never produces</h3>
-<div class="paragraph">
-<p>The contract documents <code>400</code>, <code>403</code>, <code>404</code>, and <code>502</code> for real
-catalogue backends. The passthrough emits only <code>404</code>, for an identifier
-that is not an <code>https://</code> URL — it has no catalogue to miss in and no
-authorization concept beyond the bearer token. It only ever answers
-<code>200</code>, <code>401</code>, <code>404</code>, <code>422</code>, or <code>500</code>. A caller
-must still handle the full set, because a catalogue implementation
-will use it.</p>
-</div>
-</div>
-<div class="sect2">
-<h3 id="configuration"><a class="anchor" href="#configuration"></a>Configuration</h3>
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 28.5714%;">
-<col style="width: 14.2857%;">
-<col style="width: 57.1429%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Required</th>
-<th class="tableblock halign-left valign-top">Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token clients must present. Blank disables the check entirely
-and accepts every request.</p></td>
-</tr>
-</tbody>
-</table></div></div>
+nothing about where the lookup data lives. Set
+<code>services.mapping.enabled: true</code>, point <code>services.mapping.endpoint</code> at
+it, and set <code>KUMOSS_MAPPING_TOKEN</code> in <code>core/.env</code>; the core refuses to
+boot when an enabled service has no endpoint or an empty token.</p>
 </div>
 </div>
 </div>

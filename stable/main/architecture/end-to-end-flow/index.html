@@ -3713,7 +3713,9 @@ if that is turned off.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>The <strong>mapping sidecar</strong> translates a business identifier into a repository
-reference; the reference implementation is an identity passthrough. It may
+reference. Kumoss ships no implementation of it: provide your own, and
+while it is disabled the core treats the identifier as the repository
+URL (identity passthrough). It may
 also answer with the terraform provider and cloud scope that identifier
 deploys to, and those answers are best effort: <code>null</code> means "unknown, ask
 the user", never "there is none". The wizard skips the step for every

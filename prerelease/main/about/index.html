@@ -801,10 +801,12 @@ and Kumoss&#8217;s agents generate the corresponding code, guided by the
 organization&#8217;s own standards.</p>
 </div>
 <div class="paragraph">
-<p>It runs as a layered FastAPI orchestration core alongside four
-contract-first FastAPI sidecars — the IaC engine, repository mapping,
-notifications, and authorization — behind an nginx edge that also serves a
-React single-page application and proxies the API.</p>
+<p>It runs as a layered FastAPI orchestration core with four OpenAPI
+integration contracts — IaC, notifications, repository mapping, and
+authorization — behind an nginx edge that also serves a React single-page
+application and proxies the API. Kumoss bundles services for IaC and
+notifications, while mapping and authorization are optional extension
+points you implement yourself.</p>
 </div>
 <div class="paragraph">
 <p>Every state change and every blocking decision — the in-flight guard,
@@ -819,10 +821,10 @@ a human action.</p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../_images/readme-components.png" alt="What you deploy: the browser and proxy, the core, the four sidecar services, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets">
+<img src="../_images/readme-components.png" alt="What you deploy: the browser and proxy, the core, the bundled iac and notifications sidecars, the contract-only mapping and authz services you bring yourself, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../_attachments/readme-components.html" data-archify-title="What you deploy: the browser and proxy, the core, the four sidecar services, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets">
+<p class="archify-actions" data-archify-src="../_attachments/readme-components.html" data-archify-title="What you deploy: the browser and proxy, the core, the bundled iac and notifications sidecars, the contract-only mapping and authz services you bring yourself, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets">
   <span class="archify-hint">Pan, zoom, search, trace a relationship, switch themes.</span>
   <a class="archify-full" href="../_attachments/readme-components.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -1173,8 +1175,10 @@ organization: <code>iac</code> (executes the IaC engine; mandatory, always on),
 <code>notifications</code> (posts session outcomes to Slack; disabled by default),
 <code>mapping</code> (resolves a repository reference; disabled by default), and
 <code>authz</code> (applies cloud-project authorization policy; disabled by default).
-Each implements an OpenAPI contract, so any implementation of that contract
-can replace the bundled reference. A disabled sidecar is never contacted.</p>
+Each is defined by an OpenAPI contract. Kumoss bundles the <code>iac</code> and
+<code>notifications</code> services, which any implementation of their contract can
+replace; for <code>mapping</code> and <code>authz</code>, provide your own implementation. A
+disabled sidecar is never contacted.</p>
 </div>
 <div class="paragraph">
 <p>The React single-page application is the user-facing portal, served by the
