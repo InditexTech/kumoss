@@ -453,7 +453,9 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
           <SessionData
             session={detail}
             onReload={
-              detail.current_status !== "failed" ? handleReload : undefined
+              detail.current_status !== "failed"
+                ? () => void handleReload()
+                : undefined
             }
             onToggleLock={
               canToggleLock
