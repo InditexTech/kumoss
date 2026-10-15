@@ -101,6 +101,12 @@ class WebSearchToolNoContent(ExceptionHandler):
     pass
 
 
+class SearchEngineError(ExceptionHandler):
+    """Raised when the configured search engine call fails"""
+
+    pass
+
+
 class CloudLoginError(ExceptionHandler):
     """Raised when an error occurs during cloud login"""
 
