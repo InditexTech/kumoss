@@ -165,9 +165,7 @@ def _k_pull_requests(session_id: UUID) -> str:
 
 
 def _k_detail(session_id: UUID) -> str:
-    # v2: ``history`` was replaced by ``chat_history``; a new key keeps
-    # pre-change caches out.
-    return f"{_CACHE_NS}:session:{session_id}:detail:v2"
+    return f"{_CACHE_NS}:session:{session_id}:detail"
 
 
 def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
