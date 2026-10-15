@@ -7,41 +7,13 @@
 from typing import Any, TypeVar
 from contextlib import asynccontextmanager
 
-from sqlalchemy import Dialect, Enum, MetaData, select, func, desc, asc, text
+from sqlalchemy import select, func, desc, asc
 
 from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
 
 T = TypeVar("T", bound=Base)
-
-
-def enum_label_statements(metadata: MetaData, dialect: Dialect) -> list[str]:
-    """``ALTER TYPE`` statements adding every model enum label.
-
-    ``create_all`` creates a native enum type once and never alters it, so a
-    database created before a member was added (a new ``TerraformProvider``,
-    say) rejects that value on insert. ``IF NOT EXISTS`` makes them safe to
-    run on every boot.
-    """
-    preparer = dialect.identifier_preparer
-    statements: list[str] = []
-    seen: set[str] = set()
-    for table in metadata.sorted_tables:
-        for column in table.columns:
-            enum: object = column.type
-            if not isinstance(enum, Enum) or not enum.native_enum or not enum.name:
-                continue
-            type_name = preparer.quote(enum.name)
-            if type_name in seen:
-                continue
-            seen.add(type_name)
-            for label in enum.enums:
-                literal = label.replace("'", "''")
-                statements.append(
-                    f"ALTER TYPE {type_name} ADD VALUE IF NOT EXISTS '{literal}'"
-                )
-    return statements
 
 
 class DatabaseClient:
@@ -69,11 +41,6 @@ class DatabaseClient:
         try:
             async with self.session_manager.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                if conn.dialect.name == "postgresql":
-                    for statement in enum_label_statements(
-                        Base.metadata, conn.dialect
-                    ):
-                        _ = await conn.execute(text(statement))
             logging.info("Database tables created/verified successfully")
         except Exception as e:
             logging.error(f"Error creating database tables: {e}")

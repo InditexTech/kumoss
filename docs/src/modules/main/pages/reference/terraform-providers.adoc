@@ -240,8 +240,8 @@ resolve inside the container.
 
 Import discovery (`/v1/import/scope-resource-ids`) has no Kubernetes
 implementation: it answers exit code `2` with `no scope discovery for
-provider 'kubernetes'`. Importing existing objects therefore needs the
-resource ids supplied by hand.
+provider 'kubernetes'`, so an import round on `kubernetes` ends with a
+report that says so and imports nothing.
 
 == VMware vSphere — provider minimum
 
@@ -281,6 +281,12 @@ Import discovery (`/v1/import/scope-resource-ids`) has no vSphere
 implementation: it answers exit code `2` with `no scope discovery for
 provider 'vmware'`, so an import round on `vmware` ends with a report
 that says so and imports nothing.
+
+NOTE: A storage policy does not replace datastore placement.
+`storage_policy_id` is applied in addition to `datastore_id` or
+`datastore_cluster_id`, which the pinned provider still requires on
+every virtual machine; the shipped vSphere prompts instruct the model
+accordingly.
 
 [#backend-minimums]
 == Backend minimums

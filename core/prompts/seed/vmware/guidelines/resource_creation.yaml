@@ -39,12 +39,20 @@ body: |
     `vsphere_storage_policy` — passing names in through variables.
   - Never hardcode managed object IDs (`datacenter-3`, `group-v42`,
     `domain-c7`); they differ between vCenters.
+  - Declare exactly one `vsphere_datacenter` data source, named from a
+    single `datacenter` variable, and derive every other lookup from it.
+    When the request names a datacenter, use that exact name. If the
+    code already looks up a different datacenter, do not silently keep
+    or change it: state the mismatch in the response instead of planning
+    against the wrong datacenter.
 
   ## Placement
   - Every workload lives in its own VM folder and resource pool per
     application and environment.
-  - Prefer a datastore cluster with Storage DRS, or a VM storage
-    policy, over pinning a single datastore.
+  - Prefer a datastore cluster with Storage DRS over pinning a single
+    datastore. A VM storage policy never replaces datastore placement:
+    the pinned vSphere provider still requires `datastore_id` or
+    `datastore_cluster_id`, so set the policy in addition.
   - Do not place virtual machines on a host directly; let DRS choose.
 
   ## Tagging

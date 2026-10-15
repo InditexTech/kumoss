@@ -31,8 +31,8 @@ uv run pytest \
 URL and token may also be supplied via `KUMOSS_MAPPING_URL` /
 `KUMOSS_MAPPING_TOKEN`.
 
-The bundled reference impl under `services/mapping/` has its own test
-suite — see that directory's README for how to run it.
+Kumoss does not bundle a mapping implementation; this suite is how you
+check your own before pointing `services.mapping.endpoint` at it.
 
 ## What this checks
 

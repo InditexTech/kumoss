@@ -285,7 +285,8 @@ RustFS.
   anything real:
   xref:main:guides/configure-state-backends.adoc[Configure state backends].
 * Turn on the optional sidecars — Slack notifications, resource mapping,
-  external authorization — from
+  external authorization (the last two need an implementation you
+  provide) — from
   xref:main:reference/configuration.adoc#config-services[`services`] and
   xref:main:reference/environment-variables.adoc[Environment variables and
   secrets].

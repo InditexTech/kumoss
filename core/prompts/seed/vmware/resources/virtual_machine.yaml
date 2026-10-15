@@ -17,9 +17,10 @@ body: |
   - Copy `guest_id`, `firmware`, `scsi_type` and disk sizes from the
     template data source so the clone matches it.
   - Placement: `resource_pool_id` of the workload resource pool,
-    `folder` of the workload VM folder, and `datastore_cluster_id` or
-    `storage_policy_id` rather than a single `datastore_id`. Never set
-    `host_system_id`; let DRS place the VM.
+    `folder` of the workload VM folder, and `datastore_cluster_id`
+    rather than a single `datastore_id`; add `storage_policy_id` on top
+    when a policy is requested, never instead of the datastore. Never
+    set `host_system_id`; let DRS place the VM.
   - Size: start at 2 vCPUs and 4 GB of memory. Keep
     `cpu_hot_add_enabled` and `memory_hot_add_enabled` at `false`
     (hot add disables vNUMA).

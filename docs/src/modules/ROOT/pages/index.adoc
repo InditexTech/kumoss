@@ -35,8 +35,8 @@ before running Kumoss beyond a trusted workstation.
 
 [card,subheader="Architecture"]
 .xref:main:architecture.adoc[See how it is built]
-The layered FastAPI core, the four contract-first sidecars, and the
-request lifecycle from filter to apply.
+The layered FastAPI core, the four contract-first integration points,
+and the request lifecycle from filter to apply.
 
 [card,subheader="Guides"]
 .xref:main:guides-overview.adoc[Follow a session end to end]
@@ -117,7 +117,8 @@ OpenTelemetry and Arize Phoenix.
 
 Each integration point is a sidecar behind an
 xref:main:reference/api/index.adoc[OpenAPI contract]: implement the
-contract and Kumoss uses your service instead of the bundled one.
+contract and Kumoss uses your service. Kumoss bundles services for IaC
+and notifications; for authorization, provide your own implementation.
 
 [cards,columns="1 s:2 m:4"]
 ====

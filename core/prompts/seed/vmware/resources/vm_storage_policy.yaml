@@ -18,5 +18,7 @@ body: |
     `data "vsphere_storage_policy"` (name `VM Encryption Policy`) and
     set it as the VM's or disk's `storage_policy_id`. This requires a
     key provider configured in vCenter, which is platform-owned.
-  - Reference the policy from virtual machines and disks with
-    `storage_policy_id` instead of selecting a datastore by name.
+  - `storage_policy_id` is not a substitute for datastore placement:
+    the pinned vSphere provider still requires `datastore_id` or
+    `datastore_cluster_id` on every virtual machine. Keep the datastore
+    placement and set `storage_policy_id` from this policy in addition.

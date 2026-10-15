@@ -1,5 +1,31 @@
 # Changelog
 
+## [1.0.9](https://github.com/InditexTech/kumoss/compare/v1.0.8...v1.0.9) (2026-10-15)
+
+
+### Bug Fixes
+
+* **iac:** resolve CodeQL incomplete URL substring sanitization in GCP discovery ([8b262ab](https://github.com/InditexTech/kumoss/commit/8b262ab30f4065d538b31c46925e4ece72638c85))
+
+## [1.0.8](https://github.com/InditexTech/kumoss/compare/v1.0.7...v1.0.8) (2026-10-15)
+
+
+### Bug Fixes
+
+* remove the unused authz and mapping reference services ([c314937](https://github.com/InditexTech/kumoss/commit/c3149371bb4a870ecec03a08627b7454e70f75c1))
+* remove the unused authz and mapping reference services ([#362](https://github.com/InditexTech/kumoss/issues/362)) ([3ce61db](https://github.com/InditexTech/kumoss/commit/3ce61dbdd4acd61f6a80014b001af462b391f7c2))
+
+## [1.0.7](https://github.com/InditexTech/kumoss/compare/v1.0.6...v1.0.7) (2026-10-15)
+
+
+### Documentation
+
+* add cost management initiatives to the roadmap ([ac4a416](https://github.com/InditexTech/kumoss/commit/ac4a416b8e2f5b2179e11f896f02b9da359347b1))
+* replace the overview video music with an upbeat original score ([061fe60](https://github.com/InditexTech/kumoss/commit/061fe609d383bad2dbd90cb2491b1487451d0fd1))
+* replace the overview video music with an upbeat original score ([75f6255](https://github.com/InditexTech/kumoss/commit/75f6255fe5ef406277bbc3d04b4f9d0974fe00d1))
+* **roadmap:** add bulk operations and multiproject requests ([3832dc4](https://github.com/InditexTech/kumoss/commit/3832dc4ffbad33e4627330be31b968c63f7791f4))
+* **roadmap:** add bulk operations and multiproject requests ([548b939](https://github.com/InditexTech/kumoss/commit/548b93952e215097d5e69543104fbe60b78dfac3))
+
 ## [1.0.6](https://github.com/InditexTech/kumoss/compare/v1.0.5...v1.0.6) (2026-10-14)
 
 

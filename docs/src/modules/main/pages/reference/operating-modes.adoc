@@ -10,6 +10,10 @@ each mode are xref:main:guides/generate-infrastructure.adoc[Generate
 infrastructure], xref:main:guides/remediate-drift.adoc[Remediate drift],
 and xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
+NOTE: The import modes are supported on Azure, GCP and AWS only. On
+OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+import round ends with a report that says so and imports nothing.
+
 == Session inputs
 
 The first request of a session provides the repository URL (`https://`

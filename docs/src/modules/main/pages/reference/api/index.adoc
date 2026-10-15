@@ -1,5 +1,5 @@
 = HTTP APIs
-:description: The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client.
+:description: The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client (IaC, notifications, repository mapping, authorization).
 
 A Kumoss deployment has two kinds of HTTP surface, and they are
 documented from two different sources.
@@ -14,11 +14,13 @@ exposes.
 The *sidecar contracts* are four hand-written OpenAPI 3.1 documents in
 `contracts/openapi/`. They define what the core expects of the
 authorization, IaC, mapping, and notifications services. Here the
-specification is the source of truth and the services under
-`services/` are reference implementations of it — the core calls them
-through a generated client and never imports an implementation
-directly. Each sidecar page below documents its contract and folds in
-the behaviour of the bundled reference implementation.
+specification is the source of truth. Kumoss bundles services for IaC
+and notifications under `services/`, while mapping and authorization
+are optional extension points you implement yourself — the core calls
+every service through a generated client and never imports an
+implementation directly. Each sidecar page below documents its
+contract and, where Kumoss bundles one, the behaviour of the bundled
+implementation.
 
 [cards,columns="1 s:2 m:3"]
 ====
@@ -41,12 +43,13 @@ posts to a Slack incoming webhook.
 [card]
 .xref:main:reference/api/mapping.adoc[Mapping sidecar API]
 Resolves a business identifier into a repository URL, branch, and
-sub-path. The bundled implementation is an identity passthrough.
+sub-path. No bundled implementation; while disabled the core answers
+with an identity passthrough.
 
 [card]
 .xref:main:reference/api/authz.adoc[Authorization sidecar API]
 Per-resource cloud access decisions. Consulted from exactly one core
-route, and disabled by default.
+route, and disabled by default. No bundled implementation.
 ====
 
 == Where the core API lives
@@ -81,18 +84,19 @@ Three conventions hold across all four contracts:
 * *Authentication* is a per-service bearer token
   (`Authorization: Bearer <token>`). The core reads the value from the
   environment variable named by `services.<name>.token_env`; the
-  sidecar reads it from its own variable. The two must match. Every
-  reference implementation treats a blank token as "accept every
+  sidecar reads it from its own variable. The two must match. Both
+  bundled implementations treat a blank token as "accept every
   request", which is acceptable only on an isolated workstation.
 * *Liveness* is `GET /healthz`, which answers `200` with
   `{"status":"ok"}` on every service and is the only endpoint outside
   `/v1` and the only one that needs no token.
 
 Each service is addressed through `services.<name>.endpoint`. The
-checked-in defaults are the compose-network names:
-`\http://iac:8082`, `\http://notifications:8080`,
-`\http://mapping:8081`, and `\http://authz:8083`. Only the IaC
-service is mandatory; the other three default to `enabled: false`. See
+checked-in defaults for the bundled services are the compose-network
+names `\http://iac:8082` and `\http://notifications:8080`; `mapping`
+and `authz` ship with `enabled: false` and an empty `endpoint`, which
+you point at your own implementation when you enable them. Only the
+IaC service is mandatory. See
 xref:main:reference/configuration.adoc#config-services[the `services`
 section] of the configuration reference.
 
