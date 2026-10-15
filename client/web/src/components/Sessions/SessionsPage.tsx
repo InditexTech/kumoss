@@ -14,16 +14,16 @@ import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { getApiErrorMessage } from "@/services/api";
-import {
-  listUserSessions,
-  getSessionDetail,
-} from "@/services/core/sessions";
+import { listUserSessions, getSessionDetail } from "@/services/core/sessions";
 import {
   listAdminSessions,
   getAdminSessionDetail,
   setSessionLock,
 } from "@/services/core/admin";
-import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
+import {
+  setCachedSessions,
+  invalidateSessionsCache,
+} from "@/services/core/sessionsCache";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
@@ -226,7 +226,9 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const sessionId = searchParams.get("session");
   const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>({});
+  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>(
+    {},
+  );
   const canToggleLock = isAdminView && panelRoleAtLeast(panelRole, "editor");
 
   const setSessionParam = useCallback(
@@ -320,7 +322,9 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         const nowBlocked = res.is_blocked;
         setLockOverrides((prev) => ({ ...prev, [uuid]: nowBlocked }));
         setDetail((prev) =>
-          prev && prev.uuid === uuid ? { ...prev, is_blocked: nowBlocked } : prev,
+          prev && prev.uuid === uuid
+            ? { ...prev, is_blocked: nowBlocked }
+            : prev,
         );
       } catch (err) {
         showNotification(
@@ -381,15 +385,11 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
       return;
     }
 
-    // The API has no partial operations, so a reloaded session resumes in
-    // the full mode of its operation.
-    setMode(
-      detail.operation === "drift"
-        ? "drift"
-        : detail.operation === "import"
-          ? "import"
-          : "generate",
-    );
+    const operationModeMap: Record<string, "generate" | "drift" | "import"> = {
+      drift: "drift",
+      import: "import",
+    };
+    setMode(operationModeMap[detail.operation] ?? "generate");
 
     const patch = buildSessionPatch(outcome);
 
@@ -409,11 +409,16 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
             merged: samePr ? prDetails.merged : undefined,
             lastPrStep: samePr ? prDetails.lastPrStep : undefined,
           }
-        : { number: undefined, url: undefined, merged: undefined, lastPrStep: undefined },
+        : {
+            number: undefined,
+            url: undefined,
+            merged: undefined,
+            lastPrStep: undefined,
+          },
     );
 
     handleCloseOverlay();
-    navigate(
+    void navigate(
       outcome.kind === "apply-results"
         ? `/home/apply-results/${detail.uuid}`
         : `/home/results/${detail.uuid}`,
