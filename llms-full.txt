@@ -1406,6 +1406,72 @@ The `workspaces` volume is per-run: each run clones the repository into a unique
 
 ---
 
+# Guides
+
+Source: /prerelease/main/guides-overview/
+
+These guides show how to accomplish specific tasks with Kumoss. Pick the group that matches your role, then the guide that states your goal. For what each operating mode does today, side by side, see [Operating modes](../reference/operating-modes/).
+
+## Use Kumoss
+
+[Make a request](../guides/make-a-request/)
+
+Open a session and phrase a request the filter accepts.
+
+[Generate infrastructure](../guides/generate-infrastructure/)
+
+Turn a request into validated Terraform code, reviewed as a plan and report before you apply it.
+
+[Follow a session](../guides/follow-a-session/)
+
+Track progress and read the plan, code, and report.
+
+[Merge and apply](../guides/merge-and-apply/)
+
+Handle a session lock, then open, merge, and apply the pull request.
+
+[Remediate drift](../guides/remediate-drift/)
+
+Detect and reconcile drift for a set of resources or a whole Terraform root.
+
+[Import infrastructure](../guides/import-infrastructure/)
+
+Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
+
+## Operate Kumoss
+
+[Enable authentication](../guides/enable-authentication/)
+
+Connect an OIDC identity provider and grant the first administrator access.
+
+[Administer users and locks](../guides/administer-users-and-locks/)
+
+Review any user’s sessions, and manage session locks and roles from the admin panel.
+
+[Monitor with Phoenix](../guides/monitor-with-phoenix/)
+
+Read Kumoss’s traces in Arize Phoenix, and know what a trace contains and omits.
+
+[Customize prompts](../guides/customize-prompts/)
+
+Manage the prompt registry that encodes your conventions and compliance rules.
+
+[Configure state backends](../guides/configure-state-backends/)
+
+Choose who owns Terraform and OpenTofu state: [the repository](../guides/state-backends/repository-declared/), [Kumoss](../guides/state-backends/kumoss-managed/), or [the deployment](../guides/state-backends/sidecar-supplied/).
+
+[Deploy to production](../guides/deploy-to-production/)
+
+Plan a production deployment, then work through [secrets and credentials](../guides/production/secrets-and-credentials/), [networking and TLS](../guides/production/networking-and-tls/), [hardening](../guides/production/hardening/), and [operations](../guides/production/operations/).
+
+## Develop Kumoss
+
+[Development](../guides/development/)
+
+Run the stack for development, test, type-check, lint, and regenerate the sidecar clients.
+
+---
+
 # Administer users and locks
 
 Source: /prerelease/main/guides/administer-users-and-locks/
@@ -1625,78 +1691,6 @@ Everyone else is then managed from the admin panel’s Users tab.
 - **Login redirect rejected by the IdP.** The redirect URI `<origin>/auth/callback` is not registered exactly (scheme, host, port).
 - **Config changes have no effect.** Restart the core (`docker compose restart core`); the file is read only at startup.
 - **A `core_db_data` volume predates authentication.** A volume created before OIDC support was added keyed sessions by `username` instead of the current `users` table; migrate it by hand or drop it before pointing a current core at it.
-
----
-
-# Import infrastructure
-
-Source: /prerelease/main/guides/import-infrastructure/
-
-The Kumoss web application offers two import modes: Partial Import, for the unmanaged resources your request names, and Full Import, for every unmanaged resource in the session’s scope. Both find the resources the cloud holds but the Terraform state does not, write a resource block for each, run `terraform import` on them, and reconcile the imported configuration with the real resources. They differ only in how the resources are selected. This guide covers both.
-
-## Prerequisites
-
-- The `devops` operation role to select either mode in the web application; below `devops` both are shown disabled with the hint "Requires the devops operation role." The API itself, `POST /api/v1/iac/import`, requires only `developer`, plus ownership when it continues an existing session. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, and a scope id, as covered in [Make a request](../make-a-request/). The scope is what discovery lists: an Azure subscription, a GCP project, or an AWS account. OCI and Kubernetes have no scope listing, so an import round on them finds nothing to import (see [Limitations](#limitations)).
-- The IaC sidecar’s credentials must be able to read the cloud inventory for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an AWS Resource Explorer aggregator index. See [Terraform providers](../../reference/terraform-providers/).
-
-## Partial import
-
-**Use case.** Some resources were created by hand, or by another tool, and you want only some of them managed from the repository: "import the key vault and its private endpoint".
-
-**Required inputs.** Repository URL, cloud, scope id, and a **non-empty** request naming what to import. The API rejects a partial import with an empty text.
-
-**Workflow.**
-
-1. **Filtering.** The request filter runs in import mode and declines requests that are not about importing. A declined request ends the round `uncompleted` with the filter’s rationale.
-2. **Prompt composition**, as in generate.
-3. **Discovery.** The core lists what the Terraform state tracks (`/v1/import/state-resource-ids`) and what the cloud scope holds (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state does not track. Azure IDs are compared case-insensitively; every other provider compares them exactly. The IaC sidecar already leaves out resources another control plane owns, such as AKS-managed resource groups or GKE nodes.
-4. **Import exception list.** IDs on the cloud’s `<cloud>-guidelines-import_exceptions` list are withheld from the rest of the round, whatever the request says. See [Import exception list](../customize-prompts/#import-exception-list).
-5. **Selection.** The `import_filter` agent narrows the remaining unmanaged IDs to the ones your request names.
-6. **Generate, validate and import loop**, up to `orchestration.max_import_iteration` attempts (5 by default). Each attempt: 1. generates or corrects the resource blocks for the selected IDs, without modifying configuration that was already there, and commits and pushes them to the session branch; 2. runs `init`, `validate` and `plan` on the session’s targets; 3. has an agent read the branch diff and pair each generated block’s Terraform address with the cloud resource ID it must be imported from, in the spelling the provider expects; 4. runs `terraform import` for each pair, one address at a time, through the IaC sidecar’s `/v1/import`. If the plan fails, its error is fed back to the generator as the next attempt’s request. If any import is rejected, the generator is given every rejected address with the engine’s error, plus the addresses already imported, which it must leave unchanged. The next attempt corrects the blocks and retries only the resources that are still not imported; resources imported by an earlier attempt stay in the state. A failed plan and a rejected import each count as one attempt.
-7. **Convergence.** When at least one resource was imported, the round runs the drift loop of [Remediate drift](../remediate-drift/) over the plan’s targets, up to `orchestration.max_drift_reports` iterations, so the generated configuration matches what was imported. Its final plan is what the report judges state alignment from.
-8. **Report.** An `import` JSON report: the selected, imported and failed counts, an outcome, an execution summary, one entry per resource with its address, ID, status and error, the resources the exception list withheld, the state alignment, and recommendations. The outcome is `Succeeded` when every selected resource was imported, `Partial` when some failed, and `Failed` when none was imported. Withheld resources are not failures and do not lower the outcome.
-
-**When there is nothing to import.** The round still completes with an `import` report that says why: the scope could not be listed (with the IaC sidecar’s diagnostics), the scope holds no importable resource, every resource in it is already managed, every unmanaged resource is on the import exception list, or no unmanaged resource matched the request.
-
-**When the attempts run out.** If the last attempt’s plan passed, the round goes on with what did import: convergence runs for the imported resources, and the report lists the ones that still failed, with the engine’s error for each, and reports `Partial` or `Failed`. If the last plan itself failed, the round fails and the session ends `failed`.
-
-**Inspects existing IaC and state.** Yes: the state inventory, the cloud scope inventory, and the configuration the plan runs on.
-
-**Targets.** Generated from the session’s changes, so the plan covers the imported resources.
-
-**Artifacts and reports.** Plans per attempt, code-change files, drift reports from convergence, an `import` JSON report, a pushed branch.
-
-**State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
-
-**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labelled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
-
-**Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because the ID was paired in a spelling the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent pairs the key vault again with the corrected ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
-
-## Full import
-
-**Use case.** Adopt everything in a scope that Terraform does not yet manage, for example when bringing an existing subscription into a repository.
-
-**Required inputs.** Repository URL, cloud, and scope id. The web application asks for no request text and sends the fixed request "Import all the infrastructure".
-
-**Workflow.** Identical to [partial import](#partial-import) except that the request filter and the `import_filter` selection are skipped: every unmanaged resource in the scope that is not on the import exception list is selected.
-
-**Inspects existing IaC and state, targets, artifacts, state, apply, compliance, locks.** As for partial import.
-
-**Example.** "Import all the infrastructure" on a GCP project with a bucket, a service account and one IAM binding that Terraform does not track. Kumoss selects all three, generates the blocks, imports them, and reports `Succeeded`.
-
-## Limitations
-
-- Scope discovery exists only for Azure, GCP and AWS. On OCI and Kubernetes the scope cannot be listed, and the round ends with a report that says so and imports nothing.
-- The import exception list is matched against the exact IDs the scope listing returns (case-insensitively on Azure), so an entry must be spelled the way discovery spells it.
-- Imports are bounded by `orchestration.max_import_iteration`. Resources still rejected when the attempts run out stay out of the state; their resource blocks stay on the branch, so review them before merging.
-- A resource the address agent cannot pair with a generated block is not imported and is not fed back to the generator.
-- Import rounds run no compliance check, show no impact banner, and pin no plan.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) to open and merge the pull request; an import session ends there.
-- [Import exception list](../customize-prompts/#import-exception-list) to keep resources out of every import round.
 
 ---
 
@@ -4591,6 +4585,101 @@ Status rows are appended to PostgreSQL with a Redis write-through; there is no m
 
 ---
 
+# Development
+
+Source: /prerelease/main/guides/development/
+
+This guide covers contributing to Kumoss itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Kumoss; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
+
+## Prerequisites
+
+Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
+
+## Repository layout
+
+The repository is a monorepo: the FastAPI core in `core/`, the IaC and notifications sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See [Architecture](../../architecture/) for how they fit together.
+
+## Running the stack for development
+
+Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide. `--build` matters: without it, Compose runs the published release images (`ghcr.io/inditextech/kumoss-*`) instead of your checkout. A `docker compose pull` later replaces locally built images with the published ones again.
+
+After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`. An edit to `config.yaml` needs only `docker compose restart core`, because Compose bind-mounts that file.
+
+## Core tests
+
+Python 3.13, `uv`. `pytest` and `pytest-cov` are part of the `tooling` dependency group, so sync the project first:
+
+```
+cd core
+uv sync --frozen --group tooling
+uv run --no-sync pytest tests/
+```
+
+Async tests use `unittest.IsolatedAsyncioTestCase` (no pytest-asyncio plugin, no `--asyncio-mode` flag). `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
+
+## Type checking
+
+`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
+
+```
+cd core
+uv pip install --system --group tooling -r pyproject.toml
+basedpyright
+```
+
+`pyrightconfig.json` only includes `src/` — tests are not type-checked.
+
+## Frontend checks
+
+Node 24:
+
+```
+cd client/web
+npm ci
+npm run lint
+npm run test:ci
+npm run build
+```
+
+## Sidecar tests
+
+Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
+
+```
+cd services/<name>
+uv sync --group tooling
+uv run pytest
+```
+
+## Linting and formatting
+
+`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
+
+## Continuous integration
+
+Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request.
+
+## Regenerating sidecar clients
+
+Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
+
+```
+uv run --group tooling openapi-python-client generate \
+  --path ../contracts/openapi/<service>.v1.yaml \
+  --config ../contracts/openapi-python-client.yaml \
+  --meta none \
+  --output-path src/clients/<service> \
+  --overwrite
+```
+
+Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
+
+## Pull requests
+
+Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
+
+---
+
 # Configure state backends
 
 Source: /prerelease/main/guides/configure-state-backends/
@@ -4832,101 +4921,6 @@ A repository without a `.gitignore` is not the cause: the seeded file is honored
 - [Backend minimums](../../reference/terraform-providers/#backend-minimums): per-cloud backend credentials.
 - [IaC sidecar API — State backend](../../reference/api/iac/#state-backend): the contract-level view.
 - [Architecture — Data and state](../../architecture/data-and-state/#terraform-state): where state sits among Kumoss’s stores.
-
----
-
-# Development
-
-Source: /prerelease/main/guides/development/
-
-This guide covers contributing to Kumoss itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Kumoss; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
-
-## Prerequisites
-
-Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
-
-## Repository layout
-
-The repository is a monorepo: the FastAPI core in `core/`, the IaC and notifications sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See [Architecture](../../architecture/) for how they fit together.
-
-## Running the stack for development
-
-Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide. `--build` matters: without it, Compose runs the published release images (`ghcr.io/inditextech/kumoss-*`) instead of your checkout. A `docker compose pull` later replaces locally built images with the published ones again.
-
-After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`. An edit to `config.yaml` needs only `docker compose restart core`, because Compose bind-mounts that file.
-
-## Core tests
-
-Python 3.13, `uv`. `pytest` and `pytest-cov` are part of the `tooling` dependency group, so sync the project first:
-
-```
-cd core
-uv sync --frozen --group tooling
-uv run --no-sync pytest tests/
-```
-
-Async tests use `unittest.IsolatedAsyncioTestCase` (no pytest-asyncio plugin, no `--asyncio-mode` flag). `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
-
-## Type checking
-
-`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
-
-```
-cd core
-uv pip install --system --group tooling -r pyproject.toml
-basedpyright
-```
-
-`pyrightconfig.json` only includes `src/` — tests are not type-checked.
-
-## Frontend checks
-
-Node 24:
-
-```
-cd client/web
-npm ci
-npm run lint
-npm run test:ci
-npm run build
-```
-
-## Sidecar tests
-
-Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
-
-```
-cd services/<name>
-uv sync --group tooling
-uv run pytest
-```
-
-## Linting and formatting
-
-`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
-
-## Continuous integration
-
-Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request.
-
-## Regenerating sidecar clients
-
-Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
-
-```
-uv run --group tooling openapi-python-client generate \
-  --path ../contracts/openapi/<service>.v1.yaml \
-  --config ../contracts/openapi-python-client.yaml \
-  --meta none \
-  --output-path src/clients/<service> \
-  --overwrite
-```
-
-Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
-
-## Pull requests
-
-Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
 
 ---
 
@@ -5796,72 +5790,6 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) to open and merge the pull request; a drift session ends there.
-
----
-
-# Guides
-
-Source: /prerelease/main/guides-overview/
-
-These guides show how to accomplish specific tasks with Kumoss. Pick the group that matches your role, then the guide that states your goal. For what each operating mode does today, side by side, see [Operating modes](../reference/operating-modes/).
-
-## Use Kumoss
-
-[Make a request](../guides/make-a-request/)
-
-Open a session and phrase a request the filter accepts.
-
-[Generate infrastructure](../guides/generate-infrastructure/)
-
-Turn a request into validated Terraform code, reviewed as a plan and report before you apply it.
-
-[Follow a session](../guides/follow-a-session/)
-
-Track progress and read the plan, code, and report.
-
-[Merge and apply](../guides/merge-and-apply/)
-
-Handle a session lock, then open, merge, and apply the pull request.
-
-[Remediate drift](../guides/remediate-drift/)
-
-Detect and reconcile drift for a set of resources or a whole Terraform root.
-
-[Import infrastructure](../guides/import-infrastructure/)
-
-Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
-
-## Operate Kumoss
-
-[Enable authentication](../guides/enable-authentication/)
-
-Connect an OIDC identity provider and grant the first administrator access.
-
-[Administer users and locks](../guides/administer-users-and-locks/)
-
-Review any user’s sessions, and manage session locks and roles from the admin panel.
-
-[Monitor with Phoenix](../guides/monitor-with-phoenix/)
-
-Read Kumoss’s traces in Arize Phoenix, and know what a trace contains and omits.
-
-[Customize prompts](../guides/customize-prompts/)
-
-Manage the prompt registry that encodes your conventions and compliance rules.
-
-[Configure state backends](../guides/configure-state-backends/)
-
-Choose who owns Terraform and OpenTofu state: [the repository](../guides/state-backends/repository-declared/), [Kumoss](../guides/state-backends/kumoss-managed/), or [the deployment](../guides/state-backends/sidecar-supplied/).
-
-[Deploy to production](../guides/deploy-to-production/)
-
-Plan a production deployment, then work through [secrets and credentials](../guides/production/secrets-and-credentials/), [networking and TLS](../guides/production/networking-and-tls/), [hardening](../guides/production/hardening/), and [operations](../guides/production/operations/).
-
-## Develop Kumoss
-
-[Development](../guides/development/)
-
-Run the stack for development, test, type-check, lint, and regenerate the sidecar clients.
 
 ---
 
@@ -8433,6 +8361,78 @@ Unlike the pipeline’s own best-effort notifications, this route tells the call
 
 ---
 
+# Import infrastructure
+
+Source: /prerelease/main/guides/import-infrastructure/
+
+The Kumoss web application offers two import modes: Partial Import, for the unmanaged resources your request names, and Full Import, for every unmanaged resource in the session’s scope. Both find the resources the cloud holds but the Terraform state does not, write a resource block for each, run `terraform import` on them, and reconcile the imported configuration with the real resources. They differ only in how the resources are selected. This guide covers both.
+
+## Prerequisites
+
+- The `devops` operation role to select either mode in the web application; below `devops` both are shown disabled with the hint "Requires the devops operation role." The API itself, `POST /api/v1/iac/import`, requires only `developer`, plus ownership when it continues an existing session. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, and a scope id, as covered in [Make a request](../make-a-request/). The scope is what discovery lists: an Azure subscription, a GCP project, or an AWS account. OCI and Kubernetes have no scope listing, so an import round on them finds nothing to import (see [Limitations](#limitations)).
+- The IaC sidecar’s credentials must be able to read the cloud inventory for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an AWS Resource Explorer aggregator index. See [Terraform providers](../../reference/terraform-providers/).
+
+## Partial import
+
+**Use case.** Some resources were created by hand, or by another tool, and you want only some of them managed from the repository: "import the key vault and its private endpoint".
+
+**Required inputs.** Repository URL, cloud, scope id, and a **non-empty** request naming what to import. The API rejects a partial import with an empty text.
+
+**Workflow.**
+
+1. **Filtering.** The request filter runs in import mode and declines requests that are not about importing. A declined request ends the round `uncompleted` with the filter’s rationale.
+2. **Prompt composition**, as in generate.
+3. **Discovery.** The core lists what the Terraform state tracks (`/v1/import/state-resource-ids`) and what the cloud scope holds (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state does not track. Azure IDs are compared case-insensitively; every other provider compares them exactly. The IaC sidecar already leaves out resources another control plane owns, such as AKS-managed resource groups or GKE nodes.
+4. **Import exception list.** IDs on the cloud’s `<cloud>-guidelines-import_exceptions` list are withheld from the rest of the round, whatever the request says. See [Import exception list](../customize-prompts/#import-exception-list).
+5. **Selection.** The `import_filter` agent narrows the remaining unmanaged IDs to the ones your request names.
+6. **Generate, validate and import loop**, up to `orchestration.max_import_iteration` attempts (5 by default). Each attempt: 1. generates or corrects the resource blocks for the selected IDs, without modifying configuration that was already there, and commits and pushes them to the session branch; 2. runs `init`, `validate` and `plan` on the session’s targets; 3. has an agent read the branch diff and pair each generated block’s Terraform address with the cloud resource ID it must be imported from, in the spelling the provider expects; 4. runs `terraform import` for each pair, one address at a time, through the IaC sidecar’s `/v1/import`. If the plan fails, its error is fed back to the generator as the next attempt’s request. If any import is rejected, the generator is given every rejected address with the engine’s error, plus the addresses already imported, which it must leave unchanged. The next attempt corrects the blocks and retries only the resources that are still not imported; resources imported by an earlier attempt stay in the state. A failed plan and a rejected import each count as one attempt.
+7. **Convergence.** When at least one resource was imported, the round runs the drift loop of [Remediate drift](../remediate-drift/) over the plan’s targets, up to `orchestration.max_drift_reports` iterations, so the generated configuration matches what was imported. Its final plan is what the report judges state alignment from.
+8. **Report.** An `import` JSON report: the selected, imported and failed counts, an outcome, an execution summary, one entry per resource with its address, ID, status and error, the resources the exception list withheld, the state alignment, and recommendations. The outcome is `Succeeded` when every selected resource was imported, `Partial` when some failed, and `Failed` when none was imported. Withheld resources are not failures and do not lower the outcome.
+
+**When there is nothing to import.** The round still completes with an `import` report that says why: the scope could not be listed (with the IaC sidecar’s diagnostics), the scope holds no importable resource, every resource in it is already managed, every unmanaged resource is on the import exception list, or no unmanaged resource matched the request.
+
+**When the attempts run out.** If the last attempt’s plan passed, the round goes on with what did import: convergence runs for the imported resources, and the report lists the ones that still failed, with the engine’s error for each, and reports `Partial` or `Failed`. If the last plan itself failed, the round fails and the session ends `failed`.
+
+**Inspects existing IaC and state.** Yes: the state inventory, the cloud scope inventory, and the configuration the plan runs on.
+
+**Targets.** Generated from the session’s changes, so the plan covers the imported resources.
+
+**Artifacts and reports.** Plans per attempt, code-change files, drift reports from convergence, an `import` JSON report, a pushed branch.
+
+**State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
+
+**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labelled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
+
+**Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because the ID was paired in a spelling the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent pairs the key vault again with the corrected ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
+
+## Full import
+
+**Use case.** Adopt everything in a scope that Terraform does not yet manage, for example when bringing an existing subscription into a repository.
+
+**Required inputs.** Repository URL, cloud, and scope id. The web application asks for no request text and sends the fixed request "Import all the infrastructure".
+
+**Workflow.** Identical to [partial import](#partial-import) except that the request filter and the `import_filter` selection are skipped: every unmanaged resource in the scope that is not on the import exception list is selected.
+
+**Inspects existing IaC and state, targets, artifacts, state, apply, compliance, locks.** As for partial import.
+
+**Example.** "Import all the infrastructure" on a GCP project with a bucket, a service account and one IAM binding that Terraform does not track. Kumoss selects all three, generates the blocks, imports them, and reports `Succeeded`.
+
+## Limitations
+
+- Scope discovery exists only for Azure, GCP and AWS. On OCI and Kubernetes the scope cannot be listed, and the round ends with a report that says so and imports nothing.
+- The import exception list is matched against the exact IDs the scope listing returns (case-insensitively on Azure), so an entry must be spelled the way discovery spells it.
+- Imports are bounded by `orchestration.max_import_iteration`. Resources still rejected when the attempts run out stay out of the state; their resource blocks stay on the branch, so review them before merging.
+- A resource the address agent cannot pair with a generated block is not imported and is not fed back to the generator.
+- Import rounds run no compliance check, show no impact banner, and pin no plan.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) to open and merge the pull request; an import session ends there.
+- [Import exception list](../customize-prompts/#import-exception-list) to keep resources out of every import round.
+
+---
+
 # Additional information
 
 Source: /prerelease/main/additional-information/
@@ -10670,6 +10670,72 @@ The `workspaces` volume is per-run: each run clones the repository into a unique
 
 ---
 
+# Guides
+
+Source: /stable/main/guides-overview/
+
+These guides show how to accomplish specific tasks with Kumoss. Pick the group that matches your role, then the guide that states your goal. For what each operating mode does today, side by side, see [Operating modes](../reference/operating-modes/).
+
+## Use Kumoss
+
+[Make a request](../guides/make-a-request/)
+
+Open a session and phrase a request the filter accepts.
+
+[Generate infrastructure](../guides/generate-infrastructure/)
+
+Turn a request into validated Terraform code, reviewed as a plan and report before you apply it.
+
+[Follow a session](../guides/follow-a-session/)
+
+Track progress and read the plan, code, and report.
+
+[Merge and apply](../guides/merge-and-apply/)
+
+Handle a session lock, then open, merge, and apply the pull request.
+
+[Remediate drift](../guides/remediate-drift/)
+
+Detect and reconcile drift for a set of resources or a whole Terraform root.
+
+[Import infrastructure](../guides/import-infrastructure/)
+
+Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
+
+## Operate Kumoss
+
+[Enable authentication](../guides/enable-authentication/)
+
+Connect an OIDC identity provider and grant the first administrator access.
+
+[Administer users and locks](../guides/administer-users-and-locks/)
+
+Review any user’s sessions, and manage session locks and roles from the admin panel.
+
+[Monitor with Phoenix](../guides/monitor-with-phoenix/)
+
+Read Kumoss’s traces in Arize Phoenix, and know what a trace contains and omits.
+
+[Customize prompts](../guides/customize-prompts/)
+
+Manage the prompt registry that encodes your conventions and compliance rules.
+
+[Configure state backends](../guides/configure-state-backends/)
+
+Choose who owns Terraform and OpenTofu state: [the repository](../guides/state-backends/repository-declared/), [Kumoss](../guides/state-backends/kumoss-managed/), or [the deployment](../guides/state-backends/sidecar-supplied/).
+
+[Deploy to production](../guides/deploy-to-production/)
+
+Plan a production deployment, then work through [secrets and credentials](../guides/production/secrets-and-credentials/), [networking and TLS](../guides/production/networking-and-tls/), [hardening](../guides/production/hardening/), and [operations](../guides/production/operations/).
+
+## Develop Kumoss
+
+[Development](../guides/development/)
+
+Run the stack for development, test, type-check, lint, and regenerate the sidecar clients.
+
+---
+
 # Administer users and locks
 
 Source: /stable/main/guides/administer-users-and-locks/
@@ -10889,78 +10955,6 @@ Everyone else is then managed from the admin panel’s Users tab.
 - **Login redirect rejected by the IdP.** The redirect URI `<origin>/auth/callback` is not registered exactly (scheme, host, port).
 - **Config changes have no effect.** Restart the core (`docker compose restart core`); the file is read only at startup.
 - **A `core_db_data` volume predates authentication.** A volume created before OIDC support was added keyed sessions by `username` instead of the current `users` table; migrate it by hand or drop it before pointing a current core at it.
-
----
-
-# Import infrastructure
-
-Source: /stable/main/guides/import-infrastructure/
-
-The Kumoss web application offers two import modes: Partial Import, for the unmanaged resources your request names, and Full Import, for every unmanaged resource in the session’s scope. Both find the resources the cloud holds but the Terraform state does not, write a resource block for each, run `terraform import` on them, and reconcile the imported configuration with the real resources. They differ only in how the resources are selected. This guide covers both.
-
-## Prerequisites
-
-- The `devops` operation role to select either mode in the web application; below `devops` both are shown disabled with the hint "Requires the devops operation role." The API itself, `POST /api/v1/iac/import`, requires only `developer`, plus ownership when it continues an existing session. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, and a scope id, as covered in [Make a request](../make-a-request/). The scope is what discovery lists: an Azure subscription, a GCP project, or an AWS account. OCI and Kubernetes have no scope listing, so an import round on them finds nothing to import (see [Limitations](#limitations)).
-- The IaC sidecar’s credentials must be able to read the cloud inventory for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an AWS Resource Explorer aggregator index. See [Terraform providers](../../reference/terraform-providers/).
-
-## Partial import
-
-**Use case.** Some resources were created by hand, or by another tool, and you want only some of them managed from the repository: "import the key vault and its private endpoint".
-
-**Required inputs.** Repository URL, cloud, scope id, and a **non-empty** request naming what to import. The API rejects a partial import with an empty text.
-
-**Workflow.**
-
-1. **Filtering.** The request filter runs in import mode and declines requests that are not about importing. A declined request ends the round `uncompleted` with the filter’s rationale.
-2. **Prompt composition**, as in generate.
-3. **Discovery.** The core lists what the Terraform state tracks (`/v1/import/state-resource-ids`) and what the cloud scope holds (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state does not track. Azure IDs are compared case-insensitively; every other provider compares them exactly. The IaC sidecar already leaves out resources another control plane owns, such as AKS-managed resource groups or GKE nodes.
-4. **Import exception list.** IDs on the cloud’s `<cloud>-guidelines-import_exceptions` list are withheld from the rest of the round, whatever the request says. See [Import exception list](../customize-prompts/#import-exception-list).
-5. **Selection.** The `import_filter` agent narrows the remaining unmanaged IDs to the ones your request names.
-6. **Generate, validate and import loop**, up to `orchestration.max_import_iteration` attempts (5 by default). Each attempt: 1. generates or corrects the resource blocks for the selected IDs, without modifying configuration that was already there, and commits and pushes them to the session branch; 2. runs `init`, `validate` and `plan` on the session’s targets; 3. has an agent read the branch diff and pair each generated block’s Terraform address with the cloud resource ID it must be imported from, in the spelling the provider expects; 4. runs `terraform import` for each pair, one address at a time, through the IaC sidecar’s `/v1/import`. If the plan fails, its error is fed back to the generator as the next attempt’s request. If any import is rejected, the generator is given every rejected address with the engine’s error, plus the addresses already imported, which it must leave unchanged. The next attempt corrects the blocks and retries only the resources that are still not imported; resources imported by an earlier attempt stay in the state. A failed plan and a rejected import each count as one attempt.
-7. **Convergence.** When at least one resource was imported, the round runs the drift loop of [Remediate drift](../remediate-drift/) over the plan’s targets, up to `orchestration.max_drift_reports` iterations, so the generated configuration matches what was imported. Its final plan is what the report judges state alignment from.
-8. **Report.** An `import` JSON report: the selected, imported and failed counts, an outcome, an execution summary, one entry per resource with its address, ID, status and error, the resources the exception list withheld, the state alignment, and recommendations. The outcome is `Succeeded` when every selected resource was imported, `Partial` when some failed, and `Failed` when none was imported. Withheld resources are not failures and do not lower the outcome.
-
-**When there is nothing to import.** The round still completes with an `import` report that says why: the scope could not be listed (with the IaC sidecar’s diagnostics), the scope holds no importable resource, every resource in it is already managed, every unmanaged resource is on the import exception list, or no unmanaged resource matched the request.
-
-**When the attempts run out.** If the last attempt’s plan passed, the round goes on with what did import: convergence runs for the imported resources, and the report lists the ones that still failed, with the engine’s error for each, and reports `Partial` or `Failed`. If the last plan itself failed, the round fails and the session ends `failed`.
-
-**Inspects existing IaC and state.** Yes: the state inventory, the cloud scope inventory, and the configuration the plan runs on.
-
-**Targets.** Generated from the session’s changes, so the plan covers the imported resources.
-
-**Artifacts and reports.** Plans per attempt, code-change files, drift reports from convergence, an `import` JSON report, a pushed branch.
-
-**State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
-
-**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labelled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
-
-**Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because the ID was paired in a spelling the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent pairs the key vault again with the corrected ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
-
-## Full import
-
-**Use case.** Adopt everything in a scope that Terraform does not yet manage, for example when bringing an existing subscription into a repository.
-
-**Required inputs.** Repository URL, cloud, and scope id. The web application asks for no request text and sends the fixed request "Import all the infrastructure".
-
-**Workflow.** Identical to [partial import](#partial-import) except that the request filter and the `import_filter` selection are skipped: every unmanaged resource in the scope that is not on the import exception list is selected.
-
-**Inspects existing IaC and state, targets, artifacts, state, apply, compliance, locks.** As for partial import.
-
-**Example.** "Import all the infrastructure" on a GCP project with a bucket, a service account and one IAM binding that Terraform does not track. Kumoss selects all three, generates the blocks, imports them, and reports `Succeeded`.
-
-## Limitations
-
-- Scope discovery exists only for Azure, GCP and AWS. On OCI and Kubernetes the scope cannot be listed, and the round ends with a report that says so and imports nothing.
-- The import exception list is matched against the exact IDs the scope listing returns (case-insensitively on Azure), so an entry must be spelled the way discovery spells it.
-- Imports are bounded by `orchestration.max_import_iteration`. Resources still rejected when the attempts run out stay out of the state; their resource blocks stay on the branch, so review them before merging.
-- A resource the address agent cannot pair with a generated block is not imported and is not fed back to the generator.
-- Import rounds run no compliance check, show no impact banner, and pin no plan.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) to open and merge the pull request; an import session ends there.
-- [Import exception list](../customize-prompts/#import-exception-list) to keep resources out of every import round.
 
 ---
 
@@ -15063,116 +15057,6 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 
 ---
 
-# Guides
-
-Source: /stable/main/guides-overview/
-
-These guides show how to accomplish specific tasks with Kumoss. Pick the group that matches your role, then the guide that states your goal. For what each operating mode does today, side by side, see [Operating modes](../reference/operating-modes/).
-
-## Use Kumoss
-
-[Make a request](../guides/make-a-request/)
-
-Open a session and phrase a request the filter accepts.
-
-[Generate infrastructure](../guides/generate-infrastructure/)
-
-Turn a request into validated Terraform code, reviewed as a plan and report before you apply it.
-
-[Follow a session](../guides/follow-a-session/)
-
-Track progress and read the plan, code, and report.
-
-[Merge and apply](../guides/merge-and-apply/)
-
-Handle a session lock, then open, merge, and apply the pull request.
-
-[Remediate drift](../guides/remediate-drift/)
-
-Detect and reconcile drift for a set of resources or a whole Terraform root.
-
-[Import infrastructure](../guides/import-infrastructure/)
-
-Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
-
-## Operate Kumoss
-
-[Enable authentication](../guides/enable-authentication/)
-
-Connect an OIDC identity provider and grant the first administrator access.
-
-[Administer users and locks](../guides/administer-users-and-locks/)
-
-Review any user’s sessions, and manage session locks and roles from the admin panel.
-
-[Monitor with Phoenix](../guides/monitor-with-phoenix/)
-
-Read Kumoss’s traces in Arize Phoenix, and know what a trace contains and omits.
-
-[Customize prompts](../guides/customize-prompts/)
-
-Manage the prompt registry that encodes your conventions and compliance rules.
-
-[Configure state backends](../guides/configure-state-backends/)
-
-Choose who owns Terraform and OpenTofu state: [the repository](../guides/state-backends/repository-declared/), [Kumoss](../guides/state-backends/kumoss-managed/), or [the deployment](../guides/state-backends/sidecar-supplied/).
-
-[Deploy to production](../guides/deploy-to-production/)
-
-Plan a production deployment, then work through [secrets and credentials](../guides/production/secrets-and-credentials/), [networking and TLS](../guides/production/networking-and-tls/), [hardening](../guides/production/hardening/), and [operations](../guides/production/operations/).
-
-## Develop Kumoss
-
-[Development](../guides/development/)
-
-Run the stack for development, test, type-check, lint, and regenerate the sidecar clients.
-
----
-
-# Operating modes
-
-Source: /stable/main/reference/operating-modes/
-
-Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
-
-## Session inputs
-
-The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, or `kubernetes`), a scope identifier (for example a subscription, project, or account id), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
-
-## How a session runs
-
-**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
-
-**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
-
-**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
-
-**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
-
-**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
-
-**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
-
-## Comparing the operating modes
-
-|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
-| --- | --- | --- | --- | --- | --- |
-| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
-| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
-| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
-| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
-| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
-| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
-| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
-| Compliance check | yes, when enabled | no | no | no | no |
-| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
-| Report type | `generate` | `drift` | `drift` | `import` | `import` |
-| Pins a plan | yes | no | no | no | no |
-| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
-| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
-
----
-
 # LLM providers and models
 
 Source: /stable/main/reference/llm-providers/
@@ -15471,6 +15355,50 @@ OPENAI_API_KEY=placeholder-for-boot-validation
 ## Running outside Docker
 
 `litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE` is set to `PRODUCTION`. Running the core, or `pytest`, on your workstation (rather than inside the container) therefore silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Kumoss’s own code does this. The working directory does not matter: python-dotenv searches upwards from the directory of the **calling package**, so with the virtual environment at `core/.venv` the file `core/.env` is found from any directory. Variables already present in the environment are not overwritten by the file. To reproduce a clean-environment boot, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`; otherwise a variable you think is unset may actually be coming from `core/.env`.
+
+---
+
+# Operating modes
+
+Source: /stable/main/reference/operating-modes/
+
+Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
+
+## Session inputs
+
+The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, or `kubernetes`), a scope identifier (for example a subscription, project, or account id), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
+
+## How a session runs
+
+**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
+
+**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
+
+**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
+
+**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
+
+**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
+
+**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
+
+## Comparing the operating modes
+
+|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
+| --- | --- | --- | --- | --- | --- |
+| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
+| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
+| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
+| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
+| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
+| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
+| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
+| Compliance check | yes, when enabled | no | no | no | no |
+| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
+| Report type | `generate` | `drift` | `drift` | `import` | `import` |
+| Pins a plan | yes | no | no | no | no |
+| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
+| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
 
 ---
 
@@ -17697,6 +17625,78 @@ Unlike the pipeline’s own best-effort notifications, this route tells the call
 
 ---
 
+# Import infrastructure
+
+Source: /stable/main/guides/import-infrastructure/
+
+The Kumoss web application offers two import modes: Partial Import, for the unmanaged resources your request names, and Full Import, for every unmanaged resource in the session’s scope. Both find the resources the cloud holds but the Terraform state does not, write a resource block for each, run `terraform import` on them, and reconcile the imported configuration with the real resources. They differ only in how the resources are selected. This guide covers both.
+
+## Prerequisites
+
+- The `devops` operation role to select either mode in the web application; below `devops` both are shown disabled with the hint "Requires the devops operation role." The API itself, `POST /api/v1/iac/import`, requires only `developer`, plus ownership when it continues an existing session. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, and a scope id, as covered in [Make a request](../make-a-request/). The scope is what discovery lists: an Azure subscription, a GCP project, or an AWS account. OCI and Kubernetes have no scope listing, so an import round on them finds nothing to import (see [Limitations](#limitations)).
+- The IaC sidecar’s credentials must be able to read the cloud inventory for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an AWS Resource Explorer aggregator index. See [Terraform providers](../../reference/terraform-providers/).
+
+## Partial import
+
+**Use case.** Some resources were created by hand, or by another tool, and you want only some of them managed from the repository: "import the key vault and its private endpoint".
+
+**Required inputs.** Repository URL, cloud, scope id, and a **non-empty** request naming what to import. The API rejects a partial import with an empty text.
+
+**Workflow.**
+
+1. **Filtering.** The request filter runs in import mode and declines requests that are not about importing. A declined request ends the round `uncompleted` with the filter’s rationale.
+2. **Prompt composition**, as in generate.
+3. **Discovery.** The core lists what the Terraform state tracks (`/v1/import/state-resource-ids`) and what the cloud scope holds (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state does not track. Azure IDs are compared case-insensitively; every other provider compares them exactly. The IaC sidecar already leaves out resources another control plane owns, such as AKS-managed resource groups or GKE nodes.
+4. **Import exception list.** IDs on the cloud’s `<cloud>-guidelines-import_exceptions` list are withheld from the rest of the round, whatever the request says. See [Import exception list](../customize-prompts/#import-exception-list).
+5. **Selection.** The `import_filter` agent narrows the remaining unmanaged IDs to the ones your request names.
+6. **Generate, validate and import loop**, up to `orchestration.max_import_iteration` attempts (5 by default). Each attempt: 1. generates or corrects the resource blocks for the selected IDs, without modifying configuration that was already there, and commits and pushes them to the session branch; 2. runs `init`, `validate` and `plan` on the session’s targets; 3. has an agent read the branch diff and pair each generated block’s Terraform address with the cloud resource ID it must be imported from, in the spelling the provider expects; 4. runs `terraform import` for each pair, one address at a time, through the IaC sidecar’s `/v1/import`. If the plan fails, its error is fed back to the generator as the next attempt’s request. If any import is rejected, the generator is given every rejected address with the engine’s error, plus the addresses already imported, which it must leave unchanged. The next attempt corrects the blocks and retries only the resources that are still not imported; resources imported by an earlier attempt stay in the state. A failed plan and a rejected import each count as one attempt.
+7. **Convergence.** When at least one resource was imported, the round runs the drift loop of [Remediate drift](../remediate-drift/) over the plan’s targets, up to `orchestration.max_drift_reports` iterations, so the generated configuration matches what was imported. Its final plan is what the report judges state alignment from.
+8. **Report.** An `import` JSON report: the selected, imported and failed counts, an outcome, an execution summary, one entry per resource with its address, ID, status and error, the resources the exception list withheld, the state alignment, and recommendations. The outcome is `Succeeded` when every selected resource was imported, `Partial` when some failed, and `Failed` when none was imported. Withheld resources are not failures and do not lower the outcome.
+
+**When there is nothing to import.** The round still completes with an `import` report that says why: the scope could not be listed (with the IaC sidecar’s diagnostics), the scope holds no importable resource, every resource in it is already managed, every unmanaged resource is on the import exception list, or no unmanaged resource matched the request.
+
+**When the attempts run out.** If the last attempt’s plan passed, the round goes on with what did import: convergence runs for the imported resources, and the report lists the ones that still failed, with the engine’s error for each, and reports `Partial` or `Failed`. If the last plan itself failed, the round fails and the session ends `failed`.
+
+**Inspects existing IaC and state.** Yes: the state inventory, the cloud scope inventory, and the configuration the plan runs on.
+
+**Targets.** Generated from the session’s changes, so the plan covers the imported resources.
+
+**Artifacts and reports.** Plans per attempt, code-change files, drift reports from convergence, an `import` JSON report, a pushed branch.
+
+**State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
+
+**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labelled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
+
+**Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because the ID was paired in a spelling the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent pairs the key vault again with the corrected ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
+
+## Full import
+
+**Use case.** Adopt everything in a scope that Terraform does not yet manage, for example when bringing an existing subscription into a repository.
+
+**Required inputs.** Repository URL, cloud, and scope id. The web application asks for no request text and sends the fixed request "Import all the infrastructure".
+
+**Workflow.** Identical to [partial import](#partial-import) except that the request filter and the `import_filter` selection are skipped: every unmanaged resource in the scope that is not on the import exception list is selected.
+
+**Inspects existing IaC and state, targets, artifacts, state, apply, compliance, locks.** As for partial import.
+
+**Example.** "Import all the infrastructure" on a GCP project with a bucket, a service account and one IAM binding that Terraform does not track. Kumoss selects all three, generates the blocks, imports them, and reports `Succeeded`.
+
+## Limitations
+
+- Scope discovery exists only for Azure, GCP and AWS. On OCI and Kubernetes the scope cannot be listed, and the round ends with a report that says so and imports nothing.
+- The import exception list is matched against the exact IDs the scope listing returns (case-insensitively on Azure), so an entry must be spelled the way discovery spells it.
+- Imports are bounded by `orchestration.max_import_iteration`. Resources still rejected when the attempts run out stay out of the state; their resource blocks stay on the branch, so review them before merging.
+- A resource the address agent cannot pair with a generated block is not imported and is not fed back to the generator.
+- Import rounds run no compliance check, show no impact banner, and pin no plan.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) to open and merge the pull request; an import session ends there.
+- [Import exception list](../customize-prompts/#import-exception-list) to keep resources out of every import round.
+
+---
+
 # Additional information
 
 Source: /stable/main/additional-information/
@@ -17757,6 +17757,152 @@ Answers to common questions about roles, requests, sessions, locks, and getting 
 [Roadmap](../roadmap/)
 
 The direction Kumoss is heading, grouped by theme, with the status of each initiative.
+
+---
+
+# Monitor with Phoenix
+
+Source: /stable/main/guides/monitor-with-phoenix/
+
+Kumoss records what its agents do as **traces**: for every session run, the prompts sent to the language model, the tool calls the model made, the Terraform validations, and the results. Traces are exported with OpenTelemetry using the OpenInference conventions and, in the default Compose stack, collected and displayed by [Arize Phoenix](https://arize.com/docs/phoenix).
+
+This guide covers tracing only. Phoenix also hosts Kumoss’s runtime prompt registry; that is a separate function described in [Customize prompts](../customize-prompts/). How Phoenix is deployed in each model is covered by [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
+
+**Data sensitivity.** Phoenix receives, in clear text, the full system prompts, the user’s requests and conversation history, repository metadata (URL, path, branch), Terraform plans and validation errors, tool inputs and outputs (which can include file contents from the repository), model outputs including generated code, and the session identifier plus the **user’s e-mail address** (as `user.id`) on every span. Nothing is redacted or truncated apart from a cap on the number of attributes. Operators must put Phoenix behind access control, decide on retention, and tell users not to paste secrets into requests or commit them into IaC. The default stack exposes Phoenix at `/monitoring/` on the same port as the application, with no authentication of its own.
+
+## What ships in the Compose stack
+
+| Component | Role |
+| --- | --- |
+| `phoenix` (`arizephoenix/phoenix:20.12.0`) | Receives traces over OTLP/HTTP on port 6006 and serves the UI (port 4317, OTLP/gRPC, is also exposed on the Compose network but unused by Kumoss). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works behind the proxy prefix. Its MCP server is disabled. |
+| `phoenix-db` (PostgreSQL 17) | Persistence for Phoenix. Traces and prompts survive restarts in the `phoenix_db_data` volume. |
+| `proxy` (nginx) | Forwards `/monitoring/` to Phoenix. |
+
+Browser paths:
+
+- `http://localhost/monitoring/` opens Phoenix.
+- `http://localhost/monitoring/projects` lists the projects. The admin panel’s **Phoenix** link points here.
+
+Only the proxy publishes host ports; Phoenix is not reachable directly from the host in the default stack.
+
+## Configuration
+
+All keys are in `config.yaml` under `telemetry` (details in [the `telemetry` section](../../reference/configuration/#telemetry) of the configuration reference):
+
+| Key | Default in `config.yaml` | Meaning |
+| --- | --- | --- |
+| `telemetry.collector_url` | `http://phoenix:6006/` | Base URL of the OTLP/HTTP collector. The core appends `v1/traces` by string concatenation, so the value **must end in** `/`. This is also the code default; running the core outside Docker needs an explicit `http://localhost:6006/`. |
+| `telemetry.otel_attribute_count_limit` | `1024` | Maximum attributes per span. Long conversations produce many `llm.input_messages.N.*` attributes. When the limit is hit the OpenTelemetry SDK drops the oldest attributes first, and on LLM spans those are `session.id`, `user.id`, `metadata`, the span kind, and the model name, so an over-long span loses its identity rather than its messages. Raise this for long sessions. |
+| `telemetry.otel_console_exporter` | `false` | Also print spans to the core’s standard output. Useful for debugging without Phoenix, but spans carry prompts and plans. |
+
+**Replacing Phoenix as the trace collector.** The exporter is the standard OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts OTLP/HTTP on `<collector_url>v1/traces` (an OpenTelemetry Collector, a vendor endpoint) receives the spans. Two caveats:
+
+- The core sets no exporter headers itself (it passes no `headers` argument when it configures the span exporter); OTLP header env vars such as `OTEL_EXPORTER_OTLP_HEADERS` (for example `authorization=Bearer%20<token>`) may be honoured by the OpenTelemetry SDK when it reads the core’s environment, but this is not verified in this codebase — treat it as unconfirmed. The Phoenix client used for prompts separately reads `PHOENIX_API_KEY`. Put an authenticating proxy or collector in front of Phoenix if you need auth on the trace-export path.
+- Today `telemetry.collector_url` is also the base URL of the Phoenix client used for prompt seeding and fetching. Pointing it at a non-Phoenix collector breaks startup. To send traces elsewhere while keeping Phoenix for prompts, forward from Phoenix or place a collector at the same base URL that proxies the prompt API.
+
+## Projects
+
+Phoenix groups traces into projects. Kumoss picks the project from the `environment` setting and the session’s operation:
+
+| `environment` | Generate | Drift | Import |
+| --- | --- | --- | --- |
+| `development` | `dev-terraform-day2` | `dev-terraform-drift` | `dev-terraform-import` |
+| `staging` | `pre-terraform-day2` | `pre-terraform-drift` | `pre-terraform-import` |
+| `production` | `pro-terraform-day2` | `pro-terraform-drift` | `pro-terraform-import` |
+
+Notes:
+
+- `day2` is the project used for generate operations.
+- Apply runs re-use the operation of the session they belong to (generate or drift), so apply spans appear in the `day2` or `drift` project of that session.
+- The `import` projects receive the spans of import sessions, Partial Import and Full Import alike (see [Import infrastructure](../import-infrastructure/)).
+- Each project has exactly one resource attribute, `openinference.project.name`. There is no `service.name` or version.
+
+## What a trace contains
+
+Kumoss instruments four kinds of work with decorators in the domain layer; each produces one span type. Attribute keys follow the OpenInference semantic conventions.
+
+### 1. Agent (chain) spans
+
+- **Name:** `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`, `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain - REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain - COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain - TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain - FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
+- **Kind:** `AGENT`.
+- **Input:** the query handed to the chain (`input.value`).
+- **Output:** the chain’s result, unwrapped to its `summary`, `explanation`, or `description` field when it is a tool result (`output.value`).
+- **Metadata:** the common metadata plus `chain_type`.
+
+One chain span is opened per orchestration step (filtering, target generation, code generation, reporting, and so on).
+
+### 2. LLM spans
+
+- **Name:** `Async Inference`.
+- **Kind:** `LLM`.
+- **Model and provider:** `llm.model_name`, and `llm.provider` when the LiteLLM prefix maps to an OpenInference provider name. When `llm.model_list` uses a custom alias (see [LLM providers and models](../../reference/llm-providers/)), `llm.model_name` on the span is that alias rather than the underlying `provider/model-id` string, and `llm.provider` is left unset because the alias carries no recognizable prefix.
+- **Invocation parameters:** `llm.invocation_parameters` with every request argument sent to LiteLLM, including the raw `messages` and `tools` payloads alongside temperature, max tokens, tool choice, retries, timeout and reasoning effort.
+- **Messages:** `llm.input_messages.N.message.role` and `.content` for the system prompt, the conversation history (user, assistant, tool results with their `tool_call_id`), the current message, and, last, any harness notice the agent loop added for that turn only (the budget-exhausted or no-tool-call reminder); assistant tool calls appear under `.message.tool_calls.M.*`.
+- **Available tools:** `llm.tools.N.tool.json_schema`.
+- **Output:** `output.value` (text, or JSON with text and tool calls) and `llm.output_messages.0.*` including the tool calls made.
+- **Token counts:** `llm.token_count.prompt`, `llm.token_count.completion`, `llm.token_count.total`.
+
+### 3. Tool spans
+
+- **Name:** `Tool call - <tool name>`.
+- **Kind:** `TOOL`.
+- **Identity:** `tool.name`, `tool.id`.
+- **Arguments:** `tool.parameters` and `input.value`.
+- **Result:** `output.value`, a JSON document with `name`, `tool_call_id`, `success`, `result`, and `error_message`. A tool that returns a failure is recorded with `success: false` and its message here; the span status itself stays `OK`. A tool whose execution raises produces no span at all.
+
+### 4. Terraform evaluator spans
+
+- **Name:** `Terraform <operation> - <outcome>`, where the operation is the verb that ran (`plan`, `drift` or `apply`) and the outcome is `True` or `False` — so `Terraform plan - True`, `Terraform drift - False`, `Terraform apply - True`. The operation comes from the name of the traced method, and the outcome is validation for `plan`, being in sync for `drift`, and success for `apply`.
+- **Kind:** `EVALUATOR`.
+- **Input:** the keyword arguments of the call: the targets for `plan`, the plan reference being read for `drift` (its workspace, plan file, targets and workspace fingerprint — never the plan text), empty for `apply`.
+- **Output:** the Terraform plan text for a successful `plan`, the drift summary for a drifted workspace, the apply output for a successful `apply`; on any failure, the engine’s error feedback instead.
+
+### Common metadata
+
+Every span of every kind carries:
+
+- `session.id` and `user.id` as top-level attributes. `user.id` is the user’s e-mail address (or `user-<id>` when the account has none), so traces contain personal data;
+- a `metadata` JSON attribute with `session_id`, `user_id` (the same e-mail), `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`), `repo_uri`, `iac_path`, `branch_name`, and, on chain spans, `chain_type`.
+
+Use `session.id` to find everything that happened in one session.
+
+### How spans relate
+
+Do not expect a deep tree. The current implementation produces:
+
+- **Chain spans are roots.** Each orchestration step starts a new chain span and remembers it as the current root.
+- **LLM and tool spans are children of the current chain span**, as siblings of each other. A tool span is not nested under the LLM span that requested the call.
+- **Terraform evaluator spans have no parent.** Each one is a single-span trace of its own, linked to the rest only through `session.id` in the metadata.
+
+Child spans are created after their work finishes, with a back-dated start time, so durations are correct even though the nesting is flat.
+
+## What is not recorded
+
+- **Errors and exceptions.** Span status is always `OK`. When a chain, model call, tool, or Terraform command raises, the corresponding span is never ended and therefore never exported; a failed run appears truncated in Phoenix rather than marked failed. Tool-level failures are visible only as `success: false` in the tool span output. Use the session status and failure message in the application or the [admin panel](../administer-users-and-locks/) for error triage.
+- **Metrics, dashboards, alerts, evaluations.** Kumoss emits traces only. Phoenix’s evaluation and dataset features are available in the UI but nothing in Kumoss populates them.
+- **Logs.** Application logs go to the container’s standard output and are not correlated with traces.
+- **Sidecar activity.** The sidecars are not instrumented; engine commands appear only through the core’s Terraform evaluator spans.
+
+## Startup and shutdown
+
+- Tracer providers for all nine projects are created when the core module is imported, before the FastAPI application starts. Each has a batching span processor with the OpenTelemetry SDK defaults (export every 5 seconds, batches of up to 512 spans, queue of 2048).
+- Span creation never touches the network; export happens on a background thread. If the collector is unreachable, the exporter retries with back-off within its timeout, logs `Failed to export span batch`, and drops the batch. Sessions are not affected; the traces are lost.
+- There is no startup connectivity check for the trace endpoint. The core does, however, need Phoenix’s HTTP API at the same base URL for prompt seeding: it retries the connection for about 27 seconds and then aborts the boot. In the bundled stack that makes Phoenix effectively required at startup.
+- On shutdown the lifespan handler shuts every provider down, which drains pending spans (within a 30-second budget) before the process exits.
+
+## Troubleshooting
+
+**Phoenix does not open at `/monitoring/`.** Check `docker compose ps` for the `phoenix` and `phoenix-db` containers and `docker compose logs phoenix`. Phoenix waits for its database; a slow first start is normal. The proxy returns `502` until Phoenix listens.
+
+**Core exits at boot with `Phoenix unreachable after 8 attempts`.** The core could not reach `telemetry.collector_url` for prompt seeding. Confirm the URL resolves from inside the core container (`http://phoenix:6006/` in the stack), that the value ends with `/`, and that Phoenix is up. Start Phoenix first or restart the core.
+
+**No traces appear.** Confirm the project: with the default `environment: development`, generate runs are in `dev-terraform-day2` and drift runs in `dev-terraform-drift`. Check the core logs for `Failed to export span batch`, which means the OTLP endpoint `<collector_url>v1/traces` was not reachable when the batch was sent. Traces are exported in batches every few seconds; wait a moment and refresh.
+
+**A session failed but its trace looks incomplete.** Expected: spans for work that raised are not exported. Use the session’s failure message and artifacts.
+
+**A long LLM span has no `session.id`, shows an unknown span kind, or does not appear in a session search.** The attribute count hit `telemetry.otel_attribute_count_limit`; the SDK dropped the oldest attributes, which on LLM spans are the identity and kind fields, not the messages. Raise the limit and restart the core.
+
+**Traces from a different environment are mixed in.** The project prefix comes from `environment` in the core’s `config.yaml`; restart the core after changing it. Prompt tags follow the same value, so also read [Customize prompts](../customize-prompts/) before changing it on an existing deployment.
 
 ---
 
@@ -17905,152 +18051,6 @@ A guided installation wizard will walk operators through the first setup of mode
 ## Shape the roadmap
 
 The roadmap evolves with the community. To propose an initiative, comment on a planned one, or offer to help build it, open or join a discussion on the [issue tracker](https://github.com/InditexTech/kumoss/issues). For contribution guidance, including the requirement to open an issue before substantial work, see [Contributing](../contributing/).
-
----
-
-# Monitor with Phoenix
-
-Source: /stable/main/guides/monitor-with-phoenix/
-
-Kumoss records what its agents do as **traces**: for every session run, the prompts sent to the language model, the tool calls the model made, the Terraform validations, and the results. Traces are exported with OpenTelemetry using the OpenInference conventions and, in the default Compose stack, collected and displayed by [Arize Phoenix](https://arize.com/docs/phoenix).
-
-This guide covers tracing only. Phoenix also hosts Kumoss’s runtime prompt registry; that is a separate function described in [Customize prompts](../customize-prompts/). How Phoenix is deployed in each model is covered by [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
-
-**Data sensitivity.** Phoenix receives, in clear text, the full system prompts, the user’s requests and conversation history, repository metadata (URL, path, branch), Terraform plans and validation errors, tool inputs and outputs (which can include file contents from the repository), model outputs including generated code, and the session identifier plus the **user’s e-mail address** (as `user.id`) on every span. Nothing is redacted or truncated apart from a cap on the number of attributes. Operators must put Phoenix behind access control, decide on retention, and tell users not to paste secrets into requests or commit them into IaC. The default stack exposes Phoenix at `/monitoring/` on the same port as the application, with no authentication of its own.
-
-## What ships in the Compose stack
-
-| Component | Role |
-| --- | --- |
-| `phoenix` (`arizephoenix/phoenix:20.12.0`) | Receives traces over OTLP/HTTP on port 6006 and serves the UI (port 4317, OTLP/gRPC, is also exposed on the Compose network but unused by Kumoss). Started with `PHOENIX_HOST_ROOT_PATH=/monitoring` so it works behind the proxy prefix. Its MCP server is disabled. |
-| `phoenix-db` (PostgreSQL 17) | Persistence for Phoenix. Traces and prompts survive restarts in the `phoenix_db_data` volume. |
-| `proxy` (nginx) | Forwards `/monitoring/` to Phoenix. |
-
-Browser paths:
-
-- `http://localhost/monitoring/` opens Phoenix.
-- `http://localhost/monitoring/projects` lists the projects. The admin panel’s **Phoenix** link points here.
-
-Only the proxy publishes host ports; Phoenix is not reachable directly from the host in the default stack.
-
-## Configuration
-
-All keys are in `config.yaml` under `telemetry` (details in [the `telemetry` section](../../reference/configuration/#telemetry) of the configuration reference):
-
-| Key | Default in `config.yaml` | Meaning |
-| --- | --- | --- |
-| `telemetry.collector_url` | `http://phoenix:6006/` | Base URL of the OTLP/HTTP collector. The core appends `v1/traces` by string concatenation, so the value **must end in** `/`. This is also the code default; running the core outside Docker needs an explicit `http://localhost:6006/`. |
-| `telemetry.otel_attribute_count_limit` | `1024` | Maximum attributes per span. Long conversations produce many `llm.input_messages.N.*` attributes. When the limit is hit the OpenTelemetry SDK drops the oldest attributes first, and on LLM spans those are `session.id`, `user.id`, `metadata`, the span kind, and the model name, so an over-long span loses its identity rather than its messages. Raise this for long sessions. |
-| `telemetry.otel_console_exporter` | `false` | Also print spans to the core’s standard output. Useful for debugging without Phoenix, but spans carry prompts and plans. |
-
-**Replacing Phoenix as the trace collector.** The exporter is the standard OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts OTLP/HTTP on `<collector_url>v1/traces` (an OpenTelemetry Collector, a vendor endpoint) receives the spans. Two caveats:
-
-- The core sets no exporter headers itself (it passes no `headers` argument when it configures the span exporter); OTLP header env vars such as `OTEL_EXPORTER_OTLP_HEADERS` (for example `authorization=Bearer%20<token>`) may be honoured by the OpenTelemetry SDK when it reads the core’s environment, but this is not verified in this codebase — treat it as unconfirmed. The Phoenix client used for prompts separately reads `PHOENIX_API_KEY`. Put an authenticating proxy or collector in front of Phoenix if you need auth on the trace-export path.
-- Today `telemetry.collector_url` is also the base URL of the Phoenix client used for prompt seeding and fetching. Pointing it at a non-Phoenix collector breaks startup. To send traces elsewhere while keeping Phoenix for prompts, forward from Phoenix or place a collector at the same base URL that proxies the prompt API.
-
-## Projects
-
-Phoenix groups traces into projects. Kumoss picks the project from the `environment` setting and the session’s operation:
-
-| `environment` | Generate | Drift | Import |
-| --- | --- | --- | --- |
-| `development` | `dev-terraform-day2` | `dev-terraform-drift` | `dev-terraform-import` |
-| `staging` | `pre-terraform-day2` | `pre-terraform-drift` | `pre-terraform-import` |
-| `production` | `pro-terraform-day2` | `pro-terraform-drift` | `pro-terraform-import` |
-
-Notes:
-
-- `day2` is the project used for generate operations.
-- Apply runs re-use the operation of the session they belong to (generate or drift), so apply spans appear in the `day2` or `drift` project of that session.
-- The `import` projects receive the spans of import sessions, Partial Import and Full Import alike (see [Import infrastructure](../import-infrastructure/)).
-- Each project has exactly one resource attribute, `openinference.project.name`. There is no `service.name` or version.
-
-## What a trace contains
-
-Kumoss instruments four kinds of work with decorators in the domain layer; each produces one span type. Attribute keys follow the OpenInference semantic conventions.
-
-### 1. Agent (chain) spans
-
-- **Name:** `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`, `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain - REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain - COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain - TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain - FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
-- **Kind:** `AGENT`.
-- **Input:** the query handed to the chain (`input.value`).
-- **Output:** the chain’s result, unwrapped to its `summary`, `explanation`, or `description` field when it is a tool result (`output.value`).
-- **Metadata:** the common metadata plus `chain_type`.
-
-One chain span is opened per orchestration step (filtering, target generation, code generation, reporting, and so on).
-
-### 2. LLM spans
-
-- **Name:** `Async Inference`.
-- **Kind:** `LLM`.
-- **Model and provider:** `llm.model_name`, and `llm.provider` when the LiteLLM prefix maps to an OpenInference provider name. When `llm.model_list` uses a custom alias (see [LLM providers and models](../../reference/llm-providers/)), `llm.model_name` on the span is that alias rather than the underlying `provider/model-id` string, and `llm.provider` is left unset because the alias carries no recognizable prefix.
-- **Invocation parameters:** `llm.invocation_parameters` with every request argument sent to LiteLLM, including the raw `messages` and `tools` payloads alongside temperature, max tokens, tool choice, retries, timeout and reasoning effort.
-- **Messages:** `llm.input_messages.N.message.role` and `.content` for the system prompt, the conversation history (user, assistant, tool results with their `tool_call_id`), the current message, and, last, any harness notice the agent loop added for that turn only (the budget-exhausted or no-tool-call reminder); assistant tool calls appear under `.message.tool_calls.M.*`.
-- **Available tools:** `llm.tools.N.tool.json_schema`.
-- **Output:** `output.value` (text, or JSON with text and tool calls) and `llm.output_messages.0.*` including the tool calls made.
-- **Token counts:** `llm.token_count.prompt`, `llm.token_count.completion`, `llm.token_count.total`.
-
-### 3. Tool spans
-
-- **Name:** `Tool call - <tool name>`.
-- **Kind:** `TOOL`.
-- **Identity:** `tool.name`, `tool.id`.
-- **Arguments:** `tool.parameters` and `input.value`.
-- **Result:** `output.value`, a JSON document with `name`, `tool_call_id`, `success`, `result`, and `error_message`. A tool that returns a failure is recorded with `success: false` and its message here; the span status itself stays `OK`. A tool whose execution raises produces no span at all.
-
-### 4. Terraform evaluator spans
-
-- **Name:** `Terraform <operation> - <outcome>`, where the operation is the verb that ran (`plan`, `drift` or `apply`) and the outcome is `True` or `False` — so `Terraform plan - True`, `Terraform drift - False`, `Terraform apply - True`. The operation comes from the name of the traced method, and the outcome is validation for `plan`, being in sync for `drift`, and success for `apply`.
-- **Kind:** `EVALUATOR`.
-- **Input:** the keyword arguments of the call: the targets for `plan`, the plan reference being read for `drift` (its workspace, plan file, targets and workspace fingerprint — never the plan text), empty for `apply`.
-- **Output:** the Terraform plan text for a successful `plan`, the drift summary for a drifted workspace, the apply output for a successful `apply`; on any failure, the engine’s error feedback instead.
-
-### Common metadata
-
-Every span of every kind carries:
-
-- `session.id` and `user.id` as top-level attributes. `user.id` is the user’s e-mail address (or `user-<id>` when the account has none), so traces contain personal data;
-- a `metadata` JSON attribute with `session_id`, `user_id` (the same e-mail), `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`), `repo_uri`, `iac_path`, `branch_name`, and, on chain spans, `chain_type`.
-
-Use `session.id` to find everything that happened in one session.
-
-### How spans relate
-
-Do not expect a deep tree. The current implementation produces:
-
-- **Chain spans are roots.** Each orchestration step starts a new chain span and remembers it as the current root.
-- **LLM and tool spans are children of the current chain span**, as siblings of each other. A tool span is not nested under the LLM span that requested the call.
-- **Terraform evaluator spans have no parent.** Each one is a single-span trace of its own, linked to the rest only through `session.id` in the metadata.
-
-Child spans are created after their work finishes, with a back-dated start time, so durations are correct even though the nesting is flat.
-
-## What is not recorded
-
-- **Errors and exceptions.** Span status is always `OK`. When a chain, model call, tool, or Terraform command raises, the corresponding span is never ended and therefore never exported; a failed run appears truncated in Phoenix rather than marked failed. Tool-level failures are visible only as `success: false` in the tool span output. Use the session status and failure message in the application or the [admin panel](../administer-users-and-locks/) for error triage.
-- **Metrics, dashboards, alerts, evaluations.** Kumoss emits traces only. Phoenix’s evaluation and dataset features are available in the UI but nothing in Kumoss populates them.
-- **Logs.** Application logs go to the container’s standard output and are not correlated with traces.
-- **Sidecar activity.** The sidecars are not instrumented; engine commands appear only through the core’s Terraform evaluator spans.
-
-## Startup and shutdown
-
-- Tracer providers for all nine projects are created when the core module is imported, before the FastAPI application starts. Each has a batching span processor with the OpenTelemetry SDK defaults (export every 5 seconds, batches of up to 512 spans, queue of 2048).
-- Span creation never touches the network; export happens on a background thread. If the collector is unreachable, the exporter retries with back-off within its timeout, logs `Failed to export span batch`, and drops the batch. Sessions are not affected; the traces are lost.
-- There is no startup connectivity check for the trace endpoint. The core does, however, need Phoenix’s HTTP API at the same base URL for prompt seeding: it retries the connection for about 27 seconds and then aborts the boot. In the bundled stack that makes Phoenix effectively required at startup.
-- On shutdown the lifespan handler shuts every provider down, which drains pending spans (within a 30-second budget) before the process exits.
-
-## Troubleshooting
-
-**Phoenix does not open at `/monitoring/`.** Check `docker compose ps` for the `phoenix` and `phoenix-db` containers and `docker compose logs phoenix`. Phoenix waits for its database; a slow first start is normal. The proxy returns `502` until Phoenix listens.
-
-**Core exits at boot with `Phoenix unreachable after 8 attempts`.** The core could not reach `telemetry.collector_url` for prompt seeding. Confirm the URL resolves from inside the core container (`http://phoenix:6006/` in the stack), that the value ends with `/`, and that Phoenix is up. Start Phoenix first or restart the core.
-
-**No traces appear.** Confirm the project: with the default `environment: development`, generate runs are in `dev-terraform-day2` and drift runs in `dev-terraform-drift`. Check the core logs for `Failed to export span batch`, which means the OTLP endpoint `<collector_url>v1/traces` was not reachable when the batch was sent. Traces are exported in batches every few seconds; wait a moment and refresh.
-
-**A session failed but its trace looks incomplete.** Expected: spans for work that raised are not exported. Use the session’s failure message and artifacts.
-
-**A long LLM span has no `session.id`, shows an unknown span kind, or does not appear in a session search.** The attribute count hit `telemetry.otel_attribute_count_limit`; the SDK dropped the oldest attributes, which on LLM spans are the identity and kind fields, not the messages. Raise the limit and restart the core.
-
-**Traces from a different environment are mixed in.** The project prefix comes from `environment` in the core’s `config.yaml`; restart the core after changing it. Prompt tags follow the same value, so also read [Customize prompts](../customize-prompts/) before changing it on an existing deployment.
 
 ---
 
