@@ -14,7 +14,7 @@ name: kumoss
 
 services:
   proxy:
-    image: ghcr.io/inditextech/kumoss-proxy:1.0.6 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-proxy:1.0.7 # x-release-please-version
     restart: on-failure
     build:
       context: .
@@ -34,7 +34,7 @@ services:
       - bridge-network
 
   core:
-    image: ghcr.io/inditextech/kumoss-core:1.0.6 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-core:1.0.7 # x-release-please-version
     build:
       context: .
       dockerfile: ./core/Dockerfile
@@ -69,7 +69,7 @@ services:
       - bridge-network
 
   notifications:
-    image: ghcr.io/inditextech/kumoss-notifications:1.0.6 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-notifications:1.0.7 # x-release-please-version
     build:
       context: .
       dockerfile: ./services/notifications/Dockerfile
@@ -82,7 +82,7 @@ services:
       - bridge-network
 
   iac:
-    image: ghcr.io/inditextech/kumoss-iac:1.0.6 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-iac:1.0.7 # x-release-please-version
     build:
       context: .
       dockerfile: ./services/iac/Dockerfile
