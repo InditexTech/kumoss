@@ -8,7 +8,7 @@ and state each component owns, and the deployment topology.
 == Overview
 
 :diagram-name: system-architecture
-:diagram-alt: Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the sidecar services, and the data and observability containers on one Compose network
+:diagram-alt: Kumoss system architecture: the browser and Nginx edge, the layered core inside its container boundary, the bundled iac and notifications sidecars with the optional mapping and authz contracts, and the data and observability containers on one Compose network
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 
@@ -16,8 +16,9 @@ Dashed edges are wiring that exists but is not exercised by the checked-in
 `config.yaml`: the identity provider is contacted only once
 `oidc.issuer_url` is set.
 
-The diagram condenses some detail. The four sidecars share one node
-(`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`); the
+The diagram condenses some detail. The sidecars share one node: the
+bundled `iac :8082` and `notifications :8080`, plus the optional mapping
+and authz contracts, whose implementations you provide yourself; the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the `workspaces` volume,
 `phoenix-db` and the notification and storage backends are carried in the
@@ -71,12 +72,12 @@ layer — they live in `core/src/clients`, a sibling package.
 |Implements domain ports
 
 |authz service
-|Cloud project access checks, disabled by default. Disabled, the core
-answers "authorized" without calling it; enabled, an unreachable sidecar is
-an error, never an allow. Its user and role endpoints are unused — Kumoss
-keeps those in core-db.
-|Called from the authorize route with the caller's identity; container-local
-JSON role store
+|Cloud project access checks, disabled by default and not bundled: provide
+your own implementation of the contract. Disabled, the core answers
+"authorized" without calling it; enabled, an unreachable sidecar is an
+error, never an allow. The contract's user and role endpoints are unused —
+Kumoss keeps those in core-db.
+|Called from the authorize route with the caller's identity
 
 |iac service
 |Runs one IaC engine command per asynchronous job — `init`, `validate`,
@@ -87,8 +88,10 @@ deployments are expected to supply their own.
 
 |mapping service
 |Resolves a business identifier to a repository URL, plus a best-effort
-terraform provider and cloud scope (`null` means unknown, ask the user);
-the reference implementation is an identity passthrough.
+terraform provider and cloud scope (`null` means unknown, ask the user).
+Disabled by default and not bundled: provide your own implementation;
+disabled, the core treats the identifier as the repository URL (identity
+passthrough).
 |Called through a core passthrough route
 
 |notifications service

@@ -1,11 +1,11 @@
 # Default Kumoss system config bundled with the docker-compose stack.
 #
-# This file is baked into the kumoss-core image at build time (the
-# Dockerfile copies it to /etc/kumoss/config.yaml, the path the core
-# reads by default; set KUMOSS_CONFIG to load a different file). Edits
-# here are NOT hot-reloaded — `docker compose watch` only syncs ./core —
-# so rebuild after changing it: `docker compose build core`. It carries
-# deployment-tunable knobs — no secrets.
+# This file is baked into the core image at build time (the Dockerfile
+# copies it to /etc/kumoss/config.yaml, the path the core reads by
+# default; set KUMOSS_CONFIG to load a different file), and
+# docker-compose.yml bind-mounts it over that path. The core reads it
+# only at startup, so restart after changing it: `docker compose restart
+# core`. It carries deployment-tunable knobs — no secrets.
 #
 # Secrets live in env vars. The core looks them up by name; the default
 # names (GIT_USER, GIT_TOKEN, KUMOSS_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
@@ -17,8 +17,9 @@
 # core/src/shared/config/system_config.py for the `*_env` fields.
 #
 # To customize, edit this file (e.g., flip `services.mapping.enabled` to
-# true and point it at a self-hosted mapper) or override per-environment
-# via a docker-compose.override.yml / your own KUMOSS_CONFIG path.
+# true and point it at your own mapping service) or override
+# per-environment via a docker-compose.override.yml / your own
+# KUMOSS_CONFIG path.
 
 # development | staging | production. Selects the Phoenix tracing project
 # prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
@@ -60,6 +61,13 @@ admin:
 # request/response round trip. Any service the core calls whose
 # token_env resolves to an empty value will refuse the core's boot —
 # flip `enabled: false` to skip an optional service entirely.
+#
+# `mapping` and `authz` have no bundled service: they are contracts
+# (contracts/openapi/) for you to implement. While disabled, the core
+# answers locally (identity passthrough for mapping, "authorized" for
+# authz). To enable one, set `enabled: true`, point `endpoint` at your
+# implementation and set its token env var in core/.env; the core
+# refuses to boot when an enabled service has no endpoint.
 services:
   notifications:
     enabled: true
@@ -68,12 +76,12 @@ services:
     timeout: 30.0
   mapping:
     enabled: false
-    endpoint: "http://mapping:8081"
+    endpoint: ""
     token_env: "KUMOSS_MAPPING_TOKEN"
     timeout: 30.0
   authz:
     enabled: false
-    endpoint: "http://authz:8083"
+    endpoint: ""
     token_env: "KUMOSS_AUTHZ_TOKEN"
     timeout: 30.0
   iac:

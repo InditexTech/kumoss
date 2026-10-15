@@ -96,8 +96,8 @@ curl -X POST http://localhost:8080/v1/notify \
 The service is wired into the repo-root `docker-compose.yml`, which
 loads `services/notifications/.env` (copy `env.sample` to `.env` in
 this directory). Set `SLACK_WEBHOOK_URL` and `KUMOSS_NOTIFICATIONS_TOKEN`
-there, enable `services.notifications` in the root `config.yaml`, rebuild
-the core image, and run `docker compose up`.
+there, enable `services.notifications` in the root `config.yaml`, and run
+`docker compose up` (restart the core if it is already running).
 
 ## Tests
 

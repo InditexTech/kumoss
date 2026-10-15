@@ -24,10 +24,12 @@ WORKDIR /app
 
 COPY --from=uv /uv /uvx /bin/
 
-# Terraform CLI installation
+# Terraform CLI installation. TARGETARCH is set by BuildKit (amd64, arm64),
+# which matches HashiCorp's release naming.
 ARG TERRAFORM_VERSION=1.16.0
+ARG TARGETARCH
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
-RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_${TARGETARCH}.zip" \
     && apt-get update \
     && apt-get install -y --no-install-recommends curl unzip ca-certificates \
     && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${tf_zip}" -o "/tmp/${tf_zip}" \

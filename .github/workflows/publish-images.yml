@@ -1,13 +1,14 @@
 # SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 # SPDX-License-Identifier: Apache-2.0
 
-# Publishes the core image to ghcr.io/inditextech/kumoss/core when a GitHub
-# Release is published. release-please publishes the Release with the GitHub
-# App token (see release-please.yml), so the `release: published` event does
-# reach this workflow.
+# Publishes every Kumoss-built image to ghcr.io/inditextech/kumoss-<image>
+# when a GitHub Release is published. release-please publishes the Release
+# with the GitHub App token (see release-please.yml), so the
+# `release: published` event does reach this workflow.
 #
-# Tags pushed for release vX.Y.Z: X.Y.Z, X.Y, X and latest.
-name: Publish Core Image
+# Tags pushed for release vX.Y.Z: X.Y.Z, X.Y, X and latest. The image names
+# and the release-please-bumped tags in docker-compose.yml must match.
+name: Publish Images
 permissions: {}
 
 on:
@@ -15,20 +16,29 @@ on:
     types: [published]
 
 concurrency:
-  group: publish-core-image-${{ github.ref }}
+  group: publish-images-${{ github.ref }}
   cancel-in-progress: false
-
-env:
-  IMAGE: ghcr.io/inditextech/kumoss/core
 
 jobs:
   publish:
-    name: Build and push core image
+    name: Build and push ${{ matrix.image }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
       contents: read
       packages: write # Push to GHCR with GITHUB_TOKEN.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: core
+            dockerfile: core/Dockerfile
+          - image: iac
+            dockerfile: services/iac/Dockerfile
+          - image: notifications
+            dockerfile: services/notifications/Dockerfile
+          - image: proxy
+            dockerfile: nginx/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,23 +62,23 @@ jobs:
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
-          images: ${{ env.IMAGE }}
+          images: ghcr.io/inditextech/kumoss-${{ matrix.image }}
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
           labels: |
-            org.opencontainers.image.title=kumoss-core
+            org.opencontainers.image.title=kumoss-${{ matrix.image }}
 
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          # The Dockerfile copies config.yaml from the repo root.
+          # Every Dockerfile copies paths relative to the repository root.
           context: .
-          file: core/Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=core
-          cache-to: type=gha,scope=core,mode=max
+          cache-from: type=gha,scope=${{ matrix.image }}
+          cache-to: type=gha,scope=${{ matrix.image }},mode=max

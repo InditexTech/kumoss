@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [core, services/authz, services/iac, services/mapping, services/notifications]
+        package: [core, services/iac, services/notifications]
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -86,9 +86,7 @@ jobs:
         dockerfile:
           - core/Dockerfile
           - nginx/Dockerfile
-          - services/authz/Dockerfile
           - services/iac/Dockerfile
-          - services/mapping/Dockerfile
           - services/notifications/Dockerfile
     steps:
       - name: Checkout
@@ -124,9 +122,7 @@ jobs:
           scan-args: |-
             --format=table
             ./core/uv.lock
-            ./services/authz/uv.lock
             ./services/iac/uv.lock
-            ./services/mapping/uv.lock
             ./services/notifications/uv.lock
             ./contracts/conformance/authz/uv.lock
             ./client/web/package-lock.json

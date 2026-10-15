@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.0.8](https://github.com/InditexTech/kumoss/compare/v1.0.7...v1.0.8) (2026-10-15)
+
+
+### Bug Fixes
+
+* remove the unused authz and mapping reference services ([c314937](https://github.com/InditexTech/kumoss/commit/c3149371bb4a870ecec03a08627b7454e70f75c1))
+* remove the unused authz and mapping reference services ([#362](https://github.com/InditexTech/kumoss/issues/362)) ([3ce61db](https://github.com/InditexTech/kumoss/commit/3ce61dbdd4acd61f6a80014b001af462b391f7c2))
+
+## [1.0.7](https://github.com/InditexTech/kumoss/compare/v1.0.6...v1.0.7) (2026-10-15)
+
+
+### Documentation
+
+* add cost management initiatives to the roadmap ([ac4a416](https://github.com/InditexTech/kumoss/commit/ac4a416b8e2f5b2179e11f896f02b9da359347b1))
+* replace the overview video music with an upbeat original score ([061fe60](https://github.com/InditexTech/kumoss/commit/061fe609d383bad2dbd90cb2491b1487451d0fd1))
+* replace the overview video music with an upbeat original score ([75f6255](https://github.com/InditexTech/kumoss/commit/75f6255fe5ef406277bbc3d04b4f9d0974fe00d1))
+* **roadmap:** add bulk operations and multiproject requests ([3832dc4](https://github.com/InditexTech/kumoss/commit/3832dc4ffbad33e4627330be31b968c63f7791f4))
+* **roadmap:** add bulk operations and multiproject requests ([548b939](https://github.com/InditexTech/kumoss/commit/548b93952e215097d5e69543104fbe60b78dfac3))
+
+## [1.0.6](https://github.com/InditexTech/kumoss/compare/v1.0.5...v1.0.6) (2026-10-14)
+
+
+### Documentation
+
+* add the multicloud governance overview to the roadmap ([a3c367f](https://github.com/InditexTech/kumoss/commit/a3c367f4982149d5bbd48cbd7e842d5163d9f909))
+* add the multicloud governance overview to the roadmap ([b28241f](https://github.com/InditexTech/kumoss/commit/b28241f75bc3e696877f9027f02d96dff9557fbd))
+
+## [1.0.5](https://github.com/InditexTech/kumoss/compare/v1.0.4...v1.0.5) (2026-10-14)
+
+
+### Documentation
+
+* add a public roadmap page ([f65f260](https://github.com/InditexTech/kumoss/commit/f65f260dd23c6cc572a7d751260bc8bf6a106a18))
+* add a public roadmap page ([06f1567](https://github.com/InditexTech/kumoss/commit/06f156715e40cb41661f15b37271b6f87db3bb17))
+
 ## [1.0.4](https://github.com/InditexTech/kumoss/compare/v1.0.3...v1.0.4) (2026-10-14)
 
 

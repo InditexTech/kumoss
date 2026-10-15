@@ -10,28 +10,25 @@ info:
   description: |
     The authorization service answers two questions for the rest of Kumoss:
 
-    1. *Who is this user, and what roles do they have?* Used by the core
-       to gate the admin panel and to attribute actions in audit logs.
-       Identity is asserted by the caller (the core) via `X-User-Id` and
-       optional `X-User-Email` headers — the OIDC-token-validation step
-       lives in the core, not here, so the contract makes no assumption
-       about the upstream identity provider.
+    1. *Who is this user, and what roles do they have?* The Kumoss core
+       does not call these endpoints today: its own operation and panel
+       roles live in the core database. They exist for implementations
+       that keep a role store of their own. Identity is asserted by the
+       caller via `X-User-Id` and optional `X-User-Email` headers — the
+       OIDC-token-validation step lives in the core, not here, so the
+       contract makes no assumption about the upstream identity provider.
 
     2. *Is this user allowed to operate on this cloud resource?* Used by
        the core when handling generation/drift/import requests, before
        running terraform against a live project.
 
-    The OSS reference implementation under `services/authz/` is
-    intentionally permissive: `/v1/check` returns true if the service's
-    own cloud Service Principal can resolve the resource (Azure resource
-    group / GCP project), or unconditionally true when no cloud creds
-    are configured. Roles are stored in a JSON file on a volume; a
-    default root admin can be bootstrapped via env var.
-
-    Enterprise implementations replace the body of `/v1/check` with their
-    real authorization logic (Azure AD groups, internal CMDB-driven
-    policies, etc.) and back the role store with whatever directory
-    service they use.
+    Kumoss does not bundle an implementation of this contract. While
+    `services.authz` is disabled (the default), the core never calls
+    one and treats every `/v1/check` as authorized. Organizations that
+    need real access control implement `/v1/check` with their own
+    authorization logic (Azure AD groups, internal CMDB-driven
+    policies, etc.), back the role store with whatever directory
+    service they use, and point `services.authz.endpoint` at it.
   contact:
     name: Kumoss maintainers
     url: https://github.com/InditexTech/kumoss
@@ -40,8 +37,8 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
-  - url: http://authz:8083
-    description: Default in-cluster URL when running via docker-compose.
+  - url: https://authz.example.com
+    description: Placeholder. Kumoss calls the URL set in `services.authz.endpoint`.
 
 tags:
   - name: check
@@ -61,9 +58,7 @@ paths:
       summary: Decide whether a user may operate on a resource.
       description: |
         Returns whether the identified user is permitted to operate on
-        the named cloud resource. The OSS reference impl ignores the
-        user dimension and answers based on whether the service's own
-        Service Principal can resolve the resource.
+        the named cloud resource.
       security:
         - bearerAuth: []
       requestBody:
@@ -82,7 +77,7 @@ paths:
         "400":
           description: |
             Request could not be parsed at the transport layer (malformed
-            JSON, non-UTF-8 bytes). The OSS reference impl returns the
+            JSON, non-UTF-8 bytes). Implementations MAY return a
             framework-default body for this case.
           content:
             application/json:
@@ -118,7 +113,7 @@ paths:
         record (creating an empty one if none exists) plus assigned
         roles.
 
-        When neither header is present, the OSS reference impl returns
+        When neither header is present, implementations SHOULD return
         an anonymous user with no roles.
       security:
         - bearerAuth: []
@@ -308,8 +303,8 @@ components:
         validate the OIDC token itself. May be empty or omitted for
         anonymous flows.
 
-        Implementations MAY clamp over-long values; the OSS reference
-        impl truncates to 1024 chars before persisting. The contract
+        Implementations MAY clamp over-long values (for example,
+        truncate to 1024 chars before persisting). The contract
         does not advertise a maxLength on the header so that boundary
         callers don't get hard 4xx failures.
       schema:
@@ -320,8 +315,8 @@ components:
       required: false
       description: |
         Caller-asserted user email. May be empty or omitted.
-        Implementations MAY clamp over-long values (the reference impl
-        truncates to 256 chars before persisting).
+        Implementations MAY clamp over-long values (for example,
+        truncate to 256 chars before persisting).
       schema:
         type: string
 

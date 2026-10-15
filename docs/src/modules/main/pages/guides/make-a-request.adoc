@@ -60,8 +60,8 @@ your platform team configured.
 . *"Which cloud provider?"* Pick Microsoft Azure, Google Cloud, Amazon Web
   Services, Oracle Cloud Infrastructure, or Kubernetes. This question
   and the next are skipped when the deployment's mapping service already
-  knows the answer for that repository; the shipped passthrough knows
-  nothing, so both are always asked.
+  knows the answer for that repository; with mapping disabled, as
+  shipped, the core's passthrough knows nothing, so both are always asked.
 . *Cloud scope.* The question depends on the provider you picked: "What
   is the Azure subscription ID?", "What is the GCP project ID?", "What is
   the AWS account ID?", "What is the OCI compartment name?", or "Which

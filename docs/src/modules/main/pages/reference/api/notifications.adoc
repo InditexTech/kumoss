@@ -233,8 +233,8 @@ the server's access and error output. It does not trace deliveries.
   unreachable. Check the webhook URL is still valid in Slack.
 * *Nothing arrives and the core logs `Failed to send '<kind>'
   notification`.* Check the `services.notifications` block in
-  `config.yaml`, and that the core image was rebuilt after the change
-  — `config.yaml` is baked into the image.
+  `config.yaml`, and that the core was restarted after the change
+  — the file is read only at startup.
 
 [#conformance]
 == Conformance
