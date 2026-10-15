@@ -161,12 +161,20 @@ function SessionsTableInner<T>(props: SessionsTableProps<T>) {
   const flushSearches = useCallback(
     (extra: Record<string, string> = {}) => {
       const updates: Record<string, string> = { page: "", ...extra };
+      let searchesChanged = false;
       for (const sf of searchFields) {
-        updates[sf.key] = (localSearches[sf.key] || "").trim();
+        const flushed = (localSearches[sf.key] || "").trim();
+        updates[sf.key] = flushed;
+        if (flushed !== (appliedSearches[sf.key] || "")) {
+          searchesChanged = true;
+        }
+      }
+      if (searchesChanged) {
+        updates.page = "";
       }
       updateParams(updates);
     },
-    [localSearches, searchFields, updateParams],
+    [localSearches, appliedSearches, searchFields, updateParams],
   );
 
   const loadData = useCallback(async () => {
