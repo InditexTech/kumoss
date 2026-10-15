@@ -19,8 +19,8 @@ from dataclasses import dataclass
 import litellm
 
 from src.shared.config import system_config
-from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
+from src.infrastructure.exceptions import SearchEngineError
 
 
 @dataclass(frozen=True)
@@ -28,12 +28,6 @@ class SearchResult:
     title: str
     url: str
     snippet: str
-
-
-class SearchEngineError(ExceptionHandler):
-    """Raised when the configured search engine call fails"""
-
-    pass
 
 
 class SearchServiceClient:
