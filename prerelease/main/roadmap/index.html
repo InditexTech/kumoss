@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/roadmap/">
     <link rel="prev" href="../faq/">
     <link rel="next" href="../contributing/">
-    <meta name="description" content="Where Kumoss is heading: continuous operations, the full path between cloud and code, measurable quality and governance, cost management, agent interoperability, and simpler deployment.">
+    <meta name="description" content="Where Kumoss is heading: continuous operations, the full path between cloud and code, operations at scale, measurable quality and governance, cost management, agent interoperability, and simpler deployment.">
     <meta name="generator" content="Antora 3.2.1">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -772,7 +772,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Roadmap</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Roadmap</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Where Kumoss is heading: continuous operations, the full path between cloud and code, measurable quality and governance, cost management, agent interoperability, and simpler deployment.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Where Kumoss is heading: continuous operations, the full path between cloud and code, operations at scale, measurable quality and governance, cost management, agent interoperability, and simpler deployment.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -824,7 +824,7 @@ Kumoss does today.</p>
 <h2 id="how-to-read-the-roadmap"><a class="anchor" href="#how-to-read-the-roadmap"></a>How to read the roadmap</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The initiatives are grouped into six themes. Each initiative carries
+<p>The initiatives are grouped into seven themes. Each initiative carries
 one of two statuses:</p>
 </div>
 <div class="ulist">
@@ -877,6 +877,15 @@ indicate priority.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#diagrams">Infrastructure diagrams and change previews</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--grey"><span class="dt-label__content">Planned</span></span></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="2"><p class="tableblock"><a href="#operations-at-scale">Operations at scale</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#bulk-operations">Bulk operations</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--grey"><span class="dt-label__content">Planned</span></span></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#multiproject">Multiproject requests</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--grey"><span class="dt-label__content">Planned</span></span></p></td>
 </tr>
 <tr>
@@ -988,6 +997,43 @@ reviewed path.</p>
 highlight how a request changes it before the change is merged.
 Reviewers will see the impact of a plan visually, alongside the code
 diff.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="operations-at-scale"><a class="anchor" href="#operations-at-scale"></a>Operations at scale</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Let platform teams act on many resources and many projects with a single
+request, instead of repeating the same request one project at a time.</p>
+</div>
+<div class="sect2">
+<h3 id="bulk-operations"><a class="anchor" href="#bulk-operations"></a>Bulk operations</h3>
+<div class="paragraph">
+<p>Any request will be able to run against all projects or a selection of
+them, instead of one project at a time. A platform team will be able to
+ask, for example, to update the tags of all storage accounts, or to
+apply a new security baseline, and Kumoss will run the request in every
+targeted project. Each project goes through the usual generation,
+validation, and reporting phases, and the outcome reaches reviewers as
+one pull request per project with a summary of what changes where, so
+the team can approve, adjust, or reject the change project by project.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="multiproject"><a class="anchor" href="#multiproject"></a>Multiproject requests</h3>
+<div class="paragraph">
+<p>A single request will be able to target several projects at once. A team
+will be able to ask, for example, to add a new database to a list of
+projects, and Kumoss will run the generation, validation, and reporting
+phases for each project, tailoring the code to the conventions and
+compliance rules of each one. Progress and results will be tracked per
+project, so a failure in one project does not block the others.</p>
+</div>
+<div class="paragraph">
+<p>Today a session works on a single project; see
+<a href="../guides/follow-a-session/" class="xref page">Follow a session</a>.</p>
 </div>
 </div>
 </div>
