@@ -1,12 +1,15 @@
 = Environment variables and secrets
-:description: Every environment variable Kumoss reads: the core, the four sidecars, the IaC engine, and the LLM providers.
+:description: Every environment variable Kumoss reads: the core, the bundled IaC and notifications sidecars, the IaC engine, and the LLM providers.
 
 Kumoss keeps every secret in environment variables. `config.yaml` holds
 only non-secret settings and, where a secret is needed, the _name_ of
 the variable that carries it (fields ending in `_env`). This page
-documents every variable in `core/env.sample` and in the four sidecar
-`env.sample` files, plus the variables that the IaC engine and the LLM
-providers read on their own.
+documents every variable in `core/env.sample` and in the two bundled
+sidecar `env.sample` files (IaC and notifications), plus the variables
+that the IaC engine and the LLM providers read on their own. Mapping
+and authorization have no bundled sidecar: they are optional extension
+points you implement yourself, so the only variables Kumoss reads for
+them are the core-side tokens.
 
 Each `env.sample` is a template: copy it to a `.env` file next to it
 (`core/.env`, `services/<name>/.env`). Docker Compose loads those `.env`
@@ -65,10 +68,10 @@ call
 
 |`KUMOSS_MAPPING_TOKEN`
 |Conditional
-|sample value `dev-mapping-token`
-|Bearer token for the mapping sidecar, sent when
-`services.mapping.enabled` is true. Must equal
-`KUMOSS_MAPPING_TOKEN` in `services/mapping/.env`.
+|commented out in the sample
+|Bearer token for your own mapping implementation, sent when
+`services.mapping.enabled` is true. Must equal the token that
+implementation expects. Needed only when you enable it.
 |At boot when enabled
 
 |`KUMOSS_NOTIFICATIONS_TOKEN`
@@ -81,10 +84,10 @@ call
 
 |`KUMOSS_AUTHZ_TOKEN`
 |Conditional
-|sample value `dev-authz-token`
-|Bearer token for the authorization sidecar, sent when
-`services.authz.enabled` is true. Must equal
-`KUMOSS_AUTHZ_TOKEN` in `services/authz/.env`.
+|commented out in the sample
+|Bearer token for your own authorization implementation, sent when
+`services.authz.enabled` is true. Must equal the token that
+implementation expects. Needed only when you enable it.
 |At boot when enabled
 
 |`GIT_USER`
@@ -419,31 +422,6 @@ Where state lives, and how each provider is configured, is covered in
 xref:main:guides/configure-state-backends.adoc[Configure state
 backends].
 
-== Mapping sidecar (`services/mapping/env.sample`)
-
-[cols="2,2,2,5,2",options="header"]
-|===
-|Variable |Requirement |Default |Meaning |Checked
-
-|`KUMOSS_MAPPING_TOKEN`
-|Recommended when the sidecar is enabled
-|empty (accepts any bearer)
-|Token required on `POST /v1/resolve`. Must equal the core's
-`KUMOSS_MAPPING_TOKEN`.
-|Per request
-|===
-
-The bundled mapping service is an identity passthrough: it returns the
-identifier it receives as both `repo_url` and `identifier`, echoes back
-any `terraform_provider` it was sent, and always answers `null` for
-`scope_id` — it knows nothing it was not told, and `null` means "ask the
-user". While `services.mapping.enabled` is `false` (the default) the
-core performs that same mapping itself and never calls the service.
-Once enabled, a sidecar that times out or is unreachable makes the
-wizard's resolve step fail with `504` or `502`, and so does a response
-the core cannot parse or one naming a provider outside the contract's
-enum; there is no silent fallback.
-
 == Notifications sidecar (`services/notifications/env.sample`)
 
 [cols="2,2,2,5,2",options="header"]
@@ -494,62 +472,37 @@ set for it (only `proxy` carries `restart: on-failure`), so it exits once and th
 the service from your Compose file or provide a webhook URL if you
 would rather not see it.
 
-== Authorization sidecar (`services/authz/env.sample`)
+== Mapping and authorization (no bundled sidecar)
 
-[cols="2,2,2,5,2",options="header"]
-|===
-|Variable |Requirement |Default |Meaning |Checked
+Kumoss bundles no mapping or authorization service, so there is no
+`env.sample` for either. The core reads only `KUMOSS_MAPPING_TOKEN` and
+`KUMOSS_AUTHZ_TOKEN` (see the core table above), and only when the
+matching `services.<name>.enabled` is `true`. Any other variables are
+whatever your own implementation needs.
 
-|`KUMOSS_AUTHZ_TOKEN`
-|Recommended when the sidecar is enabled
-|empty (accepts any bearer)
-|Token required on `/v1/*`. Must equal the core's `KUMOSS_AUTHZ_TOKEN`.
-|Per request
+* *Mapping.* While `services.mapping.enabled` is `false` (the default)
+  the core never calls a service and performs an identity passthrough
+  itself: it returns the identifier as both `repo_url` and
+  `identifier`, echoes back any `terraform_provider` it was sent, and
+  answers `null` for `scope_id` — it knows nothing it was not told, and
+  `null` means "ask the user". Once enabled, a service that times out
+  or is unreachable makes the wizard's resolve step fail with `504` or
+  `502`, and so does a response the core cannot parse or one naming a
+  provider outside the contract's enum; there is no silent fallback.
+* *Authorization.* The core consults the service only from `POST
+  /v1/auth/authorize` (a cloud-project access check) and only when
+  `services.authz.enabled` is `true`. While disabled, the core answers
+  "authorized" without any call; once enabled, an unreachable or slow
+  service makes the preflight fail with `502` or `504` rather than
+  allowing the request. Kumoss's own operation roles (`developer`,
+  `devops`) and admin-panel roles (`viewer`, `editor`, `admin`) live in
+  the core database, not in this service, and are documented in the
+  xref:main:guides/administer-users-and-locks.adoc[Admin portal] guide.
 
-|`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`
-|Optional
-|empty
-|When set, the sidecar grants its own `admin` role to a user record
-keyed by this email at startup.
-|At boot
-
-|`KUMOSS_AUTHZ_PERMISSIVE`
-|Optional
-|`true`
-|`true` (case-insensitive): `POST /v1/check` answers
-`authorized: true` for every request. Any other value: it answers
-`authorized: false` for every request. Neither value implements a real
-policy.
-|At boot
-
-|`KUMOSS_AUTHZ_ROLE_STORE`
-|Optional
-|`/data/roles.json`
-|Path of the JSON file holding the sidecar's user-to-roles map. The
-path is container-local in the shipped Compose file (no volume is
-mounted), so assignments are lost when the container is recreated;
-point it at a mounted path if you need them to survive.
-|On first write
-|===
-
-Two things to keep apart:
-
-* The bundled authorization sidecar is a *permissive reference
-  implementation*. It exists so that the contract in
-  `contracts/openapi/authz.v1.yaml` has a runnable example. The core
-  consults it only from `POST /v1/auth/authorize` (a cloud-project
-  access check) and only when `services.authz.enabled` is `true`.
-  Enabling it without replacing the logic changes nothing about who is
-  allowed to do what. While disabled, the core answers "authorized"
-  without any call; once enabled, an unreachable or slow sidecar makes
-  the preflight fail with `502` or `504` rather than allowing the
-  request.
-* The sidecar's `admin` and `user` roles, its root-admin bootstrap, and
-  its `/v1/users` endpoints belong to the sidecar alone. Kumoss's own
-  operation roles (`developer`, `devops`) and admin-panel roles
-  (`viewer`, `editor`, `admin`) live in the core database and are
-  documented in the xref:main:guides/administer-users-and-locks.adoc[Admin
-  portal] guide.
+To enable either, set `enabled: true`, point `endpoint` at your
+implementation, and set the token variable in `core/.env`. The core
+refuses to boot when an enabled service has an empty `endpoint` or an
+empty token.
 
 == Cloud-provider credentials at a glance
 
@@ -599,7 +552,8 @@ openssl rand -hex 32
 ----
 +
 Paste the output into both `core/.env` and the matching sidecar
-`.env`. Generate a distinct value per sidecar. Do not reuse the
+`.env` (or your own mapping or authorization implementation's
+configuration). Generate a distinct value per sidecar. Do not reuse the
 `dev-*-token` placeholders or an empty sidecar token outside an
 isolated workstation: an empty sidecar token disables its bearer check
 entirely.
@@ -610,9 +564,8 @@ entirely.
   in constant time, but they are still simple services: keep them on a
   private network that only the core can reach, and rotate tokens on a
   schedule.
-* *All five Kumoss-built images run unprivileged.* The core, IaC,
-  mapping, notifications, and authorization Dockerfiles each create and
-  switch to the `kumoss` user (uid/gid `10001` by default, from the
+* *The core, IaC, and notifications images run unprivileged.* Their
+  Dockerfiles each create and switch to the `kumoss` user (uid/gid `10001` by default, from the
   `KUMOSS_UID` / `KUMOSS_GID` build args). The `proxy` service is the
   upstream nginx image, which starts as root and drops privileges for
   its worker processes. Apply your platform's pod or container security
@@ -670,9 +623,7 @@ ANTHROPIC_API_KEY=sk-example-not-a-real-key
 
 # Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)
 KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
-KUMOSS_MAPPING_TOKEN=unused-while-disabled
 KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled
-KUMOSS_AUTHZ_TOKEN=unused-while-disabled
 
 # Git push credentials
 GIT_USER=kumoss-bot
@@ -721,8 +672,12 @@ services:
     enabled: true
   mapping:
     enabled: true
+    # Your own implementation of contracts/openapi/mapping.v1.yaml.
+    endpoint: "https://mapping.kumoss.example.invalid"
   authz:
     enabled: true
+    # Your own implementation of contracts/openapi/authz.v1.yaml.
+    endpoint: "https://authz.kumoss.example.invalid"
   iac:
     # No enabled flag: the IaC sidecar is mandatory and always called.
     endpoint: "http://iac:8082"
@@ -781,13 +736,6 @@ ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000002
 ARM_ACCESS_KEY=<storage-account-access-key>
 ----
 
-`services/mapping/.env`:
-
-[source,dotenv]
-----
-KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002
-----
-
 `services/notifications/.env`:
 
 [source,dotenv]
@@ -795,16 +743,6 @@ KUMOSS_MAPPING_TOKEN=00000000000000000000000000000000000000000000000000000000000
 KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003
 SLACK_WEBHOOK_URL=https://hooks.slack.example.invalid/services/T000/B000/example
 LOG_LEVEL=INFO
-----
-
-`services/authz/.env`:
-
-[source,dotenv]
-----
-KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004
-KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL=platform-admin@example.invalid
-KUMOSS_AUTHZ_PERMISSIVE=true
-KUMOSS_AUTHZ_ROLE_STORE=/data/roles.json
 ----
 
 === Other LLM providers (drop-in replacements for the LLM block)

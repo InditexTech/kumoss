@@ -10,14 +10,16 @@ One hand-written OpenAPI 3.1 document per sidecar service, named
 `<service>.v<major>.yaml`. These files are the source of truth for
 every implementation of a Kumoss sidecar, bundled or third-party, and
 the core's HTTP clients under `core/src/clients/` are generated from
-them.
+them. Kumoss bundles implementations of the IaC and notifications
+contracts only; mapping and authorization are optional extension
+points you implement yourself.
 
-| Spec | Service | Bundled reference implementation | Conformance suite |
+| Spec | Service | Bundled implementation | Conformance suite |
 |---|---|---|---|
 | [`iac.v1.yaml`](iac.v1.yaml) | IaC engine executor: runs OpenTofu or Terraform commands as asynchronous jobs on a shared workspace | [`services/iac`](../../services/iac/README.md) | [`../conformance/iac/`](../conformance/iac/) |
-| [`mapping.v1.yaml`](mapping.v1.yaml) | Resolves a business identifier to a repository URL, plus a best-effort terraform provider and cloud scope | [`services/mapping`](../../services/mapping/README.md) | [`../conformance/mapping/`](../conformance/mapping/) |
+| [`mapping.v1.yaml`](mapping.v1.yaml) | Resolves a business identifier to a repository URL, plus a best-effort terraform provider and cloud scope | None (optional, disabled by default) | [`../conformance/mapping/`](../conformance/mapping/) |
 | [`notifications.v1.yaml`](notifications.v1.yaml) | Delivers notifications (compliance failures, high-impact detections, apply failures, user support requests) to a channel | [`services/notifications`](../../services/notifications/README.md) | [`../conformance/notifications/`](../conformance/notifications/) |
-| [`authz.v1.yaml`](authz.v1.yaml) | Cloud-project authorization checks | [`services/authz`](../../services/authz/README.md) | [`../conformance/authz/`](../conformance/authz/) |
+| [`authz.v1.yaml`](authz.v1.yaml) | Cloud-project authorization checks | None (optional, disabled by default) | [`../conformance/authz/`](../conformance/authz/) |
 
 ## Regenerating the core clients
 

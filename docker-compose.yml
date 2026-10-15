@@ -49,9 +49,7 @@ services:
     depends_on:
       - core-db
       - notifications
-      - mapping
       - iac
-      - authz
       - redis
       - object-storage
     networks:
@@ -83,19 +81,6 @@ services:
     networks:
       - bridge-network
 
-  mapping:
-    image: ghcr.io/inditextech/kumoss-mapping:1.0.6 # x-release-please-version
-    build:
-      context: .
-      dockerfile: ./services/mapping/Dockerfile
-    env_file:
-      - path: ./services/mapping/.env
-        required: false
-    expose:
-      - 8081
-    networks:
-      - bridge-network
-
   iac:
     image: ghcr.io/inditextech/kumoss-iac:1.0.6 # x-release-please-version
     build:
@@ -108,19 +93,6 @@ services:
       - workspaces:/workspaces
     expose:
       - 8082
-    networks:
-      - bridge-network
-
-  authz:
-    image: ghcr.io/inditextech/kumoss-authz:1.0.6 # x-release-please-version
-    build:
-      context: .
-      dockerfile: ./services/authz/Dockerfile
-    env_file:
-      - path: ./services/authz/.env
-        required: false
-    expose:
-      - 8083
     networks:
       - bridge-network
 

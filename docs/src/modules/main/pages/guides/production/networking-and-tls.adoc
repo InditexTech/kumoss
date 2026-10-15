@@ -94,10 +94,10 @@ sidecar to `hooks.slack.com` (or your channel).
 == Images and configuration delivery
 
 * Each release publishes every Kumoss-built image to
-  `ghcr.io/inditextech/kumoss-<image>`: `core`, `iac`, `authz`,
-  `mapping`, `notifications`, and `proxy` (nginx with the web
-  application), tagged `X.Y.Z`, `X.Y`, `X` and `latest`, for
-  `linux/amd64` and `linux/arm64`. They are built with the default
+  `ghcr.io/inditextech/kumoss-<image>`: `core`, `iac`,
+  `notifications`, and `proxy` (nginx with the web application),
+  tagged `X.Y.Z`, `X.Y`, `X` and `latest`, for `linux/amd64` and
+  `linux/arm64`. They are built with the default
   `KUMOSS_UID`/`KUMOSS_GID` (`10001`), and the core image carries the
   repository's default `config.yaml`, so mount your own at
   `KUMOSS_CONFIG` (see below). Pin the `X.Y.Z` tag, or the digest, in

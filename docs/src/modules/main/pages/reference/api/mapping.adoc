@@ -1,5 +1,5 @@
 = Mapping sidecar API
-:description: The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. The bundled implementation is an identity passthrough.
+:description: The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.
 
 The mapping service answers one question: *given what my organization
 calls this thing, which repository holds its IaC?* The identifier can
@@ -15,11 +15,13 @@ any field the mapper answers, so a confident wrong answer is worse than
 `null`: the user is never prompted and never sees it. An implementation
 returns `null` whenever its catalogue is not authoritative.
 
-Contract: `contracts/openapi/mapping.v1.yaml`. Default endpoint:
-`\http://mapping:8081`. Bearer token: the value of the variable named
-by `services.mapping.token_env`, `KUMOSS_MAPPING_TOKEN` by default.
-The service is *optional* and ships disabled
-(`services.mapping.enabled: false`).
+Contract: `contracts/openapi/mapping.v1.yaml`. Kumoss bundles no
+implementation of it: repository mapping is an optional extension point
+you implement yourself and point `services.mapping.endpoint` at.
+Bearer token: the value of the variable named by
+`services.mapping.token_env`, `KUMOSS_MAPPING_TOKEN` by default. The
+service is *optional* and ships disabled
+(`services.mapping.enabled: false`, `endpoint: ""`).
 
 It is internal-only. The browser never reaches it: the core forwards
 requests through `POST /api/v1/mapping/resolve`.
@@ -174,55 +176,26 @@ letting it fail later), and a `repo_url` that is not an `https://` URL.
 There is no silent fallback once the sidecar is enabled.
 
 When the sidecar is disabled (the shipped default) the core answers
-byte-for-byte what the bundled service would for an `https://` URL:
-`repo_url` and `identifier` both echo the input, `terraform_provider`
-echoes whatever was sent, and `scope_id` is `null`. Toggling
-`services.mapping.enabled` therefore changes nothing for a user who
-pastes an HTTPS repository URL. Any other input is echoed unchecked too
-(where the bundled service answers `404`); the next request that uses
-it as `repo_uri` is rejected with `422`.
+with an *identity passthrough* and makes no call: `repo_url` and
+`identifier` both echo the input, `terraform_provider` echoes whatever
+was sent, and `scope_id` is `null`. Nothing is truncated and nothing is
+guessed: sniffing `azure` out of a `dev.azure.com` URL would conflate
+"hosted on Azure DevOps" with "deploys to Azure", and a guess is a
+question the user never gets to correct. This is exactly right for
+users who paste real HTTPS git URLs already. Any other input is echoed
+unchecked too; the next request that uses it as `repo_uri` is rejected
+with `422`.
 
-== The bundled implementation
+== Providing your own implementation
 
-`services/mapping/` is an *identity passthrough*. An `https://`
-`identifier` comes back as both `repo_url` and `identifier`,
-`terraform_provider` echoes what the caller sent, and `scope_id` is
-always `null`. Nothing is truncated and nothing is guessed: sniffing
-`azure` out of a `dev.azure.com` URL would conflate "hosted on Azure
-DevOps" with "deploys to Azure", and a guess is a question the user
-never gets to correct. Any other identifier — a bare name, an SSH or
-`file://` URL, a path — cannot be resolved and answers `404`. It exists
-so a fresh deployment works end to end without anyone writing a real
-mapper, and it is exactly right for users who pass real HTTPS git URLs
-already.
-
-A catalogue-backed implementation replaces it: look the identifier up
-in a CMDB, Backstage, or a shared spreadsheet and return the canonical
-IaC repository, plus the provider and scope when the catalogue is
+A catalogue-backed implementation looks the identifier up in a CMDB,
+Backstage, or a shared spreadsheet and returns the canonical IaC
+repository, plus the provider and scope when the catalogue is
 authoritative for them. The contract carries the result and says
-nothing about where the lookup data lives.
-
-=== Responses it never produces
-
-The contract documents `400`, `403`, `404`, and `502` for real
-catalogue backends. The passthrough emits only `404`, for an identifier
-that is not an `https://` URL — it has no catalogue to miss in and no
-authorization concept beyond the bearer token. It only ever answers
-`200`, `401`, `404`, `422`, or `500`. A caller
-must still handle the full set, because a catalogue implementation
-will use it.
-
-=== Configuration
-
-[cols="2,1,4",options="header"]
-|===
-|Variable |Required |Meaning
-
-|`KUMOSS_MAPPING_TOKEN`
-|no
-|Bearer token clients must present. Blank disables the check entirely
-and accepts every request.
-|===
+nothing about where the lookup data lives. Set
+`services.mapping.enabled: true`, point `services.mapping.endpoint` at
+it, and set `KUMOSS_MAPPING_TOKEN` in `core/.env`; the core refuses to
+boot when an enabled service has no endpoint or an empty token.
 
 [#conformance]
 == Conformance
