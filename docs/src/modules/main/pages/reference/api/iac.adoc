@@ -101,12 +101,12 @@ this service, for example `/workspaces/my-iac_a1b2c3`.
 |`scope_id`
 |Cloud scope the operation targets, 1 to 1024 characters — Azure
 subscription id, GCP project id, AWS account id, OCI compartment
-OCID. Required on the five endpoints that reach a cloud API. See
-<<scope-injection>>.
+OCID, or vSphere datacenter name. Required on the five endpoints that
+reach a cloud API. See <<scope-injection>>.
 
 |`terraform_provider`
 |Which cloud that is: one of `azure`, `gcp`, `aws`, `oci`,
-`kubernetes`. These are the core's provider names, not Terraform
+`kubernetes`, `vmware`. These are the core's provider names, not Terraform
 registry provider names such as `azurerm` or `google`.
 
 |`plan_file`
@@ -371,15 +371,20 @@ that command only, picking the variable from `terraform_provider`:
 |`kubernetes`
 |none
 |—
+
+|`vmware`
+|none
+|—
 |===
 
 Only Azure and GCP have such a variable. An AWS account is implicit in
-the credentials the provider resolves, and an OCI compartment or a
-Kubernetes namespace is a resource argument rather than a provider
-setting, so no environment variable redirects a command to one. For
-those three the bundled implementation injects nothing: the command
-runs against whatever scope the deployment's ambient credentials and
-configuration select, and making those agree with `scope_id` is the
+the credentials the provider resolves, and an OCI compartment, a
+Kubernetes namespace, or a vSphere datacenter is a resource or
+data-source argument rather than a provider setting, so no environment
+variable redirects a command to one. For those four the bundled
+implementation injects nothing: the command runs against whatever
+scope the deployment's ambient credentials and configuration select,
+and making those agree with `scope_id` is the
 deployment's responsibility. The pair stays required on the wire so
 the intended scope is always stated, and so an implementation that can
 enforce it has what it needs.
@@ -451,22 +456,22 @@ can run `plan` can run discovery unchanged.
 |Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources`
 |account ID
 
-|`oci`, `kubernetes`
+|`oci`, `kubernetes`, `vmware`
 |none
 |—
 |===
 
-`oci` and `kubernetes` are answered with exit code 2 and
+`oci`, `kubernetes`, and `vmware` are answered with exit code 2 and
 `no scope discovery for provider '<provider>'` in `stderr`, with the
 provider name quoted. That is a deliberate outcome, not a crash: the
 job still ends `succeeded`, and the exit code tells the caller the
 provider is unsupported rather than that a cloud call failed.
 
 The contract's own description of this endpoint's `scope_id` field
-enumerates only Azure, GCP, and AWS, omitting both `oci` and
-`kubernetes` even though the schema's provider enum accepts them.
+enumerates only Azure, GCP, and AWS, omitting `oci`, `kubernetes`,
+and `vmware` even though the schema's provider enum accepts them.
 The omission is consequential here, unlike in the generic `scope_id`
-description: these are exactly the two providers that produce the exit
+description: these are exactly the three providers that produce the exit
 code 2 above, so the field description reads as though they cannot be
 sent at all, when in fact they are accepted and answered with a
 negative result.

@@ -56,7 +56,7 @@ core/prompts/seed/<scope>/<type>/<name>.yaml
 ----
 
 * `<scope>` is one of `general`, `aws`, `azure`, `gcp`, `oci`,
-  `kubernetes`.
+  `kubernetes`, `vmware`.
 * `<type>` is one of `guidelines`, `resources`, `compliance`.
 * `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits,
   underscores).
@@ -100,6 +100,9 @@ the file, so a misfiled prompt cannot misreport its identity:
 
 |`kubernetes/resources/deployment.yaml`
 |`kubernetes-resources-deployment`
+
+|`vmware/resources/virtual_machine.yaml`
+|`vmware-resources-virtual_machine`
 
 |`general/guidelines/terraform.yaml`
 |`general-guidelines-terraform`
@@ -228,7 +231,7 @@ drift pre-check
 |Resource IDs an import round must never bring under Terraform, one
 Markdown bullet per ID. Parsed by the core, not read by a model; see
 <<import-exception-list>>. Ships as a placeholder with no exceptions,
-for every cloud except `kubernetes`.
+for every cloud except `kubernetes` and `vmware`.
 |Import scope diff, in every import round that finds unmanaged
 resources
 
@@ -305,12 +308,13 @@ One prompt per resource type, holding the default configuration the
 model should produce unless the user asks otherwise. Examples that ship
 today: `aws-resources-s3_bucket`, `azure-resources-storage_account`,
 `gcp-resources-cloud_run`, `oci-resources-compute_instance`,
-`kubernetes-resources-deployment`.
+`kubernetes-resources-deployment`, `vmware-resources-virtual_machine`.
 
 == Shipped seed inventory
 
 The `aws`, `azure`, `gcp` and `oci` scopes ship the same eight guideline
-prompts; `kubernetes` ships seven, without `import_exceptions`. The
+prompts; `kubernetes` and `vmware` ship seven, without
+`import_exceptions`. The
 resource prompts differ per cloud.
 
 [cols="1,3,4,1",options="header"]
@@ -371,6 +375,16 @@ resource prompts differ per cloud.
 `namespace`, `network_policy`, `persistent_volume_claim`, `role`,
 `role_binding`, `secret`, `service`, `service_account`, `stateful_set`
 |none
+
+|`vmware`
+|`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
+`permissions`, `resource_creation`, `resources_list`
+|`compute_cluster`, `compute_cluster_vm_anti_affinity_rule`,
+`content_library`, `datastore_cluster`, `distributed_port_group`,
+`distributed_virtual_switch`, `entity_permissions`, `folder`,
+`resource_pool`, `role`, `tag`, `virtual_disk`, `virtual_machine`,
+`vm_storage_policy`
+|none
 |===
 
 [#guideline-prompts]
@@ -405,9 +419,9 @@ drift pre-check)
 
 The import exception list is only read once the scope listing has
 returned resources that the state does not track. Only Azure, GCP and
-AWS have a scope listing, so an `oci` or `kubernetes` import round
-stops before it would ask for the prompt, and `kubernetes` ships
-without one.
+AWS have a scope listing, so an `oci`, `kubernetes`, or `vmware` import
+round stops before it would ask for the prompt, and `kubernetes` and
+`vmware` ship without one.
 
 Keep this in mind when you delete a prompt in Phoenix or trim the seed
 set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
@@ -700,9 +714,9 @@ prompt exactly, and it must exist on both sides: a resource prompt with
 no `resources_list` entry is never selected, and a `resources_list`
 entry with no matching resource prompt aborts the run when picked.
 
-*List style is not uniform across clouds.* AWS, Azure, GCP, and OCI name
-entries in backticks with a trailing description, as above; the
-Kubernetes `resources_list` uses plain bullets with no backticks at all
+*List style is not uniform across clouds.* AWS, Azure, GCP, OCI, and
+VMware name entries in backticks with a trailing description, as above;
+the Kubernetes `resources_list` uses plain bullets with no backticks at all
 (`- namespace`, `- deployment`, and so on). There is no enforced format
 — the compositor only needs the bare name to appear somewhere in the
 body. When you edit a `resources_list`, follow the style already used

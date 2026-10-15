@@ -373,6 +373,16 @@ file mounted into the container, or instance principals.
 |A mounted kubeconfig (`KUBE_CONFIG_PATHS` for several), `KUBE_HOST` +
 `KUBE_TOKEN`, or in-cluster service-account credentials. See
 xref:main:reference/terraform-providers.adoc[Terraform providers].
+
+|VMware vSphere (`vsphere`)
+|`VSPHERE_SERVER`, `VSPHERE_USER`, `VSPHERE_PASSWORD`
+|A dedicated, least-privilege vCenter service account; never
+`administrator@vsphere.local`. `VSPHERE_SERVER` is the vCenter FQDN.
+Leave `VSPHERE_ALLOW_UNVERIFIED_SSL` unset outside a lab with a
+self-signed certificate. Nothing is overwritten per request: the
+request's scope id is the datacenter name, which the code reads, not
+the provider. See
+xref:main:reference/terraform-providers.adoc[Terraform providers].
 |===
 
 These are the *provider* credentials, the ones `plan` and `apply` use
@@ -857,6 +867,19 @@ Kubeconfig mounted into the container.
 [source,dotenv]
 ----
 KUBE_CONFIG_PATH=/home/kumoss/.kube/config
+----
+****
+
+[tab,label="VMware vSphere"]
+****
+A dedicated vCenter service account. State stays in the repository's
+own backend; vSphere has none.
+
+[source,dotenv]
+----
+VSPHERE_SERVER=vcenter.example.invalid
+VSPHERE_USER=svc-kumoss@vsphere.example.invalid
+VSPHERE_PASSWORD=<service-account-password>
 ----
 ****
 --

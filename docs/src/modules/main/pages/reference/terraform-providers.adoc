@@ -14,8 +14,8 @@ scope (`scope_id`) supplies: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT`
 arrive with each request and overwrite whatever the container sets, so
 set the credential variables in each row and leave the scope to the
 request. Azure and GCP are the only providers with such a variable;
-AWS, OCI, and Kubernetes commands run on the container's ambient
-credentials alone. See
+AWS, OCI, Kubernetes, and VMware vSphere commands run on the container's
+ambient credentials alone. See
 xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
 credentials for the IaC engine] for where these files fit in the
 deployment.
@@ -242,6 +242,45 @@ Import discovery (`/v1/import/scope-resource-ids`) has no Kubernetes
 implementation: it answers exit code `2` with `no scope discovery for
 provider 'kubernetes'`. Importing existing objects therefore needs the
 resource ids supplied by hand.
+
+== VMware vSphere — provider minimum
+
+Variable names below are the `vmware/vsphere` provider's own (formerly
+published as `hashicorp/vsphere`); the shipped prompt seeds pin
+`version = "~> 2.10"`, and the provider runs under both OpenTofu and
+Terraform.
+
+[cols="3,4",options="header"]
+|===
+|Scenario |Required
+
+|vCenter service account
+|`VSPHERE_SERVER` (the vCenter FQDN), `VSPHERE_USER`,
+`VSPHERE_PASSWORD`
+
+|Lab vCenter with a self-signed certificate
+|above, plus `VSPHERE_ALLOW_UNVERIFIED_SSL=true`
+|===
+
+Leave `VSPHERE_ALLOW_UNVERIFIED_SSL` unset in any other environment.
+Use a dedicated vCenter service account in an SSO group, holding a
+custom role scoped to the folders, resource pools, datastores, and
+networks Kumoss manages; never `administrator@vsphere.local`.
+
+No scope variable exists for this provider. The value the wizard
+collects as `scope_id` is the vSphere datacenter name, which the
+generated code reads through a `data "vsphere_datacenter"` data source
+argument rather than a provider setting. The sidecar's scope overlay
+covers `azure` and `gcp` only, so every command runs against whatever
+vCenter the variables above point at; the deployment must make that
+vCenter and the session's datacenter agree. There is no vSphere state
+backend: state stays in whichever backend the repository already
+declares.
+
+Import discovery (`/v1/import/scope-resource-ids`) has no vSphere
+implementation: it answers exit code `2` with `no scope discovery for
+provider 'vmware'`, so an import round on `vmware` ends with a report
+that says so and imports nothing.
 
 [#backend-minimums]
 == Backend minimums
@@ -690,6 +729,37 @@ certificate and key
 verification
 
 |`KUBE_PROXY_URL` |Behavior |HTTP proxy for API calls
+|===
+
+=== VMware vSphere (`vmware/vsphere`)
+
+Names as documented by the upstream `vsphere` provider; no scope
+variable is injected for this provider. The datacenter is a data-source
+argument, not an environment variable.
+
+[cols="2,2,5",options="header"]
+|===
+|Variable |Group |Purpose
+
+|`VSPHERE_SERVER` |Core |vCenter Server FQDN
+
+|`VSPHERE_USER` |Core |vCenter user name
+
+|`VSPHERE_PASSWORD` |Core |vCenter password
+
+|`VSPHERE_ALLOW_UNVERIFIED_SSL` |Core |Skip certificate verification —
+lab self-signed certificates only; leave unset otherwise
+
+|`VSPHERE_PERSIST_SESSION` |Session |Persist vSphere sessions to disk
+between runs
+
+|`VSPHERE_VIM_SESSION_PATH` |Session |Directory for persisted VIM
+(SOAP) sessions
+
+|`VSPHERE_REST_SESSION_PATH` |Session |Directory for persisted REST
+sessions
+
+|`VSPHERE_API_TIMEOUT` |Behavior |API operation timeout, in minutes
 |===
 
 === Backend storage environment variables

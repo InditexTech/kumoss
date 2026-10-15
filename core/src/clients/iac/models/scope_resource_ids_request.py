@@ -30,7 +30,7 @@ class ScopeResourceIdsRequest:
             rather than the scope a command runs against.
         terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's
             provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
-            `kubernetes`), not Terraform registry provider names
+            `kubernetes`, `vmware`), not Terraform registry provider names
             (`azurerm`, `google`).
     """
 

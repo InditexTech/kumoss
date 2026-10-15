@@ -13,9 +13,9 @@ and xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 == Session inputs
 
 The first request of a session provides the repository URL (`https://`
-only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, or
-`kubernetes`), a scope identifier (for example a subscription, project, or
-account id), an optional path to the Terraform root inside the repository
+only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`,
+`kubernetes`, or `vmware`), a scope identifier (for example a subscription,
+project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository
 (see xref:main:reference/repository-layout.adoc#terraform-roots[Repository
 layout]), and the request text. The scope is stored with the session, sent
 to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed

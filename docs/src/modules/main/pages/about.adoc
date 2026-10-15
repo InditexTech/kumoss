@@ -68,8 +68,8 @@ the only public entry point.
 
 * *Works with what you already have* — your existing IaC repositories,
   Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
-* *Multicloud* — AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and
-  Kubernetes.
+* *Multicloud* — AWS, Azure, Google Cloud, Oracle Cloud Infrastructure,
+  Kubernetes, and VMware vSphere.
 * *Your rules, your definition of critical* — you decide what is allowed,
   what is high risk, and which compliance checks apply, from special
   projects to every production environment or a cost threshold, see

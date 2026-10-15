@@ -18,6 +18,7 @@ class TerraformProvider(str, Enum):
     AWS = "aws"
     OCI = "oci"
     KUBERNETES = "kubernetes"
+    VMWARE = "vmware"
 
 
 class ResolveRequest(BaseModel):

@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere custom role default configuration (explicit, minimal privileges).
+body: |
+  # VMware vSphere Role
+
+  For a `vsphere_role`, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `role-<application>-<purpose>`.
+  - Use built-in `ReadOnly` or `NoAccess` when they suffice; create a
+    custom role only for a specific operational need.
+  - List every privilege explicitly in `role_privileges`, using full
+    privilege IDs (for example `VirtualMachine.Interact.PowerOn`,
+    `VirtualMachine.Interact.PowerOff`,
+    `VirtualMachine.Interact.ConsoleInteract`).
+  - Never include `Global.*`, `Host.*`, `Authorization.*`,
+    `Cryptographer.*` or `Extension.*` privileges without an explicit
+    user request.
+  - Never recreate the built-in `Administrator` role.

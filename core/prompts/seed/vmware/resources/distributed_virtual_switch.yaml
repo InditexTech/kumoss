@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere Distributed Switch default configuration (uplinks, teaming, security).
+body: |
+  # VMware vSphere Distributed Switch
+
+  Distributed switches are platform-owned. Look up an existing one
+  with `data "vsphere_distributed_virtual_switch"`. Create a
+  `vsphere_distributed_virtual_switch` only when the user explicitly
+  asks for a new switch, and then use the following default
+  configuration:
+
+  - Naming convention: `vds-<site>-<purpose>`.
+  - Use the newest switch `version` supported by every host.
+  - Two uplinks, both active, with
+    `teaming_policy = "loadbalance_loadbased"`.
+  - `network_resource_control_enabled = true`.
+  - `link_discovery_protocol = "lldp"` and
+    `link_discovery_operation = "listen"`.
+  - Default port policy: `allow_promiscuous = false`,
+    `allow_forged_transmits = false`, `allow_mac_changes = false`.
+  - Set `max_mtu` to match the physical network (1500 unless the user
+    states jumbo frames are configured end to end).
+  - Do not add `host` blocks unless the user explicitly provides the
+    hosts and their physical NICs.

@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere VM storage policy default configuration (tag-based placement, encryption lookup).
+body: |
+  # VMware vSphere VM Storage Policy
+
+  For a `vsphere_vm_storage_policy`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `sp-<tier>-<purpose>`.
+  - The resource expresses tag-based placement: one `tag_rules` block
+    per category, with `include_datastores_with_tags = true`, matching
+    tags applied to the datastores of the requested tier.
+  - Encryption is not a tag rule. For encrypted VMs or disks, look up
+    the built-in policy with
+    `data "vsphere_storage_policy"` (name `VM Encryption Policy`) and
+    set it as the VM's or disk's `storage_policy_id`. This requires a
+    key provider configured in vCenter, which is platform-owned.
+  - Reference the policy from virtual machines and disks with
+    `storage_policy_id` instead of selecting a datastore by name.

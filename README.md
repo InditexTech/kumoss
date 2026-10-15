@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 **Built to fit your organization**
 
 - **Works with what you already have.** Use your existing IaC repositories, Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
-- **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and Kubernetes.
+- **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, Kubernetes, and VMware vSphere.
 - **Your rules, your definition of critical.** You decide what is allowed, what is high risk, and which compliance checks apply. Critical can mean special projects, every production environment, changes above a cost threshold, or any rule you write.
 - **Full traceability.** An admin panel shows users, sessions, and roles, all stored in a database.
 - **Observability built in.** Every agent and every system prompt read at runtime is traced with OpenTelemetry and Arize Phoenix.

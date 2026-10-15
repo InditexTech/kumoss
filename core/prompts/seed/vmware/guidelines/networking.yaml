@@ -1,0 +1,44 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere networking conventions and best practices.
+body: |
+  # VMware vSphere Networking Guidelines
+
+  ## Switching
+  - Use vSphere Distributed Switches (VDS) for workload networking;
+    do not create standard switches on hosts.
+  - The VDS and its uplinks are platform-owned. Look them up with
+    `data "vsphere_distributed_virtual_switch"` and add port groups
+    to them rather than creating a new switch, unless the user
+    explicitly asks for one.
+  - If the environment runs NSX, workload segments belong to the
+    `vmware/nsxt` provider, not to vSphere port groups. Do not mix
+    the two for the same workload.
+
+  ## Port Groups
+  - One distributed port group per VLAN and purpose. Set the VLAN
+    ID explicitly; never rely on the native VLAN.
+  - Security policy on every port group:
+    `allow_promiscuous = false`, `allow_forged_transmits = false`,
+    `allow_mac_changes = false`.
+  - Use static binding (`type = "earlyBinding"`) and size
+    `number_of_ports` for the expected workload, with auto-expand
+    left enabled.
+  - Keep management, vMotion, vSAN and IP storage traffic on their
+    own dedicated networks; workload VMs never attach to them.
+
+  ## Virtual Machine Networking
+  - Use the `vmxnet3` adapter type.
+  - Look networks up with `data "vsphere_network"` by name and
+    reference the ID; never hardcode managed object IDs.
+  - Assign addresses through the organization's IPAM or DHCP; when
+    static addressing is requested, set it in the guest
+    customization, not in a startup script.
+  - Segment application tiers into separate port groups (or NSX
+    segments) and filter traffic between them with the
+    organization's firewall (NSX distributed firewall or perimeter).
+
+  Replace this body with your organization's authoritative
+  networking standards.

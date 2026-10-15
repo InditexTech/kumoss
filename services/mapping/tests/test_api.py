@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 
+import pytest
 from fastapi.testclient import TestClient
 
 from src.config import Config
@@ -59,6 +60,24 @@ def test_resolve_echoes_terraform_provider_when_sent() -> None:
         "terraform_provider": "azure",
         "scope_id": None,
     }
+
+
+@pytest.mark.parametrize(
+    "terraform_provider", ["azure", "gcp", "aws", "oci", "kubernetes", "vmware"]
+)
+def test_resolve_accepts_every_provider_in_the_vocabulary(
+    terraform_provider: str,
+) -> None:
+    with _client_with() as client:
+        response = client.post(
+            "/v1/resolve",
+            json={
+                "identifier": "https://github.com/me/my-iac.git",
+                "terraform_provider": terraform_provider,
+            },
+        )
+    assert response.status_code == 200
+    assert response.json()["terraform_provider"] == terraform_provider
 
 
 def test_resolve_never_guesses_a_provider() -> None:

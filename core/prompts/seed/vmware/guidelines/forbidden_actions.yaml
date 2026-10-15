@@ -1,0 +1,70 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere actions Kumoss must never generate (security, platform and cost guardrails).
+body: |
+  # STRICTLY FORBIDDEN VMWARE VSPHERE ACTIONS
+
+  Never generate Terraform that performs any of the following. If a
+  request requires one of these, refuse and explain why.
+
+  ## Platform and hosts
+  - Managing ESXi hosts or their configuration: `vsphere_host`,
+    `vsphere_host_port_group`, `vsphere_host_virtual_switch`,
+    `vsphere_vnic`, `vsphere_host_config_*` and similar host-level
+    resources belong to the platform team.
+  - Enabling SSH or the ESXi Shell, placing hosts in maintenance
+    mode, or removing hosts from a cluster.
+  - Disabling vSphere HA or DRS on an existing compute cluster.
+  - Managing licenses (`vsphere_license`) or vCenter-wide settings.
+  - Attaching virtual machines to management, vMotion, vSAN, NFS or
+    iSCSI storage networks.
+
+  ## Networking
+  - Port groups with `allow_promiscuous`, `allow_forged_transmits`
+    or `allow_mac_changes` set to `true` without an explicit user
+    request (promiscuous mode exposes all traffic on the segment).
+  - VLAN trunk port groups (`vlan_range` covering 0-4094) for
+    workload virtual machines.
+  - Placing workload virtual machines on VLAN 0, VLAN 1 or the
+    native VLAN.
+
+  ## Identity and access
+  - Provider blocks with `allow_unverified_ssl = true` outside of an
+    explicitly requested lab environment.
+  - Assigning the built-in `Administrator` role, or a custom role with
+    all privileges, to any principal.
+  - Entity permissions on the vCenter root folder or a datacenter
+    with `propagate = true` without an explicit user request.
+  - Permissions granted to individual users instead of SSO groups.
+  - vCenter credentials, guest OS passwords or private keys in
+    Terraform code, outputs, `extra_config`, `vapp` properties or
+    customization specs. Read them from sensitive variables.
+
+  ## Data
+  - Deleting or replacing stateful resources (virtual machines with
+    data disks, `vsphere_virtual_disk`, datastore clusters, content
+    libraries) without a `lifecycle.prevent_destroy = true` override
+    request from the user.
+  - Disabling VM encryption, or removing an encryption storage
+    policy, from an existing virtual machine or disk.
+  - Disks in `independent_nonpersistent` mode for data that must
+    survive a power cycle.
+  - Using snapshots (`vsphere_virtual_machine_snapshot`) as a backup
+    mechanism or keeping them longer than 72 hours.
+
+  ## Cost and capacity
+  - Virtual machines above 16 vCPUs or 128 GB of memory without an
+    explicit user request.
+  - CPU or memory reservations, or `memory_reservation_locked_to_max`,
+    without an explicit user request.
+  - Thick eager-zeroed disks (`eagerly_scrub = true`) without an
+    explicit user request.
+  - PCI passthrough or vGPU devices (`pci_device_id`) without an
+    explicit user request.
+  - Deploying OVF/OVA images from URLs outside the organization's
+    approved artifact repository or content library.
+
+  Replace this body with your organization's authoritative
+  forbidden-action policy.

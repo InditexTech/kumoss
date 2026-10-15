@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere VM folder default configuration (hierarchy, tags, access boundary).
+body: |
+  # VMware vSphere Folder
+
+  For a `vsphere_folder`, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `<application>/<environment>`, nested under the
+    team's top-level folder (for example `platform/billing/prod`).
+  - `type = "vm"` for workload folders; other types (`host`,
+    `datastore`, `network`) are platform-owned.
+  - Set `datacenter_id` from `data "vsphere_datacenter"`.
+  - The folder is the access boundary: grant permissions on it with
+    `vsphere_entity_permissions` instead of on the datacenter.
+  - Apply tags from the `environment`, `owner` and `managed-by`
+    categories.

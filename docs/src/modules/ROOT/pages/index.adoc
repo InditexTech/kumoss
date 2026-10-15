@@ -99,7 +99,8 @@ GitHub, Azure DevOps, or GitLab.
 
 [card]
 .xref:main:reference/operating-modes.adoc#session-inputs[Work on any major cloud]
-AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and Kubernetes.
+AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, Kubernetes, and
+VMware vSphere.
 
 [card]
 .xref:main:guides/administer-users-and-locks.adoc[Trace every session]

@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere datastore cluster default configuration (Storage DRS thresholds).
+body: |
+  # VMware vSphere Datastore Cluster
+
+  For a `vsphere_datastore_cluster`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `dsc-<site>-<tier>-<nn>`.
+  - Datastores are platform-owned; the cluster groups existing ones.
+  - Storage DRS: `sdrs_enabled = true`,
+    `sdrs_automation_level = "automated"` (`manual` for production
+    unless requested otherwise), `sdrs_io_load_balance_enabled = true`.
+  - `sdrs_space_utilization_threshold = 80`.
+  - `sdrs_default_intra_vm_affinity = true` to keep a VM's disks
+    together.
+  - Group only datastores with the same performance tier and
+    replication characteristics.
+  - Apply tags from the `environment`, `owner` and `managed-by`
+    categories.
+  - Add `lifecycle { prevent_destroy = true }`.
