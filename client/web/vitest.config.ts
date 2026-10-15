@@ -19,7 +19,10 @@ export default mergeConfig(
         reporter: ['text', 'html', 'lcov'],
         exclude: [
           'src/**/*.test.*',
-          'src/test/**',
+          'src/test/setup.ts',
+          'src/test/server.ts',
+          'src/test/browser.ts',
+          'src/test/render.tsx',
           'src/**/*.d.ts',
           'src/main.tsx',
         ],
