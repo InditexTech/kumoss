@@ -14,7 +14,7 @@ proposing a change.
 
 == Repository layout
 
-The repository is a monorepo: the FastAPI core in `core/`, four sidecar
+The repository is a monorepo: the FastAPI core in `core/`, sidecar
 services in `services/`, the React web application in `client/web/`,
 and the sidecar OpenAPI contracts in `contracts/`. See
 xref:main:architecture.adoc[] for how they fit together.

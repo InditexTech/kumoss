@@ -51,7 +51,7 @@ and scaling constraints]
 (OIDC)]
 
 |3
-|Treat the four sidecars as integration boundaries: implement IaC to
+|Treat the contract-based sidecars as integration boundaries: implement IaC to
 your requirements, replace mapping and authorization or leave them
 disabled, integrate notifications
 |<<sidecars-as-production-integration-boundaries,Sidecars as production

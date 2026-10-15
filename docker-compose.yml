@@ -111,6 +111,31 @@ services:
     networks:
       - bridge-network
 
+  searxng:
+    image: kumoss-searxng:latest
+    build:
+      context: ./services/searxng
+      dockerfile: Dockerfile
+      # Host folder with the corporate proxy CA certs, referenced in the
+      # Dockerfile as an additional build context named "host-certs"
+      additional_contexts:
+        host-certs: /usr/local/share/ca-certificates
+    container_name: searxng
+    env_file:
+      - path: ./services/searxng/.env
+        required: false
+    # SEARXNG_SECRET (from the .env above) is substituted into the
+    # settings.yml secret_key placeholder by the container entrypoint.
+    environment:
+      - SEARXNG_PORT=8888
+      - SEARXNG_BASE_URL=http://searxng:8888
+    volumes:
+      - ./services/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    expose:
+      - 8888
+    networks:
+      - bridge-network
+
   authz:
     image: ghcr.io/inditextech/kumoss-authz:1.0.6 # x-release-please-version
     build:

@@ -143,6 +143,12 @@ llm:
   max_output_tokens: 32000
   timeout: 600
 
+web_search:
+  provider: "searxng"
+  endpoint: "http://searxng:8888"
+  timeout: 30.0
+  max_results: 10
+
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
 # `workspaces` volume so both see the same cloned-repo paths.
@@ -265,5 +271,3 @@ git:
   provider: "GITHUB"
   author_name: "Kumoss"
   author_email: "kumoss@noreply.invalid"
-
-

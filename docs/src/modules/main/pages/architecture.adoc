@@ -16,8 +16,9 @@ Dashed edges are wiring that exists but is not exercised by the checked-in
 `config.yaml`: the identity provider is contacted only once
 `oidc.issuer_url` is set.
 
-The diagram condenses some detail. The four sidecars share one node
-(`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`); the
+The diagram condenses some detail. The sidecars share one node
+(`authz :8083`, `mapping :8081`, `iac :8082`, `notifications :8080`,
+`searxng :8888`); the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the `workspaces` volume,
 `phoenix-db` and the notification and storage backends are carried in the
@@ -97,8 +98,18 @@ colour-coded Slack webhook messages.
 |Fire-and-forget from the core on compliance, apply and pipeline failures;
 request/response for the support requests the header's chat bubble sends
 
+|searxng service
+|Self-hosted SearXNG metasearch with the JSON API enabled. Answers the
+core's `web_search` tool so agents get live web results without the LLM
+provider needing native search support. The base image is pinned to a
+datetagged SearXNG build: the project is a rolling release, so the
+pinned tag makes rebuilds reproducible and upgrades deliberate.
+|Called synchronously by the core's web-search facade, driven by
+`web_search.*` in `config.yaml`
+
 |OpenAPI contracts (`contracts/openapi`)
-|Source of truth for the four sidecar APIs, with Schemathesis conformance
+|Source of truth for the four sidecar APIs (the searxng sidecar is not
+contract-based; it is plain SearXNG), with Schemathesis conformance
 suites.
 |Contracts → generated clients → sidecars
 

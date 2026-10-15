@@ -81,7 +81,8 @@ variable of every other enabled sidecar; the variable named by
 for `STORAGE_ACCOUNT`; a remote backend declared by every target
 repository while `storage.terraform_state_bucket` is blank — which
 only happens if a deployment explicitly sets it to `""`, since the
-shipped value enables Kumoss-managed state by default.
+shipped value enables Kumoss-managed state by default;
+`web_search.endpoint` when `web_search.provider` is `searxng`.
 
 |*Optional with defaults*
 |Everything else.
@@ -207,7 +208,7 @@ the authorization sidecar's `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`.
 [#config-services]
 == `services`
 
-Wiring for the four sidecars. Each sidecar implements an OpenAPI
+Wiring for the four contract-based sidecars. Each implements an OpenAPI
 contract in `contracts/openapi/`, and any implementation of the
 contract can replace the bundled one by changing `endpoint`.
 
@@ -446,7 +447,7 @@ and models].
 |string (LiteLLM model string, or a `model_name` alias when
 `model_list` is set)
 |`anthropic/claude-sonnet-5`
-|`vertex_ai/claude-sonnet-5-5`
+|`main` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |High-quality model used by the IaC generator, target generator, and
 report generator chains.
@@ -454,7 +455,7 @@ report generator chains.
 |`llm.small_model`
 |string
 |`anthropic/claude-haiku-4-5`
-|`vertex_ai/gemini-3.8-flash`
+|`small` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
 calls.
@@ -486,14 +487,17 @@ internal retries gets a fresh budget.
 |`llm.model_list`
 |list of LiteLLM Router entries
 |`[]`
-|not set
+|2 entries
 |Optional
 |Advanced routing: load balancing across entries that share a
 `model_name`, per-entry endpoints, and `os.environ/VAR` credential
 references. Router-level fallbacks between different models are *not*
 configurable today; the core passes only `model_list` to the Router.
 When non-empty, `model` and `small_model` must match a `model_name` and
-boot validation runs against the listed entries.
+boot validation runs against the listed entries. As shipped, the
+aliases are `main` (a self-hosted OpenAI-compatible endpoint with a
+per-entry `api_base` and `os.environ/`-referenced key) and `small`
+(`vertex_ai/claude-sonnet-5-5`).
 |===
 
 Validation: at boot the core asks LiteLLM which environment variables
@@ -506,6 +510,69 @@ guide].
 Related environment variables: the provider's credential variables in
 `core/.env`. Requires restart: yes, for the YAML and for a credential
 change.
+
+[#config-web-search]
+== `web_search`
+
+The search backend behind the agents' `web_search` tool. Requests go
+through the LiteLLM unified search API
+(https://docs.litellm.ai/docs/completion/web_search[LiteLLM search]),
+so the engine is swappable without code changes. The bundled Compose
+stack ships a SearXNG sidecar and the shipped `config.yaml` routes
+every search through it.
+
+[cols="2,2,1,1,1,4",options="header"]
+|===
+|YAML path |Type |Code default |Shipped `config.yaml` |Requirement |Meaning and effect
+
+|`web_search.provider`
+|string — a LiteLLM search provider name
+|`""`
+|`searxng`
+|Optional
+|Selects the search engine called by the `web_search` tool: `searxng`,
+`tavily`, `brave`, `perplexity`, `exa_ai`, `google_pse` and others (see
+`litellm.types.utils.SearchProviders`). Empty (the default) disables
+the external engine: the tool then asks the configured LLM to search
+natively, which is a provider-specific capability — hosted models with
+`web_search_options` or the OpenAI `web_search_preview` tool support
+it, self-hosted OpenAI-compatible endpoints (vLLM and the like)
+typically do not and answer "unavailable".
+
+|`web_search.endpoint`
+|string (URL)
+|`""`
+|`\http://searxng:8888`
+|Conditional
+|Base URL of the search service, passed to LiteLLM as `api_base`.
+Required for `searxng`; hosted providers take their credentials from
+environment variables instead and usually need no endpoint.
+
+|`web_search.max_results`
+|integer (1–20)
+|`10`
+|`10`
+|Optional
+|Upper bound on results returned per query.
+
+|`web_search.timeout`
+|float (seconds, must be `> 0`)
+|`30.0`
+|`30.0`
+|Optional
+|Per-request HTTP budget for one engine call.
+|===
+
+Validation: an unknown provider name aborts the boot; `searxng` without
+an endpoint does too; an `endpoint` without a `provider` is rejected as
+a half-configured state.
+
+Related environment variables: the chosen provider's credential
+variables in `core/.env` (SearXNG needs none; see the
+xref:main:reference/environment-variables.adoc[Environment variables
+and secrets] page). The bundled SearXNG sidecar reads its instance
+secret from `services/searxng/.env` (`SEARXNG_SECRET`) and takes no
+credential from the core. Requires rebuild: yes for the YAML.
 
 [#config-paths]
 == `paths`
@@ -940,6 +1007,10 @@ orchestration:
 llm:
   model: "anthropic/claude-sonnet-5"
   small_model: "anthropic/claude-haiku-4-5"
+
+web_search:
+  provider: "searxng"
+  endpoint: "http://searxng:8888"
 
 telemetry:
   collector_url: "http://phoenix:6006/"
