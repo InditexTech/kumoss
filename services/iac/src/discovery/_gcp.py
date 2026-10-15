@@ -129,7 +129,21 @@ class GcpScopeLister:
         {
             "cloudresourcemanager.googleapis.com/Project",
             "compute.googleapis.com/Project",
+            "iap.googleapis.com/Brand",
+            "iap.googleapis.com/IdentityAwareProxyClient",
+            "iap.googleapis.com/IapSettings",
         }
+    )
+    _EXCLUDED_PATH_SUBSTRINGS: ClassVar[tuple[str, ...]] = (
+        "/brands/",
+        "/identityAwareProxyClients/",
+        "/iap_web/",
+        "/iapSettings",
+    )
+    _MANAGED_SA_PATTERNS: ClassVar[tuple[str, ...]] = (
+        "@gcp-sa-",
+        "@cloudservices.",
+        "-system.iam.gserviceaccount.",
     )
     _BUCKET_TYPE: ClassVar[str] = "storage.googleapis.com/Bucket"
     _LABEL_PREFIX: ClassVar[str] = "goog-"
@@ -215,6 +229,11 @@ class GcpScopeLister:
     def _excluded(self, asset_type: str, name: str, labels: dict[str, Any]) -> bool:
         if asset_type in self._PROJECT_TYPES:
             return True
+        if self._is_iap_asset(asset_type, name) and (
+            any(sub in name for sub in self._EXCLUDED_PATH_SUBSTRINGS)
+            or name.endswith("/iapSettings")
+        ):
+            return True
         if any(key.startswith(self._LABEL_PREFIX) for key in labels):
             return True
         leaf = name.rsplit("/", 1)[-1]
@@ -224,6 +243,12 @@ class GcpScopeLister:
             leaf.startswith(self._STAGING_PREFIXES)
             or leaf.endswith(self._STAGING_SUFFIX)
         )
+
+    def _is_iap_asset(self, asset_type: str, name: str) -> bool:
+        if asset_type.partition("/")[0] == "iap.googleapis.com":
+            return True
+        service = name.removeprefix("//").partition("/")[0]
+        return service == "iap.googleapis.com"
 
     def _normalize(self, name: str, scope_id: str, number: str) -> str:
         trimmed = name
@@ -255,6 +280,13 @@ class GcpScopeLister:
         if not member.startswith("serviceAccount:"):
             return True
         address = member.removeprefix("serviceAccount:")
-        if not address.endswith(".gserviceaccount.com"):
+        if address.endswith(f"@{scope_id}.iam.gserviceaccount.com"):
             return True
-        return address.endswith(f"@{scope_id}.iam.gserviceaccount.com")
+        if (
+            any(pat in address for pat in self._MANAGED_SA_PATTERNS)
+            or address.startswith("service-")
+        ):
+            return False
+        if address.endswith((".gserviceaccount.com", ".gserviceaccount.co")):
+            return False
+        return True
