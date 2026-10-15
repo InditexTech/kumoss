@@ -245,10 +245,10 @@ class GcpScopeLister:
         )
 
     def _is_iap_asset(self, asset_type: str, name: str) -> bool:
-        return (
-            asset_type.startswith("iap.googleapis.com")
-            or name.startswith(("//iap.googleapis.com/", "iap.googleapis.com/"))
-        )
+        if asset_type.partition("/")[0] == "iap.googleapis.com":
+            return True
+        service = name.removeprefix("//").partition("/")[0]
+        return service == "iap.googleapis.com"
 
     def _normalize(self, name: str, scope_id: str, number: str) -> str:
         trimmed = name
