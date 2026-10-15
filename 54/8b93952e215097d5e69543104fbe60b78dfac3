@@ -1,0 +1,19 @@
+docs/src/modules/main/pages/roadmap.adoc
+  s_b1df23415eb294::t_394d39843b00ac 2,21,51-57,146-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "548b93952e215097d5e69543104fbe60b78dfac3",
+  "prompts": {},
+  "sessions": {
+    "s_b1df23415eb294": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "292f55b2-fa49-4e6e-b572-34c7501196be",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
