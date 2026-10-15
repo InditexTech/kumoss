@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.8](https://github.com/InditexTech/kumoss/compare/v1.0.7...v1.0.8) (2026-10-15)
+
+
+### Bug Fixes
+
+* remove the unused authz and mapping reference services ([c314937](https://github.com/InditexTech/kumoss/commit/c3149371bb4a870ecec03a08627b7454e70f75c1))
+* remove the unused authz and mapping reference services ([#362](https://github.com/InditexTech/kumoss/issues/362)) ([3ce61db](https://github.com/InditexTech/kumoss/commit/3ce61dbdd4acd61f6a80014b001af462b391f7c2))
+
 ## [1.0.7](https://github.com/InditexTech/kumoss/compare/v1.0.6...v1.0.7) (2026-10-15)
 
 
