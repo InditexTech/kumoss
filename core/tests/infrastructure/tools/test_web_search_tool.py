@@ -2,22 +2,20 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The web_search tool routes between two backends.
+"""The web_search tool hands the engine's hits straight to the agent.
 
-When ``config.yaml`` names a search engine (``web_search.provider``) the
-query goes to that engine through the ``SearchServiceClient`` facade and
-the agent gets plain ``title: snippet (url)`` lines. When it does not —
-or the engine comes back empty or fails — the tool degrades: to the
-LLM-native search of the configured model, to a friendly "unavailable,
-do NOT retry" result on engine failure, and to a "no content" result on
-an empty response.
+The query goes to whichever engine ``config.yaml`` names
+(``web_search.provider``) through the ``SearchServiceClient`` facade, and
+the agent gets plain ``title: content (url)`` lines back. There is no
+LLM-native fallback: an unset provider, a dead engine and an empty result
+set each degrade into a "do NOT retry" result the agent can read, and
+none of them reaches an inference.
 """
 
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.domains.dto import ToolCallDTO
-from src.infrastructure.exceptions import InferenceCallWebSearchNotSupported
 from src.infrastructure.external.search_service import (
     SearchEngineError,
     SearchResult,
@@ -25,21 +23,15 @@ from src.infrastructure.external.search_service import (
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
 
 
-def _llm_with_web_search(text: str) -> MagicMock:
-    llm = MagicMock()
-    llm.inference = AsyncMock(return_value=MagicMock(text=text))
-    return llm
-
-
 def _results(*tuples: tuple[str, str, str]) -> list[SearchResult]:
     return [
-        SearchResult(title=title, url=url, snippet=snippet)
-        for title, url, snippet in tuples
+        SearchResult(title=title, url=url, content=content)
+        for title, url, content in tuples
     ]
 
 
 class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
-    def _registry(self, provider: str, llm=None) -> ToolRegistryStatic:
+    def _registry(self, provider: str, llm: MagicMock | None = None):
         """Patch web_search.provider while the registry is constructed."""
         config = MagicMock()
         config.web_search.provider = provider
@@ -63,10 +55,15 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
             config,
         )
 
-    async def test_configured_engine_short_circuits_the_llm(self):
-        llm = _llm_with_web_search("from the llm")
+    async def _search(
+        self,
+        query: str = "q",
+        llm: MagicMock | None = None,
+        results: list[SearchResult] | None = None,
+        side_effect: Exception | None = None,
+    ):
+        llm = llm if llm is not None else MagicMock(inference=AsyncMock())
         registry = self._registry("searxng", llm=llm)
-
         with (
             self._tool_module_patch("searxng"),
             patch(
@@ -74,15 +71,22 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
-                return_value=_results(
-                    (
-                        "Terraform Registry",
-                        "https://registry.terraform.io",
-                        "s3 bucket docs",
-                    )
-                )
+                return_value=results if results is not None else _results(),
+                side_effect=side_effect,
             )
-            result = await self._run(registry, "terraform s3 bucket")
+            return await self._run(registry, query), llm
+
+    async def test_results_are_formatted_one_line_per_hit(self):
+        result, llm = await self._search(
+            query="terraform s3 bucket",
+            results=_results(
+                (
+                    "Terraform Registry",
+                    "https://registry.terraform.io",
+                    "s3 bucket docs",
+                )
+            ),
+        )
 
         self.assertTrue(result.success, result.error_message)
         self.assertEqual(
@@ -91,8 +95,31 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         )
         llm.inference.assert_not_awaited()
 
-    async def test_no_engine_configured_falls_back_to_llm_search(self):
-        llm = _llm_with_web_search("from the llm")
+    async def test_multiple_results_are_joined_in_engine_order(self):
+        result, _ = await self._search(
+            results=_results(
+                ("First", "https://one", "a"),
+                ("Second", "https://two", "b"),
+                ("Third", "https://three", "c"),
+            )
+        )
+
+        self.assertEqual(
+            result.result["result"],
+            "- First: a (https://one)\n"
+            "- Second: b (https://two)\n"
+            "- Third: c (https://three)",
+        )
+
+    async def test_the_query_is_echoed_back_with_the_result(self):
+        result, _ = await self._search(
+            query="k8s gateway api", results=_results(("T", "https://a", "body"))
+        )
+
+        self.assertEqual(result.result["query"], "k8s gateway api")
+
+    async def test_no_provider_configured_never_searches(self):
+        llm = MagicMock(inference=AsyncMock())
         registry = self._registry("", llm=llm)
 
         with (
@@ -101,99 +128,34 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
         ):
-            result = await self._run(registry, "k8s gateway api")
-
-        self.assertTrue(result.success, result.error_message)
-        self.assertEqual(result.result["result"], "from the llm")
-        llm.inference.assert_awaited_once()
-        client_cls.return_value.search.assert_not_called()
-
-    async def test_engine_failure_is_reported_not_raised(self):
-        registry = self._registry("searxng")
-
-        with (
-            self._tool_module_patch("searxng"),
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
-            ) as client_cls,
-        ):
-            client_cls.return_value.search = AsyncMock(
-                side_effect=SearchEngineError(
-                    "the 'searxng' search engine call failed", 502
-                )
-            )
             result = await self._run(registry, "q")
 
         self.assertTrue(result.success, result.error_message)
         self.assertIn("Web search is unavailable", result.result["result"])
         self.assertIn("Do NOT retry web_search", result.result["result"])
-
-    async def test_empty_engine_results_tell_the_agent_not_to_retry(self):
-        registry = self._registry("searxng")
-
-        with (
-            self._tool_module_patch("searxng"),
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
-            ) as client_cls,
-        ):
-            client_cls.return_value.search = AsyncMock(return_value=[])
-            result = await self._run(registry, "obscure query")
-
-        self.assertTrue(result.success, result.error_message)
-        self.assertIn("returned no content", result.result["result"])
-        self.assertIn("Do NOT retry web_search", result.result["result"])
-
-    async def test_multiple_results_are_joined_in_order(self):
-        llm = _llm_with_web_search("from the llm")
-        registry = self._registry("searxng", llm=llm)
-
-        with (
-            self._tool_module_patch("searxng"),
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
-            ) as client_cls,
-        ):
-            client_cls.return_value.search = AsyncMock(
-                return_value=_results(
-                    ("First", "https://one", "a"),
-                    ("Second", "https://two", "b"),
-                    ("Third", "https://three", "c"),
-                )
-            )
-            result = await self._run(registry, "q")
-
-        self.assertEqual(
-            result.result["result"],
-            "- First: a (https://one)\n"
-            "- Second: b (https://two)\n"
-            "- Third: c (https://three)",
-        )
+        client_cls.return_value.search.assert_not_called()
         llm.inference.assert_not_awaited()
 
-    async def test_llm_native_search_failure_is_reported_not_raised(self):
-        llm = _llm_with_web_search("unused")
-        llm.inference = AsyncMock(
-            side_effect=InferenceCallWebSearchNotSupported(
-                message="does not support native web search", error_code=400
+    async def test_engine_failure_is_reported_not_raised(self):
+        result, llm = await self._search(
+            side_effect=SearchEngineError(
+                "the 'searxng' search engine call failed", 502
             )
         )
-        registry = self._registry("", llm=llm)
-
-        with self._tool_module_patch(""):
-            result = await self._run(registry, "q")
 
         self.assertTrue(result.success, result.error_message)
         self.assertIn("Web search is unavailable", result.result["result"])
         self.assertIn("Do NOT retry web_search", result.result["result"])
+        llm.inference.assert_not_awaited()
 
-    async def test_llm_native_empty_answer_reports_no_content(self):
-        llm = _llm_with_web_search("")
-        registry = self._registry("", llm=llm)
-
-        with self._tool_module_patch(""):
-            result = await self._run(registry, "q")
+    async def test_empty_engine_results_tell_the_agent_not_to_retry(self):
+        result, llm = await self._search(query="obscure query", results=[])
 
         self.assertTrue(result.success, result.error_message)
         self.assertIn("returned no content", result.result["result"])
         self.assertIn("Do NOT retry web_search", result.result["result"])
+        llm.inference.assert_not_awaited()
+
+
+if __name__ == "__main__":
+    unittest.main()

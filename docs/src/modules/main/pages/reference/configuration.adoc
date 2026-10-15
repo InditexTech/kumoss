@@ -526,21 +526,20 @@ every search through it.
 
 |`web_search.provider`
 |string — a LiteLLM search provider name
-|`""`
+|`searxng`
 |`searxng`
 |Optional
 |Selects the search engine called by the `web_search` tool: `searxng`,
 `tavily`, `brave`, `perplexity`, `exa_ai`, `google_pse` and others (see
-`litellm.types.utils.SearchProviders`). Empty (the default) disables
-the external engine: the tool then asks the configured LLM to search
-natively, which is a provider-specific capability — hosted models with
-`web_search_options` or the OpenAI `web_search_preview` tool support
-it, self-hosted OpenAI-compatible endpoints (vLLM and the like)
-typically do not and answer "unavailable".
+`litellm.types.utils.SearchProviders`). Empty disables web search
+altogether: there is no LLM-native fallback, so the tool answers
+"unavailable" instead of asking the model to search for itself. That is
+what lets self-hosted OpenAI-compatible endpoints (vLLM and the like)
+get live results.
 
 |`web_search.endpoint`
 |string (URL)
-|`""`
+|`\http://localhost:8888`
 |`\http://searxng:8888`
 |Conditional
 |Base URL of the search service, passed to LiteLLM as `api_base`.
@@ -554,13 +553,33 @@ environment variables instead and usually need no endpoint.
 |Optional
 |Upper bound on results returned per query.
 
+|`web_search.max_page_chars`
+|integer (500–20000)
+|`6000`
+|`6000`
+|Optional
+|Truncates the readable text extracted from each result page. The
+tool's worst-case payload is `max_results × max_page_chars`, and that
+payload is the summarising inference's input, not the agent's context.
+Raise it for richer source material at the cost of a more expensive
+summarising call.
+
 |`web_search.timeout`
 |float (seconds, must be `> 0`)
 |`30.0`
 |`30.0`
 |Optional
-|Per-request HTTP budget for one engine call.
+|Per-request HTTP budget, covering both the engine call and each
+individual page read.
 |===
+
+Each search runs in two steps: the engine returns ranked hits, and every
+hit's page is then fetched and reduced to text with
+https://trafilatura.readthedocs.io/[trafilatura], so the agent reads the
+pages themselves rather than the engine's one-line snippets. No model is
+involved at any point. A page that will not fetch or parse costs that
+hit its body and falls back to the engine snippet, so a partial failure
+costs detail rather than the whole search.
 
 Validation: an unknown provider name aborts the boot; `searxng` without
 an endpoint does too; an `endpoint` without a `provider` is rejected as

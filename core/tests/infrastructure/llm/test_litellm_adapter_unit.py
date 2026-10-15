@@ -5,7 +5,7 @@
 # pyright: basic, reportAssignmentType=false, reportAttributeAccessIssue=false
 import json
 import unittest
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from opentelemetry.trace import Span
 
@@ -32,7 +32,6 @@ from src.infrastructure.llm._litellm import LiteLLMAdapter
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
     InferenceCallThinkingToolError,
-    InferenceCallWebSearchTools,
 )
 from src.shared.constants import ToolContext
 
@@ -40,7 +39,6 @@ from src.shared.constants import ToolContext
 def _make_adapter(**overrides) -> tuple[LiteLLMAdapter, MagicMock]:
     router = MagicMock()
     router.acompletion = AsyncMock()
-    router.aresponses = AsyncMock()
     defaults = dict(
         model="vertex_ai/claude-sonnet-4-6",
         temperature=0.1,
@@ -337,74 +335,6 @@ class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
         )
         with self.assertRaises(InferenceCallThinkingToolError):
             await adapter.inference(msg="test", tools=[tool_def], thinking=True)
-
-
-class TestInferenceWebSearch(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        _setup_mock_tracer(self)
-
-    def tearDown(self):
-        _teardown_mock_tracer(self)
-
-    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
-    async def test_native_web_search_passes_options(self, mock_model_info):
-        mock_model_info.return_value = {
-            "supported_openai_params": ["web_search_options"]
-        }
-        adapter, router = _make_adapter(model="gemini/gemini-2.5-flash")
-        router.acompletion.return_value = _model_response()
-
-        await adapter.inference(msg="latest news", web_search=True)
-
-        call_kwargs = router.acompletion.call_args[1]
-        self.assertIn("web_search_options", call_kwargs)
-        self.assertEqual(
-            call_kwargs["web_search_options"]["search_context_size"], "medium"
-        )
-
-    @patch("src.infrastructure.llm._litellm.litellm.get_model_info")
-    async def test_fallback_web_search_calls_aresponses(self, mock_model_info):
-        mock_model_info.return_value = {"supported_openai_params": []}
-
-        content_block = MagicMock()
-        content_block.text = "search result"
-        output_item = MagicMock()
-        output_item.content = [content_block]
-        mock_resp = MagicMock()
-        mock_resp.output = [output_item]
-        mock_resp.model = "openai/gpt-5"
-        mock_usage = MagicMock()
-        mock_usage.input_tokens = 5
-        mock_usage.output_tokens = 15
-        mock_usage.total_tokens = 20
-        mock_resp.usage = mock_usage
-
-        adapter, router = _make_adapter(model="openai/gpt-5", timeout=42.0)
-        router.aresponses.return_value = mock_resp
-
-        result = await adapter.inference(msg="search something", web_search=True)
-
-        router.aresponses.assert_awaited_once()
-        self.assertEqual(router.aresponses.call_args[1]["timeout"], 42.0)
-        self.assertEqual(result.text, "search result")
-
-    async def test_web_search_with_tools_raises(self):
-        adapter, _ = _make_adapter()
-        tool_def = ToolDefinitionDTO(
-            name="test",
-            description="test",
-            parameters={},
-            context=ToolContext.WORKSPACE_INSPECTION,
-            single_use=False,
-            mutates_workspace=False,
-        )
-        with self.assertRaises(InferenceCallWebSearchTools):
-            await adapter.inference(msg="test", tools=[tool_def], web_search=True)
-
-    async def test_web_search_with_thinking_raises(self):
-        adapter, _ = _make_adapter()
-        with self.assertRaises(InferenceCallThinkingToolError):
-            await adapter.inference(msg="test", thinking=True, web_search=True)
 
 
 class TestInferenceAPIError(unittest.IsolatedAsyncioTestCase):
