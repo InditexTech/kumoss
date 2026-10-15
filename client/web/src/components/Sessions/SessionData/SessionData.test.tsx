@@ -406,29 +406,6 @@ describe("SessionData plan targets", () => {
   });
 });
 
-describe("SessionData debug history", () => {
-  it("renders the internal history section when debugHistory is provided", () => {
-    renderWithProviders(
-      <SessionData
-        session={makeSessionDetail()}
-        debugHistory={[
-          { role: "user", content: "deploy a VM" },
-          { role: "assistant", content: "internal debug response" },
-        ]}
-      />,
-    );
-
-    expect(screen.getByText("Internal history")).toBeInTheDocument();
-    expect(screen.getByText("internal debug response")).toBeInTheDocument();
-  });
-
-  it("omits the internal history section when debugHistory is undefined", () => {
-    renderWithProviders(<SessionData session={makeSessionDetail()} />);
-
-    expect(screen.queryByText("Internal history")).toBeNull();
-  });
-});
-
 describe("SessionData artifacts", () => {
   it("lists the round's compliance check alongside the other artifacts", () => {
     const session = makeSessionDetail({

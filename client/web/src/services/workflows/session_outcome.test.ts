@@ -11,6 +11,7 @@ import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
+  findSessionPr,
   isApplyRound,
   waitForNewRound,
 } from "./session_outcome";
@@ -841,6 +842,32 @@ describe("buildSessionPatch", () => {
       passed: false,
       violations: [{ rule_id: "NET-001" }],
     });
+  });
+});
+
+describe("findSessionPr", () => {
+  it("returns the first PR scanning rounds newest to oldest", () => {
+    const detail = makeSessionDetail({
+      rounds: [
+        makeRound({
+          number: 1,
+          pull_requests: [
+            { provider: "github", number: 10, url: "https://git.example.com/pr/10" },
+          ],
+        }),
+        makeRound({ number: 2, pull_requests: [] }),
+      ],
+    });
+
+    expect(findSessionPr(detail)).toEqual({ number: 10, url: "https://git.example.com/pr/10" });
+  });
+
+  it("returns null when no round has a pull request", () => {
+    const detail = makeSessionDetail({
+      rounds: [makeRound({ pull_requests: [] })],
+    });
+
+    expect(findSessionPr(detail)).toBeNull();
   });
 });
 

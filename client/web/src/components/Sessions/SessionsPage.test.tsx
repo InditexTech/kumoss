@@ -184,40 +184,6 @@ describe("SessionsPage apply lock in the detail panel", () => {
   });
 });
 
-describe("SessionsPage conversation panels", () => {
-  beforeEach(() => {
-    mockState.clear();
-  });
-
-  it("shows the conversation and the internal record in the admin view", async () => {
-    auth.panelRole = "viewer";
-    mockAdminSession(makeSessionDetail());
-    renderPage("admin", "/admin?session=sess-1");
-
-    expect(await screen.findByText("Conversation")).toBeInTheDocument();
-    expect(
-      screen.getByText("Done: the plan adds one VM. Need anything else?"),
-    ).toBeInTheDocument();
-    // The internal record is debug material, labelled apart from the
-    // conversation rather than merged into it.
-    expect(screen.getByText("Internal history")).toBeInTheDocument();
-    expect(screen.getByText("<raw llm summary>")).toBeInTheDocument();
-  });
-
-  it("shows only the conversation on the user's own sessions view", async () => {
-    auth.panelRole = null;
-    mockState.addSession(makeSessionDetail());
-    renderPage("user", "/user/sessions?session=sess-1");
-
-    expect(await screen.findByText("Conversation")).toBeInTheDocument();
-    expect(
-      screen.getByText("Done: the plan adds one VM. Need anything else?"),
-    ).toBeInTheDocument();
-    expect(screen.queryByText("Internal history")).toBeNull();
-    expect(screen.queryByText("<raw llm summary>")).toBeNull();
-  });
-});
-
 describe("SessionsPage handleReload", () => {
   const mockResolve = vi.mocked(resolveSessionOutcome);
   const mockPatch = vi.mocked(buildSessionPatch);
@@ -243,7 +209,7 @@ describe("SessionsPage handleReload", () => {
       code: "",
     });
     mockPatch.mockReturnValue({ uuid: "sess-1" });
-    mockFindPr.mockReturnValue(null);
+    mockFindPr.mockReturnValue({ number: 42, url: "https://git.example.com/pr/42" });
 
     renderPageWithProbe("user", "/user/sessions?session=sess-1");
 

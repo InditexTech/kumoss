@@ -372,6 +372,47 @@ describe("useSessionLoader — uncompleted sessions", () => {
     expect(fetchCount).toBe(0);
   });
 
+  it("populates PR details when the session has a pull request", async () => {
+    mockState.addSession(
+      makeSessionDetail({
+        uuid: "sess-pr",
+        current_status: "completed",
+        rounds: [
+          makeRound({
+            statuses: [makeStatus("started"), makeStatus("completed")],
+            reports: [reportRef(1, "report-pr.json")],
+            code_changes: [
+              { ...artifactRef(2, "main-pr.tf"), file_name: "main.tf" },
+            ],
+            pull_requests: [
+              { provider: "github", number: 99, url: "https://git.example.com/pr/99" },
+            ],
+          }),
+        ],
+      }),
+    );
+    server.use(
+      http.get(`${STORAGE}/report-pr.json`, () =>
+        HttpResponse.json({ status: "ok" }),
+      ),
+      http.get(`${STORAGE}/main-pr.tf`, () => HttpResponse.text("resource {}")),
+    );
+
+    const { result } = renderHook(
+      () => ({
+        loader: useSessionLoader("sess-pr"),
+        session: useSession(),
+      }),
+      { wrapper },
+    );
+
+    await waitFor(() => expect(result.current.loader.ready).toBe(true));
+
+    const { prDetails } = result.current.session;
+    expect(prDetails.number).toBe(99);
+    expect(prDetails.url).toBe("https://git.example.com/pr/99");
+  });
+
   it("sets error state when the session is not found", async () => {
     // No session in mockState → 404
 

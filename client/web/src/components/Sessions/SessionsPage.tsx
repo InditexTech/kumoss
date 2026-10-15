@@ -37,7 +37,7 @@ import type {
   SessionStatus,
   SessionSummary,
 } from "@/types/api";
-import { normalizeHistory, panelRoleAtLeast } from "@/types/api";
+import { panelRoleAtLeast } from "@/types/api";
 import { providerLabel } from "@/constants/providers";
 import {
   StatusBadge,
@@ -460,12 +460,6 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
             onToggleLock={
               canToggleLock
                 ? () => void handleToggleLock(detail.uuid, detail.is_blocked)
-                : undefined
-            }
-            conversationHistory={normalizeHistory(detail.chat_history)}
-            debugHistory={
-              isAdminView && detail.history
-                ? normalizeHistory(detail.history)
                 : undefined
             }
           />
