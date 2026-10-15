@@ -52,7 +52,6 @@ class AwsScopeLister:
     _MANAGED_ROLE_PATHS: ClassVar[tuple[str, ...]] = (
         ":role/aws-service-role/",
         ":role/aws-reserved/sso.amazonaws.com/",
-        ":acl/open-access",
         ":resource-explorer-2:",
     )
 
@@ -85,7 +84,7 @@ class AwsScopeLister:
             raise DiscoveryError(f"AWS session setup failed: {exc}") from exc
         self._check_account(session, region, scope_id)
         explorer, view_arn = self._view(session, region, scope_id)
-        return self._resources(explorer, view_arn, scope_id)
+        return self._resources(session, explorer, view_arn, scope_id)
 
     def _client(self, session: Any, service: str, region: str) -> Any:
         try:
@@ -133,10 +132,13 @@ class AwsScopeLister:
             raise DiscoveryError(self._not_enabled(scope_id))
         return explorer, view_arn
 
-    def _resources(self, explorer: Any, view_arn: str, scope_id: str) -> list[str]:
+    def _resources(
+        self, session: Any, explorer: Any, view_arn: str, scope_id: str
+    ) -> list[str]:
         ids: list[str] = []
         found = 0
         next_token: str | None = None
+        ec2_defaults_cache: dict[str, set[str]] = {}
         for page in range(1, self._PAGE_CAP + 1):
             request: dict[str, Any] = {
                 "ViewArn": view_arn,
@@ -150,7 +152,7 @@ class AwsScopeLister:
             )
             resources = as_list(response.get("Resources"))
             found += len(resources)
-            ids.extend(self._kept(resources, scope_id))
+            ids.extend(self._kept(session, resources, scope_id, ec2_defaults_cache))
             next_token = as_text(response.get("NextToken")) or None
             if next_token is None:
                 logger.info(
@@ -187,7 +189,13 @@ class AwsScopeLister:
         message = as_text(error.get("Message"))
         return f"{code}: {message}" if code else str(exc)
 
-    def _kept(self, resources: list[Any], scope_id: str) -> list[str]:
+    def _kept(
+        self,
+        session: Any,
+        resources: list[Any],
+        scope_id: str,
+        ec2_defaults_cache: dict[str, set[str]],
+    ) -> list[str]:
         kept: list[str] = []
         for resource in resources:
             entry = as_mapping(resource)
@@ -196,16 +204,89 @@ class AwsScopeLister:
                 continue
             if as_text(entry.get("OwningAccountId")) != scope_id:
                 continue
-            if as_text(entry.get("ResourceType")) in self._EXCLUDED_TYPES:
+            res_type = as_text(entry.get("ResourceType"))
+            if res_type in self._EXCLUDED_TYPES:
                 continue
             if any(path in arn for path in self._MANAGED_ROLE_PATHS):
+                continue
+            if self._is_default_memorydb_acl(arn):
                 continue
             if self._managed_tags(entry):
                 continue
             if self._is_default_managed(entry):
                 continue
+            if self._is_default_ec2(
+                session, entry, arn, res_type, ec2_defaults_cache
+            ):
+                continue
             kept.append(arn)
         return kept
+
+    def _is_default_memorydb_acl(self, arn: str) -> bool:
+        parts = arn.split(":", 5)
+        return (
+            len(parts) >= 6
+            and parts[2] == "memorydb"
+            and parts[5] == "acl/open-access"
+        )
+
+    def _is_default_ec2(
+        self,
+        session: Any,
+        entry: dict[str, Any],
+        arn: str,
+        res_type: str,
+        cache: dict[str, set[str]],
+    ) -> bool:
+        if res_type not in ("ec2:security-group", "ec2:route-table"):
+            return False
+        region = as_text(entry.get("Region"))
+        if not region:
+            parts = arn.split(":")
+            if len(parts) >= 4 and parts[3]:
+                region = parts[3]
+        if not region:
+            return False
+        if region not in cache:
+            cache[region] = self._resolve_ec2_defaults(session, region)
+        resource_id = arn.rsplit("/", 1)[-1]
+        return resource_id in cache[region]
+
+    def _resolve_ec2_defaults(self, session: Any, region: str) -> set[str]:
+        ec2 = self._client(session, "ec2", region)
+        defaults: set[str] = set()
+
+        sg_resp = self._call(
+            lambda: ec2.describe_security_groups(
+                Filters=[{"Name": "group-name", "Values": ["default"]}]
+            ),
+            f"EC2 DescribeSecurityGroups ({region})",
+        )
+        for sg in as_list(sg_resp.get("SecurityGroups")):
+            sg_map = as_mapping(sg)
+            group_name = as_text(sg_map.get("GroupName"))
+            if group_name and group_name.lower() != "default":
+                continue
+            sg_id = as_text(sg_map.get("GroupId"))
+            if sg_id:
+                defaults.add(sg_id)
+
+        rt_resp = self._call(
+            lambda: ec2.describe_route_tables(
+                Filters=[{"Name": "association.main", "Values": ["true"]}]
+            ),
+            f"EC2 DescribeRouteTables ({region})",
+        )
+        for rt in as_list(rt_resp.get("RouteTables")):
+            rt_map = as_mapping(rt)
+            associations = as_list(rt_map.get("Associations"))
+            is_main = any(as_mapping(a).get("Main") is True for a in associations)
+            if is_main or not associations:
+                rt_id = as_text(rt_map.get("RouteTableId"))
+                if rt_id:
+                    defaults.add(rt_id)
+
+        return defaults
 
     def _is_default_managed(self, resource: dict[str, Any]) -> bool:
         res_type = as_text(resource.get("ResourceType"))
@@ -214,12 +295,21 @@ class AwsScopeLister:
             name = as_text(prop.get("Name"))
             data = prop.get("Data")
             if res_type == "ec2:security-group":
-                if name.lower() in ("group-name", "groupname") and as_text(data).lower() == "default":
+                if (
+                    name.lower() in ("group-name", "groupname")
+                    and as_text(data).lower() == "default"
+                ):
                     return True
-                if name.lower() in ("isdefault", "default") and str(data).lower() == "true":
+                if (
+                    name.lower() in ("isdefault", "default")
+                    and str(data).lower() == "true"
+                ):
                     return True
             elif res_type == "ec2:route-table":
-                if name.lower() in ("main", "association.main", "isdefault") and str(data).lower() == "true":
+                if (
+                    name.lower() in ("main", "association.main", "isdefault")
+                    and str(data).lower() == "true"
+                ):
                     return True
         return False
 

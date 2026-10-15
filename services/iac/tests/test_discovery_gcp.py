@@ -89,6 +89,9 @@ def test_a_credentials_file_is_loaded_from_disk(tmp_path: Any) -> None:
 
 def test_no_credentials_is_a_discovery_error(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("GOOGLE_APPLICATION_CREDENTIALS", raising=False)
+    monkeypatch.delenv("CLOUDSDK_CONFIG", raising=False)
+    monkeypatch.setenv("APPDATA", "C:\\nonexistent")
+    monkeypatch.setenv("HOME", "/nonexistent")
     monkeypatch.setenv("GCE_METADATA_HOST", "127.0.0.1:1")
     with pytest.raises(DiscoveryError, match="no Google credentials configured"):
         _ = GoogleCredentials({}).resolve()
@@ -219,6 +222,26 @@ def test_a_user_bucket_survives(monkeypatch: pytest.MonkeyPatch) -> None:
     assert list_ids(handler_for(page)) == ["my-app-data"]
 
 
+def test_a_user_secret_with_iap_settings_name_survives(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_token(monkeypatch)
+    page = assets(
+        {
+            "name": "//secretmanager.googleapis.com/projects/123456789/secrets/iapSettings-prod",
+            "assetType": "secretmanager.googleapis.com/Secret",
+        },
+        {
+            "name": "//secretmanager.googleapis.com/projects/123456789/secrets/iapSettings",
+            "assetType": "secretmanager.googleapis.com/Secret",
+        },
+    )
+    assert list_ids(handler_for(page)) == [
+        "projects/proj-1/secrets/iapSettings-prod",
+        "projects/proj-1/secrets/iapSettings",
+    ]
+
+
 def test_paging_follows_the_next_page_token(monkeypatch: pytest.MonkeyPatch) -> None:
     patch_token(monkeypatch)
     pages = [
@@ -274,6 +297,44 @@ def test_iam_bindings_become_one_id_per_role_and_member(
         "proj-1 roles/viewer user:ada@example.com",
         "proj-1 roles/viewer serviceAccount:app@proj-1.iam.gserviceaccount.com",
         "proj-1 roles/editor group:team@example.com",
+    ]
+
+
+def test_project_owned_service_accounts_with_heuristic_names_survive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    patch_token(monkeypatch)
+    policy_proj1: dict[str, Any] = {
+        "bindings": [
+            {
+                "role": "roles/editor",
+                "members": [
+                    "serviceAccount:service-api@proj-1.iam.gserviceaccount.com",
+                ],
+            }
+        ]
+    }
+    assert list_ids(
+        handler_for(assets(), policy_proj1, number="123"), scope_id="proj-1"
+    ) == [
+        "proj-1 roles/editor serviceAccount:service-api@proj-1.iam.gserviceaccount.com"
+    ]
+
+    policy_system: dict[str, Any] = {
+        "bindings": [
+            {
+                "role": "roles/viewer",
+                "members": [
+                    "serviceAccount:app@payments-system.iam.gserviceaccount.com",
+                ],
+            }
+        ]
+    }
+    assert list_ids(
+        handler_for(assets(), policy_system, number="456"),
+        scope_id="payments-system",
+    ) == [
+        "payments-system roles/viewer serviceAccount:app@payments-system.iam.gserviceaccount.com"
     ]
 
 

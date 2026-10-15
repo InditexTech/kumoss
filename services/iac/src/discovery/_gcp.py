@@ -229,7 +229,10 @@ class GcpScopeLister:
     def _excluded(self, asset_type: str, name: str, labels: dict[str, Any]) -> bool:
         if asset_type in self._PROJECT_TYPES:
             return True
-        if any(sub in name for sub in self._EXCLUDED_PATH_SUBSTRINGS) or name.endswith("/iapSettings"):
+        if self._is_iap_asset(asset_type, name) and (
+            any(sub in name for sub in self._EXCLUDED_PATH_SUBSTRINGS)
+            or name.endswith("/iapSettings")
+        ):
             return True
         if any(key.startswith(self._LABEL_PREFIX) for key in labels):
             return True
@@ -239,6 +242,12 @@ class GcpScopeLister:
         return asset_type == self._BUCKET_TYPE and (
             leaf.startswith(self._STAGING_PREFIXES)
             or leaf.endswith(self._STAGING_SUFFIX)
+        )
+
+    def _is_iap_asset(self, asset_type: str, name: str) -> bool:
+        return (
+            asset_type.startswith("iap.googleapis.com")
+            or name.startswith(("//iap.googleapis.com/", "iap.googleapis.com/"))
         )
 
     def _normalize(self, name: str, scope_id: str, number: str) -> str:
@@ -271,8 +280,13 @@ class GcpScopeLister:
         if not member.startswith("serviceAccount:"):
             return True
         address = member.removeprefix("serviceAccount:")
-        if any(pat in address for pat in self._MANAGED_SA_PATTERNS) or address.startswith("service-"):
+        if address.endswith(f"@{scope_id}.iam.gserviceaccount.com"):
+            return True
+        if (
+            any(pat in address for pat in self._MANAGED_SA_PATTERNS)
+            or address.startswith("service-")
+        ):
             return False
         if address.endswith((".gserviceaccount.com", ".gserviceaccount.co")):
-            return address.endswith(f"@{scope_id}.iam.gserviceaccount.com")
+            return False
         return True

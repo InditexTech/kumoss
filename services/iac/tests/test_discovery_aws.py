@@ -64,17 +64,80 @@ class FakeExplorer:
         return self._pages[min(index, len(self._pages) - 1)]
 
 
-class FakeSession:
-    """A boto3 session handing out the two fakes."""
+class FakeEc2:
+    """EC2 client answering DescribeSecurityGroups and DescribeRouteTables."""
 
-    def __init__(self, sts: FakeSts, explorer: FakeExplorer) -> None:
+    def __init__(
+        self,
+        security_groups: list[dict[str, Any]] | None = None,
+        route_tables: list[dict[str, Any]] | None = None,
+    ) -> None:
+        self.security_groups: list[dict[str, Any]] = (
+            [{"GroupId": "sg-00000000000000001", "GroupName": "default"}]
+            if security_groups is None
+            else security_groups
+        )
+        self.route_tables: list[dict[str, Any]] = (
+            [
+                {
+                    "RouteTableId": "rtb-00000000000000001",
+                    "Associations": [{"Main": True}],
+                }
+            ]
+            if route_tables is None
+            else route_tables
+        )
+        self.requests: list[tuple[str, dict[str, Any]]] = []
+
+    def describe_security_groups(self, **kwargs: Any) -> dict[str, Any]:
+        self.requests.append(("describe_security_groups", kwargs))
+        filters = kwargs.get("Filters", [])
+        groups = self.security_groups
+        for f in filters:
+            if f.get("Name") == "group-name":
+                vals = f.get("Values", [])
+                groups = [sg for sg in groups if sg.get("GroupName") in vals]
+        return {"SecurityGroups": groups}
+
+    def describe_route_tables(self, **kwargs: Any) -> dict[str, Any]:
+        self.requests.append(("describe_route_tables", kwargs))
+        filters = kwargs.get("Filters", [])
+        tables = self.route_tables
+        for f in filters:
+            if f.get("Name") == "association.main":
+                vals = [str(v).lower() for v in f.get("Values", [])]
+                tables = [
+                    rt
+                    for rt in tables
+                    if any(
+                        str(a.get("Main")).lower() in vals
+                        for a in rt.get("Associations", [])
+                    )
+                ]
+        return {"RouteTables": tables}
+
+
+class FakeSession:
+    """A boto3 session handing out the three fakes."""
+
+    def __init__(
+        self,
+        sts: FakeSts,
+        explorer: FakeExplorer,
+        ec2: FakeEc2 | None = None,
+    ) -> None:
         self._sts: FakeSts = sts
         self.explorer: FakeExplorer = explorer
+        self.ec2: FakeEc2 = FakeEc2() if ec2 is None else ec2
         self.regions: list[str] = []
 
     def client(self, service: str, region_name: str, **_kwargs: Any) -> Any:
         self.regions.append(region_name)
-        return self._sts if service == "sts" else self.explorer
+        if service == "sts":
+            return self._sts
+        if service == "ec2":
+            return self.ec2
+        return self.explorer
 
 
 def session_for(
@@ -83,6 +146,7 @@ def session_for(
     indexes: dict[str, Any] | None = None,
     view: dict[str, Any] | None = None,
     sts_error: Exception | None = None,
+    ec2: FakeEc2 | None = None,
 ) -> FakeSession:
     return FakeSession(
         FakeSts(account, sts_error),
@@ -91,6 +155,7 @@ def session_for(
             VIEW if view is None else view,
             pages,
         ),
+        ec2,
     )
 
 
@@ -246,7 +311,6 @@ def test_the_page_cap_fails_the_listing() -> None:
             resource(
                 "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-00000000000000001",
                 ResourceType="ec2:security-group",
-                Properties=[{"Name": "group-name", "Data": "default"}],
             ),
             id="default-security-group",
         ),
@@ -254,7 +318,6 @@ def test_the_page_cap_fails_the_listing() -> None:
             resource(
                 "arn:aws:ec2:eu-west-2:123456789012:route-table/rtb-00000000000000001",
                 ResourceType="ec2:route-table",
-                Properties=[{"Name": "main", "Data": "true"}],
             ),
             id="default-route-table",
         ),
@@ -296,14 +359,59 @@ def test_user_custom_security_group_and_route_table_survive() -> None:
     sg = resource(
         "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-custom",
         ResourceType="ec2:security-group",
-        Properties=[{"Name": "group-name", "Data": "web-servers"}],
     )
     rtb = resource(
         "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-custom",
         ResourceType="ec2:route-table",
-        Properties=[{"Name": "main", "Data": "false"}],
     )
     assert list_ids(session_for([{"Resources": [sg, rtb]}])) == [
         "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-custom",
         "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-custom",
+    ]
+
+
+def test_user_custom_memorydb_acl_survives() -> None:
+    acl = resource(
+        "arn:aws:memorydb:ap-southeast-2:123456789012:acl/open-access-app",
+        ResourceType="memorydb:acl",
+    )
+    assert list_ids(session_for([{"Resources": [acl]}])) == [
+        "arn:aws:memorydb:ap-southeast-2:123456789012:acl/open-access-app"
+    ]
+
+
+def test_ec2_regional_describe_filters_defaults_realistically() -> None:
+    sg_default = resource(
+        "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-default",
+        ResourceType="ec2:security-group",
+    )
+    sg_custom = resource(
+        "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-app",
+        ResourceType="ec2:security-group",
+    )
+    rtb_main = resource(
+        "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-main",
+        ResourceType="ec2:route-table",
+    )
+    rtb_custom = resource(
+        "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-app",
+        ResourceType="ec2:route-table",
+    )
+    fake_ec2 = FakeEc2(
+        security_groups=[
+            {"GroupId": "sg-default", "GroupName": "default"},
+            {"GroupId": "sg-app", "GroupName": "app-sg"},
+        ],
+        route_tables=[
+            {"RouteTableId": "rtb-main", "Associations": [{"Main": True}]},
+            {"RouteTableId": "rtb-app", "Associations": [{"Main": False}]},
+        ],
+    )
+    session = session_for(
+        [{"Resources": [sg_default, sg_custom, rtb_main, rtb_custom]}],
+        ec2=fake_ec2,
+    )
+    assert list_ids(session) == [
+        "arn:aws:ec2:eu-west-1:123456789012:security-group/sg-app",
+        "arn:aws:ec2:eu-west-1:123456789012:route-table/rtb-app",
     ]
