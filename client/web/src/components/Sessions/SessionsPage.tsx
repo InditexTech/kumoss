@@ -219,7 +219,7 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const isAdminView = variant === "admin";
   const { panelRole } = useAuth();
   const navigate = useNavigate();
-  const { updateSession, updatePrDetails } = useSession();
+  const { updateSession, prDetails, updatePrDetails } = useSession();
   const { setMode } = useMode();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -400,9 +400,15 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
     }
 
     const pr = findSessionPr(outcome.detail);
+    const samePr = pr != null && pr.number === prDetails.number;
     updatePrDetails(
       pr
-        ? { number: pr.number, url: pr.url, merged: undefined, lastPrStep: undefined }
+        ? {
+            number: pr.number,
+            url: pr.url,
+            merged: samePr ? prDetails.merged : undefined,
+            lastPrStep: samePr ? prDetails.lastPrStep : undefined,
+          }
         : { number: undefined, url: undefined, merged: undefined, lastPrStep: undefined },
     );
 
