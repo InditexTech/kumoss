@@ -1,0 +1,157 @@
+README.md
+  s_d3d04983e3a1b1::t_3cf5d9b7358a5b 30
+client/web/src/components/ui/ProviderIcon/ProviderIcon.tsx
+  s_d3d04983e3a1b1::t_f1228fded61eae 19-20
+client/web/src/constants/providers.ts
+  s_d3d04983e3a1b1::t_9e286b8b8389a2 14
+client/web/src/constants/strings.ts
+  s_d3d04983e3a1b1::t_7578094b2e03c8 183-187
+client/web/src/types/api.ts
+  s_d3d04983e3a1b1::t_6197cd05eacd5b 13
+contracts/openapi/mapping.v1.yaml
+  s_d3d04983e3a1b1::t_3a931ae3c4136a 181,185,254-255
+core/prompts/seed/vmware/guidelines/abbreviations.yaml
+  s_d3d04983e3a1b1::t_4cbb7fd36abe06 1-34
+core/prompts/seed/vmware/guidelines/drift_exceptions.yaml
+  s_d3d04983e3a1b1::t_a49a8d366922c8 1-29
+core/prompts/seed/vmware/guidelines/forbidden_actions.yaml
+  s_d3d04983e3a1b1::t_555e784afa33df 1-70
+core/prompts/seed/vmware/guidelines/networking.yaml
+  s_d3d04983e3a1b1::t_03029872ee5a0e 1-44
+core/prompts/seed/vmware/guidelines/permissions.yaml
+  s_d3d04983e3a1b1::t_f07ba56736236b 1-45
+core/prompts/seed/vmware/guidelines/resource_creation.yaml
+  s_d3d04983e3a1b1::t_4d251d58eea987 1-69
+core/prompts/seed/vmware/guidelines/resources_list.yaml
+  s_d3d04983e3a1b1::t_ecc8053c9878bf 1-30
+core/prompts/seed/vmware/resources/compute_cluster.yaml
+  s_d3d04983e3a1b1::t_c1338ec0e2e5d8 1-27
+core/prompts/seed/vmware/resources/compute_cluster_vm_anti_affinity_rule.yaml
+  s_d3d04983e3a1b1::t_8d03b5dc3a8aaa 1-23
+core/prompts/seed/vmware/resources/content_library.yaml
+  s_d3d04983e3a1b1::t_067916a8af729e 1-25
+core/prompts/seed/vmware/resources/datastore_cluster.yaml
+  s_d3d04983e3a1b1::t_774b2b8e1579ad 1-24
+core/prompts/seed/vmware/resources/distributed_port_group.yaml
+  s_d3d04983e3a1b1::t_c9db5e6caed164 1-22
+core/prompts/seed/vmware/resources/distributed_virtual_switch.yaml
+  s_d3d04983e3a1b1::t_61cda7b356c657 1-27
+core/prompts/seed/vmware/resources/entity_permissions.yaml
+  s_d3d04983e3a1b1::t_09edaa0594fc76 1-23
+core/prompts/seed/vmware/resources/folder.yaml
+  s_d3d04983e3a1b1::t_c06391d7ba0c05 1-20
+core/prompts/seed/vmware/resources/resource_pool.yaml
+  s_d3d04983e3a1b1::t_0ae3204f82aa25 1-26
+core/prompts/seed/vmware/resources/role.yaml
+  s_d3d04983e3a1b1::t_08d970a583a3a5 1-22
+core/prompts/seed/vmware/resources/tag.yaml
+  s_d3d04983e3a1b1::t_6560a801737e2a 1-24
+core/prompts/seed/vmware/resources/virtual_disk.yaml
+  s_d3d04983e3a1b1::t_5340193fb8f7ca 1-25
+core/prompts/seed/vmware/resources/virtual_machine.yaml
+  s_d3d04983e3a1b1::t_b0d724fdc789ce 1-49
+core/prompts/seed/vmware/resources/vm_storage_policy.yaml
+  s_d3d04983e3a1b1::t_e2fb5fc712b2b5 1-22
+core/src/application/iac_requests.py
+  s_d3d04983e3a1b1::t_6763c3e011c85c 94-95
+core/src/clients/iac/models/apply_request.py
+  s_d3d04983e3a1b1::t_74f242ca02c2b4 26-27,34
+core/src/clients/iac/models/import_request.py
+  s_d3d04983e3a1b1::t_2cc8fee6f0ac0c 26-27,34
+core/src/clients/iac/models/init_request.py
+  s_d3d04983e3a1b1::t_90b7ff9e5592cb 26-27,34
+core/src/clients/iac/models/plan_request.py
+  s_d3d04983e3a1b1::t_4ef47bf6a76567 27-28,35
+core/src/clients/iac/models/scope_resource_ids_request.py
+  s_d3d04983e3a1b1::t_317a62f01d24a1 33
+core/src/clients/iac/models/terraform_provider.py
+  s_d3d04983e3a1b1::t_a00e4ce303d364 13
+core/src/clients/mapping/models/resolve_response.py
+  s_d3d04983e3a1b1::t_e300fefc566ab5 38-39
+core/src/clients/mapping/models/terraform_provider.py
+  s_d3d04983e3a1b1::t_f80bbb78b4d187 13
+core/src/infrastructure/templates/_fetcher.py
+  s_d3d04983e3a1b1::t_8227b15102fbb6 24-26
+core/src/infrastructure/templates/_seed_loader.py
+  s_d3d04983e3a1b1::t_40e57dfb9e821e 25,29
+core/src/shared/constants.py
+  s_d3d04983e3a1b1::t_a882bb4e55c665 44
+core/tests/infrastructure/templates/test_seed_loader.py
+  s_d3d04983e3a1b1::t_1f98a87c709b89 64-71
+core/tests/infrastructure/templates/test_template_adapter.py
+  s_d3d04983e3a1b1::t_b9e34faa2602d5 102-117,158-160
+docs/src/modules/ROOT/pages/index.adoc
+  s_d3d04983e3a1b1::t_1105083262192e 102-103
+docs/src/modules/main/pages/about.adoc
+  s_d3d04983e3a1b1::t_d4a5d4a8134f9a 71-72
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_d3d04983e3a1b1::t_45468746f1a892 59,104-106,234,311,316-317,378-387,422-424,717-719
+docs/src/modules/main/pages/guides/import-infrastructure.adoc
+  s_d3d04983e3a1b1::t_484bbfc3e6903f 24-25,166-168
+docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc
+  s_d3d04983e3a1b1::t_e3bdce0330f613 236-238
+docs/src/modules/main/pages/guides/production/secrets-and-credentials.adoc
+  s_d3d04983e3a1b1::t_5cb3d891484f67 223-229
+docs/src/modules/main/pages/reference/api/core.adoc
+  s_d3d04983e3a1b1::t_2206ac80f1a969 188-189
+docs/src/modules/main/pages/reference/api/iac.adoc
+  s_d3d04983e3a1b1::t_7fb280de32af70 104-105,109,374-377,381-387,459,464,471-472,474
+docs/src/modules/main/pages/reference/api/mapping.adoc
+  s_d3d04983e3a1b1::t_446c46be345ad9 64-68,117-121
+docs/src/modules/main/pages/reference/database-schema.adoc
+  s_d3d04983e3a1b1::t_190d512cc0e72f 131,178-183
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_d3d04983e3a1b1::t_721e0dff93ec82 376-385,872-884
+docs/src/modules/main/pages/reference/operating-modes.adoc
+  s_d3d04983e3a1b1::t_aa18de74b6a817 16-18
+docs/src/modules/main/pages/reference/terraform-providers.adoc
+  s_d3d04983e3a1b1::t_63f4a064427f3b 17-18,246-284,734-764
+services/iac/FULL_PROVIDERS.md
+  s_d3d04983e3a1b1::t_d5a289ed76d5e5 123-137
+services/iac/PROVIDERS.md
+  s_d3d04983e3a1b1::t_2b5074ba5eac98 72-84
+services/iac/README.md
+  s_d3d04983e3a1b1::t_2a1bb0f7856070 89,92-95,136,138
+services/iac/env.sample
+  s_d3d04983e3a1b1::t_0529a017526044 41-42
+services/iac/src/models.py
+  s_d3d04983e3a1b1::t_eb05223a484d38 24
+services/iac/tests/test_api.py
+  s_d3d04983e3a1b1::t_6474aed72a2b13 669,677-678,973,977
+services/iac/tests/test_discovery.py
+  s_d3d04983e3a1b1::t_9fa32f3d2ae2cf 63-65
+services/mapping/src/models.py
+  s_d3d04983e3a1b1::t_2319e08e2c0b3e 21
+services/mapping/tests/test_api.py
+  s_d3d04983e3a1b1::t_189fe0a97120f1 11,65-82
+client/web/src/constants/providers.test.ts
+  s_d3d04983e3a1b1::t_363d14d9d89666 1-29
+contracts/openapi/iac.v1.yaml
+  s_d3d04983e3a1b1::t_ea39269bbddabe 76,79-82,971-972,1021-1022,1099-1100,1142-1143,1219,1223
+core/src/infrastructure/database/database.py
+  s_d3d04983e3a1b1::t_1bff7fca02c04d 10,19-46,72-76
+core/tests/infrastructure/database/test_enum_labels.py
+  s_d3d04983e3a1b1::t_a36fe3ae1b0c16 1-35
+core/tests/infrastructure/templates/test_seed_catalog.py
+  s_d3d04983e3a1b1::t_c4deb3b5367fd0 1-102
+core/tests/shared/test_provider_vocabulary.py
+  s_d3d04983e3a1b1::t_b99cb6bf666621 1-52
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_d3d04983e3a1b1::t_b4c3cd7c02fc68 24-25,30-31,63-64,70-74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "316df4f5e26fa828acf40ad4ab095ebbd1872ad5",
+  "prompts": {},
+  "sessions": {
+    "s_d3d04983e3a1b1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "c35bddf6-5c6d-474e-8eb9-c6c3fcbbe3ff",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
