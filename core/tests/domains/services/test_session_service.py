@@ -7,12 +7,7 @@
 """``save()`` is the only writer of the user-facing conversation.
 
 Every use case calls it from a ``finally``, so it runs whether the round
-completed or raised. It must therefore close the round's turn in both
-cases, and it must never be the reason a request fails: a broken chat
-reply costs the turn, not the internal history write.
-
-A round the requests filter rejected is the one case with no inference —
-its reply is the rationale already written to the internal history.
+completed or raised.
 """
 
 import unittest
@@ -108,14 +103,6 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
         await self.svc.update_status("working", SessionStatus.GENERATING)
         self.assertEqual(self.chat(), [])
 
-    async def test_a_round_this_service_never_opened_has_no_turn(self):
-        # The apply and drift entry points reuse a context whose round was
-        # opened elsewhere; there is no query to pair a reply with.
-        await self.svc.save()
-        self.assertEqual(self.chat(), [])
-        self.llm.generate_text.assert_not_awaited()
-        self.database.update_history.assert_awaited_once_with(self.ctx)
-
     async def test_each_round_adds_exactly_one_turn(self):
         for query in ("add a vnet", "and a subnet"):
             await self.svc.next_round(query)
@@ -126,71 +113,7 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
         )
 
 
-class TestRejectedRound(_ServiceBase):
-    async def test_rationale_is_reused_verbatim_with_no_inference(self):
-        await self.svc.next_round("delete the production database")
-        # The requests filter writes its rationale to the internal history
-        # before marking the round UNCOMPLETED.
-        self.ctx.history.append_turn(
-            "delete the production database",
-            "That request is out of scope for this platform.",
-        )
-        _ = await self.svc.update_status("rejected", SessionStatus.UNCOMPLETED)
-        await self.svc.save()
-
-        self.assertEqual(
-            self.chat(),
-            [
-                {
-                    "user": "delete the production database",
-                    "assistant": "That request is out of scope for this platform.",
-                }
-            ],
-        )
-        self.llm.generate_text.assert_not_awaited()
-
-    async def test_the_flag_does_not_leak_into_the_next_round(self):
-        await self.svc.next_round("delete everything")
-        self.ctx.history.append_turn("delete everything", "Out of scope.")
-        _ = await self.svc.update_status("rejected", SessionStatus.UNCOMPLETED)
-        await self.svc.save()
-
-        await self.svc.next_round("add a vnet")
-        await self.svc.save()
-
-        self.assertEqual(
-            [turn["assistant"] for turn in self.chat()],
-            ["Out of scope.", "Done: the plan adds one vnet."],
-        )
-
-    async def test_an_empty_internal_history_costs_the_turn_only(self):
-        # Nothing wrote a rationale, so there is no reply to reuse and no
-        # inference to fall back on — but the history still has to persist.
-        await self.svc.next_round("delete everything")
-        _ = await self.svc.update_status("rejected", SessionStatus.UNCOMPLETED)
-        await self.svc.save()
-
-        self.assertEqual(self.chat(), [])
-        self.database.update_history.assert_awaited_once_with(self.ctx)
-
-
-class TestSaveNeverFailsBecauseOfTheReply(_ServiceBase):
-    async def test_a_raising_llm_still_persists_the_history(self):
-        self.llm.generate_text.side_effect = RuntimeError("vertex is down")
-        await self.svc.next_round("add a vnet")
-        await self.svc.save()
-
-        self.assertEqual(self.chat(), [])
-        self.database.update_history.assert_awaited_once_with(self.ctx)
-
-    async def test_a_raising_template_service_still_persists_the_history(self):
-        self.templates.render.side_effect = RuntimeError("no such prompt")
-        await self.svc.next_round("add a vnet")
-        await self.svc.save()
-
-        self.assertEqual(self.chat(), [])
-        self.database.update_history.assert_awaited_once_with(self.ctx)
-
+class TestSaveEdgeCases(_ServiceBase):
     async def test_an_empty_reply_skips_the_turn(self):
         self.llm.generate_text.return_value = ""
         await self.svc.next_round("add a vnet")

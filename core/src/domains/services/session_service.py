@@ -15,11 +15,7 @@ from src.shared.logger import logging
 
 
 class SessionService:
-    """Session-scoped bookkeeping: statuses, rounds, and both histories.
-
-    Holds the current round's state so that ``save()`` can write the
-    round's user-facing chat turn without the use cases knowing about it.
-    """
+    """Session-scoped bookkeeping: statuses, rounds, and both histories."""
 
     def __init__(
         self,
@@ -30,8 +26,6 @@ class SessionService:
         self.__llm_service = llm_service
         self.__ctx: SessionContext = session_context
         self.__template_svc = template_service
-        self.__round_query: str | None = None
-        self.__rejected: bool = False
 
     async def update_status(
         self,
@@ -52,10 +46,6 @@ class SessionService:
         logging.debug(
             f"Session id '{str(self.__ctx.id)[:4]}' has been updated to {status.name}"
         )
-        # A rejected round's chat reply is the rationale the requests filter
-        # already wrote to the internal history — never an inference.
-        if status is SessionStatus.UNCOMPLETED:
-            self.__rejected = True
         if prompt:
             msg = await self.__llm_service.generate_text(
                 query=msg,
@@ -73,39 +63,11 @@ class SessionService:
     async def next_round(self, q: str) -> None:
         rid = await DatabaseService.create_round(self.__ctx.id, q)
         self.__ctx.set_round(rid)
-        self.__round_query = q
-        self.__rejected = False
 
     async def save(self) -> None:
-        """Persist both histories at the end of a round.
-
-        Called from every use case's ``finally``, so it runs whether the
-        round completed or raised.
-        """
-        await self.__append_chat_turn()
+        reply = await self.__chat_reply(self.__ctx.round_query)
+        self.__ctx.chat_history.append_turn(self.__ctx.round_query, reply)
         await DatabaseService.update_history(self.__ctx)
-
-    async def __append_chat_turn(self) -> None:
-        """Record the round's user-facing turn.
-
-        Never raises: ``update_history`` must run even when no reply can
-        be produced. An empty reply is passed to ``append_turn`` as-is,
-        which logs and skips the turn.
-        """
-        if self.__round_query is None:
-            return
-        reply: str = ""
-        try:
-            reply = (
-                str(self.__ctx.history.get_last_turn().assistant)
-                if self.__rejected
-                else await self.__chat_reply(self.__round_query)
-            )
-        except Exception as e:
-            logging.warning(
-                f"Chat reply failed on session '{str(self.__ctx.id)[:4]}': {e}"
-            )
-        self.__ctx.chat_history.append_turn(self.__round_query, reply)
 
     async def __chat_reply(self, query: str) -> str:
         """Infer the user-facing reply from the internal history alone."""
