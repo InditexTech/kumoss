@@ -39,29 +39,7 @@ updates:
       default-days: 7
 
   - package-ecosystem: uv
-    directory: /services/authz
-    schedule:
-      interval: weekly
-      day: monday
-      time: '04:00'
-      timezone: UTC
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: uv
     directory: /services/iac
-    schedule:
-      interval: weekly
-      day: monday
-      time: '04:00'
-      timezone: UTC
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: uv
-    directory: /services/mapping
     schedule:
       interval: weekly
       day: monday
@@ -118,29 +96,7 @@ updates:
       default-days: 7
 
   - package-ecosystem: docker
-    directory: /services/authz
-    schedule:
-      interval: weekly
-      day: monday
-      time: '04:00'
-      timezone: UTC
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: docker
     directory: /services/iac
-    schedule:
-      interval: weekly
-      day: monday
-      time: '04:00'
-      timezone: UTC
-    open-pull-requests-limit: 5
-    cooldown:
-      default-days: 7
-
-  - package-ecosystem: docker
-    directory: /services/mapping
     schedule:
       interval: weekly
       day: monday

@@ -9,7 +9,7 @@
   },
   "layout": {
     "mode": "grid",
-    "cols": 4,
+    "cols": 3,
     "cellW": 190,
     "cellH": 84,
     "gapX": 140,
@@ -21,24 +21,12 @@
   },
   "components": [
     {
-      "id": "authz",
+      "id": "iac",
       "type": "backend",
-      "label": "authz",
-      "sublabel": "FastAPI :8083, no volume",
+      "label": "iac",
+      "sublabel": "OpenTofu :8082, workspaces",
       "row": 0,
-      "col": 1,
-      "size": [
-        190,
-        84
-      ]
-    },
-    {
-      "id": "mapping",
-      "type": "backend",
-      "label": "mapping",
-      "sublabel": "FastAPI :8081",
-      "row": 0,
-      "col": 2,
+      "col": 0,
       "size": [
         190,
         84
@@ -50,31 +38,31 @@
       "label": "notifications",
       "sublabel": "FastAPI :8080",
       "row": 0,
-      "col": 3,
+      "col": 1,
       "size": [
         190,
         84
       ]
     },
     {
-      "id": "phoenix",
-      "type": "backend",
-      "label": "phoenix",
-      "sublabel": "Phoenix :6006, phoenix-db",
+      "id": "objectstorage",
+      "type": "database",
+      "label": "object-storage",
+      "sublabel": "RustFS, object_storage_data",
+      "row": 0,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "redis",
+      "type": "database",
+      "label": "redis",
+      "sublabel": "Redis 8 :6379",
       "row": 1,
       "col": 0,
-      "size": [
-        190,
-        84
-      ]
-    },
-    {
-      "id": "iac",
-      "type": "backend",
-      "label": "iac",
-      "sublabel": "OpenTofu :8082, workspaces",
-      "row": 1,
-      "col": 1,
       "size": [
         190,
         84
@@ -86,6 +74,18 @@
       "label": "core",
       "sublabel": "FastAPI :8000, workspaces",
       "row": 1,
+      "col": 1,
+      "size": [
+        190,
+        84
+      ]
+    },
+    {
+      "id": "coredb",
+      "type": "database",
+      "label": "core-db",
+      "sublabel": "PostgreSQL 17, core_db_data",
+      "row": 1,
       "col": 2,
       "size": [
         190,
@@ -93,12 +93,12 @@
       ]
     },
     {
-      "id": "objectstorage",
-      "type": "database",
-      "label": "object-storage",
-      "sublabel": "RustFS, object_storage_data",
-      "row": 1,
-      "col": 3,
+      "id": "phoenix",
+      "type": "backend",
+      "label": "phoenix",
+      "sublabel": "Phoenix :6006, phoenix-db",
+      "row": 2,
+      "col": 0,
       "size": [
         190,
         84
@@ -111,30 +111,6 @@
       "sublabel": "Nginx + SPA, :80 and :9000",
       "row": 2,
       "col": 1,
-      "size": [
-        190,
-        84
-      ]
-    },
-    {
-      "id": "coredb",
-      "type": "database",
-      "label": "core-db",
-      "sublabel": "PostgreSQL 17, core_db_data",
-      "row": 2,
-      "col": 2,
-      "size": [
-        190,
-        84
-      ]
-    },
-    {
-      "id": "redis",
-      "type": "database",
-      "label": "redis",
-      "sublabel": "Redis 8 :6379",
-      "row": 2,
-      "col": 3,
       "size": [
         190,
         84
@@ -158,16 +134,14 @@
       "kind": "region",
       "label": "Compose project kumoss, one bridge network",
       "wraps": [
-        "authz",
-        "mapping",
-        "notifications",
-        "phoenix",
         "iac",
-        "core",
+        "notifications",
         "objectstorage",
-        "proxy",
+        "redis",
+        "core",
         "coredb",
-        "redis"
+        "phoenix",
+        "proxy"
       ]
     }
   ],
@@ -191,27 +165,10 @@
       "label": "/monitoring/"
     },
     {
-      "id": "core-to-authz",
-      "from": "core",
-      "to": "authz",
-      "label": "project check",
-      "fromSide": "top",
-      "toSide": "bottom"
-    },
-    {
-      "id": "core-to-mapping",
-      "from": "core",
-      "to": "mapping",
-      "label": "mappings",
-      "labelDy": -47
-    },
-    {
       "id": "core-to-notifications",
       "from": "core",
       "to": "notifications",
-      "label": "fire-and-forget",
-      "fromSide": "top",
-      "toSide": "bottom"
+      "label": "fire-and-forget"
     },
     {
       "id": "core-to-iac",
@@ -229,8 +186,7 @@
       "id": "core-to-coredb",
       "from": "core",
       "to": "coredb",
-      "label": "asyncpg",
-      "labelDy": 24
+      "label": "asyncpg"
     },
     {
       "id": "core-to-redis",
@@ -263,7 +219,7 @@
       "title": "Persistence and start-up",
       "items": [
         "Named volumes: core_db_data, phoenix_db_data, object_storage_data, workspaces",
-        "The authz JSON role store has no volume and is lost on recreation",
+        "No authz or mapping container: those optional contracts are off and core answers locally",
         "depends_on orders start-up without health checks; the prompt seeder retries phoenix"
       ]
     }

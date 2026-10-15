@@ -108,9 +108,9 @@ on*.
 / Input should be a valid string`.
 |===
 
-`config.yaml` is baked into the core image, so rebuild after the change
-(`docker compose build core && docker compose up -d core`), or mount the
-file and point `KUMOSS_CONFIG` at it, as described in
+The core reads `config.yaml` only at startup, so restart it after the
+change (`docker compose restart core`). Outside Compose, mount the file
+and point `KUMOSS_CONFIG` at it, as described in
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].
 
@@ -422,8 +422,8 @@ AWS_DEFAULT_REGION=us-east-1 \
 resources that already exist
 |*Managed state is on and its override replaces the repository's
 backend* (see <<precedence,Which value wins>>). The log line above
-appears. Set `storage.terraform_state_bucket: ""` and rebuild the core
-image.
+appears. Set `storage.terraform_state_bucket: ""` and restart the
+core.
 
 |Every session plans against empty state, and nothing is ever recorded
 |Managed state is off, but the repository declares no backend: `init`
@@ -467,7 +467,8 @@ lives in another subscription.
 
 |`init` fails with `InvalidAccessKeyId` after switching to `provider: S3`
 |`RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` are still `rustfsadmin` in
-`core/.env` and were embedded in the override. Blank both and rebuild.
+`core/.env` and were embedded in the override. Blank both and recreate
+the core (`docker compose up -d core`).
 
 |`init` fails to dial the endpoint (`connection refused`, DNS failure)
 |The sidecar cannot reach the state store. Put it on the same network

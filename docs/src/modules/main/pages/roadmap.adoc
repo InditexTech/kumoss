@@ -1,0 +1,312 @@
+= Roadmap
+:description: Where Kumoss is heading: continuous operations, the full path between cloud and code, operations at scale, measurable quality and governance, cost management, agent interoperability, and simpler deployment.
+
+This page describes the direction of Kumoss. It groups the planned work
+into themes and summarizes each initiative in a few lines, so that users,
+operators, and contributors can see where the project is going and plan
+around it.
+
+[NOTE]
+====
+The roadmap states intent, not commitment. Priorities change as the
+project learns from the people using it, and no initiative carries a
+delivery date. Each feature is announced in the
+https://github.com/InditexTech/kumoss/releases[release notes] when it
+ships; until then, the rest of this documentation describes only what
+Kumoss does today.
+====
+
+== How to read the roadmap
+
+The initiatives are grouped into seven themes. Each initiative carries
+one of two statuses:
+
+* label:blue[In progress]: active development is under way.
+* label:grey[Planned]: the initiative is accepted into the roadmap, and
+  work has not started.
+
+The order of the themes and of the initiatives within them does not
+indicate priority.
+
+== At a glance
+
+[cols="2,3,1",options="header"]
+|===
+|Theme |Initiative |Status
+
+|<<continuous-operations,Continuous operations>>
+|<<scheduler,Scheduled drift detection and import>>
+|label:blue[In progress]
+
+.3+|<<cloud-and-code,Cloud and code lifecycle>>
+|<<cloud-to-code,From cloud to code>>
+|label:grey[Planned]
+
+|<<code-to-cloud,From code to cloud>>
+|label:grey[Planned]
+
+|<<diagrams,Infrastructure diagrams and change previews>>
+|label:grey[Planned]
+
+.2+|<<operations-at-scale,Operations at scale>>
+|<<bulk-operations,Bulk operations>>
+|label:grey[Planned]
+
+|<<multiproject,Multiproject requests>>
+|label:grey[Planned]
+
+.4+|<<quality-and-governance,Quality and governance>>
+|<<evaluation-harness,Evaluation harness and automated testing>>
+|label:grey[Planned]
+
+|<<model-benchmarking,Model benchmarking>>
+|label:grey[Planned]
+
+|<<opa,Policy as code with Open Policy Agent>>
+|label:grey[Planned]
+
+|<<governance-overview,Multicloud governance overview>>
+|label:grey[Planned]
+
+.3+|<<cost-management,Cost management (FinOps)>>
+|<<cost-estimates,Accurate cost estimates and cost guardrails>>
+|label:grey[Planned]
+
+|<<cost-overview,Cost overview by resource and project>>
+|label:grey[Planned]
+
+|<<finops-integrations,Integration with FinOps tools and assistants>>
+|label:grey[Planned]
+
+.2+|<<agent-interoperability,Agent interoperability>>
+|<<mcp,Model Context Protocol (MCP) support>>
+|label:grey[Planned]
+
+|<<a2a,Agent2Agent (A2A) protocol support>>
+|label:grey[Planned]
+
+.2+|<<deployment-and-adoption,Deployment and adoption>>
+|<<helm-chart,Helm chart for Kubernetes>>
+|label:grey[Planned]
+
+|<<installation-wizard,Installation wizard>>
+|label:grey[Planned]
+|===
+
+[#continuous-operations]
+== Continuous operations
+
+Keep the infrastructure and its code in agreement without anyone having
+to check by hand.
+
+[#scheduler]
+=== Scheduled drift detection and import
+
+Drift detection and import will run on a recurring schedule through a
+managed queue, in addition to running on demand from a session. Teams
+will learn that live infrastructure has diverged from its code, or that
+unmanaged resources have appeared, as soon as the next run completes.
+
+Today both operations run on demand; see
+xref:main:guides/remediate-drift.adoc[Remediate drift] and
+xref:main:guides/import-infrastructure.adoc[Import infrastructure].
+
+[#cloud-and-code]
+== Cloud and code lifecycle
+
+Cover the whole path between running infrastructure and the code that
+describes it, in both directions.
+
+[#cloud-to-code]
+=== From cloud to code
+
+Kumoss will bring existing cloud infrastructure under management from
+scratch: it will discover the resources in a scope, generate the
+compliant Infrastructure as Code that describes them, and create the
+repository that holds it. Infrastructure built outside code will get a
+governed, version-controlled starting point in one step.
+
+[#code-to-cloud]
+=== From code to cloud
+
+Starting from an application repository, Kumoss will analyze the
+application to identify the infrastructure it needs, then generate that
+infrastructure together with its state configuration. An application and
+the platform it runs on will move to a running deployment along one
+reviewed path.
+
+[#diagrams]
+=== Infrastructure diagrams and change previews
+
+Kumoss will render a diagram of the infrastructure a project manages and
+highlight how a request changes it before the change is merged.
+Reviewers will see the impact of a plan visually, alongside the code
+diff.
+
+[#operations-at-scale]
+== Operations at scale
+
+Let platform teams act on many resources and many projects with a single
+request, instead of repeating the same request one project at a time.
+
+[#bulk-operations]
+=== Bulk operations
+
+Any request will be able to run against all projects or a selection of
+them, instead of one project at a time. A platform team will be able to
+ask, for example, to update the tags of all storage accounts, or to
+apply a new security baseline, and Kumoss will run the request in every
+targeted project. Each project goes through the usual generation,
+validation, and reporting phases, and the outcome reaches reviewers as
+one pull request per project with a summary of what changes where, so
+the team can approve, adjust, or reject the change project by project.
+
+[#multiproject]
+=== Multiproject requests
+
+A single request will be able to target several projects at once. A team
+will be able to ask, for example, to add a new database to a list of
+projects, and Kumoss will run the generation, validation, and reporting
+phases for each project, tailoring the code to the conventions and
+compliance rules of each one. Progress and results will be tracked per
+project, so a failure in one project does not block the others.
+
+Today a session works on a single project; see
+xref:main:guides/follow-a-session.adoc[Follow a session].
+
+[#quality-and-governance]
+== Quality and governance
+
+Make the quality of generated code and the reliability of every
+compliance verdict measurable, verifiable, and enforceable.
+
+[#evaluation-harness]
+=== Evaluation harness and automated testing
+
+An evaluation harness will score generated code, plan outcomes, and the
+accuracy of compliance verdicts against a versioned set of reference
+scenarios for each operation and cloud. Together with automated tests
+that run on every change, it will catch regressions in prompts,
+orchestration, and services before they reach a release.
+
+[#model-benchmarking]
+=== Model benchmarking
+
+Kumoss will publish benchmark results showing how supported language
+models perform on its own tasks, measuring the quality of generated
+code, compliance accuracy, cost, and latency. Operators will choose the
+models in their configuration based on evidence; see
+xref:main:reference/llm-providers.adoc[LLM providers and models] for the
+models Kumoss supports today.
+
+[#opa]
+=== Policy as code with Open Policy Agent
+
+Kumoss will evaluate every plan against deterministic policies written
+in Rego with https://www.openpolicyagent.org[Open Policy Agent],
+including policies an organization already maintains outside Kumoss.
+These checks will run alongside the existing language-model compliance
+audit, adding a rule-based layer that returns the same result every time.
+
+[#governance-overview]
+=== Multicloud governance overview
+
+A governance overview will give administrators a single view of the
+resources and projects across every connected cloud, showing which are
+managed as code and how many comply with or violate the active
+policies. Platform and security teams will see their compliance posture
+at a glance and move from a finding straight to the session that fixes
+it.
+
+[#cost-management]
+== Cost management (FinOps)
+
+Make the cost of infrastructure visible before and after every change,
+and connect Kumoss to the tools that FinOps teams already use.
+
+[#cost-estimates]
+=== Accurate cost estimates and cost guardrails
+
+Cost estimates for each plan will come from cloud pricing data instead
+of a language-model approximation, and will cover usage-based resources
+where pricing allows. Teams will set cost thresholds per project or
+environment that send a change for review before it is applied when the
+threshold is exceeded.
+
+Today the estimate is an approximation for comparison; see
+xref:main:guides/follow-a-session.adoc[Follow a session].
+
+[#cost-overview]
+=== Cost overview by resource and project
+
+A cost overview will show what each resource, project, and cloud costs,
+combining billing data with the infrastructure Kumoss manages.
+Administrators will spot idle or oversized resources and turn them into
+a request that fixes them, in the same view as the
+<<governance-overview,governance overview>>.
+
+[#finops-integrations]
+=== Integration with FinOps tools and assistants
+
+Kumoss will exchange cost data with external FinOps platforms and
+AI-based FinOps assistants through an open contract, using the
+https://focus.finops.org[FinOps Open Cost and Usage Specification
+(FOCUS)] where possible. FinOps tools will be able to ask Kumoss for a
+cost-saving change as a reviewed pull request, and Kumoss will use their
+recommendations as context when it generates code.
+
+[#agent-interoperability]
+== Agent interoperability
+
+Let assistants and other AI agents work with Kumoss through open
+protocols, under the same guardrails as any other request.
+
+[#mcp]
+=== Model Context Protocol (MCP) support
+
+Kumoss will expose its capabilities through the
+https://modelcontextprotocol.io[Model Context Protocol], so that
+MCP-compatible assistants and IDEs can request compliant infrastructure
+directly. The same guardrails and review flow will apply to every
+request, whichever client sends it.
+
+[#a2a]
+=== Agent2Agent (A2A) protocol support
+
+Support for the https://a2a-protocol.org[Agent2Agent protocol] will let
+other AI agents discover Kumoss and delegate infrastructure tasks to it.
+Kumoss will then act as a specialized agent within larger multi-agent
+workflows.
+
+[#deployment-and-adoption]
+== Deployment and adoption
+
+Shorten the path from download to a working, production-grade
+deployment.
+
+[#helm-chart]
+=== Helm chart for Kubernetes
+
+An official Helm chart will deploy Kumoss and its sidecars on
+Kubernetes, with production-oriented defaults for configuration,
+secrets, and scaling. It will complement the Docker Compose stack, which
+remains the quickest way to evaluate Kumoss; see
+xref:main:guides/deploy-to-production.adoc[Deploy to production] for the
+options available today.
+
+[#installation-wizard]
+=== Installation wizard
+
+A guided installation wizard will walk operators through the first
+setup of models, identity provider, Git, cloud credentials, and storage,
+validating each step as it goes. Operators will reach a working
+deployment without editing configuration files by hand.
+
+== Shape the roadmap
+
+The roadmap evolves with the community. To propose an initiative,
+comment on a planned one, or offer to help build it, open or join a
+discussion on the
+https://github.com/InditexTech/kumoss/issues[issue tracker]. For
+contribution guidance, including the requirement to open an issue
+before substantial work, see xref:main:contributing.adoc[].

@@ -544,6 +544,29 @@ class SystemConfig(BaseModel, frozen=True):
             )
         return self
 
+    @model_validator(mode="after")
+    def _assert_service_endpoints(self) -> "SystemConfig":
+        """An enabled optional sidecar needs an endpoint to call.
+
+        The client facades treat a blank endpoint like ``enabled: false``,
+        which for authz means answering ``authorized`` for everyone, so
+        refuse to boot rather than fail open on a half-finished config.
+        """
+        missing = [
+            f"services.{name}.endpoint"
+            for name in ("notifications", "mapping", "authz")
+            if getattr(self.services, name).enabled
+            and not getattr(self.services, name).endpoint
+        ]
+        if missing:
+            raise ConfigError(
+                "Enabled services have no endpoint: "
+                + "; ".join(missing)
+                + ". Point each at an implementation of its contract, or "
+                + "flip it to enabled: false."
+            )
+        return self
+
     @classmethod
     def load(cls, config_path: str = "/etc/kumoss/config.yaml") -> SystemConfig:
         """Load from YAML if KUMOSS_CONFIG points at a real file; else defaults.

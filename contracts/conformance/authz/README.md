@@ -26,8 +26,8 @@ uv run pytest \
 URL and token may also be supplied via `KUMOSS_AUTHZ_URL` /
 `KUMOSS_AUTHZ_TOKEN`.
 
-The bundled reference impl under `services/authz/` has its own test
-suite — see that directory's README for how to run it.
+Kumoss does not bundle an authz implementation; this suite is how you
+check your own before pointing `services.authz.endpoint` at it.
 
 ## Notes
 

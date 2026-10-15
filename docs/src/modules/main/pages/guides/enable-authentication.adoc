@@ -13,10 +13,10 @@ oidc:
 
 Leaving `issuer_url` blank disables authentication entirely, the
 checked-in default: every request resolves to a fixed dev identity and
-acts as a local developer with top roles. `config.yaml` is baked into the
-`kumoss-core` image at build time, so enabling authentication requires
-`docker compose build core`; to load a different file, point the
-`KUMOSS_CONFIG` env var at its path.
+acts as a local developer with top roles. The core reads `config.yaml`
+only at startup, so enabling authentication requires `docker compose
+restart core`; to load a different file, point the `KUMOSS_CONFIG` env
+var at its path.
 
 == Prerequisites
 
@@ -24,9 +24,8 @@ acts as a local developer with top roles. `config.yaml` is baked into the
   with PKCE for public SPA clients, publishes a discovery document with a
   JWKS endpoint, and issues JWT access tokens (RS*/ES*/PS* signed)
   carrying `iss`, `sub`, `aud`, and `exp`.
-* The ability to rebuild and redeploy the core image, since
-  `config.yaml` changes take effect only after `docker compose build
-  core`.
+* The ability to update the core's `config.yaml` and restart the core,
+  since `config.yaml` changes take effect only at startup.
 
 == Steps
 
@@ -225,8 +224,8 @@ emits both claims in access tokens.
 
 The elevation is re-applied on every authenticated request, not only at
 login: demoting that user in the admin panel reverts on their next
-request. To demote them, clear `admin.default_root_email` and rebuild
-the core image.
+request. To demote them, clear `admin.default_root_email` and restart
+the core.
 
 For every other IdP, grant the first admin's roles directly in the
 database after their first login (role labels are the enum names):
@@ -275,8 +274,8 @@ change.
 * *Login redirect rejected by the IdP.* The redirect URI
   `<origin>/auth/callback` is not registered exactly (scheme, host,
   port).
-* *Config changes have no effect.* Rebuild the core image (`docker
-  compose build core`); the file is baked in.
+* *Config changes have no effect.* Restart the core (`docker compose
+  restart core`); the file is read only at startup.
 * *A `core_db_data` volume predates authentication.* A volume created
   before OIDC support was added keyed sessions by `username` instead of
   the current `users` table; migrate it by hand or drop it before

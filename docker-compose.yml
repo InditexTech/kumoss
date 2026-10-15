@@ -5,10 +5,16 @@ name: kumoss
 # `docker compose up` (see README.md). The `required: false` flag lets
 # the stack boot even if a particular service's .env is missing — useful
 # for the OSS quickstart where most knobs have safe defaults.
+#
+# Kumoss-built services pull the release images from GHCR (the tags are
+# bumped by release-please on every release). Each keeps its `build:`
+# section, so `docker compose up --build` builds them from this checkout
+# instead; compose also falls back to building when the tag has not been
+# published.
 
 services:
   proxy:
-    image: kumoss-nginx:latest
+    image: ghcr.io/inditextech/kumoss-proxy:1.0.9 # x-release-please-version
     restart: on-failure
     build:
       context: .
@@ -28,7 +34,7 @@ services:
       - bridge-network
 
   core:
-    image: kumoss-core:latest
+    image: ghcr.io/inditextech/kumoss-core:1.0.9 # x-release-please-version
     build:
       context: .
       dockerfile: ./core/Dockerfile
@@ -39,23 +45,13 @@ services:
         required: true
     volumes:
       - workspaces:/workspaces
+      - ./config.yaml:/etc/kumoss/config.yaml:ro
     depends_on:
       - core-db
       - notifications
-      - mapping
       - iac
-      - authz
       - redis
       - object-storage
-    develop:
-      watch:
-        - action: sync
-          path: ./core
-          target: /usr/src/app
-          ignore:
-            - .venv/
-            - .env
-            - __pycache__/
     networks:
       - bridge-network
 
@@ -73,7 +69,7 @@ services:
       - bridge-network
 
   notifications:
-    image: kumoss-notifications:latest
+    image: ghcr.io/inditextech/kumoss-notifications:1.0.9 # x-release-please-version
     build:
       context: .
       dockerfile: ./services/notifications/Dockerfile
@@ -85,21 +81,8 @@ services:
     networks:
       - bridge-network
 
-  mapping:
-    image: kumoss-mapping:latest
-    build:
-      context: .
-      dockerfile: ./services/mapping/Dockerfile
-    env_file:
-      - path: ./services/mapping/.env
-        required: false
-    expose:
-      - 8081
-    networks:
-      - bridge-network
-
   iac:
-    image: kumoss-iac:latest
+    image: ghcr.io/inditextech/kumoss-iac:1.0.9 # x-release-please-version
     build:
       context: .
       dockerfile: ./services/iac/Dockerfile
@@ -110,19 +93,6 @@ services:
       - workspaces:/workspaces
     expose:
       - 8082
-    networks:
-      - bridge-network
-
-  authz:
-    image: kumoss-authz:latest
-    build:
-      context: .
-      dockerfile: ./services/authz/Dockerfile
-    env_file:
-      - path: ./services/authz/.env
-        required: false
-    expose:
-      - 8083
     networks:
       - bridge-network
 
