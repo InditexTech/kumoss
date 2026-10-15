@@ -139,6 +139,7 @@ jobs:
               "-Dsonar.tests=client/web/src"
               "-Dsonar.exclusions=**/node_modules/**,**/dist/**,**/build/**,**/coverage/**"
               "-Dsonar.test.inclusions=**/*.test.js,**/*.test.jsx,**/*.test.mjs,**/*.test.cjs,**/*.test.ts,**/*.test.tsx,**/*.spec.js,**/*.spec.jsx,**/*.spec.ts,**/*.spec.tsx"
+              "-Dsonar.coverage.exclusions=**/src/test/**"
               "-Dsonar.javascript.lcov.reportPaths=${SONAR_COVERAGE_PATHS}"
             )
           fi
