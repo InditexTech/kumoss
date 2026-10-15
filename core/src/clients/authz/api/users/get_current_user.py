@@ -78,7 +78,7 @@ def sync_detailed(
     record (creating an empty one if none exists) plus assigned
     roles.
 
-    When neither header is present, the OSS reference impl returns
+    When neither header is present, implementations SHOULD return
     an anonymous user with no roles.
 
     Args:
@@ -118,7 +118,7 @@ def sync(
     record (creating an empty one if none exists) plus assigned
     roles.
 
-    When neither header is present, the OSS reference impl returns
+    When neither header is present, implementations SHOULD return
     an anonymous user with no roles.
 
     Args:
@@ -153,7 +153,7 @@ async def asyncio_detailed(
     record (creating an empty one if none exists) plus assigned
     roles.
 
-    When neither header is present, the OSS reference impl returns
+    When neither header is present, implementations SHOULD return
     an anonymous user with no roles.
 
     Args:
@@ -191,7 +191,7 @@ async def asyncio(
     record (creating an empty one if none exists) plus assigned
     roles.
 
-    When neither header is present, the OSS reference impl returns
+    When neither header is present, implementations SHOULD return
     an anonymous user with no roles.
 
     Args:

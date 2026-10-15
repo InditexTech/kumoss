@@ -255,11 +255,10 @@ in the browser and shows the login screen. Pressing *Sign In*
 re-fetches `GET /api/v1/users/me` and puts the browser straight back
 in as the dev identity.
 
-Do not confuse this with the authorization sidecar.
-`KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL` grants the sidecar's *own* `admin`
-role inside the sidecar's JSON role store. The core never reads that
-store; the sidecar is consulted only for the cloud-project
-authorization check described above, and only when
+Do not confuse this with the authorization sidecar. An authorization
+service you implement may keep users and roles of its own, but the
+core never reads them; the sidecar is consulted only for the
+cloud-project authorization check described above, and only when
 `services.authz.enabled` is `true`.
 
 == Next steps

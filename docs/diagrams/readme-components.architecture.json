@@ -156,7 +156,7 @@
       "id": "mapping",
       "type": "backend",
       "label": "mapping",
-      "sublabel": "disabled · repository routing",
+      "sublabel": "contract only · repository routing",
       "row": 2,
       "col": 2,
       "size": [
@@ -168,7 +168,7 @@
       "id": "authz",
       "type": "backend",
       "label": "authz",
-      "sublabel": "disabled · access policy",
+      "sublabel": "contract only · access policy",
       "row": 2,
       "col": 3,
       "size": [
@@ -228,10 +228,16 @@
     },
     {
       "kind": "region",
-      "label": "Sidecars — OpenAPI contracts, replaceable",
+      "label": "Bundled sidecars — OpenAPI contracts, replaceable",
       "wraps": [
         "iac",
-        "notifications",
+        "notifications"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Bring your own — disabled by default",
+      "wraps": [
         "mapping",
         "authz"
       ]
@@ -303,24 +309,21 @@
       "from": "core",
       "to": "notifications",
       "label": "events",
-      "variant": "dashed",
-      "labelDy": 35
+      "variant": "dashed"
     },
     {
       "id": "map-repo",
       "from": "core",
       "to": "mapping",
       "label": "repository lookup",
-      "variant": "dashed",
-      "labelDy": 90
+      "variant": "dashed"
     },
     {
       "id": "check-access",
       "from": "core",
       "to": "authz",
       "label": "project check",
-      "variant": "dashed",
-      "labelDy": 40
+      "variant": "dashed"
     },
     {
       "id": "git",

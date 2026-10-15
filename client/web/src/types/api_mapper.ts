@@ -4,7 +4,7 @@
 
 import type { TerraformProvider } from "@/types/api";
 
-// ─── Mapping Service (mapping:8081) ────────────────────────
+// ─── Mapping (core: POST /v1/mapping/resolve) ──────────────
 
 export interface ResolveRequest {
   identifier: string;
