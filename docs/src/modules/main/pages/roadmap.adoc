@@ -1,5 +1,5 @@
 = Roadmap
-:description: Where Kumoss is heading: continuous operations, the full path between cloud and code, measurable quality and governance, cost management, agent interoperability, and simpler deployment.
+:description: Where Kumoss is heading: continuous operations, the full path between cloud and code, operations at scale, measurable quality and governance, cost management, agent interoperability, and simpler deployment.
 
 This page describes the direction of Kumoss. It groups the planned work
 into themes and summarizes each initiative in a few lines, so that users,
@@ -18,7 +18,7 @@ Kumoss does today.
 
 == How to read the roadmap
 
-The initiatives are grouped into six themes. Each initiative carries
+The initiatives are grouped into seven themes. Each initiative carries
 one of two statuses:
 
 * label:blue[In progress]: active development is under way.
@@ -46,6 +46,13 @@ indicate priority.
 |label:grey[Planned]
 
 |<<diagrams,Infrastructure diagrams and change previews>>
+|label:grey[Planned]
+
+.2+|<<operations-at-scale,Operations at scale>>
+|<<bulk-operations,Bulk operations>>
+|label:grey[Planned]
+
+|<<multiproject,Multiproject requests>>
 |label:grey[Planned]
 
 .4+|<<quality-and-governance,Quality and governance>>
@@ -135,6 +142,37 @@ Kumoss will render a diagram of the infrastructure a project manages and
 highlight how a request changes it before the change is merged.
 Reviewers will see the impact of a plan visually, alongside the code
 diff.
+
+[#operations-at-scale]
+== Operations at scale
+
+Let platform teams act on many resources and many projects with a single
+request, instead of repeating the same request one project at a time.
+
+[#bulk-operations]
+=== Bulk operations
+
+Any request will be able to run against all projects or a selection of
+them, instead of one project at a time. A platform team will be able to
+ask, for example, to update the tags of all storage accounts, or to
+apply a new security baseline, and Kumoss will run the request in every
+targeted project. Each project goes through the usual generation,
+validation, and reporting phases, and the outcome reaches reviewers as
+one pull request per project with a summary of what changes where, so
+the team can approve, adjust, or reject the change project by project.
+
+[#multiproject]
+=== Multiproject requests
+
+A single request will be able to target several projects at once. A team
+will be able to ask, for example, to add a new database to a list of
+projects, and Kumoss will run the generation, validation, and reporting
+phases for each project, tailoring the code to the conventions and
+compliance rules of each one. Progress and results will be tracked per
+project, so a failure in one project does not block the others.
+
+Today a session works on a single project; see
+xref:main:guides/follow-a-session.adoc[Follow a session].
 
 [#quality-and-governance]
 == Quality and governance
