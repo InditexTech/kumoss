@@ -266,7 +266,7 @@ function driftSession(): SessionDetail {
     updated_at: at(60),
     scope_id: "sub-123",
     rounds: [],
-    history: [],
+    chat_history: [],
   };
 }
 

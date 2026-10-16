@@ -15,22 +15,20 @@ from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 
-
 from src.domains.dto import (
+    AdminSessionDetail,
     CodeChangeRef,
     ComplianceCheckRef,
     PaginatedSessionSummary,
     PullRequestRef,
     ReportRef,
     RoundDetail,
-    SessionDetail,
     SessionSummary,
     StatusEntry,
     TerraformPlanRef,
     WorkspaceRef,
 )
 from src.domains.entities import SessionContext, User
-from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
 from src.domains.exceptions import (
     LastStatusError,
     SessionConflict,
@@ -38,26 +36,32 @@ from src.domains.exceptions import (
     UserAlreadyExists,
     UserNotFound,
 )
+from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
     Artifact,
     CodeChange,
     ComplianceCheck,
-    TerraformPlan,
-    TerraformProvider as DbTerraformProvider,
+    History,
     PullRequest,
     Report,
     Round,
-    Status as DbStatus,
-    User as DbUser,
     Session,
+    TerraformPlan,
     Workspace,
-    History,
+)
+from src.infrastructure.database.models import (
+    Status as DbStatus,
+)
+from src.infrastructure.database.models import (
+    TerraformProvider as DbTerraformProvider,
+)
+from src.infrastructure.database.models import (
+    User as DbUser,
 )
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
 from src.shared.config.system_config import system_config
-from src.shared.logger import logging
 from src.shared.constants import (
     OperationRole,
     OperationType,
@@ -66,6 +70,7 @@ from src.shared.constants import (
     SessionStatus,
     TerraformProvider,
 )
+from src.shared.logger import logging
 
 # --- Cache configuration -------------------------------------------------
 #
@@ -181,6 +186,7 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
         "branch_name": ctx.branch_name,
         "iac_path": ctx.iac_path,
         "history": ctx.history.serialize(),
+        "chat_history": ctx.chat_history.serialize(),
     }
 
 
@@ -196,6 +202,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
         branch_name=data["branch_name"],
         iac_path=data["iac_path"],
         history=data["history"],
+        chat_history=data["chat_history"],
     )
 
 
@@ -396,13 +403,20 @@ class DatabaseService:
         )
 
     @staticmethod
-    async def __history_payload(session_id: UUID) -> list[dict[str, str]] | None:
-        """Cache-aside read of the conversation payload (turns) for a session."""
+    async def __history_payloads(session_id: UUID) -> dict[str, Any] | None:
+        """Cache-aside read of both conversation payloads for a session.
 
-        async def _load() -> list[dict[str, str]] | None:
+        Both travel together because this is what rebuilds a cold
+        ``SessionContext``: reading only one of them would make the next
+        ``update_history`` overwrite the other with an empty list.
+        """
+
+        async def _load() -> dict[str, Any] | None:
             sid = await DatabaseService.__map_session_id(session_id)
             his: History | None = await db.get_by(History, session_id=sid)
-            return his.payload if his is not None else None
+            if his is None:
+                return None
+            return {"payload": his.payload, "chat_payload": his.chat_payload}
 
         return await redis_client.get_or_set(
             _k_history(session_id), _ttl(_TTL_HISTORY), _load
@@ -509,6 +523,7 @@ class DatabaseService:
             History,
             session_id=session.id,
             first_query=query,
+            chat_payload=[],
         )
         round_id = await DatabaseService.create_round(session_id, query)
         _ = await DatabaseService.__create_status(
@@ -546,11 +561,11 @@ class DatabaseService:
                     message=f"Session {session_id} not found.",
                     error_code=404,
                 )
-            username, workspace, provider, payload, round_id = await asyncio.gather(
+            username, workspace, provider, payloads, round_id = await asyncio.gather(
                 DatabaseService.__map_user_email(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
                 DatabaseService.__provider_facts(session_id),
-                DatabaseService.__history_payload(session_id),
+                DatabaseService.__history_payloads(session_id),
                 DatabaseService.__latest_round_id(session.id),
             )
             if workspace is None:
@@ -578,7 +593,8 @@ class DatabaseService:
                 terraform_prv=provider.provider,
                 branch_name=workspace.branch,
                 iac_path=workspace.root_path,
-                history=payload,
+                history=payloads["payload"],
+                chat_history=payloads["chat_payload"],
             )
             return _serialize_ctx(ctx)
 
@@ -792,22 +808,28 @@ class DatabaseService:
 
     @staticmethod
     async def get_session_detail(
-        session_id: UUID, include_history: bool = False
-    ) -> SessionDetail:
+        session_id: UUID,
+        include_chat_history: bool = False,
+        include_history: bool = False,
+    ) -> AdminSessionDetail:
         """Full session aggregate: facts, timeline, and per-round artifacts.
 
         Live sessions are always read fresh: the aggregate mutates while a
         session runs and the push channel triggers client refetches of this
         exact read model. Finished sessions can never change again
         (``acquire_in_flight`` refuses them), so those are served from a
-        cached copy. The history variant (``include_history=True``) is
-        always read fresh.
+        cached copy. Either history variant is always read fresh.
+
+        Always returns the admin superset; the ``history`` field is left
+        unpopulated unless asked for, and the user route's
+        ``SessionDetail`` response model drops it regardless.
         """
-        if not include_history:
+        fresh = include_chat_history or include_history
+        if not fresh:
             cached = await redis_client.get_json(_k_detail(session_id))
             if cached is not None:
                 try:
-                    return SessionDetail.model_validate(cached)
+                    return AdminSessionDetail.model_validate(cached)
                 except ValidationError as e:
                     logging.warning(
                         f"Stale-shaped cache entry at {_k_detail(session_id)} "
@@ -861,7 +883,7 @@ class DatabaseService:
         # convention get_last_status and the list_sessions filter use.
         current = max(s.statuses, key=lambda st: st.id, default=None)
 
-        detail = SessionDetail(
+        detail = AdminSessionDetail(
             uuid=s.uuid,
             username=await DatabaseService.__map_user_email(s.user_id),
             operation=s.operation,
@@ -882,16 +904,15 @@ class DatabaseService:
                 DatabaseService.__round_detail(r)
                 for r in sorted(s.rounds, key=lambda r: (r.number, r.id))
             ],
+            chat_history=(
+                history.chat_payload if include_chat_history and history else None
+            ),
             history=history.payload if include_history and history else None,
         )
 
         # A finished session's aggregate is immutable (only the admin
         # set_lock toggle can still touch it, and that drops this key).
-        if (
-            not include_history
-            and detail.current_status in _TERMINAL
-            and not detail.in_flight
-        ):
+        if not fresh and detail.current_status in _TERMINAL and not detail.in_flight:
             await redis_client.set_json(
                 _k_detail(session_id),
                 detail.model_dump(mode="json"),
@@ -913,6 +934,7 @@ class DatabaseService:
                 .where(History.session_id == sid)
                 .values(
                     payload=ctx.history.serialize(),
+                    chat_payload=ctx.chat_history.serialize(),
                     updated_at=datetime.now(timezone.utc),
                 )
             )
@@ -926,7 +948,14 @@ class DatabaseService:
         await redis_client.set_json_many(
             [
                 (_k_context(ctx.id), _serialize_ctx(ctx), _ttl(_TTL_CONTEXT)),
-                (_k_history(ctx.id), ctx.history.serialize(), _ttl(_TTL_HISTORY)),
+                (
+                    _k_history(ctx.id),
+                    {
+                        "payload": ctx.history.serialize(),
+                        "chat_payload": ctx.chat_history.serialize(),
+                    },
+                    _ttl(_TTL_HISTORY),
+                ),
             ]
         )
         _ = await redis_client.invalidate(_k_detail(ctx.id))

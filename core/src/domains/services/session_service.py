@@ -5,22 +5,27 @@
 # pyright: reportAttributeAccessIssue=false
 from typing import cast
 
-from src.domains.entities import SessionContext, History
+from src.domains.dto import PromptTemplateDTO
+from src.domains.entities import History, SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
-from src.domains.dto import PromptTemplateDTO
-from src.shared.constants import SessionStatus
+from src.domains.services.template_service import TemplateOrchestrationService
+from src.shared.constants import PromptsLibrary, SessionStatus
 from src.shared.logger import logging
 
 
 class SessionService:
+    """Session-scoped bookkeeping: statuses, rounds, and both histories."""
+
     def __init__(
         self,
         llm_service: LLMOrchestrationService,
         session_context: SessionContext,
+        template_service: TemplateOrchestrationService,
     ):
         self.__llm_service = llm_service
         self.__ctx: SessionContext = session_context
+        self.__template_svc = template_service
 
     async def update_status(
         self,
@@ -60,4 +65,14 @@ class SessionService:
         self.__ctx.set_round(rid)
 
     async def save(self) -> None:
+        reply = await self.__chat_reply(self.__ctx.round_query)
+        self.__ctx.chat_history.append_turn(self.__ctx.round_query, reply)
         await DatabaseService.update_history(self.__ctx)
+
+    async def __chat_reply(self, query: str) -> str:
+        """Infer the user-facing reply from the internal history alone."""
+        return await self.__llm_service.generate_text(
+            query=query,
+            prompt=await self.__template_svc.render(PromptsLibrary.CHAT_REPLY),
+            history=self.__ctx.history,
+        )

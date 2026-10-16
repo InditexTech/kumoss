@@ -14,30 +14,30 @@ import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { getApiErrorMessage } from "@/services/api";
-import {
-  listUserSessions,
-  getSessionDetail,
-} from "@/services/core/sessions";
+import { listUserSessions, getSessionDetail } from "@/services/core/sessions";
 import {
   listAdminSessions,
   getAdminSessionDetail,
   setSessionLock,
 } from "@/services/core/admin";
-import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
+import {
+  setCachedSessions,
+  invalidateSessionsCache,
+} from "@/services/core/sessionsCache";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
-  buildAssistantMessage,
+  findSessionPr,
   type SessionOutcome,
 } from "@/services/workflows/session_outcome";
 import type {
+  AdminSessionDetail,
   OperationType,
-  SessionDetail,
   SessionStatus,
   SessionSummary,
 } from "@/types/api";
-import { normalizeHistory, panelRoleAtLeast } from "@/types/api";
+import { panelRoleAtLeast } from "@/types/api";
 import { providerLabel } from "@/constants/providers";
 import {
   StatusBadge,
@@ -219,14 +219,16 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const isAdminView = variant === "admin";
   const { panelRole } = useAuth();
   const navigate = useNavigate();
-  const { updateSession } = useSession();
+  const { updateSession, prDetails, updatePrDetails } = useSession();
   const { setMode } = useMode();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
-  const [detail, setDetail] = useState<SessionDetail | null>(null);
+  const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>({});
+  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>(
+    {},
+  );
   const canToggleLock = isAdminView && panelRoleAtLeast(panelRole, "editor");
 
   const setSessionParam = useCallback(
@@ -258,8 +260,15 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
     let cancelled = false;
     setLoadingDetail(true);
-    const fetchDetail = isAdminView ? getAdminSessionDetail : getSessionDetail;
-    fetchDetail(sessionId, { includeHistory: true })
+    // The admin view asks for the internal record too, as debug material;
+    // the user view can only ever receive the conversation.
+    const pending = isAdminView
+      ? getAdminSessionDetail(sessionId, {
+          includeChatHistory: true,
+          includeHistory: true,
+        })
+      : getSessionDetail(sessionId, { includeChatHistory: true });
+    pending
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -313,7 +322,9 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         const nowBlocked = res.is_blocked;
         setLockOverrides((prev) => ({ ...prev, [uuid]: nowBlocked }));
         setDetail((prev) =>
-          prev && prev.uuid === uuid ? { ...prev, is_blocked: nowBlocked } : prev,
+          prev && prev.uuid === uuid
+            ? { ...prev, is_blocked: nowBlocked }
+            : prev,
         );
       } catch (err) {
         showNotification(
@@ -374,41 +385,44 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
       return;
     }
 
-    // The API has no partial operations, so a reloaded session resumes in
-    // the full mode of its operation.
-    setMode(
-      detail.operation === "drift"
-        ? "drift"
-        : detail.operation === "import"
-          ? "import"
-          : "generate",
-    );
+    const operationModeMap: Record<string, "generate" | "drift" | "import"> = {
+      drift: "drift",
+      import: "import",
+    };
+    setMode(operationModeMap[detail.operation] ?? "generate");
 
     const patch = buildSessionPatch(outcome);
 
     if (outcome.kind === "apply-results") {
       updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
-      handleCloseOverlay();
-      navigate(`/home/apply-results/${detail.uuid}`);
-      return;
-    }
-
-    if (outcome.kind === "rejected") {
-      updateSession({
-        ...patch,
-        history: [
-          ...(patch.history ?? []),
-          {
-            role: "assistant" as const,
-            content: buildAssistantMessage(outcome),
-          },
-        ],
-      });
     } else {
       updateSession(patch);
     }
+
+    const pr = findSessionPr(outcome.detail);
+    const samePr = pr != null && pr.number === prDetails.number;
+    updatePrDetails(
+      pr
+        ? {
+            number: pr.number,
+            url: pr.url,
+            merged: samePr ? prDetails.merged : undefined,
+            lastPrStep: samePr ? prDetails.lastPrStep : undefined,
+          }
+        : {
+            number: undefined,
+            url: undefined,
+            merged: undefined,
+            lastPrStep: undefined,
+          },
+    );
+
     handleCloseOverlay();
-    navigate(`/home/results/${detail.uuid}`);
+    void navigate(
+      outcome.kind === "apply-results"
+        ? `/home/apply-results/${detail.uuid}`
+        : `/home/results/${detail.uuid}`,
+    );
   }
 
   function handleCloseOverlay() {
@@ -450,16 +464,13 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
           <SessionData
             session={detail}
             onReload={
-              detail.current_status !== "failed" ? handleReload : undefined
+              detail.current_status !== "failed"
+                ? () => void handleReload()
+                : undefined
             }
             onToggleLock={
               canToggleLock
                 ? () => void handleToggleLock(detail.uuid, detail.is_blocked)
-                : undefined
-            }
-            conversationHistory={
-              isAdminView && detail.history
-                ? normalizeHistory(detail.history)
                 : undefined
             }
           />
