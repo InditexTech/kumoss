@@ -824,12 +824,14 @@ a password or token embedded, are rejected.</p>
 <p><strong>The cloud scope</strong> your change targets. The wizard asks for it in the
 provider&#8217;s own terms: "What is the Azure subscription ID?", "What is the
 GCP project ID?", "What is the AWS account ID?", "What is the OCI
-compartment name?", or "Which Kubernetes namespace?". For OCI the wizard
+compartment name?", "Which Kubernetes namespace?", or "Which vSphere
+datacenter?". For OCI the wizard
 wants the compartment <strong>name</strong> (placeholder <code>my-compartment</code>), not its
 OCID: the value is lowercased and limited to letters, digits, and
 hyphens, which an OCID never passes. Kubernetes has no cloud scope of
 its own — the API asks for "any stable identifier", so use whatever your
-team agreed on (a namespace name works).</p>
+team agreed on (a namespace name works). For VMware vSphere the scope is
+the datacenter name (placeholder <code>dc-01</code>).</p>
 </li>
 </ul>
 </div>
@@ -878,7 +880,8 @@ offered as the path <code>.</code>.</p>
 </li>
 <li>
 <p><strong>"Which cloud provider?"</strong> Pick Microsoft Azure, Google Cloud, Amazon Web
-Services, Oracle Cloud Infrastructure, or Kubernetes. This question
+Services, Oracle Cloud Infrastructure, Kubernetes, or VMware vSphere.
+This question
 and the next are skipped when the deployment&#8217;s mapping service already
 knows the answer for that repository; with mapping disabled, as
 shipped, the core&#8217;s passthrough knows nothing, so both are always asked.</p>
@@ -886,10 +889,11 @@ shipped, the core&#8217;s passthrough knows nothing, so both are always asked.</
 <li>
 <p><strong>Cloud scope.</strong> The question depends on the provider you picked: "What
 is the Azure subscription ID?", "What is the GCP project ID?", "What is
-the AWS account ID?", "What is the OCI compartment name?", or "Which
-Kubernetes namespace?". The value is trimmed and lowercased, and only
-letters, digits, and hyphens are accepted (up to 64 characters); the
-field does not advance until the value is valid. For OCI this means the
+the AWS account ID?", "What is the OCI compartment name?", "Which
+Kubernetes namespace?", or "Which vSphere datacenter?". The value is
+trimmed and lowercased, and only letters, digits, and hyphens are
+accepted (up to 64 characters); the field does not advance until the
+value is valid. For OCI this means the
 compartment <strong>name</strong>, not its OCID — an OCID contains dots and is never
 accepted here. The API&#8217;s own description of <code>scope_id</code> still says
 "compartment OCID", so an OCID can only be sent by calling the API

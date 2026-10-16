@@ -876,7 +876,7 @@ Phoenix. Operators customise the runtime prompts; the layouts are code.</p>
 <ul>
 <li>
 <p><code>&lt;scope&gt;</code> is one of <code>general</code>, <code>aws</code>, <code>azure</code>, <code>gcp</code>, <code>oci</code>,
-<code>kubernetes</code>.</p>
+<code>kubernetes</code>, <code>vmware</code>.</p>
 </li>
 <li>
 <p><code>&lt;type&gt;</code> is one of <code>guidelines</code>, <code>resources</code>, <code>compliance</code>.</p>
@@ -943,6 +943,10 @@ the file, so a misfiled prompt cannot misreport its identity:</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes/resources/deployment.yaml</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes-resources-deployment</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware/resources/virtual_machine.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware-resources-virtual_machine</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform.yaml</code></p></td>
@@ -1146,7 +1150,7 @@ drift pre-check</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Resource IDs an import round must never bring under Terraform, one
 Markdown bullet per ID. Parsed by the core, not read by a model; see
 <a href="#import-exception-list">Import exception list</a>. Ships as a placeholder with no exceptions,
-for every cloud except <code>kubernetes</code>.</p></td>
+for every cloud except <code>kubernetes</code> and <code>vmware</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Import scope diff, in every import round that finds unmanaged
 resources</p></td>
 </tr>
@@ -1260,7 +1264,7 @@ check locks the session.</p></td>
 model should produce unless the user asks otherwise. Examples that ship
 today: <code>aws-resources-s3_bucket</code>, <code>azure-resources-storage_account</code>,
 <code>gcp-resources-cloud_run</code>, <code>oci-resources-compute_instance</code>,
-<code>kubernetes-resources-deployment</code>.</p>
+<code>kubernetes-resources-deployment</code>, <code>vmware-resources-virtual_machine</code>.</p>
 </div>
 </div>
 </div>
@@ -1270,7 +1274,8 @@ today: <code>aws-resources-s3_bucket</code>, <code>azure-resources-storage_accou
 <div class="sectionbody">
 <div class="paragraph">
 <p>The <code>aws</code>, <code>azure</code>, <code>gcp</code> and <code>oci</code> scopes ship the same eight guideline
-prompts; <code>kubernetes</code> ships seven, without <code>import_exceptions</code>. The
+prompts; <code>kubernetes</code> and <code>vmware</code> ship seven, without
+<code>import_exceptions</code>. The
 resource prompts differ per cloud.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1350,6 +1355,17 @@ resource prompts differ per cloud.</p>
 <code>role_binding</code>, <code>secret</code>, <code>service</code>, <code>service_account</code>, <code>stateful_set</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
+<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>compute_cluster</code>, <code>compute_cluster_vm_anti_affinity_rule</code>,
+<code>content_library</code>, <code>datastore_cluster</code>, <code>distributed_port_group</code>,
+<code>distributed_virtual_switch</code>, <code>entity_permissions</code>, <code>folder</code>,
+<code>resource_pool</code>, <code>role</code>, <code>tag</code>, <code>virtual_disk</code>, <code>virtual_machine</code>,
+<code>vm_storage_policy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="sect2">
@@ -1399,9 +1415,9 @@ drift pre-check)</p></td>
 <div class="paragraph">
 <p>The import exception list is only read once the scope listing has
 returned resources that the state does not track. Only Azure, GCP and
-AWS have a scope listing, so an <code>oci</code> or <code>kubernetes</code> import round
-stops before it would ask for the prompt, and <code>kubernetes</code> ships
-without one.</p>
+AWS have a scope listing, so an <code>oci</code>, <code>kubernetes</code>, or <code>vmware</code> import
+round stops before it would ask for the prompt, and <code>kubernetes</code> and
+<code>vmware</code> ship without one.</p>
 </div>
 <div class="paragraph">
 <p>Keep this in mind when you delete a prompt in Phoenix or trim the seed
@@ -1772,9 +1788,9 @@ no <code>resources_list</code> entry is never selected, and a <code>resources_li
 entry with no matching resource prompt aborts the run when picked.</p>
 </div>
 <div class="paragraph">
-<p><strong>List style is not uniform across clouds.</strong> AWS, Azure, GCP, and OCI name
-entries in backticks with a trailing description, as above; the
-Kubernetes <code>resources_list</code> uses plain bullets with no backticks at all
+<p><strong>List style is not uniform across clouds.</strong> AWS, Azure, GCP, OCI, and
+VMware name entries in backticks with a trailing description, as above;
+the Kubernetes <code>resources_list</code> uses plain bullets with no backticks at all
 (<code>- namespace</code>, <code>- deployment</code>, and so on). There is no enforced format
 — the compositor only needs the bare name to appear somewhere in the
 body. When you edit a <code>resources_list</code>, follow the style already used

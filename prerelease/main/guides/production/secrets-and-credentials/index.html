@@ -1091,6 +1091,14 @@ provider</p></td>
 principals, mounted kubeconfig)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none in the sample</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">VMware vSphere</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A dedicated vCenter service account in an SSO group, holding a custom
+role scoped to the target folders, resource pools, datastores and
+networks — never <code>administrator@vsphere.local</code> — passed as
+<code>VSPHERE_SERVER</code>, <code>VSPHERE_USER</code>, <code>VSPHERE_PASSWORD</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none in the sample</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">

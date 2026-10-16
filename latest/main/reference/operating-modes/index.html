@@ -803,6 +803,20 @@ each mode are <a href="../../guides/generate-infrastructure/" class="xref page">
 infrastructure</a>, <a href="../../guides/remediate-drift/" class="xref page">Remediate drift</a>,
 and <a href="../../guides/import-infrastructure/" class="xref page">Import infrastructure</a>.</p>
 </div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+The import modes are supported on Azure, GCP and AWS only. On
+OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+import round ends with a report that says so and imports nothing.
+</td>
+</tr>
+</table>
+</div>
 </div>
 </div>
 <div class="sect1">
@@ -810,9 +824,9 @@ and <a href="../../guides/import-infrastructure/" class="xref page">Import infra
 <div class="sectionbody">
 <div class="paragraph">
 <p>The first request of a session provides the repository URL (<code>https://</code>
-only; it may carry a userinfo username but no password or token), the target cloud (<code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>, or
-<code>kubernetes</code>), a scope identifier (for example a subscription, project, or
-account id), an optional path to the Terraform root inside the repository
+only; it may carry a userinfo username but no password or token), the target cloud (<code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>,
+<code>kubernetes</code>, or <code>vmware</code>), a scope identifier (for example a subscription,
+project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository
 (see <a href="../repository-layout/#terraform-roots" class="xref page">Repository
 layout</a>), and the request text. The scope is stored with the session, sent
 to the iac sidecar on every <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code>, hashed

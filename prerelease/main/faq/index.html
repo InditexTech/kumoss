@@ -1112,7 +1112,9 @@ fresh plan to review.</p>
 <summary class="title">Do the import modes import my existing resources?</summary>
 <div class="content">
 <div class="paragraph">
-<p>Yes. Partial Import and Full Import find the resources in your scope
+<p>Yes, on Azure, GCP and AWS. On OCI, Kubernetes and VMware vSphere the
+scope cannot be listed, so an import round finds nothing to import.
+Partial Import and Full Import find the resources in your scope
 that Terraform does not manage, write resource blocks for them, and run
 <code>terraform import</code> during the round, so they are in the state before the
 pull request is reviewed. Rejected imports are fed back to the generator

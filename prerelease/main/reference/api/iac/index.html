@@ -942,13 +942,13 @@ this service, for example <code>/workspaces/my-iac_a1b2c3</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>scope_id</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cloud scope the operation targets, 1 to 1024 characters — Azure
 subscription id, GCP project id, AWS account id, OCI compartment
-OCID. Required on the five endpoints that reach a cloud API. See
-<a href="#scope-injection">Scope injection</a>.</p></td>
+OCID, or vSphere datacenter name. Required on the five endpoints that
+reach a cloud API. See <a href="#scope-injection">Scope injection</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_provider</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Which cloud that is: one of <code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>,
-<code>kubernetes</code>. These are the core&#8217;s provider names, not Terraform
+<code>kubernetes</code>, <code>vmware</code>. These are the core&#8217;s provider names, not Terraform
 registry provider names such as <code>azurerm</code> or <code>google</code>.</p></td>
 </tr>
 <tr>
@@ -1369,16 +1369,22 @@ that command only, picking the variable from <code>terraform_provider</code>:</p
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
 <p>Only Azure and GCP have such a variable. An AWS account is implicit in
-the credentials the provider resolves, and an OCI compartment or a
-Kubernetes namespace is a resource argument rather than a provider
-setting, so no environment variable redirects a command to one. For
-those three the bundled implementation injects nothing: the command
-runs against whatever scope the deployment&#8217;s ambient credentials and
-configuration select, and making those agree with <code>scope_id</code> is the
+the credentials the provider resolves, and an OCI compartment, a
+Kubernetes namespace, or a vSphere datacenter is a resource or
+data-source argument rather than a provider setting, so no environment
+variable redirects a command to one. For those four the bundled
+implementation injects nothing: the command runs against whatever
+scope the deployment&#8217;s ambient credentials and configuration select,
+and making those agree with <code>scope_id</code> is the
 deployment&#8217;s responsibility. The pair stays required on the wire so
 the intended scope is always stated, and so an implementation that can
 enforce it has what it needs.</p>
@@ -1473,14 +1479,14 @@ can run <code>plan</code> can run discovery unchanged.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">account ID</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code>, <code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code>, <code>kubernetes</code>, <code>vmware</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><code>oci</code> and <code>kubernetes</code> are answered with exit code 2 and
+<p><code>oci</code>, <code>kubernetes</code>, and <code>vmware</code> are answered with exit code 2 and
 <code>no scope discovery for provider '&lt;provider&gt;'</code> in <code>stderr</code>, with the
 provider name quoted. That is a deliberate outcome, not a crash: the
 job still ends <code>succeeded</code>, and the exit code tells the caller the
@@ -1488,10 +1494,10 @@ provider is unsupported rather than that a cloud call failed.</p>
 </div>
 <div class="paragraph">
 <p>The contract&#8217;s own description of this endpoint&#8217;s <code>scope_id</code> field
-enumerates only Azure, GCP, and AWS, omitting both <code>oci</code> and
-<code>kubernetes</code> even though the schema&#8217;s provider enum accepts them.
+enumerates only Azure, GCP, and AWS, omitting <code>oci</code>, <code>kubernetes</code>,
+and <code>vmware</code> even though the schema&#8217;s provider enum accepts them.
 The omission is consequential here, unlike in the generic <code>scope_id</code>
-description: these are exactly the two providers that produce the exit
+description: these are exactly the three providers that produce the exit
 code 2 above, so the field description reads as though they cannot be
 sent at all, when in fact they are accepted and answered with a
 negative result.</p>

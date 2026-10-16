@@ -1273,6 +1273,17 @@ file mounted into the container, or instance principals.</p></td>
 <code>KUBE_TOKEN</code>, or in-cluster service-account credentials. See
 <a href="../terraform-providers/" class="xref page">Terraform providers</a>.</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">VMware vSphere (<code>vsphere</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_SERVER</code>, <code>VSPHERE_USER</code>, <code>VSPHERE_PASSWORD</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A dedicated, least-privilege vCenter service account; never
+<code>administrator@vsphere.local</code>. <code>VSPHERE_SERVER</code> is the vCenter FQDN.
+Leave <code>VSPHERE_ALLOW_UNVERIFIED_SSL</code> unset outside a lab with a
+self-signed certificate. Nothing is overwritten per request: the
+request&#8217;s scope id is the datacenter name, which the code reads, not
+the provider. See
+<a href="../terraform-providers/" class="xref page">Terraform providers</a>.</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
@@ -1784,7 +1795,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 </div>
 <div class="sect2">
 <h3 id="other-cloud-providers-drop-in-replacements-for-the-iac-block"><a class="anchor" href="#other-cloud-providers-drop-in-replacements-for-the-iac-block"></a>Other cloud providers (drop-in replacements for the IaC block)</h3>
-<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-2-tab-1" role="tab" aria-selected="true" aria-controls="tabs-2-panel-1" tabindex="0" data-tab-value="Google Cloud"><span class="dt-tabs-item__label">Google Cloud</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-2-tab-2" role="tab" aria-selected="false" aria-controls="tabs-2-panel-2" tabindex="-1" data-tab-value="Kubernetes"><span class="dt-tabs-item__label">Kubernetes</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-2-panel-1" role="tabpanel" aria-labelledby="tabs-2-tab-1" tabindex="0" data-tab-value="Google Cloud"><div class="listingblock">
+<div class="docouture-tabs" data-tabs><ul class="docouture-tabs__list" role="tablist"><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab dt-tabs-item--selected" id="tabs-2-tab-1" role="tab" aria-selected="true" aria-controls="tabs-2-panel-1" tabindex="0" data-tab-value="Google Cloud"><span class="dt-tabs-item__label">Google Cloud</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-2-tab-2" role="tab" aria-selected="false" aria-controls="tabs-2-panel-2" tabindex="-1" data-tab-value="Kubernetes"><span class="dt-tabs-item__label">Kubernetes</span></button></li><li class="docouture-tabs__item" role="presentation"><button type="button" class="dt-tabs-item docouture-tabs__tab" id="tabs-2-tab-3" role="tab" aria-selected="false" aria-controls="tabs-2-panel-3" tabindex="-1" data-tab-value="VMware vSphere"><span class="dt-tabs-item__label">VMware vSphere</span></button></li></ul><div class="docouture-tabs__panels"><section class="docouture-tabs__panel is-selected" id="tabs-2-panel-1" role="tabpanel" aria-labelledby="tabs-2-tab-1" tabindex="0" data-tab-value="Google Cloud"><div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># Provider grant. Also serves the gcs backend, unless you override it below.</span></span>
 <span class="line"><span>GOOGLE_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"&#x3C;service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}</span></span>
@@ -1799,6 +1810,16 @@ fails with a JSON-parsing error rather than a missing-file error.
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>KUBE_CONFIG_PATH=/home/kumoss/.kube/config</span></span></span></code></pre>
+</div>
+</div></section><section class="docouture-tabs__panel" id="tabs-2-panel-3" role="tabpanel" aria-labelledby="tabs-2-tab-3" tabindex="0" data-tab-value="VMware vSphere"><div class="paragraph">
+<p>A dedicated vCenter service account. State stays in the repository&#8217;s
+own backend; vSphere has none.</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>VSPHERE_SERVER=vcenter.example.invalid</span></span>
+<span class="line"><span>VSPHERE_USER=svc-kumoss@vsphere.example.invalid</span></span>
+<span class="line"><span>VSPHERE_PASSWORD=&#x3C;service-account-password></span></span></span></code></pre>
 </div>
 </div></section></div></div>
 </div>

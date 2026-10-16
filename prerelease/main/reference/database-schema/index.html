@@ -1320,7 +1320,7 @@ where the bytes are. The bytes themselves are never in the database.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>provider</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_providers</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code>, <code>azure</code>, <code>gcp</code>, <code>oci</code>, <code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code>, <code>azure</code>, <code>gcp</code>, <code>oci</code>, <code>kubernetes</code>, <code>vmware</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>provider</code></p></td>
@@ -1389,6 +1389,13 @@ was created before it.</p>
 by hand or recreated whenever the model changes. The upgrade that introduced
 authentication is the case most deployments hit: sessions used to be keyed by
 a <code>username</code> column and there was no <code>users</code> table at all.</p>
+</div>
+<div class="paragraph">
+<p>Enum values are the one exception. At startup the core also adds any value
+the models define but an existing PostgreSQL enum type lacks (<code>ALTER TYPE
+&#8230;&#8203; ADD VALUE IF NOT EXISTS</code>), so a <code>core_db_data</code> volume created before
+<code>vmware</code> existed accepts <code>vmware</code> sessions without a manual migration.
+Tables and columns are still never altered; only enum values are added.</p>
 </div>
 <div class="paragraph">
 <p>For the other stores — Phoenix, Redis, object storage, and the workspaces

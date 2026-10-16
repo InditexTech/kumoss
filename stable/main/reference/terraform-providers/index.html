@@ -808,8 +808,8 @@ scope (<code>scope_id</code>) supplies: <code>ARM_SUBSCRIPTION_ID</code> and <co
 arrive with each request and overwrite whatever the container sets, so
 set the credential variables in each row and leave the scope to the
 request. Azure and GCP are the only providers with such a variable;
-AWS, OCI, and Kubernetes commands run on the container&#8217;s ambient
-credentials alone. See
+AWS, OCI, Kubernetes, and VMware vSphere commands run on the container&#8217;s
+ambient credentials alone. See
 <a href="../environment-variables/#iac-cloud-credentials" class="xref page">Cloud
 credentials for the IaC engine</a> for where these files fit in the
 deployment.</p>
@@ -1137,8 +1137,81 @@ resolve inside the container.</p>
 <div class="paragraph">
 <p>Import discovery (<code>/v1/import/scope-resource-ids</code>) has no Kubernetes
 implementation: it answers exit code <code>2</code> with <code>no scope discovery for
-provider 'kubernetes'</code>. Importing existing objects therefore needs the
-resource ids supplied by hand.</p>
+provider 'kubernetes'</code>, so an import round on <code>kubernetes</code> ends with a
+report that says so and imports nothing.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="vmware-vsphere-provider-minimum"><a class="anchor" href="#vmware-vsphere-provider-minimum"></a>VMware vSphere — provider minimum</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Variable names below are the <code>vmware/vsphere</code> provider&#8217;s own (formerly
+published as <code>hashicorp/vsphere</code>); the shipped prompt seeds pin
+<code>version = "~&gt; 2.10"</code>, and the provider runs under both OpenTofu and
+Terraform.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 42.8571%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Scenario</th>
+<th class="tableblock halign-left valign-top">Required</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vCenter service account</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_SERVER</code> (the vCenter FQDN), <code>VSPHERE_USER</code>,
+<code>VSPHERE_PASSWORD</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Lab vCenter with a self-signed certificate</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">above, plus <code>VSPHERE_ALLOW_UNVERIFIED_SSL=true</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Leave <code>VSPHERE_ALLOW_UNVERIFIED_SSL</code> unset in any other environment.
+Use a dedicated vCenter service account in an SSO group, holding a
+custom role scoped to the folders, resource pools, datastores, and
+networks Kumoss manages; never <code>administrator@vsphere.local</code>.</p>
+</div>
+<div class="paragraph">
+<p>No scope variable exists for this provider. The value the wizard
+collects as <code>scope_id</code> is the vSphere datacenter name, which the
+generated code reads through a <code>data "vsphere_datacenter"</code> data source
+argument rather than a provider setting. The sidecar&#8217;s scope overlay
+covers <code>azure</code> and <code>gcp</code> only, so every command runs against whatever
+vCenter the variables above point at; the deployment must make that
+vCenter and the session&#8217;s datacenter agree. There is no vSphere state
+backend: state stays in whichever backend the repository already
+declares.</p>
+</div>
+<div class="paragraph">
+<p>Import discovery (<code>/v1/import/scope-resource-ids</code>) has no vSphere
+implementation: it answers exit code <code>2</code> with <code>no scope discovery for
+provider 'vmware'</code>, so an import round on <code>vmware</code> ends with a report
+that says so and imports nothing.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+A storage policy does not replace datastore placement.
+<code>storage_policy_id</code> is applied in addition to <code>datastore_id</code> or
+<code>datastore_cluster_id</code>, which the pinned provider still requires on
+every virtual machine; the shipped vSphere prompts instruct the model
+accordingly.
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
@@ -1998,6 +2071,74 @@ verification</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUBE_PROXY_URL</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Behavior</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">HTTP proxy for API calls</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>=== VMware vSphere (<code>vmware/vsphere</code>)</p>
+</div>
+<div class="paragraph">
+<p>Names as documented by the upstream <code>vsphere</code> provider; no scope
+variable is injected for this provider. The datacenter is a data-source
+argument, not an environment variable.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 22.2222%;">
+<col style="width: 55.5556%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Group</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_SERVER</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vCenter Server FQDN</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_USER</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vCenter user name</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_PASSWORD</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">vCenter password</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_ALLOW_UNVERIFIED_SSL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Skip certificate verification —
+lab self-signed certificates only; leave unset otherwise</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_PERSIST_SESSION</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Session</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Persist vSphere sessions to disk
+between runs</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_VIM_SESSION_PATH</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Session</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory for persisted VIM
+(SOAP) sessions</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_REST_SESSION_PATH</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Session</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Directory for persisted REST
+sessions</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>VSPHERE_API_TIMEOUT</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Behavior</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API operation timeout, in minutes</p></td>
 </tr>
 </tbody>
 </table></div></div>

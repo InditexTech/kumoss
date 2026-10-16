@@ -822,8 +822,8 @@ for the complete role matrix.</p>
 <p>A repository URL, the target cloud, and a scope id, as covered in
 <a href="../make-a-request/" class="xref page">Make a request</a>. The scope is what
 discovery lists: an Azure subscription, a GCP project, or an AWS
-account. OCI and Kubernetes have no scope listing, so an import round
-on them finds nothing to import (see <a href="#limitations">Limitations</a>).</p>
+account. OCI, Kubernetes, and VMware vSphere have no scope listing, so
+an import round on them finds nothing to import (see <a href="#limitations">Limitations</a>).</p>
 </li>
 <li>
 <p>The IaC sidecar&#8217;s credentials must be able to read the cloud inventory
@@ -1026,9 +1026,9 @@ reports <code>Succeeded</code>.</p>
 <div class="ulist">
 <ul>
 <li>
-<p>Scope discovery exists only for Azure, GCP and AWS. On OCI and
-Kubernetes the scope cannot be listed, and the round ends with a report
-that says so and imports nothing.</p>
+<p>Scope discovery exists only for Azure, GCP and AWS. On OCI, Kubernetes,
+and VMware vSphere the scope cannot be listed, and the round ends with a
+report that says so and imports nothing.</p>
 </li>
 <li>
 <p>The import exception list is matched against the exact IDs the scope
