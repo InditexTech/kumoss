@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.1.0](https://github.com/InditexTech/kumoss/compare/v1.0.9...v1.1.0) (2026-10-16)
+
+
+### Features
+
+* add VMware vSphere provider ([316df4f](https://github.com/InditexTech/kumoss/commit/316df4f5e26fa828acf40ad4ab095ebbd1872ad5))
+
+
+### Bug Fixes
+
+* **vmware:** address review feedback and merge main ([db0ec19](https://github.com/InditexTech/kumoss/commit/db0ec19ea8f483a7a81730345677162bc48981da))
+
 ## [1.0.9](https://github.com/InditexTech/kumoss/compare/v1.0.8...v1.0.9) (2026-10-15)
 
 

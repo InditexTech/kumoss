@@ -4,7 +4,7 @@
 
 [project]
 name = "Kumoss"
-version = "1.0.9"
+version = "1.1.0"
 description = "FastAPI-based API with Terraform support"
 requires-python = ">=3.13"
 dependencies = [
