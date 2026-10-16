@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere compute cluster default configuration (HA, DRS, admission control).
+body: |
+  # VMware vSphere Compute Cluster
+
+  Compute clusters and their hosts are platform-owned. Look up an
+  existing cluster with `data "vsphere_compute_cluster"`. Create a
+  `vsphere_compute_cluster` only when the user explicitly asks for a
+  new cluster, and then use the following default configuration:
+
+  - Naming convention: `clu-<site>-<purpose>-<nn>`.
+  - DRS: `drs_enabled = true`, `drs_automation_level = "fullyAutomated"`.
+  - HA: `ha_enabled = true`, `ha_host_monitoring = "enabled"`,
+    `ha_vm_restart_priority = "medium"`,
+    `ha_admission_control_policy = "resourcePercentage"` reserving at
+    least one host's worth of capacity.
+  - Storage failures: `ha_datastore_apd_response = "restartConservative"`
+    and `ha_datastore_pdl_response = "restartAggressive"`.
+  - Keep `dpm_enabled = false` unless requested.
+  - Do not add hosts through `host_system_ids` unless the user
+    explicitly provides them.
+  - Apply tags from the `environment`, `owner` and `managed-by`
+    categories.
+  - Add `lifecycle { prevent_destroy = true }`.

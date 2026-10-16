@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere content library default configuration (templates, publication, storage).
+body: |
+  # VMware vSphere Content Library
+
+  For a `vsphere_content_library`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `cl-<purpose>-<site>`.
+  - Use a content library to distribute approved VM templates, OVF
+    and ISO images; do not copy templates by hand between vCenters.
+  - `storage_backing` points to a shared datastore, looked up with
+    `data "vsphere_datastore"`.
+  - Do not publish the library unless requested. When it is
+    published, set `authentication_method = "BASIC"` with a password
+    from a sensitive variable.
+  - Subscribed libraries set `on_demand = true` to download items
+    only when used.
+  - `vsphere_content_library_item` sources (`file_url`) must point at
+    the organization's approved artifact repository over HTTPS.
+  - Add `lifecycle { prevent_destroy = true }` for libraries that
+    hold production templates.

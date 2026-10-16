@@ -21,7 +21,7 @@ ScopeIdStr = Annotated[str, Field(min_length=1, max_length=1024)]
 AddressStr = Annotated[str, Field(min_length=1, max_length=4096)]
 ResourceIdStr = Annotated[str, Field(min_length=1, max_length=4096)]
 
-TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes"]
+TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes", "vmware"]
 
 
 class WorkspaceRequest(BaseModel):

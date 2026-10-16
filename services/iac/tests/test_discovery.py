@@ -60,7 +60,9 @@ def test_each_supported_provider_gets_its_lister(
     assert isinstance(lister_for(terraform_provider), expected)
 
 
-@pytest.mark.parametrize("terraform_provider", ["oci", "kubernetes", "", "AZURE"])
+@pytest.mark.parametrize(
+    "terraform_provider", ["oci", "kubernetes", "vmware", "", "AZURE"]
+)
 def test_other_providers_have_no_lister(terraform_provider: str) -> None:
     assert lister_for(terraform_provider) is None
 

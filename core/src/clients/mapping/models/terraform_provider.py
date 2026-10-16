@@ -10,6 +10,7 @@ class TerraformProvider(str, Enum):
     AZURE = "azure"
     GCP = "gcp"
     KUBERNETES = "kubernetes"
+    VMWARE = "vmware"
     OCI = "oci"
 
     def __str__(self) -> str:

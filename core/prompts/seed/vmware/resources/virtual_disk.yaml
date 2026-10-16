@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere standalone virtual disk default configuration (provisioning, placement, lifecycle).
+body: |
+  # VMware vSphere Virtual Disk
+
+  For a `vsphere_virtual_disk`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `vdisk-<application>-<environment>-<purpose>`;
+    the `vmdk_path` is `<application>/<name>.vmdk`.
+  - Prefer an additional `disk` block on the virtual machine (with
+    `attach = false`) over a standalone disk; use a standalone disk
+    only when it must outlive the virtual machine.
+  - `type = "thin"`. Use `eagerZeroedThick` only when the user
+    explicitly requests it (for example clustered workloads).
+  - Set `create_directories = true` so the folder exists on the
+    datastore.
+  - Look up `datacenter` and `datastore` names from the same data
+    sources the virtual machine uses.
+  - Size the disk to the user's request; default to 50 GB.
+  - Add `lifecycle { prevent_destroy = true }` for any disk holding
+    production data.

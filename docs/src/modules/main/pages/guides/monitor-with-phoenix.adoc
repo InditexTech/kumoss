@@ -233,8 +233,9 @@ Every span of every kind carries:
   user's e-mail address (or `user-<id>` when the account has none), so
   traces contain personal data;
 * a `metadata` JSON attribute with `session_id`, `user_id` (the same
-  e-mail), `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`), `repo_uri`,
-  `iac_path`, `branch_name`, and, on chain spans, `chain_type`.
+  e-mail), `cloud` (`AZURE`, `GCP`, `AWS`, `OCI`, `K8S`, `VMWARE`),
+  `repo_uri`, `iac_path`, `branch_name`, and, on chain spans,
+  `chain_type`.
 
 Use `session.id` to find everything that happened in one session.
 

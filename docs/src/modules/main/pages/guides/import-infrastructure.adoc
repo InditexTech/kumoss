@@ -21,8 +21,8 @@ resources are selected. This guide covers both.
 * A repository URL, the target cloud, and a scope id, as covered in
   xref:main:guides/make-a-request.adoc[Make a request]. The scope is what
   discovery lists: an Azure subscription, a GCP project, or an AWS
-  account. OCI and Kubernetes have no scope listing, so an import round
-  on them finds nothing to import (see <<limitations>>).
+  account. OCI, Kubernetes, and VMware vSphere have no scope listing, so
+  an import round on them finds nothing to import (see <<limitations>>).
 * The IaC sidecar's credentials must be able to read the cloud inventory
   for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an
   AWS Resource Explorer aggregator index. See
@@ -163,9 +163,9 @@ reports `Succeeded`.
 [#limitations]
 == Limitations
 
-* Scope discovery exists only for Azure, GCP and AWS. On OCI and
-  Kubernetes the scope cannot be listed, and the round ends with a report
-  that says so and imports nothing.
+* Scope discovery exists only for Azure, GCP and AWS. On OCI, Kubernetes,
+  and VMware vSphere the scope cannot be listed, and the round ends with a
+  report that says so and imports nothing.
 * The import exception list is matched against the exact IDs the scope
   listing returns (case-insensitively on Azure), so an entry must be
   spelled the way discovery spells it.

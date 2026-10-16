@@ -61,6 +61,14 @@ class TestSeedLoader(unittest.TestCase):
             SeedLoader(self.root).load()
         self.assertIn("Invalid scope 'onprem'", ctx.exception.message)
 
+    def test_accepts_every_provider_scope(self):
+        for scope in ("azure", "gcp", "aws", "oci", "kubernetes", "vmware"):
+            _write(self.root, f"{scope}/guidelines/networking.yaml", "body: x\n")
+        scopes = {e.scope for e in SeedLoader(self.root).load()}
+        self.assertEqual(
+            scopes, {"azure", "gcp", "aws", "oci", "kubernetes", "vmware"}
+        )
+
     def test_rejects_unknown_type(self):
         _write(self.root, "azure/snippets/foo.yaml", "body: x\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:

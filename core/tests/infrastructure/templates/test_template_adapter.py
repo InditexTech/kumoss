@@ -99,6 +99,22 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_service_content"],
     },
+    TerraformProvider.VMWARE: {
+        "mock_responses": {
+            "abbreviations": "mocked_abbreviations",
+            "resources_list": "mocked_resources_list",
+            "virtual_machine": "mocked_virtual_machine_content",
+        },
+        "selected_templates": ["virtual_machine"],
+        "selected_abbreviations": ["vm-"],
+        "expected_present": [
+            "mocked_abbreviations",
+            "mocked_virtual_machine",
+            "mocked_resources_list",
+            "mocked_virtual_machine_content",
+        ],
+        "expected_absent": ["mocked_content_library_content"],
+    },
 }
 
 
@@ -138,6 +154,9 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
 
     async def test_render_prompt_compositor_kubernetes(self):
         await self._run_prompt_compositor_test(TerraformProvider.K8S)
+
+    async def test_render_prompt_compositor_vmware(self):
+        await self._run_prompt_compositor_test(TerraformProvider.VMWARE)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_requests_filter_generate(self, mock_fetch: AsyncMock):

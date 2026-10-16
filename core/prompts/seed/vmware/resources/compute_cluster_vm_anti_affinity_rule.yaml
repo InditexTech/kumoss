@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere VM anti-affinity rule default configuration (spreading replicas across hosts).
+body: |
+  # VMware vSphere VM Anti-Affinity Rule
+
+  For a `vsphere_compute_cluster_vm_anti_affinity_rule`, unless
+  explicitly requested otherwise, use the following default
+  configuration:
+
+  - Naming convention: `aar-<application>-<environment>`.
+  - Use one rule per group of replicas (for example the nodes of a
+    database cluster or the members of a web tier) so that a single
+    host failure takes down at most one of them.
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `virtual_machine_ids` referencing the virtual machine resources.
+  - `enabled = true` and `mandatory = false`, so HA can still
+    restart a replica when hosts are short. Use `mandatory = true`
+    only when the user asks for a hard rule.
+  - The cluster must have at least as many hosts as virtual
+    machines in the rule.
