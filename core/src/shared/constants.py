@@ -41,6 +41,7 @@ class TerraformProvider(Enum):
     AWS = "aws"
     OCI = "oci"
     K8S = "kubernetes"
+    VMWARE = "vmware"
 
 
 @unique

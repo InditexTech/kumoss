@@ -19,8 +19,8 @@ never imports a service implementation directly.
   One file per service, versioned in the URL path (`/v1/...`). Breaking
   changes require a new major and a new file.
 - `conformance/<service>/` — Schemathesis-driven test packs that any
-  implementation (the in-tree reference impl in `services/` or a
-  third-party implementation) must pass to claim contract conformance.
+  implementation (an in-tree one in `services/`, where Kumoss bundles
+  one, or a third-party implementation) must pass to claim contract conformance.
 
 ## Conventions
 

@@ -88,6 +88,7 @@ class TestOptionalServices(unittest.TestCase):
                 services={
                     "mapping": {
                         "enabled": True,
+                        "endpoint": "http://mapping.example:8081",
                         "token_env": "KUMOSS_MAPPING_TOKEN",
                     }
                 }
@@ -100,11 +101,28 @@ class TestOptionalServices(unittest.TestCase):
             cfg = SystemConfig(
                 llm=LLM,
                 services={
-                    "mapping": {"enabled": True, "token_env": "KUMOSS_MAPPING_TOKEN"}
+                    "mapping": {
+                        "enabled": True,
+                        "endpoint": "http://mapping.example:8081",
+                        "token_env": "KUMOSS_MAPPING_TOKEN",
+                    }
                 },
             )
             self.assertTrue(cfg.services.mapping.enabled)
             self.assertEqual(cfg.services.mapping.token, "dummy-mapping-token")
+
+    def test_enabled_sidecar_without_endpoint_refuses_boot(self):
+        # A blank endpoint reads as disabled in the client facades, which
+        # for authz would mean authorizing everyone.
+        env = {**BOOT_ENV, "KUMOSS_AUTHZ_TOKEN": "dummy-authz-token"}
+        with self.assertRaises(ValidationError) as ctx:
+            _system_config(
+                env,
+                services={
+                    "authz": {"enabled": True, "token_env": "KUMOSS_AUTHZ_TOKEN"}
+                },
+            )
+        self.assertIn("services.authz.endpoint", str(ctx.exception))
 
     def test_service_config_still_carries_enabled(self):
         self.assertTrue(ServiceConfig(enabled=True).enabled)

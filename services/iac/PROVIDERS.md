@@ -69,6 +69,19 @@ Import discovery reads the *credential* variables through `google-auth`, includi
 
 Add `TF_VAR_compartment_ocid` in practice — not a provider setting, but nearly every resource needs it.
 
+## VMware vSphere — provider minimum
+
+Variable names are the `vmware/vsphere` provider's own (formerly `hashicorp/vsphere`); the shipped prompt seeds pin `version = "~> 2.10"`, and the provider runs under both OpenTofu and Terraform.
+
+| Scenario | Required |
+|---|---|
+| vCenter service account | `VSPHERE_SERVER` (vCenter FQDN), `VSPHERE_USER`, `VSPHERE_PASSWORD` |
+| Lab vCenter with a self-signed certificate | above, plus `VSPHERE_ALLOW_UNVERIFIED_SSL=true` |
+
+Leave `VSPHERE_ALLOW_UNVERIFIED_SSL` unset anywhere else. Use a dedicated vCenter service account in an SSO group, holding a custom role scoped to the folders, resource pools, datastores and networks Kumoss manages — never `administrator@vsphere.local`.
+
+No scope variable is injected: `scope_id` is the vSphere datacenter name, which the generated code reads through a `data "vsphere_datacenter"` argument rather than a provider setting. Every command runs against whatever vCenter the variables above point at, so the deployment must make that vCenter and `scope_id` agree. There is no vSphere state backend; state stays in whichever backend the repository already declares. Import discovery has no vSphere implementation (exit code 2, `no scope discovery for provider 'vmware'`).
+
 ## Backend minimums
 
 ### azurerm

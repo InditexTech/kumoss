@@ -34,13 +34,13 @@ jobs:
             project_name: kumoss-python
             conformance_dir_list: contracts/conformance/authz,contracts/conformance/iac,contracts/conformance/mapping,contracts/conformance/notifications
             coverage_paths: >-
-              services/authz/coverage.xml,services/iac/coverage.xml,services/mapping/coverage.xml,services/notifications/coverage.xml
+              services/iac/coverage.xml,services/notifications/coverage.xml
           - technology: web
             project_key: InditexTech_kumoss-web
             project_name: kumoss-web
             coverage_paths: client/web/coverage/lcov.info
     env:
-      PY_PACKAGES: services/authz services/iac services/mapping services/notifications
+      PY_PACKAGES: services/iac services/notifications
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -124,8 +124,8 @@ jobs:
             "-Dsonar.projectName=${SONAR_PROJECT_NAME}"
           )
           if [ "$SONAR_TECH" = "python" ]; then
-            sources="core/src,services/authz/src,services/iac/src,services/mapping/src,services/notifications/src"
-            tests="core/tests,services/authz/tests,services/iac/tests,services/mapping/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
+            sources="core/src,services/iac/src,services/notifications/src"
+            tests="core/tests,services/iac/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
             args+=(
               "-Dsonar.sources=$sources"
               "-Dsonar.tests=$tests"

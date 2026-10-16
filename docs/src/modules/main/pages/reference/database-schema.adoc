@@ -128,7 +128,7 @@ Seven columns are constrained to a fixed set of values:
 
 |`provider`
 |`terraform_providers`
-|`aws`, `azure`, `gcp`, `oci`, `kubernetes`
+|`aws`, `azure`, `gcp`, `oci`, `kubernetes`, `vmware`
 
 |`provider`
 |`pull_requests`
@@ -174,6 +174,12 @@ In practice this means an existing `core_db_data` volume has to be migrated
 by hand or recreated whenever the model changes. The upgrade that introduced
 authentication is the case most deployments hit: sessions used to be keyed by
 a `username` column and there was no `users` table at all.
+
+Enum values are the one exception. At startup the core also adds any value
+the models define but an existing PostgreSQL enum type lacks (`ALTER TYPE
+... ADD VALUE IF NOT EXISTS`), so a `core_db_data` volume created before
+`vmware` existed accepts `vmware` sessions without a manual migration.
+Tables and columns are still never altered; only enum values are added.
 
 For the other stores — Phoenix, Redis, object storage, and the workspaces
 volume — see

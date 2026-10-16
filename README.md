@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Kumoss turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, and Kumoss's agents generate Terraform-compatible HCL in the right repository, guided by the organization's architecture, security, and networking standards. Every change is validated, planned, reported, and audited for compliance before Kumoss opens a pull request and applies it on request.
 
-Kumoss is an orchestration platform: a FastAPI core, a React web application, and four replaceable sidecar services behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization.
+Kumoss is an orchestration platform: a FastAPI core, a React web application, and four OpenAPI integration contracts (IaC, notifications, repository mapping, authorization). Kumoss bundles services for IaC and notifications, while mapping and authorization are optional extension points you implement yourself.
 
 https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 
@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 **Built to fit your organization**
 
 - **Works with what you already have.** Use your existing IaC repositories, Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
-- **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and Kubernetes.
+- **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, Kubernetes, and VMware vSphere.
 - **Your rules, your definition of critical.** You decide what is allowed, what is high risk, and which compliance checks apply. Critical can mean special projects, every production environment, changes above a cost threshold, or any rule you write.
 - **Full traceability.** An admin panel shows users, sessions, and roles, all stored in a database.
 - **Observability built in.** Every agent and every system prompt read at runtime is traced with OpenTelemetry and Arize Phoenix.
@@ -40,7 +40,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 - **IaC executor.** Keep your own Terraform or OpenTofu runtime, version, and execution environment by implementing the IaC OpenAPI contract.
 - **Notification system.** Send session outcomes and review requests to any channel, such as Slack, Microsoft Teams, email, Discord, or WhatsApp, by implementing the notifications OpenAPI contract.
 
-Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/), so you can replace the bundled reference implementation with your own.
+Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/). Kumoss bundles the IaC and notifications services, which you can replace with your own; for authorization, provide your own implementation.
 
 > [!NOTE]
 > Kumoss exposes everything through a FastAPI API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.

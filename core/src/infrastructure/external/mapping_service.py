@@ -98,9 +98,8 @@ class MappingServiceClient:
         """
         cfg = system_config.services.mapping
         if not cfg.enabled or not cfg.endpoint:
-            # Byte-identical to what the reference service answers for
-            # an https URL, so toggling `mapping.enabled` changes nothing
-            # for a user who pastes a repo URL.
+            # Identity passthrough: the identifier is taken as the repo
+            # URL, and nothing is guessed about provider or scope.
             return ResolvedRef(
                 repo_url=identifier,
                 identifier=identifier,

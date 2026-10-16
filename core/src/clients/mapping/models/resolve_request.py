@@ -22,7 +22,8 @@ class ResolveRequest:
         identifier (str): Business identifier to resolve. Free-form by design — could be
             a project name, a subscription code, a product slug, a full
             repo URL, or anything else the implementation accepts. The
-            identity reference impl treats this as the repo URL directly.
+            core's disabled-mode passthrough treats it as the repo URL
+            directly.
         terraform_provider (None | TerraformProvider | Unset): Provider the caller already knows the deployment targets.
             Implementations MAY use it to disambiguate identifiers that
             span clouds, and MUST echo it back in the response when it is

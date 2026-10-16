@@ -45,10 +45,11 @@ sidecar READMEs under `services/`.
   with a message containing the `ConfigError` text quoted in the tables
   below. Section errors are aggregated: a file with a bad `oidc`, `llm`,
   and `storage` section reports all three at once, and inside `llm`
-  every missing credential variable is listed together. One check is
-  the exception — the bearer-token check on `services.*` runs on the
-  assembled model, only after every section has validated, so it can
-  surface on the next boot attempt after a section error is fixed.
+  every missing credential variable is listed together. Two checks are
+  the exception — the bearer-token and enabled-endpoint checks on
+  `services.*` run on the assembled model, only after every section has
+  validated, so they can surface on the next boot attempt after a
+  section error is fixed.
 * *Secrets never belong in `config.yaml`.* Fields whose name ends in
   `_env` hold the _name_ of an environment variable; the value is read
   from the environment at boot or at use time.
@@ -201,15 +202,17 @@ xref:main:guides/enable-authentication.adoc#bootstrap-admin[Bootstrap
 admin]. Ignored while authentication is disabled.
 |===
 
-Requires restart: yes. This is the core's mechanism and is unrelated to
-the authorization sidecar's `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`.
+Requires restart: yes.
 
 [#config-services]
 == `services`
 
 Wiring for the four sidecars. Each sidecar implements an OpenAPI
-contract in `contracts/openapi/`, and any implementation of the
-contract can replace the bundled one by changing `endpoint`.
+contract in `contracts/openapi/`. Kumoss bundles services for IaC and
+notifications, and any implementation of their contract can replace
+the bundled one by changing `endpoint`; mapping and authorization are
+optional extension points you implement yourself and point `endpoint`
+at.
 
 Common fields, available under `services.notifications`,
 `services.mapping`, `services.authz`, and `services.iac`. The `enabled`
@@ -228,21 +231,23 @@ none because the core cannot run without it.
 |Whether the core calls the sidecar. A disabled sidecar is never
 contacted: mapping is done locally, notifications are dropped, and
 authorization answers "authorized". Compose still starts the
-container. An `enabled` key under `services.iac` is ignored.
+bundled notifications container; mapping and authorization have no
+bundled container. An `enabled` key under `services.iac` is ignored.
 
 |`services.<name>.endpoint`
 |string (base URL)
 |`""` for `notifications`, `mapping`, `authz`; *`\http://iac:8082`* for
 `iac` (its own code default, not just the shipped value)
-|`\http://notifications:8080`, `\http://mapping:8081`,
-`\http://authz:8083`, `\http://iac:8082`
+|`\http://notifications:8080`, `\http://iac:8082`; `""` for
+`mapping` and `authz` (no bundled implementation)
 |Conditional (needed when enabled; always for `iac`)
 |Base URL the core calls, resolvable from inside the core container.
 *An empty `services.iac.endpoint` aborts the boot* with
 `services.iac.endpoint is empty; the IaC service is mandatory. Point it
-at an implementation of the iac contract.` The three optional sidecars
-have no equivalent check: an enabled sidecar with an empty endpoint
-fails on the first call instead.
+at an implementation of the iac contract.` *An enabled optional sidecar
+with an empty endpoint also aborts the boot*, with `Enabled services
+have no endpoint: services.<name>.endpoint. Point each at an
+implementation of its contract, or flip it to enabled: false.`
 
 |`services.<name>.token_env`
 |string (variable name)
@@ -1041,8 +1046,8 @@ git:
 ----
 
 Points that this example relies on but that the file cannot express:
-the mapping and authz endpoints must be real implementations of their
-contracts (the bundled ones are a passthrough and a permissive stub);
+the mapping and authz endpoints must be your own implementations of
+their contracts (Kumoss bundles neither);
 Phoenix must be reachable at `collector_url` for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,

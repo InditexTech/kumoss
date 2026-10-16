@@ -10,6 +10,7 @@ export const TERRAFORM_PROVIDERS = [
   "aws",
   "oci",
   "kubernetes",
+  "vmware",
 ] as const;
 export type TerraformProvider = (typeof TERRAFORM_PROVIDERS)[number];
 export type HistoryRole = "user" | "assistant";

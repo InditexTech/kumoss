@@ -11,6 +11,7 @@ export const PROVIDER_LABELS: Record<TerraformProvider, string> = {
   aws: "Amazon Web Services",
   oci: "Oracle Cloud Infrastructure",
   kubernetes: "Kubernetes",
+  vmware: "VMware vSphere",
 };
 
 /** Display name for a provider token; capitalizes unknown values. */
