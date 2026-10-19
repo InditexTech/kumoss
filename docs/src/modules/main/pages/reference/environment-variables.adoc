@@ -580,6 +580,22 @@ the core's `web_search.endpoint` ships pointing at `:8888`.
 |At container start
 |===
 
+=== Search engines
+
+`services/searxng/settings.yml` keeps only the engines a general query
+needs (`use_default_settings.engines.keep_only`): `bing`, `duckduckgo`
+and `brave`. The stock ~70 fan out on every query, and the free upstreams
+rate-limit the shared container IP, suspending an engine for 180s — hence
+the `Too many requests` lines in `docker compose logs searxng`.
+
+Edit `keep_only` and restart the sidecar (`docker compose restart
+searxng`). Two caveats, verified against the pinned build:
+
+* `bing` ships `disabled: true`, so it must also be re-declared under the
+  top-level `engines:` key with `disabled: false`.
+* `startpage` and `mojeek` are `inactive: true` upstream, and `google`
+  answers `access denied` without a CSE key.
+
 == Cloud-provider credentials at a glance
 
 [cols="3,3,5",options="header"]
