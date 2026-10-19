@@ -32,6 +32,12 @@ services:
     build:
       context: .
       dockerfile: ./core/Dockerfile
+      # Host folder with the corporate proxy CA certs, referenced in the
+      # Dockerfile as an additional build context named "host-certs"
+      # (same pattern as the searxng build): the Chromium download the
+      # core image bakes in needs to anchor the MITM proxy's chain.
+      additional_contexts:
+        host-certs: /usr/local/share/ca-certificates
     expose:
       - 8000
     env_file:
