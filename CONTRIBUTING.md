@@ -51,7 +51,7 @@ The repository is a monorepo: the FastAPI core in `core/`, the IaC and notificat
 
 **Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build` (without `--build`, Compose runs the published release images instead of your checkout). [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/) is the step-by-step guide. After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`.
 
-**Core tests** (Python 3.13, `uv`): `pytest` and `pytest-cov` live in the
+**Core tests** (Python 3.14, `uv`): `pytest` and `pytest-cov` live in the
 `tooling` dependency group, so sync the project first. **Async tests use
 `unittest.IsolatedAsyncioTestCase`** (no pytest-asyncio plugin required,
 so no `--asyncio-mode` flag):
