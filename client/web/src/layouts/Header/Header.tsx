@@ -15,7 +15,7 @@ import ScheduleOutlinedIcon from "@mui/icons-material/ScheduleOutlined";
 import ScheduleIcon from "@mui/icons-material/Schedule";
 import { Authenticated, useAuth } from "@/contexts/AuthContext";
 import { useSession } from "@/contexts/SessionContext";
-import { panelRoleAtLeast } from "@/types/api";
+import { operationRoleAtLeast } from "@/types/api";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import ConfigurationModal from "@/components/ConfigurationModal/ConfigurationModal";
 import SupportModal from "@/components/SupportModal/SupportModal";
@@ -25,13 +25,13 @@ import styles from "./Header.module.css";
 function Header() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { panelRole } = useAuth();
+  const { operationRole } = useAuth();
   const view = useCurrentView();
   const { resetSession } = useSession();
   const [configOpen, setConfigOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const modeDisabled = view !== null && view !== "wizard";
-  const isAdmin = panelRoleAtLeast(panelRole, "admin");
+  const canSchedule = operationRoleAtLeast(operationRole, "developer");
 
   return (
     <>
@@ -65,7 +65,7 @@ function Header() {
           <Authenticated>
             <ModeDropdown disabled={modeDisabled} />
             <div className={styles.separator} />
-            {isAdmin && (
+            {canSchedule && (
               <ButtonBase
                 onClick={() => navigate("/scheduler")}
                 className={styles.iconButton}

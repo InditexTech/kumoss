@@ -7,6 +7,7 @@ import type {
   CreateScheduleRequest,
   PaginatedSchedules,
   Schedule,
+  ScheduleKind,
   UpdateScheduleRequest,
 } from "@/types/api_scheduler";
 
@@ -15,7 +16,7 @@ const BASE = "/api/v1/schedules";
 export interface ListSchedulesParams {
   page?: number;
   page_size?: number;
-  username?: string;
+  kind?: ScheduleKind;
 }
 
 export async function listSchedules(

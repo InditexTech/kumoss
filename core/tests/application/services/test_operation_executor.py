@@ -14,7 +14,7 @@ from uuid import uuid4
 from src.application.services.operation_executor import OperationExecutor
 from src.domains.exceptions import SessionConflict
 from src.shared.config.system_config import SchedulerConfig
-from src.shared.constants import OperationType, SessionStatus
+from src.shared.constants import OperationStatus, OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 _MOD = "src.application.services.operation_executor"
@@ -45,6 +45,7 @@ class _ExecutorBase(unittest.IsolatedAsyncioTestCase):
         self.db = MagicMock()
         self.db.get_session_context = AsyncMock(return_value=self.ctx)
         self.db.acquire_in_flight = AsyncMock()
+        self.db.is_session_blocked = AsyncMock(return_value=False)
         self.db.release_in_flight = AsyncMock()
         self.db.get_last_status = AsyncMock(
             return_value=SimpleNamespace(status=SessionStatus.FILTERING)
@@ -101,9 +102,9 @@ class TestSuccess(_ExecutorBase):
         )
         self.run_handler.assert_awaited_once()
         self.db.mark_completed.assert_awaited_once()
-        self.queue.complete.assert_awaited_once_with(op.id)
+        self.queue.complete.assert_awaited_once_with(op.id, release_session=True)
         self.queue.fail.assert_not_awaited()
-        self.db.release_in_flight.assert_awaited_once_with(op.session.uuid)
+        self.db.release_in_flight.assert_not_awaited()  # freed by the finisher
 
     async def test_dispatches_on_kind(self):
         cases = {
@@ -132,34 +133,47 @@ class TestFailures(_ExecutorBase):
         op = _operation()
         await self.executor.execute(op, "w1")
         self.queue.fail.assert_awaited_once_with(op.id, "busy")
+        self.queue.fail_unstarted_session.assert_awaited_once_with(
+            op.session.uuid, "busy"
+        )
         self.run_handler.assert_not_awaited()
         self.db.release_in_flight.assert_not_awaited()
+
+    async def test_blocked_session_fails_only_the_queued_apply(self):
+        self.db.is_session_blocked = AsyncMock(return_value=True)
+        op = _operation(OperationType.APPLY, {})
+        await self.executor.execute(op, "w1")
+        self.queue.fail.assert_awaited_once()
+        self.db.acquire_in_flight.assert_not_awaited()
+        self.db.mark_failed.assert_not_awaited()
+        self.run_handler.assert_not_awaited()
 
     async def test_handler_error_fails_the_operation_and_the_session(self):
         self.run_handler.side_effect = ExceptionHandler("kaput", 500)
         op = _operation()
         await self.executor.execute(op, "w1")
-        self.queue.fail.assert_awaited_once_with(op.id, "runner failed: kaput")
+        self.queue.fail.assert_awaited_once_with(
+            op.id, "runner failed: kaput", release_session=True
+        )
         self.db.mark_failed.assert_awaited_once_with(
             self.ctx.id, "runner failed: kaput"
         )
         self.notify.assert_awaited_once()
         self.queue.complete.assert_not_awaited()
-        self.db.release_in_flight.assert_awaited_once()
 
     async def test_unexpected_errors_do_not_leave_the_operation_running(self):
         self.run_handler.side_effect = RuntimeError("bug")
         op = _operation()
         await self.executor.execute(op, "w1")
         self.queue.fail.assert_awaited_once()
-        self.db.release_in_flight.assert_awaited_once()
+        self.assertTrue(self.queue.fail.await_args.kwargs["release_session"])
 
     async def test_timeout_fails_the_operation(self):
         self.run_handler.side_effect = _hang
         op = _operation(timeout=0.05)
         await self.executor.execute(op, "w1")
         self.queue.fail.assert_awaited_once_with(
-            op.id, "runner failed: timed out after 0.05s"
+            op.id, "runner failed: timed out after 0.05s", release_session=True
         )
 
 
@@ -167,15 +181,17 @@ class TestCancellation(_ExecutorBase):
     async def test_user_cancel_stops_the_running_handler(self):
         self.run_handler.side_effect = _hang
         self.queue.heartbeat.return_value = False
+        self.queue.get_operation.return_value = SimpleNamespace(
+            status=OperationStatus.RUNNING, cancel_requested=True
+        )
         op = _operation()
 
         await asyncio.wait_for(self.executor.execute(op, "w1"), timeout=2)
 
-        self.queue.mark_cancelled.assert_awaited_once_with(op.id)
+        self.queue.mark_cancelled.assert_awaited_once_with(op.id, release_session=True)
         self.queue.complete.assert_not_awaited()
         self.queue.fail.assert_not_awaited()
         self.db.mark_failed.assert_awaited_once()
-        self.db.release_in_flight.assert_awaited_once()
 
     async def test_worker_shutdown_fails_the_operation_and_propagates(self):
         started = asyncio.Event()
@@ -192,7 +208,43 @@ class TestCancellation(_ExecutorBase):
         with self.assertRaises(asyncio.CancelledError):
             await task
         self.queue.fail.assert_awaited_once_with(
-            op.id, "runner failed: Interrupted by a worker shutdown"
+            op.id,
+            "runner failed: Interrupted by a worker shutdown",
+            release_session=True,
         )
         self.queue.mark_cancelled.assert_not_awaited()
-        self.db.release_in_flight.assert_awaited_once()
+
+    async def test_lost_lease_leaves_the_session_to_the_reaper(self):
+        self.run_handler.side_effect = _hang
+        self.queue.heartbeat.return_value = False
+        self.queue.get_operation.return_value = SimpleNamespace(
+            status=OperationStatus.FAILED, cancel_requested=False
+        )
+        self.queue.fail.return_value = False  # already reaped
+        op = _operation()
+
+        await asyncio.wait_for(self.executor.execute(op, "w1"), timeout=2)
+
+        self.db.mark_failed.assert_not_awaited()
+        self.queue.mark_cancelled.assert_not_awaited()
+        self.queue.fail.assert_awaited_once_with(
+            op.id, "Worker lost (lease expired)", release_session=True
+        )
+
+    async def test_unrenewable_lease_stops_the_pipeline(self):
+        self.run_handler.side_effect = _hang
+        self.queue.heartbeat.side_effect = ConnectionError("db down")
+        self.queue.fail.return_value = True  # nobody reaped it
+        self.executor = OperationExecutor(
+            self.queue, SchedulerConfig(heartbeat_interval=0.01, lease_seconds=0.05)
+        )
+        op = _operation()
+
+        await asyncio.wait_for(self.executor.execute(op, "w1"), timeout=2)
+
+        self.queue.fail.assert_awaited_once_with(
+            op.id, "Worker lost (lease expired)", release_session=True
+        )
+        self.db.mark_failed.assert_awaited_once_with(
+            self.ctx.id, "The worker running this session was lost."
+        )

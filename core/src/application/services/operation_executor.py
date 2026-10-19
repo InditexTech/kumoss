@@ -7,6 +7,7 @@
 import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
+from functools import partial
 from typing import Any, final
 
 from src.application.factory import ApplicationFactory
@@ -19,9 +20,14 @@ from src.infrastructure.external.notification_service import NotificationService
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.config.system_config import SchedulerConfig
-from src.shared.constants import OperationType, SessionStatus
+from src.shared.constants import OperationStatus, OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
+
+_CANCELLED = "cancelled by user"
+_LEASE_LOST = "lease lost"
+_LOST_MSG = "Worker lost (lease expired)"
+_LOST_SESSION_MSG = "The worker running this session was lost."
 
 
 @final
@@ -30,7 +36,7 @@ class OperationExecutor:
 
     The pipeline runs in its own task so the heartbeat can stop it when the
     user cancels or the lease is lost; the session's in-flight lock is
-    always released, whatever the outcome.
+    released with the operation's final transition, whatever the outcome.
     """
 
     def __init__(self, queue: OperationQueueService, config: SchedulerConfig) -> None:
@@ -42,44 +48,74 @@ class OperationExecutor:
         session_id = operation.session.uuid
         try:
             ctx = await DatabaseService.get_session_context(session_id)
+            if (
+                operation.kind is OperationType.APPLY
+                and await DatabaseService.is_session_blocked(session_id)
+            ):
+                # Re-checked here: the session may have been blocked while the
+                # apply waited in the queue. Only the operation fails, so the
+                # session can be unblocked and the apply retried.
+                raise ExceptionHandler(
+                    message=f"Session {session_id} is blocked; apply is not allowed.",
+                    error_code=409,
+                )
             await DatabaseService.acquire_in_flight(session_id)
         except ExceptionHandler as e:
-            # Never got the lock: the session is gone, finished or busy.
-            await self._queue.fail(operation.id, e.message)
+            # Never got the lock: the session is gone, finished, blocked or busy.
+            _ = await self._queue.fail(operation.id, e.message)
+            await self._queue.fail_unstarted_session(session_id, e.message)
             return
 
         run = asyncio.create_task(self._run(operation, ctx))
-        heartbeat = asyncio.create_task(
-            self._heartbeat_loop(operation.id, worker_id, run)
+        heartbeat = asyncio.create_task(self._heartbeat_loop(operation, worker_id, run))
+        # Every finisher also frees in_flight, in the same transaction.
+        finish: Callable[[], Awaitable[bool]] = partial(
+            self._queue.complete, operation.id, release_session=True
         )
+        lease_lost = False
         try:
             await run
-            await self._queue.complete(operation.id)
         except asyncio.CancelledError:
             current = asyncio.current_task()
             if current is not None and current.cancelling():
                 # Worker shutdown: don't leave the op RUNNING until the reaper.
-                await self.__fail(operation, ctx, "Interrupted by a worker shutdown")
+                finish = await self.__fail(
+                    operation, ctx, "Interrupted by a worker shutdown"
+                )
                 raise
-            await DatabaseService.mark_failed(ctx.id, "Operation cancelled by user")
-            await self._queue.mark_cancelled(operation.id)
+            if await heartbeat == _LEASE_LOST:
+                # Usually the reaper already failed the op and the session and
+                # freed the lock; the finisher is then a no-op.
+                lease_lost = True
+                finish = partial(
+                    self._queue.fail, operation.id, _LOST_MSG, release_session=True
+                )
+            else:
+                await DatabaseService.mark_failed(ctx.id, "Operation cancelled by user")
+                finish = partial(
+                    self._queue.mark_cancelled, operation.id, release_session=True
+                )
         except TimeoutError:
-            await self.__fail(
+            finish = await self.__fail(
                 operation, ctx, f"timed out after {operation.timeout_seconds}s"
             )
         except ExceptionHandler as e:
-            await self.__fail(operation, ctx, e.message)
+            finish = await self.__fail(operation, ctx, e.message)
         except Exception as e:
             logging.exception(f"Unexpected error in operation {operation.uuid}")
-            await self.__fail(operation, ctx, f"unexpected error: {e}")
+            finish = await self.__fail(operation, ctx, f"unexpected error: {e}")
         finally:
             _ = heartbeat.cancel()
             with contextlib.suppress(asyncio.CancelledError):
-                await heartbeat
-            try:
-                await DatabaseService.release_in_flight(session_id)
-            except Exception:
-                logging.warning(f"Failed to release in_flight for session {session_id}")
+                _ = await heartbeat
+            finished = await finish()
+            if lease_lost and finished:
+                # Not reaped (the database was unreachable for everyone):
+                # report the session the way the reaper would have.
+                try:
+                    await DatabaseService.mark_failed(ctx.id, _LOST_SESSION_MSG)
+                except Exception:
+                    logging.exception(f"Failed to report lost session {ctx.id}")
 
     async def _run(self, operation: Operation, ctx: SessionContext) -> None:
         tracer_token = tracer.set_current_tracer(
@@ -134,28 +170,49 @@ class OperationExecutor:
                 return await factory.get_terraform_apply_handler().handle()
 
     async def _heartbeat_loop(
-        self, operation_id: int, worker_id: str, run: asyncio.Task[None]
-    ) -> None:
+        self, operation: Operation, worker_id: str, run: asyncio.Task[None]
+    ) -> str | None:
+        """Extend the lease until ``run`` ends; stop it when the heartbeat is
+        refused, or can't be renewed before the lease runs out, and return
+        why (``_CANCELLED`` or ``_LEASE_LOST``)."""
+        loop = asyncio.get_running_loop()
+        renewed_at = loop.time()
         while not run.done():
             await asyncio.sleep(self._config.heartbeat_interval)
             try:
-                alive = await self._queue.heartbeat(operation_id, worker_id)
+                if await self._queue.heartbeat(operation.id, worker_id):
+                    renewed_at = loop.time()
+                    continue
+                reason = await self.__stop_reason(operation)
             except Exception:
-                logging.warning(f"Heartbeat failed for operation {operation_id}")
-                continue
-            if not alive:
-                logging.info(
-                    f"Stopping operation {operation_id}: cancelled or lease lost"
-                )
-                _ = run.cancel()
-                return
+                logging.warning(f"Heartbeat failed for operation {operation.id}")
+                if loop.time() - renewed_at < self._config.lease_seconds:
+                    continue
+                # The lease may have expired and been reaped by another
+                # replica: stop rather than keep working on a session we
+                # may no longer own.
+                reason = _LEASE_LOST
+            logging.info(f"Stopping operation {operation.id}: {reason}")
+            _ = run.cancel()
+            return reason
+        return None
+
+    async def __stop_reason(self, operation: Operation) -> str:
+        current = await self._queue.get_operation(operation.uuid)
+        if (
+            current is not None
+            and current.status is OperationStatus.RUNNING
+            and current.cancel_requested
+        ):
+            return _CANCELLED
+        return _LEASE_LOST
 
     async def __fail(
         self, operation: Operation, ctx: SessionContext, reason: str
-    ) -> None:
+    ) -> Callable[[], Awaitable[bool]]:
+        """Report the failure on the session; return the op-row finisher."""
         msg = f"runner failed: {reason}"
         logging.error(f"{msg} (session {ctx.id})")
-        await self._queue.fail(operation.id, msg)
         try:
             await DatabaseService.mark_failed(ctx.id, msg)
             await NotificationServiceClient.notify_exception_failure(
@@ -163,3 +220,4 @@ class OperationExecutor:
             )
         except Exception:
             logging.exception(f"Failed to report failure of session {ctx.id}")
+        return partial(self._queue.fail, operation.id, msg, release_session=True)

@@ -18,6 +18,7 @@ import {
   fetchArtifactContent,
   fetchPlanType,
 } from "@/services/core/sessions";
+import { getOperation } from "@/services/core/operations";
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
 import type {
@@ -92,14 +93,18 @@ function sleep(ms: number, signal?: AbortSignal): Promise<void> {
 
 /**
  * Poll the session until a round beyond `baselineRounds` exists and has
- * written its first status. Throws on timeout or abort.
+ * written its first status. Throws on timeout or abort, or when the
+ * queued `operationId` ends without starting a round (failed/cancelled).
+ * While the operation is still pending in the queue the timeout is held
+ * off: it bounds the start of the run, not the wait for a worker.
  */
 export async function waitForNewRound(
   sessionId: string,
   baselineRounds: number,
   signal?: AbortSignal,
+  operationId?: string,
 ): Promise<void> {
-  const deadline = Date.now() + NEW_ROUND_TIMEOUT_MS;
+  let deadline = Date.now() + NEW_ROUND_TIMEOUT_MS;
   while (Date.now() < deadline) {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
     const detail = await getSessionDetail(sessionId);
@@ -110,6 +115,15 @@ export async function waitForNewRound(
       latest.statuses.length > 0
     ) {
       return;
+    }
+    if (operationId) {
+      const op = await getOperation(operationId);
+      if (op.status === "failed" || op.status === "cancelled") {
+        throw new Error(op.error ?? `The operation was ${op.status}`);
+      }
+      if (op.status === "pending") {
+        deadline = Date.now() + NEW_ROUND_TIMEOUT_MS;
+      }
     }
     await sleep(NEW_ROUND_POLL_MS, signal);
   }

@@ -206,7 +206,10 @@ class CreateScheduleRequest(BaseModel):
     @classmethod
     def _valid_cron(cls, cron: str | None) -> str | None:
         if cron is not None and not OperationScheduleService.is_valid_cron(cron):
-            raise ValueError("Invalid cron expression.")
+            raise ValueError(
+                "Invalid cron expression: use five fields "
+                + "(minute hour day-of-month month day-of-week) that can fire."
+            )
         return cron
 
 
@@ -220,7 +223,10 @@ class UpdateScheduleRequest(BaseModel):
     @classmethod
     def _valid_cron(cls, cron: str | None) -> str | None:
         if cron is not None and not OperationScheduleService.is_valid_cron(cron):
-            raise ValueError("Invalid cron expression.")
+            raise ValueError(
+                "Invalid cron expression: use five fields "
+                + "(minute hour day-of-month month day-of-week) that can fire."
+            )
         return cron
 
 

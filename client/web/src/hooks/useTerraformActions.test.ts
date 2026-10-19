@@ -14,8 +14,11 @@ import type { SessionOutcome } from "@/services/workflows/session_outcome";
 
 // ─── Mock controls ────────────────────────────────────────────
 const mockRunWorkflow = vi.fn<
-  (params: TerraformActionParams, signal: AbortSignal) => Promise<{ sessionId: string }>
->().mockResolvedValue({ sessionId: "sess-abc" });
+  (
+    params: TerraformActionParams,
+    signal: AbortSignal,
+  ) => Promise<{ sessionId: string; operationId: string }>
+>().mockResolvedValue({ sessionId: "sess-abc", operationId: "op-abc" });
 
 let mockSseConnection: SseConnection & { close: Mock<() => void> };
 
@@ -42,7 +45,12 @@ function makeResultsOutcome(overrides?: Partial<Record<string, unknown>>): Sessi
 
 const mockResolveOutcome = vi.fn<(id: string) => Promise<SessionOutcome>>();
 const mockWaitForNewRound = vi.fn<
-  (id: string, baseline: number, signal?: AbortSignal) => Promise<void>
+  (
+    id: string,
+    baseline: number,
+    signal?: AbortSignal,
+    operationId?: string,
+  ) => Promise<void>
 >().mockResolvedValue(undefined);
 const mockCheckSessionStatus = vi.fn<(id: string) => Promise<{ status: string }>>();
 const mockGetSessionDetail = vi.fn<(id: string) => Promise<{ rounds: unknown[] }>>()
@@ -61,7 +69,7 @@ vi.mock("@/services/core/events", () => ({
 
 vi.mock("@/services/workflows/session_outcome", () => ({
   resolveSessionOutcome: (...args: unknown[]) => mockResolveOutcome(...(args as [string])),
-  waitForNewRound: (...args: unknown[]) => mockWaitForNewRound(...(args as [string, number, AbortSignal])),
+  waitForNewRound: (...args: unknown[]) => mockWaitForNewRound(...(args as [string, number, AbortSignal, string])),
 }));
 
 vi.mock("@/services/core/sessions", () => ({
@@ -97,7 +105,7 @@ function sseEvent(status_msg: string, message = "") {
 describe("useTerraformActions", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc" });
+    mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc", operationId: "op-abc" });
     mockResolveOutcome.mockResolvedValue(makeResultsOutcome());
     mockWaitForNewRound.mockResolvedValue(undefined);
     mockGetSessionDetail.mockResolvedValue({ rounds: [{}] });
@@ -151,6 +159,7 @@ describe("useTerraformActions", () => {
       "sess-abc",
       2,
       expect.any(AbortSignal),
+      "op-abc",
     );
     expect(mockSubscribe).toHaveBeenCalledWith("sess-abc");
     expect(mockWaitForNewRound.mock.invocationCallOrder[0]).toBeLessThan(
@@ -652,7 +661,7 @@ describe("useTerraformActions — inactivity timeout", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc" });
+    mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc", operationId: "op-abc" });
     mockResolveOutcome.mockResolvedValue(makeResultsOutcome());
   });
 

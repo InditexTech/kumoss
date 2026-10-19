@@ -87,6 +87,8 @@ export interface ApplyRequest {
 
 export interface IacSessionResponse {
   session_id: string;
+  /** The queued operation running this call (GET /operations/{id}). */
+  operation_id: string;
 }
 
 // ─── Repository / PR (/api/v1/repository/*) ─────────────────

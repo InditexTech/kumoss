@@ -7,6 +7,7 @@
 import asyncio
 import unittest
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 from sqlalchemy import update
@@ -129,6 +130,43 @@ class TestCronFiring(unittest.IsolatedAsyncioTestCase):
         await self.scheduler._fire_due_schedules()
         self.assertEqual(len(await db.list_by(Operation)), 1)
 
+    async def test_a_schedule_with_an_active_run_is_not_stacked(self):
+        schedule = await self._due_schedule()
+        await self.scheduler._fire_due_schedules()
+        async with db.transaction() as s:
+            _ = await s.execute(
+                update(OperationSchedule)
+                .where(OperationSchedule.id == schedule.id)
+                .values(next_run_at=datetime.now(timezone.utc) - timedelta(minutes=1))
+            )
+
+        await self.scheduler._fire_due_schedules()
+
+        self.assertEqual(len(await db.list_by(Operation)), 1)
+        fired = await OperationScheduleService.get(schedule.uuid)
+        assert fired is not None
+        self.assertGreater(fired.next_run_at, datetime.now(timezone.utc))
+
+    async def test_schedules_sharing_a_cron_get_distinct_branches(self):
+        _ = await self._due_schedule()
+        _ = await self._due_schedule()
+        await self.scheduler._fire_due_schedules()
+        ops = await db.list_by(Operation)
+        branches = {
+            (await DatabaseService.get_session_context(op.session.uuid)).branch_name
+            for op in ops
+        }
+        self.assertEqual(len(branches), 2)
+
+    async def test_a_schedule_changed_after_it_was_read_is_not_fired(self):
+        schedule = await self._due_schedule()
+        [snapshot] = await OperationScheduleService.list_due(datetime.now(timezone.utc))
+        await OperationScheduleService.update(schedule.id, {"enabled": False})
+
+        await self.scheduler._fire(snapshot, datetime.now(timezone.utc))
+
+        self.assertEqual(await db.list_by(Operation), [])
+
     async def test_an_owner_without_the_role_is_skipped(self):
         _ = await self._due_schedule()
         _ = await UserService.set_roles(
@@ -141,3 +179,43 @@ class TestCronFiring(unittest.IsolatedAsyncioTestCase):
         await self.scheduler.start()
         await asyncio.sleep(0.1)
         await asyncio.wait_for(self.scheduler.stop(), timeout=2)
+
+
+class TestScheduledSlots(unittest.IsolatedAsyncioTestCase):
+    """Cron runs never take the slots reserved for interactive calls."""
+
+    async def test_slots_beyond_the_cap_claim_interactive_only(self):
+        config = SchedulerConfig(
+            concurrency=3, interactive_reserved_slots=1, claim_interval=0.01
+        )
+        release = asyncio.Event()
+        flags: list[bool] = []
+        queue = AsyncMock()
+
+        async def claim(_worker_id: str, allow_scheduled: bool):
+            flags.append(allow_scheduled)
+            if allow_scheduled:
+                return SimpleNamespace(schedule_id=1)
+            return None
+
+        async def execute(_op, _worker_id):
+            _ = await release.wait()
+
+        queue.claim.side_effect = claim
+        executor = AsyncMock()
+        executor.execute.side_effect = execute
+        scheduler = OperationScheduler(
+            queue=queue, executor=executor, submission=AsyncMock(), config=config
+        )
+        workers = [asyncio.create_task(scheduler._claim_loop(i)) for i in range(3)]
+        await asyncio.sleep(0.1)
+
+        self.assertEqual(executor.execute.await_count, 2)  # cap = 3 - 1
+        self.assertEqual(flags[:2], [True, True])
+        self.assertTrue(flags[2:])
+        self.assertFalse(any(flags[2:]))
+
+        scheduler._stopping.set()
+        release.set()
+        _ = await asyncio.gather(*workers)
+        self.assertEqual(scheduler._scheduled_running, 0)

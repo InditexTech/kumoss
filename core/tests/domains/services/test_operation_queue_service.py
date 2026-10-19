@@ -13,6 +13,7 @@ from sqlalchemy import update
 from src.domains.exceptions import SessionConflict
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.operation_queue_service import OperationQueueService
+from src.domains.services.operation_schedule_service import OperationScheduleService
 from src.domains.services.user_service import UserService
 from src.domains.value_objects import TokenClaims
 from src.infrastructure.database import db
@@ -60,10 +61,26 @@ class _QueueBase(unittest.IsolatedAsyncioTestCase):
         )
         return sid
 
-    async def _enqueue(self, session_id: UUID | None = None) -> Operation:
+    async def _enqueue(
+        self, session_id: UUID | None = None, schedule_id: int | None = None
+    ) -> Operation:
         return await self.queue.enqueue(
-            session_id or self.session_id, OperationType.DRIFT, {"q": "drift"}
+            session_id or self.session_id,
+            OperationType.DRIFT,
+            {"q": "drift"},
+            schedule_id=schedule_id,
         )
+
+    async def _schedule_pk(self) -> int:
+        schedule = await OperationScheduleService.create(
+            user_pk=self.user.id,
+            name="nightly",
+            kind=OperationType.DRIFT,
+            cron="0 3 * * *",
+            params={},
+            enabled=True,
+        )
+        return schedule.id
 
     async def _reload(self, op: Operation) -> Operation:
         fresh = await db.get_by(Operation, id=op.id)
@@ -133,6 +150,27 @@ class TestClaim(_QueueBase):
         self.assertNotEqual(a.id, b.id)
         self.assertIsNone(await self.queue.claim("w3"))
 
+    async def test_interactive_operations_are_claimed_before_scheduled_ones(self):
+        scheduled = await self._enqueue(schedule_id=await self._schedule_pk())
+        interactive = await self._enqueue(await self._session(self.user.id))
+        first = await self.queue.claim("w1")
+        second = await self.queue.claim("w1")
+        assert first is not None and second is not None
+        self.assertEqual([first.id, second.id], [interactive.id, scheduled.id])
+
+    async def test_scheduled_operations_can_be_excluded(self):
+        _ = await self._enqueue(schedule_id=await self._schedule_pk())
+        self.assertIsNone(await self.queue.claim("w1", allow_scheduled=False))
+        self.assertIsNotNone(await self.queue.claim("w1"))
+
+    async def test_active_operations_of_a_schedule(self):
+        schedule_pk = await self._schedule_pk()
+        self.assertFalse(await self.queue.has_active_for_schedule(schedule_pk))
+        op = await self._enqueue(schedule_id=schedule_pk)
+        self.assertTrue(await self.queue.has_active_for_schedule(schedule_pk))
+        await self.queue.fail(op.id, "boom")
+        self.assertFalse(await self.queue.has_active_for_schedule(schedule_pk))
+
 
 class TestHeartbeat(_QueueBase):
     async def test_heartbeat_extends_the_lease(self):
@@ -186,11 +224,45 @@ class TestFinish(_QueueBase):
         self.assertEqual((await self._reload(op)).status, OperationStatus.CANCELLED)
 
 
+class TestFinishReleasesTheSession(_QueueBase):
+    async def test_finishing_frees_in_flight_in_the_same_step(self):
+        _ = await self._enqueue()
+        op = await self.queue.claim("w1")
+        assert op is not None
+        await DatabaseService.acquire_in_flight(self.session_id)
+
+        self.assertTrue(await self.queue.complete(op.id, release_session=True))
+
+        summary = await DatabaseService.get_session_summary(self.session_id)
+        self.assertFalse(summary.in_flight)
+
+    async def test_a_late_finish_never_frees_a_successors_lock(self):
+        op = await self._enqueue()
+        await self.queue.fail(op.id, "reaped")
+        await DatabaseService.acquire_in_flight(self.session_id)  # successor
+
+        self.assertFalse(await self.queue.complete(op.id, release_session=True))
+
+        summary = await DatabaseService.get_session_summary(self.session_id)
+        self.assertTrue(summary.in_flight)
+
+
 class TestCancel(_QueueBase):
     async def test_cancel_pending_is_immediate(self):
         op = await self._enqueue()
         await self.queue.cancel(op)
         self.assertEqual((await self._reload(op)).status, OperationStatus.CANCELLED)
+
+    async def test_cancel_pending_ends_a_session_that_never_ran(self):
+        await self.queue.cancel(await self._enqueue())
+        last = await DatabaseService.get_last_status(self.session_id)
+        self.assertIs(last.status, SessionStatus.FAILED)
+
+    async def test_cancel_pending_keeps_a_session_that_already_ran(self):
+        await DatabaseService.mark_completed(self.session_id, "round 1")
+        await self.queue.cancel(await self._enqueue())
+        last = await DatabaseService.get_last_status(self.session_id)
+        self.assertIs(last.status, SessionStatus.COMPLETED)
 
     async def test_cancel_running_only_flags_it(self):
         _ = await self._enqueue()
@@ -200,6 +272,18 @@ class TestCancel(_QueueBase):
         flagged = await self._reload(op)
         self.assertEqual(flagged.status, OperationStatus.RUNNING)
         self.assertTrue(flagged.cancel_requested)
+
+    async def test_running_apply_and_import_cannot_be_cancelled(self):
+        for kind in (OperationType.APPLY, OperationType.IMPORT):
+            with self.subTest(kind=kind):
+                sid = await self._session(self.user.id)
+                _ = await self.queue.enqueue(sid, kind, {})
+                op = await self.queue.claim("w1")
+                assert op is not None
+                with self.assertRaises(ExceptionHandler) as cm:
+                    await self.queue.cancel(op)
+                self.assertEqual(cm.exception.error_code, 409)
+                self.assertFalse((await self._reload(op)).cancel_requested)
 
     async def test_cancel_finished_is_409(self):
         op = await self._enqueue()

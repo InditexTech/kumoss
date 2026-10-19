@@ -282,6 +282,9 @@ git:
 #
 # `concurrency` — parallel claim→execute asyncio tasks (pipelines are
 # I/O-bound: LLM, iac polling, git). Raise only if the host has headroom.
+# `interactive_reserved_slots` — slots cron-fired operations may not use,
+# so user calls never wait behind scheduled runs. Interactive operations
+# are also always claimed before scheduled ones.
 # `lease_seconds` — if a worker doesn't heartbeat within this window the
 # reaper considers it dead, fails the operation and frees the session.
 # `schedule_poll_interval` — how often due cron schedules are fired.
@@ -290,6 +293,7 @@ git:
 # operations before interrupting them.
 scheduler:
   concurrency: 4
+  interactive_reserved_slots: 1
   claim_interval: 2.0
   heartbeat_interval: 30.0
   lease_seconds: 120.0

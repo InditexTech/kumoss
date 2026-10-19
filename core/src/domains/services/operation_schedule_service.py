@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any, cast
 from uuid import UUID, uuid4
 
-from croniter import croniter
+from croniter import CroniterBadDateError, croniter
 from sqlalchemy import CursorResult, delete, select, update
 
 from src.infrastructure.database import db
@@ -19,7 +19,19 @@ from src.shared.constants import OperationType
 class OperationScheduleService:
     @staticmethod
     def is_valid_cron(cron: str) -> bool:
-        return croniter.is_valid(cron)
+        """Five-field (minute resolution) expressions that can ever fire.
+
+        croniter also accepts 6/7-field crons with a seconds field, which
+        would fire on every poll, and impossible dates like ``0 0 31 2 *``
+        that only fail once ``get_next`` is asked for a fire time.
+        """
+        if len(cron.split()) != 5 or not croniter.is_valid(cron):
+            return False
+        try:
+            _ = OperationScheduleService.next_run(cron)
+        except CroniterBadDateError:
+            return False
+        return True
 
     @staticmethod
     def next_run(cron: str, after: datetime | None = None) -> datetime:
@@ -52,7 +64,7 @@ class OperationScheduleService:
 
     @staticmethod
     async def list_for_user(
-        user_pk: int, offset: int, limit: int
+        user_pk: int, offset: int, limit: int, kind: OperationType | None = None
     ) -> tuple[list[OperationSchedule], int]:
         return await db.query(
             OperationSchedule,
@@ -61,6 +73,7 @@ class OperationScheduleService:
             offset=offset,
             limit=limit,
             user_id=user_pk,
+            kind=kind,
         )
 
     @staticmethod
@@ -95,7 +108,10 @@ class OperationScheduleService:
         """Advance ``next_run_at`` with a CAS; True only for the one winner.
 
         Guarding on the previously read ``next_run_at`` makes each fire time
-        materialize exactly once, even across replicas.
+        materialize exactly once, even across replicas. Guarding on
+        ``enabled`` and ``updated_at`` too means a schedule disabled or edited
+        since ``list_due`` read it is not fired from that stale snapshot; the
+        next poll reconsiders it.
         """
         async with db.transaction() as session:
             res = await session.execute(
@@ -103,6 +119,8 @@ class OperationScheduleService:
                 .where(
                     OperationSchedule.id == schedule.id,
                     OperationSchedule.next_run_at == schedule.next_run_at,
+                    OperationSchedule.enabled.is_(True),
+                    OperationSchedule.updated_at == schedule.updated_at,
                 )
                 .values(
                     next_run_at=OperationScheduleService.next_run(schedule.cron, now),

@@ -58,6 +58,7 @@ export function isApplyAction(
 
 export interface TerraformActionResult {
   sessionId: string;
+  operationId: string;
 }
 
 // ─── The workflow function ─────────────────────────────────────
@@ -70,7 +71,7 @@ export async function runTerraformActionWorkflow(
 
   if (isApplyAction(params)) {
     response = await applyInfrastructure({ session_id: params.sessionId });
-    return { sessionId: response.session_id };
+    return { sessionId: response.session_id, operationId: response.operation_id };
   }
 
   const baseRequest = params.sessionId
@@ -116,5 +117,5 @@ export async function runTerraformActionWorkflow(
       break;
   }
 
-  return { sessionId: response.session_id };
+  return { sessionId: response.session_id, operationId: response.operation_id };
 }

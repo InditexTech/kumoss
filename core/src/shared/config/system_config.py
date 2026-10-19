@@ -510,6 +510,10 @@ class SchedulerConfig(BaseModel, frozen=True):
     """Durable operation queue: worker loops, leases and timeouts."""
 
     concurrency: int = Field(default=4, ge=1)
+    # Slots per replica that cron-fired operations may not take, so user
+    # calls never queue behind long scheduled runs (at least one slot always
+    # stays available to schedules).
+    interactive_reserved_slots: int = Field(default=1, ge=0)
     claim_interval: float = 2.0
     heartbeat_interval: float = 30.0
     lease_seconds: float = 120.0

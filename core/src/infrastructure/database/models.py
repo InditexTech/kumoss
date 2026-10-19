@@ -9,7 +9,6 @@ from typing import Any, final, override
 
 from sqlalchemy import (
     Boolean,
-    Enum as SAEnum,
     ForeignKey,
     Index,
     String,
@@ -18,7 +17,7 @@ from sqlalchemy import (
     Integer,
     JSON,
     UniqueConstraint,
-    text,
+    column,
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -327,12 +326,6 @@ class CodeChange(Base):
         return f"<CodeChange(round_id='{self.round_id}', file_name='{self.file_name}')>"
 
 
-# Stored as VARCHAR rather than reusing the native ``operationtype`` enum of
-# ``sessions.operation``: ``create_all`` never alters an existing type, so a
-# native column could not hold APPLY on databases created before it existed.
-_OPERATION_KIND = SAEnum(OperationType, native_enum=False, length=16)
-
-
 @final
 class Operation(Base):
     """One queued terraform operation on a session."""
@@ -346,9 +339,8 @@ class Operation(Base):
             "uq_operations_active_session",
             "session_id",
             unique=True,
-            postgresql_where=text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
-                f"status IN ('{OperationStatus.PENDING.name}', "
-                + f"'{OperationStatus.RUNNING.name}')"
+            postgresql_where=column("status").in_(
+                [OperationStatus.PENDING.name, OperationStatus.RUNNING.name]
             ),
         ),
     )
@@ -358,7 +350,7 @@ class Operation(Base):
     schedule_id: Mapped[int | None] = mapped_column(
         ForeignKey("operation_schedules.id", ondelete="SET NULL"), index=True
     )
-    kind: Mapped[OperationType] = mapped_column(_OPERATION_KIND)
+    kind: Mapped[OperationType] = mapped_column()
     params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     status: Mapped[OperationStatus] = mapped_column(default=OperationStatus.PENDING)
     scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -389,7 +381,7 @@ class OperationSchedule(Base):
     uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     name: Mapped[str] = mapped_column(String(254))
-    kind: Mapped[OperationType] = mapped_column(_OPERATION_KIND)
+    kind: Mapped[OperationType] = mapped_column()
     params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
     cron: Mapped[str] = mapped_column(String(128))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)

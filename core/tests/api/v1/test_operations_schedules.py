@@ -142,6 +142,8 @@ class TestSchedulesApi(_ApiBase):
     async def test_create_validation(self):
         cases = {
             "bad cron": ({"cron": "not a cron"}, 422),
+            "seconds field": ({"cron": "* * * * * *"}, 422),
+            "never fires": ({"cron": "0 0 31 2 *"}, 422),
             "unschedulable kind": ({"kind": "generate"}, 422),
             "invalid params": ({"params": {"q": "x"}}, 422),
         }
@@ -156,6 +158,15 @@ class TestSchedulesApi(_ApiBase):
         self.as_user(await DatabaseService.get_user(self.stranger.id))
         self.assertEqual((await self._create()).status_code, 403)
         self.assertEqual((await self._create(kind="import")).status_code, 201)
+
+    async def test_list_filters_on_kind(self):
+        _ = await self._create()
+        _ = await self._create(kind="import")
+        listed = (
+            await self.client.get("/v1/schedules", params={"kind": "import"})
+        ).json()
+        self.assertEqual(listed["total"], 1)
+        self.assertEqual(listed["items"][0]["kind"], "import")
 
     async def test_strangers_cannot_read_update_or_delete(self):
         schedule_id = (await self._create()).json()["uuid"]
@@ -192,10 +203,11 @@ class TestSchedulesApi(_ApiBase):
         self.assertEqual(body["params"]["q"], "new")
         self.assertNotEqual(body["next_run_at"], created["next_run_at"])
 
-        bad = await self.client.patch(
-            f"/v1/schedules/{schedule_id}", json={"cron": "nope"}
-        )
-        self.assertEqual(bad.status_code, 422)
+        for cron in ("nope", "0 0 31 2 *"):
+            bad = await self.client.patch(
+                f"/v1/schedules/{schedule_id}", json={"cron": cron}
+            )
+            self.assertEqual(bad.status_code, 422, cron)
 
         deleted = await self.client.delete(f"/v1/schedules/{schedule_id}")
         self.assertEqual(deleted.status_code, 204)

@@ -194,7 +194,10 @@ export function useTerraformActions() {
           : 0;
         if (signal.aborted) return;
 
-        const { sessionId } = await runTerraformActionWorkflow(params, signal);
+        const { sessionId, operationId } = await runTerraformActionWorkflow(
+          params,
+          signal,
+        );
         if (signal.aborted) return;
 
         dispatch({ type: "STREAMING", sessionId });
@@ -206,7 +209,7 @@ export function useTerraformActions() {
             sseStatus: "STARTED",
             msg: STRINGS.planning.preparingWorkspace,
           }));
-          await waitForNewRound(sessionId, baselineRounds, signal);
+          await waitForNewRound(sessionId, baselineRounds, signal, operationId);
           if (signal.aborted) return;
         }
 

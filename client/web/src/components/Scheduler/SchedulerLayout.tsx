@@ -36,7 +36,7 @@ import type {
   CreateScheduleRequest,
   UpdateScheduleRequest,
 } from "@/types/api_scheduler";
-import { panelRoleAtLeast } from "@/types/api";
+import { operationRoleAtLeast } from "@/types/api";
 import { formatDate } from "@/utils/datetime";
 import styles from "./SchedulerLayout.module.css";
 
@@ -116,8 +116,13 @@ const filters: FilterConfig[] = [
 
 type ViewMode = "list" | "detail" | "form";
 
+// Render select menus inside the side sheet: a portalled menu sits outside
+// `[data-detail-content]`, so the sheet's outside-click handler would close
+// the form on the very click that picks an option.
+const MENU_IN_SHEET = { disablePortal: true };
+
 export default function SchedulerLayout() {
-  const { panelRole } = useAuth();
+  const { operationRole } = useAuth();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const scheduleId = searchParams.get("schedule");
@@ -129,7 +134,10 @@ export default function SchedulerLayout() {
   const [editingSchedule, setEditingSchedule] = useState<Schedule | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
-  const isAdmin = panelRoleAtLeast(panelRole, "admin");
+  // Mirrors the backend: schedules are owned by the caller and gated on
+  // operation role (developer for import, devops for drift).
+  const canSchedule = operationRoleAtLeast(operationRole, "developer");
+  const canScheduleDrift = operationRoleAtLeast(operationRole, "devops");
 
   const setScheduleParam = useCallback(
     (id: string | null) => {
@@ -188,10 +196,11 @@ export default function SchedulerLayout() {
   }, [scheduleId]);
 
   const fetchSchedules = useCallback(async (params: FetchParams) => {
-    const { page, page_size } = params;
+    const { page, page_size, kind } = params;
     return listSchedules({
       page: page as number,
       page_size: page_size as number,
+      kind: (kind as ScheduleKind) || undefined,
     });
   }, []);
 
@@ -251,10 +260,10 @@ export default function SchedulerLayout() {
     }
   }
 
-  if (!isAdmin) {
+  if (!canSchedule) {
     return (
       <div className={styles.wrapper}>
-        <p>You need admin privileges to access the scheduler.</p>
+        <p>You need an operation role to access the scheduler.</p>
       </div>
     );
   }
@@ -266,6 +275,7 @@ export default function SchedulerLayout() {
         columns={columns}
         fetchData={fetchSchedules}
         filters={filters}
+        searches={[]}
         rowKey={(s) => s.uuid}
         onRowClick={handleRowClick}
         emptyText="No schedules found"
@@ -311,7 +321,9 @@ export default function SchedulerLayout() {
         title={editingSchedule ? "Edit Schedule" : "New Schedule"}
       >
         <ScheduleForm
+          key={editingSchedule?.uuid ?? "new"}
           schedule={editingSchedule}
+          canScheduleDrift={canScheduleDrift}
           onSubmit={handleFormSubmit}
           onCancel={handleCloseOverlay}
         />
@@ -411,17 +423,31 @@ function ScheduleDetail({
   );
 }
 
+/** Key-order-insensitive equality of two flat params objects. */
+function sameParams(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+): boolean {
+  const sorted = (o: Record<string, unknown>) =>
+    JSON.stringify(Object.entries(o).sort(([x], [y]) => x.localeCompare(y)));
+  return sorted(a) === sorted(b);
+}
+
 function ScheduleForm({
   schedule,
+  canScheduleDrift,
   onSubmit,
   onCancel,
 }: {
   schedule: Schedule | null;
+  canScheduleDrift: boolean;
   onSubmit: (data: CreateScheduleRequest | UpdateScheduleRequest) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(schedule?.name ?? "");
-  const [kind, setKind] = useState<ScheduleKind>(schedule?.kind ?? "drift");
+  const [kind, setKind] = useState<ScheduleKind>(
+    schedule?.kind ?? (canScheduleDrift ? "drift" : "import"),
+  );
   const [cron, setCron] = useState(schedule?.cron ?? "");
   const [enabled, setEnabled] = useState(schedule?.enabled ?? true);
   const [repoUri, setRepoUri] = useState(
@@ -434,24 +460,35 @@ function ScheduleForm({
     (schedule?.params?.q as string) ?? "",
   );
   const [iacPath, setIacPath] = useState(
-    (schedule?.params?.iac_path as string) ?? ".",
+    (schedule?.params?.iac_path as string) ?? "",
   );
   const [scopeId, setScopeId] = useState(
     (schedule?.params?.scope_id as string) ?? "",
   );
 
+  // Starts from the stored params so fields the form doesn't edit (e.g.
+  // is_partial) survive an update; cleared optional fields are dropped.
   function buildParams(): Record<string, unknown> {
-    return {
+    const params: Record<string, unknown> = { ...(schedule?.params ?? {}) };
+    const fields: Record<string, string> = {
       repo_uri: repoUri,
       terraform_providers: terraformProvider,
       q: query,
       iac_path: iacPath,
       scope_id: scopeId,
     };
+    for (const [key, value] of Object.entries(fields)) {
+      if (value) {
+        params[key] = value;
+      } else {
+        delete params[key];
+      }
+    }
+    return params;
   }
 
   function handleSubmit() {
-    if (!repoUri || !terraformProvider || !query) return;
+    if (!repoUri || !terraformProvider || !query || !scopeId) return;
 
     if (schedule) {
       const update: UpdateScheduleRequest = {};
@@ -459,8 +496,7 @@ function ScheduleForm({
       if (cron !== schedule.cron) update.cron = cron;
       if (enabled !== schedule.enabled) update.enabled = enabled;
       const newParams = buildParams();
-      if (JSON.stringify(newParams) !== JSON.stringify(schedule.params))
-        update.params = newParams;
+      if (!sameParams(newParams, schedule.params)) update.params = newParams;
       onSubmit(update);
     } else {
       onSubmit({
@@ -484,14 +520,18 @@ function ScheduleForm({
         required
       />
 
-      <FormControl size="small" fullWidth>
+      {/* The API can't change a schedule's kind: create a new one instead. */}
+      <FormControl size="small" fullWidth disabled={!!schedule}>
         <InputLabel>Kind</InputLabel>
         <Select
           value={kind}
           label="Kind"
           onChange={(e) => setKind(e.target.value as ScheduleKind)}
+          MenuProps={MENU_IN_SHEET}
         >
-          <MenuItem value="drift">Drift</MenuItem>
+          <MenuItem value="drift" disabled={!canScheduleDrift}>
+            Drift
+          </MenuItem>
           <MenuItem value="import">Import</MenuItem>
         </Select>
       </FormControl>
@@ -532,6 +572,7 @@ function ScheduleForm({
           value={terraformProvider}
           label="Terraform Provider"
           onChange={(e) => setTerraformProvider(e.target.value)}
+          MenuProps={MENU_IN_SHEET}
         >
           <MenuItem value="azure">Azure</MenuItem>
           <MenuItem value="gcp">GCP</MenuItem>
@@ -563,6 +604,7 @@ function ScheduleForm({
         onChange={(e) => setScopeId(e.target.value)}
         size="small"
         fullWidth
+        required
       />
 
       <div className={styles.actions}>

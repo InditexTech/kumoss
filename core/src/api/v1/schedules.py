@@ -37,11 +37,16 @@ router = APIRouter(prefix="/schedules", tags=["Schedules"])
 _workspace = WorkspaceService()
 
 
-async def _response(schedule: OperationSchedule) -> ScheduleResponse:
-    owner = await DatabaseService.get_user(schedule.user_id)
+async def _response(schedule: OperationSchedule, caller: User) -> ScheduleResponse:
+    """Only a non-owner read (panel viewer+) needs the owner looked up."""
+    if schedule.user_id == caller.id:
+        owner_email = caller.email
+    else:
+        owner = await DatabaseService.get_user(schedule.user_id)
+        owner_email = owner.email if owner else None
     return ScheduleResponse(
         uuid=schedule.uuid,
-        owner_email=owner.email if owner else None,
+        owner_email=owner_email,
         name=schedule.name,
         kind=schedule.kind,
         cron=schedule.cron,
@@ -100,7 +105,7 @@ async def create_schedule(
         params=params,
         enabled=request.enabled,
     )
-    return await _response(schedule)
+    return await _response(schedule, user)
 
 
 @router.get(path="", summary="List the caller's schedules.")
@@ -108,12 +113,13 @@ async def list_schedules(
     user: Annotated[User, Depends(get_current_user)],
     page: Annotated[int, Query(ge=1)] = 1,
     page_size: Annotated[int, Query(ge=1, le=100)] = 20,
+    kind: Annotated[OperationType | None, Query()] = None,
 ) -> PaginatedSchedules:
     items, total = await OperationScheduleService.list_for_user(
-        user.id, offset=(page - 1) * page_size, limit=page_size
+        user.id, offset=(page - 1) * page_size, limit=page_size, kind=kind
     )
     return PaginatedSchedules(
-        items=[await _response(s) for s in items],
+        items=[await _response(s, user) for s in items],
         total=total,
         page=page,
         page_size=page_size,
@@ -129,7 +135,7 @@ async def get_schedule(
     schedule_id: UUID,
     user: Annotated[User, Depends(get_current_user)],
 ) -> ScheduleResponse:
-    return await _response(await _load(user, schedule_id, write=False))
+    return await _response(await _load(user, schedule_id, write=False), user)
 
 
 @router.patch(
@@ -151,7 +157,7 @@ async def update_schedule(
         values["next_run_at"] = OperationScheduleService.next_run(cron)
     if values:
         await OperationScheduleService.update(schedule.id, values)
-    return await _response(await _load(user, schedule_id, write=True))
+    return await _response(await _load(user, schedule_id, write=True), user)
 
 
 @router.delete(
