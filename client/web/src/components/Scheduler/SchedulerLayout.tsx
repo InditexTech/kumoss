@@ -27,7 +27,12 @@ import {
 } from "@/services/core/schedules";
 import { listOperations } from "@/services/core/operations";
 import { StatusBadge, SideSheet, SessionsTable } from "@/components/ui";
-import type { ColumnDef, FilterConfig, FetchParams } from "@/components/ui";
+import type {
+  ColumnDef,
+  FilterConfig,
+  FetchParams,
+  SearchFieldConfig,
+} from "@/components/ui";
 import type {
   OperationKind,
   Schedule,
@@ -113,6 +118,9 @@ const filters: FilterConfig[] = [
     ],
   },
 ];
+
+// Schedules have no search; stable so the table doesn't refetch every render.
+const NO_SEARCHES: SearchFieldConfig[] = [];
 
 type ViewMode = "list" | "detail" | "form";
 
@@ -275,7 +283,7 @@ export default function SchedulerLayout() {
         columns={columns}
         fetchData={fetchSchedules}
         filters={filters}
-        searches={[]}
+        searches={NO_SEARCHES}
         rowKey={(s) => s.uuid}
         onRowClick={handleRowClick}
         emptyText="No schedules found"
