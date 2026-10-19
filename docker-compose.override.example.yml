@@ -1,0 +1,45 @@
+# Template for a local Compose override. Copy it, do not rename it in
+# place:
+#
+#   cp docker-compose.override.example.yml docker-compose.override.yml
+#
+# Compose loads `docker-compose.override.yml` automatically; this example
+# is not loaded and is the only `docker-compose.override.*` file git
+# tracks. See the "Behind a TLS-inspecting proxy" section of the
+# development guide for the full diagnosis.
+#
+# ---------------------------------------------------------------------
+# Trusting a TLS-inspecting proxy
+# ---------------------------------------------------------------------
+# A corporate proxy that terminates HTTPS re-signs it with its own root,
+# which the containers do not trust: page reads then fail with
+# `[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed
+# certificate in certificate chain`. Confirm the interception with:
+#
+#   docker compose exec core sh -c \
+#     'echo | openssl s_client -connect example.com:443 \
+#      -servername example.com 2>/dev/null | openssl x509 -noout -issuer'
+#
+# An issuer naming your company rather than a public CA confirms it. The
+# fix mounts the bundle this machine already trusts; the certificates stay
+# on the host, since the override you create from this file is gitignored
+# and carries a path rather than a certificate. On Linux the host bundle
+# is usually the default below; elsewhere set KUMOSS_HOST_CA_BUNDLE to a
+# single PEM holding the public roots *and* your corporate root (a bundle
+# with only the corporate root breaks every public site).
+
+x-host-ca: &host-ca
+  environment:
+    - SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
+    - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+    # Node (Playwright's browser driver) ignores the system store; its
+    # own var also has to point at the mounted bundle.
+    - NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+  volumes:
+    - ${KUMOSS_HOST_CA_BUNDLE:-/etc/ssl/certs/ca-certificates.crt}:/etc/ssl/certs/ca-certificates.crt:ro
+
+services:
+  # Reads result pages for `web_search` and clones repositories.
+  core: *host-ca
+  # Downloads Terraform providers and modules over HTTPS.
+  iac: *host-ca

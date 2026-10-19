@@ -32,6 +32,61 @@ run `docker compose restart core` after a sync (or `docker compose up
 -d core`). It does not sync `config.yaml`, which is baked into the
 image.
 
+[#local-compose-overrides]
+=== Local Compose overrides
+
+Settings that belong to your machine rather than to the project go in
+`docker-compose.override.yml`, which Compose loads automatically and
+git ignores. `docker-compose.override.example.yml` is the tracked
+template — copy it rather than editing it in place:
+
+[source,bash]
+----
+cp docker-compose.override.example.yml docker-compose.override.yml
+----
+
+[#tls-inspecting-proxy]
+=== Behind a TLS-inspecting proxy
+
+On a corporate network that inspects HTTPS, most outbound container
+requests fail while a few domains keep working: `web_search` returns
+engine snippets instead of page content, and `docker compose logs core`
+shows the reads failing before any HTTP request is sent.
+
+[source,text]
+----
+Page read for '<url>' failed, falling back to the engine snippet:
+PageReadError("could not render '<url>'")
+(RuntimeError('[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify
+failed: self-signed certificate in certificate chain'))
+----
+
+The proxy terminates TLS and re-signs it with its own root, which the
+containers do not trust; the domains that still work are the ones the
+proxy passes through untouched. Confirm it by looking at who signed what
+you received:
+
+[source,bash]
+----
+docker compose exec core sh -c \
+  'echo | openssl s_client -connect example.com:443 \
+   -servername example.com 2>/dev/null | openssl x509 -noout -issuer'
+----
+
+An `issuer` naming your company rather than a public CA confirms the
+interception. The fix is in the override template above: it mounts the
+host's trust bundle and points `SSL_CERT_FILE` at it, so the certificates
+stay on your machine and never enter the repository.
+
+The same check runs at image build time, where the core downloads
+Chromium: the build pulls the host's corporate roots via the `host-certs`
+build context (see `docker-compose.yml`) and points Playwright's
+Node-based downloader at the bundle with `NODE_EXTRA_CA_CERTS`.
+
+A *hostname mismatch* is not a trust problem: the proxy is sinkholing
+that domain under its filtering policy, and the certificate honestly
+belongs to the sinkhole. No configuration fixes that one.
+
 == Core tests
 
 Python 3.13, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
