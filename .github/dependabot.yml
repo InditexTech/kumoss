@@ -132,10 +132,13 @@ updates:
         dependency-type: development
     # eslint-plugin-react (latest 7.37.5) only supports eslint <= 9, so
     # eslint 10 cannot install. Drop these once it supports eslint 10.
+    # Same for typescript: @typescript-eslint peers typescript < 6.1.
     ignore:
       - dependency-name: eslint
         update-types: ['version-update:semver-major']
       - dependency-name: '@eslint/js'
+        update-types: ['version-update:semver-major']
+      - dependency-name: typescript
         update-types: ['version-update:semver-major']
 
   - package-ecosystem: npm

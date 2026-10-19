@@ -183,7 +183,7 @@ and configuration delivery].
 |Production decision
 
 |Core API
-|`core/Dockerfile` (Python 3.13, port 8000, user `kumoss` 10001)
+|`core/Dockerfile` (Python 3.14, port 8000, user `kumoss` 10001)
 |Ingress (`/api`), nothing else
 |Shared workspace volume
 |Run *one replica* (see
