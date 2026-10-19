@@ -25,8 +25,9 @@ and how rows are deleted.
 
 [card]
 .xref:main:reference/environment-variables.adoc[Environment variables and secrets]
-Every variable in `core/env.sample` and the sidecar `env.sample`
-files, plus the IaC engine and LLM provider variables.
+Every variable in `core/env.sample` and the IaC and notifications
+sidecar `env.sample` files, plus the IaC engine and LLM provider
+variables.
 
 [card]
 .xref:main:reference/llm-providers.adoc[LLM providers and models]
@@ -50,8 +51,9 @@ exhaustive variable reference.
 
 [card]
 .xref:main:reference/api/index.adoc[HTTP APIs]
-Every route the core exposes under `/api/v1`, and the four contract-based sidecar
-OpenAPI contracts it consumes as a client.
+Every route the core exposes under `/api/v1`, and the sidecar
+OpenAPI contracts it consumes as a client (IaC, searxng as search enginge, notifications,
+repository mapping, authorization).
 ====
 
 == Limits at a glance

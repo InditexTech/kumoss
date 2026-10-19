@@ -22,14 +22,13 @@ info:
     user is never prompted and never sees it. Return `null` whenever the
     catalogue is not authoritative.
 
-    The OSS reference implementation under `services/mapping/` is an
-    identity passthrough: the input identifier is treated as the repo
-    URL, `terraform_provider` echoes whatever the caller sent, and
-    `scope_id` is always `null`. It deliberately guesses at nothing. It
-    exists so a fresh OSS deploy works end-to-end without anyone needing
-    to write a real mapper.
+    Kumoss does not bundle an implementation of this contract. While
+    `services.mapping` is disabled (the default), the core never calls
+    one and answers with an identity passthrough: the input identifier
+    is treated as the repo URL, `terraform_provider` echoes whatever the
+    caller sent, and `scope_id` is `null`.
 
-    Enterprise implementations look up the identifier against an internal
+    Implementations look up the identifier against an internal
     catalogue (CMDB, Backstage, a shared spreadsheet, …) and return the
     canonical IaC repo for it. The contract carries the result and says
     nothing about where the lookup data lives.
@@ -45,8 +44,8 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
-  - url: http://mapping:8081
-    description: Default in-cluster URL when running via docker-compose.
+  - url: https://mapping.example.com
+    description: Placeholder. Kumoss calls the URL set in `services.mapping.endpoint`.
 
 tags:
   - name: resolve
@@ -90,9 +89,7 @@ paths:
             Request could not be parsed at the transport layer (malformed
             JSON, non-UTF-8 bytes in a JSON body, missing Content-Type).
             Implementations MAY return either a Problem object or a
-            framework-default body for this case; the OSS reference impl
-            currently returns the latter for FastAPI-internal parse
-            errors. Distinct from 422 (well-formed JSON failing schema
+            framework-default body for this case. Distinct from 422 (well-formed JSON failing schema
             validation).
           content:
             application/json:
@@ -178,11 +175,11 @@ components:
   schemas:
     TerraformProvider:
       type: string
-      enum: [azure, gcp, aws, oci, kubernetes]
+      enum: [azure, gcp, aws, oci, kubernetes, vmware]
       description: |
         Cloud provider a deployment targets. Values follow the core's
         provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
-        `kubernetes`), not Terraform registry provider names
+        `kubernetes`, `vmware`), not Terraform registry provider names
         (`azurerm`, `google`).
 
     ResolveRequest:
@@ -196,7 +193,8 @@ components:
             Business identifier to resolve. Free-form by design — could be
             a project name, a subscription code, a product slug, a full
             repo URL, or anything else the implementation accepts. The
-            identity reference impl treats this as the repo URL directly.
+            core's disabled-mode passthrough treats it as the repo URL
+            directly.
           minLength: 1
           maxLength: 1024
           examples: ["my-project", "https://github.com/me/my-iac.git"]
@@ -251,7 +249,8 @@ components:
           type: [string, "null"]
           description: |
             Cloud scope the deployment targets — Azure: subscription id,
-            GCP: project id, AWS: account id, OCI: compartment OCID — as
+            GCP: project id, AWS: account id, OCI: compartment OCID,
+            VMware: vSphere datacenter name — as
             a best-effort answer, or `null` for "I do not know, ask the
             user". Same warning as `terraform_provider`: the caller skips
             its scope prompt when this is non-null, so a wrong value

@@ -7,10 +7,12 @@ engineers and application developers describe the infrastructure they need,
 and Kumoss's agents generate the corresponding code, guided by the
 organization's own standards.
 
-It runs as a layered FastAPI orchestration core alongside four
-contract-first FastAPI sidecars — the IaC engine, repository mapping,
-notifications, and authorization — behind an nginx edge that also serves a
-React single-page application and proxies the API.
+It runs as a layered FastAPI orchestration core with four OpenAPI
+integration contracts — IaC, notifications, repository mapping, and
+authorization — behind an nginx edge that also serves a React single-page
+application and proxies the API. Kumoss bundles services for IaC and
+notifications, while mapping and authorization are optional extension
+points you implement yourself.
 
 Every state change and every blocking decision — the in-flight guard,
 validation, the compliance verdict, the session lock, apply — is computed
@@ -20,7 +22,7 @@ a human action.
 == What you deploy
 
 :diagram-name: readme-components
-:diagram-alt: What you deploy: the browser and proxy, the core, the sidecar services, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets
+:diagram-alt: What you deploy: the browser and proxy, the core, the bundled iac and notifications sidecars, the contract-only mapping and authz services you bring yourself, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 
@@ -35,8 +37,10 @@ organization: `iac` (executes the IaC engine; mandatory, always on),
 `notifications` (posts session outcomes to Slack; disabled by default),
 `mapping` (resolves a repository reference; disabled by default), and
 `authz` (applies cloud-project authorization policy; disabled by default).
-Each implements an OpenAPI contract, so any implementation of that contract
-can replace the bundled reference. A disabled sidecar is never contacted.
+Each is defined by an OpenAPI contract. Kumoss bundles the `iac` and
+`notifications` services, which any implementation of their contract can
+replace; for `mapping` and `authz`, provide your own implementation. A
+disabled sidecar is never contacted.
 
 The React single-page application is the user-facing portal, served by the
 `proxy`. The whole stack runs from one Docker Compose stack, with nginx as
@@ -68,8 +72,8 @@ the only public entry point.
 
 * *Works with what you already have* — your existing IaC repositories,
   Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
-* *Multicloud* — AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and
-  Kubernetes.
+* *Multicloud* — AWS, Azure, Google Cloud, Oracle Cloud Infrastructure,
+  Kubernetes, and VMware vSphere.
 * *Your rules, your definition of critical* — you decide what is allowed,
   what is high risk, and which compliance checks apply, from special
   projects to every production environment or a cost threshold, see

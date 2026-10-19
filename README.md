@@ -12,7 +12,7 @@ Kumoss turns natural-language requests into reviewed, compliant Infrastructure a
 
 Kumoss is an orchestration platform: a FastAPI core, a React web application, and replaceable sidecar services — four behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization, plus a bundled SearXNG metasearch instance the agents use to search the web.
 
-https://github.com/user-attachments/assets/cb8d1b4b-7e10-45d6-ac05-acfebfb38b9b
+https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 
 ## Key capabilities
 
@@ -27,7 +27,7 @@ https://github.com/user-attachments/assets/cb8d1b4b-7e10-45d6-ac05-acfebfb38b9b
 **Built to fit your organization**
 
 - **Works with what you already have.** Use your existing IaC repositories, Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
-- **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, and Kubernetes.
+- **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, Kubernetes, and VMware vSphere.
 - **Your rules, your definition of critical.** You decide what is allowed, what is high risk, and which compliance checks apply. Critical can mean special projects, every production environment, changes above a cost threshold, or any rule you write.
 - **Full traceability.** An admin panel shows users, sessions, and roles, all stored in a database.
 - **Observability built in.** Every agent and every system prompt read at runtime is traced with OpenTelemetry and Arize Phoenix.
@@ -41,7 +41,7 @@ https://github.com/user-attachments/assets/cb8d1b4b-7e10-45d6-ac05-acfebfb38b9b
 - **IaC executor.** Keep your own Terraform or OpenTofu runtime, version, and execution environment by implementing the IaC OpenAPI contract.
 - **Notification system.** Send session outcomes and review requests to any channel, such as Slack, Microsoft Teams, email, Discord, or WhatsApp, by implementing the notifications OpenAPI contract.
 
-Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/), so you can replace the bundled reference implementation with your own.
+Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/). Kumoss bundles the IaC and notifications services, which you can replace with your own; for authorization, provide your own implementation.
 
 > [!NOTE]
 > Kumoss exposes everything through a FastAPI API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.

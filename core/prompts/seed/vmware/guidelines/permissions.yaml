@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere RBAC and identity conventions.
+body: |
+  # VMware vSphere Permissions Guidelines
+
+  ## Model
+  - vSphere access is a permission that binds a principal (user or
+    group) to a role (a set of privileges) on an inventory object,
+    optionally propagating to its children.
+  - Grant the narrowest role on the narrowest object: a VM folder,
+    resource pool, datastore or port group — not the datacenter or
+    the vCenter root.
+  - Use `propagate = true` only on folders and resource pools that
+    exist for the workload being granted.
+
+  ## Roles
+  - Prefer the built-in `ReadOnly` and `NoAccess` roles where they
+    suffice. For anything else, create a custom role with the
+    explicit privilege list the use case needs.
+  - Never assign the built-in `Administrator` role and never create
+    a role holding all privileges.
+  - Name custom roles after their purpose, e.g.
+    `role-<application>-vm-operator`.
+
+  ## Principals
+  - Grant permissions to SSO or identity-provider groups, never to
+    individual users or to `vsphere.local` local accounts.
+  - The account Terraform runs as is a dedicated service account
+    holding only the privileges needed on the target folders,
+    resource pools, datastores and networks.
+
+  ## Credentials
+  - The provider reads `VSPHERE_SERVER`, `VSPHERE_USER` and
+    `VSPHERE_PASSWORD` from the environment; never set `user` or
+    `password` in the provider block.
+  - Guest OS passwords and keys come from variables marked
+    `sensitive = true`; never default them.
+  - Keep TLS verification on (`allow_unverified_ssl = false`) and
+    trust the vCenter certificate through the system CA store.
+
+  Replace this body with your organization's authoritative access
+  standards.

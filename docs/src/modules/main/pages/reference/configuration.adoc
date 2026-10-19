@@ -23,10 +23,11 @@ sidecar READMEs under `services/`.
 == How the file is loaded
 
 * The core Dockerfile copies the repository's `config.yaml` to
-  `/etc/kumoss/config.yaml` *at image build time*. The file is baked
-  into the image. Editing it on the host does nothing until you run
-  `docker compose build core` and restart the container. `docker
-  compose watch` syncs only `core/`, not the configuration.
+  `/etc/kumoss/config.yaml` *at image build time*, so every core image,
+  including the published one, carries the repository's default. The
+  checked-in `docker-compose.yml` bind-mounts the repository's
+  `config.yaml` over that path, so with Compose an edit on the host
+  takes effect after `docker compose restart core`.
 * The `KUMOSS_CONFIG` environment variable overrides the path. The path
   is interpreted *inside the container*, and the file must actually be
   present there (for example through a bind mount or a mounted secret).
@@ -44,20 +45,21 @@ sidecar READMEs under `services/`.
   with a message containing the `ConfigError` text quoted in the tables
   below. Section errors are aggregated: a file with a bad `oidc`, `llm`,
   and `storage` section reports all three at once, and inside `llm`
-  every missing credential variable is listed together. One check is
-  the exception — the bearer-token check on `services.*` runs on the
-  assembled model, only after every section has validated, so it can
-  surface on the next boot attempt after a section error is fixed.
+  every missing credential variable is listed together. Two checks are
+  the exception — the bearer-token and enabled-endpoint checks on
+  `services.*` run on the assembled model, only after every section has
+  validated, so they can surface on the next boot attempt after a
+  section error is fixed.
 * *Secrets never belong in `config.yaml`.* Fields whose name ends in
   `_env` hold the _name_ of an environment variable; the value is read
   from the environment at boot or at use time.
 
-Changing any field therefore means: edit `config.yaml`, rebuild the
-core image, restart. "Requires rebuild" in the tables below always
-refers to that sequence. If you instead mount the file at the path in
-`KUMOSS_CONFIG`, the equivalent is: update the mounted file and restart
-the core — no image rebuild needed, because the container reads the
-file from disk at startup rather than from the baked-in copy.
+Changing any field therefore means: edit `config.yaml` and restart the
+core. "Requires restart" in the tables below always refers to that
+sequence. The file is read once at startup, so a running core never
+picks up an edit. If you run an image without a mounted file, the
+baked-in copy is the one read, and a change means rebuilding the core
+image from your edited checkout.
 
 == Requirement summary
 
@@ -113,7 +115,7 @@ turn on authentication, authorization, or stricter defaults. A prompt
 created or re-versioned by hand in Phoenix is found only if its version
 carries the tag for the current value.
 
-Requires rebuild: yes.
+Requires restart: yes.
 
 [#config-oidc]
 == `oidc`
@@ -170,7 +172,7 @@ the default and the issuer host is `login.microsoftonline.com`,
 |===
 
 Related environment variables: none. The SPA is a public PKCE client
-and the core needs only the issuer's public keys. Requires rebuild:
+and the core needs only the issuer's public keys. Requires restart:
 yes. The public route `GET /api/v1/auth/config` returns the effective
 values.
 
@@ -201,15 +203,17 @@ xref:main:guides/enable-authentication.adoc#bootstrap-admin[Bootstrap
 admin]. Ignored while authentication is disabled.
 |===
 
-Requires rebuild: yes. This is the core's mechanism and is unrelated to
-the authorization sidecar's `KUMOSS_AUTHZ_ROOT_ADMIN_EMAIL`.
+Requires restart: yes.
 
 [#config-services]
 == `services`
 
-Wiring for the four contract-based sidecars. Each implements an OpenAPI
-contract in `contracts/openapi/`, and any implementation of the
-contract can replace the bundled one by changing `endpoint`.
+Wiring for the four sidecars. Each sidecar implements an OpenAPI
+contract in `contracts/openapi/`. Kumoss bundles services for IaC and
+notifications, and any implementation of their contract can replace
+the bundled one by changing `endpoint`; mapping and authorization are
+optional extension points you implement yourself and point `endpoint`
+at.
 
 Common fields, available under `services.notifications`,
 `services.mapping`, `services.authz`, and `services.iac`. The `enabled`
@@ -228,21 +232,23 @@ none because the core cannot run without it.
 |Whether the core calls the sidecar. A disabled sidecar is never
 contacted: mapping is done locally, notifications are dropped, and
 authorization answers "authorized". Compose still starts the
-container. An `enabled` key under `services.iac` is ignored.
+bundled notifications container; mapping and authorization have no
+bundled container. An `enabled` key under `services.iac` is ignored.
 
 |`services.<name>.endpoint`
 |string (base URL)
 |`""` for `notifications`, `mapping`, `authz`; *`\http://iac:8082`* for
 `iac` (its own code default, not just the shipped value)
-|`\http://notifications:8080`, `\http://mapping:8081`,
-`\http://authz:8083`, `\http://iac:8082`
+|`\http://notifications:8080`, `\http://iac:8082`; `""` for
+`mapping` and `authz` (no bundled implementation)
 |Conditional (needed when enabled; always for `iac`)
 |Base URL the core calls, resolvable from inside the core container.
 *An empty `services.iac.endpoint` aborts the boot* with
 `services.iac.endpoint is empty; the IaC service is mandatory. Point it
-at an implementation of the iac contract.` The three optional sidecars
-have no equivalent check: an enabled sidecar with an empty endpoint
-fails on the first call instead.
+at an implementation of the iac contract.` *An enabled optional sidecar
+with an empty endpoint also aborts the boot*, with `Enabled services
+have no endpoint: services.<name>.endpoint. Point each at an
+implementation of its contract, or flip it to enabled: false.`
 
 |`services.<name>.token_env`
 |string (variable name)
@@ -305,7 +311,7 @@ above, the empty-token text in the `token_env` row.
 Related environment variables: the ones named by each `token_env`, in
 `core/.env`, with the same value in the sidecar's `.env`. See
 xref:main:reference/environment-variables.adoc[Environment variables].
-Requires rebuild: yes.
+Requires restart: yes.
 
 [#config-orchestration]
 == `orchestration`
@@ -428,7 +434,7 @@ them silently turns both gates off — spell them out in any file you
 write yourself. The full round-by-round flow is in
 xref:main:architecture/end-to-end-flow.adoc#compliance[Compliance gate].
 
-Requires rebuild: yes. See xref:main:guides-overview.adoc[Guides] for
+Requires restart: yes. See xref:main:guides-overview.adoc[Guides] for
 where each limit applies.
 
 [#config-llm]
@@ -508,8 +514,8 @@ xref:main:reference/llm-providers.adoc#startup-credential-validation[LiteLLM
 guide].
 
 Related environment variables: the provider's credential variables in
-`core/.env`. Requires rebuild: yes for the YAML; a credential change
-only needs a container restart.
+`core/.env`. Requires restart: yes, for the YAML and for a credential
+change.
 
 [#config-web-search]
 == `web_search`
@@ -701,7 +707,7 @@ file holds the state store credentials, so the agent's file tools can
 neither see nor touch it.
 |===
 
-Requires rebuild: yes.
+Requires restart: yes.
 
 [#config-database]
 == `database`
@@ -727,7 +733,7 @@ Schema note: there are no migrations; tables are created with
 `create_all`. A database volume created by an older schema must be
 migrated by hand or dropped.
 
-Requires rebuild: yes for the field name; the URL value lives in
+Requires restart: yes for the field name; the URL value lives in
 `core/.env`.
 
 [#config-redis]
@@ -780,7 +786,7 @@ points at the compose service, so the stack needs no Redis variable.
 |===
 
 Boot fails if Redis cannot be reached during initialisation. Requires
-rebuild: yes.
+restart: yes.
 
 [#telemetry]
 == `telemetry`
@@ -827,7 +833,7 @@ prompts and plans; do not enable this where logs are shared.
 |===
 
 The code default only works when the core runs outside Docker on the
-same host as Phoenix. Requires rebuild: yes.
+same host as Phoenix. Requires restart: yes.
 
 [#config-http]
 == `http`
@@ -846,7 +852,7 @@ nginx on port 80, so `\http://localhost` is enough. Add
 API container. Set your real origin for a deployed instance.
 |===
 
-Requires rebuild: yes.
+Requires restart: yes.
 
 [#storage]
 == `storage`
@@ -1004,7 +1010,7 @@ non-empty values, the backend block omits the credential lines entirely
 the *sidecar's* ambient credentials; an instance profile on the core
 alone is not enough.
 
-Requires rebuild: yes. Related environment variables in `core/.env`:
+Requires restart: yes. Related environment variables in `core/.env`:
 `RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`, `STORAGE_ACCOUNT_KEY`.
 
 [#config-git]
@@ -1067,7 +1073,7 @@ rejected by the API, so SSH keys are never an alternative. URLs that
 embed a password or token are rejected too; a bare userinfo username
 is accepted.
 
-Requires rebuild: yes for the YAML; token values live in `core/.env`.
+Requires restart: yes for the YAML; token values live in `core/.env`.
 
 == Example: minimal local development
 
@@ -1199,8 +1205,8 @@ git:
 ----
 
 Points that this example relies on but that the file cannot express:
-the mapping and authz endpoints must be real implementations of their
-contracts (the bundled ones are a passthrough and a permissive stub);
+the mapping and authz endpoints must be your own implementations of
+their contracts (Kumoss bundles neither);
 Phoenix must be reachable at `collector_url` for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,

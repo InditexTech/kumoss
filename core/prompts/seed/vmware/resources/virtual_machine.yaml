@@ -1,0 +1,50 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere virtual machine default configuration (clone, hardware, security, guest setup).
+body: |
+  # VMware vSphere Virtual Machine
+
+  For a `vsphere_virtual_machine`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `vm-<application>-<environment>-<nn>`. The VM
+    name is also the default guest host name.
+  - Clone from a hardened, organization-approved template, looked up
+    with `data "vsphere_virtual_machine"` (template VM) or
+    `data "vsphere_content_library_item"`. Never build from an ISO.
+  - Copy `guest_id`, `firmware`, `scsi_type` and disk sizes from the
+    template data source so the clone matches it.
+  - Placement: `resource_pool_id` of the workload resource pool,
+    `folder` of the workload VM folder, and `datastore_cluster_id`
+    rather than a single `datastore_id`; add `storage_policy_id` on top
+    when a policy is requested, never instead of the datastore. Never
+    set `host_system_id`; let DRS place the VM.
+  - Size: start at 2 vCPUs and 4 GB of memory. Keep
+    `cpu_hot_add_enabled` and `memory_hot_add_enabled` at `false`
+    (hot add disables vNUMA).
+  - Security: `firmware = "efi"`, `efi_secure_boot_enabled = true`
+    and `enable_disk_uuid = true`. Add a `vtpm` block and the VM
+    encryption storage policy when the user asks for encryption or
+    the workload handles sensitive data.
+  - Hardware: `scsi_type = "pvscsi"`, network adapters
+    `adapter_type = "vmxnet3"`, disks `thin_provisioned = true` and
+    `eagerly_scrub = false`.
+  - Networking: one `network_interface` per required network, looked
+    up with `data "vsphere_network"`. Never attach to management,
+    vMotion or storage networks.
+  - Guest setup: use the `clone.customize` block (`linux_options` or
+    `windows_options`, with `network_interface` and DNS settings) or
+    cloud-init through `extra_config` `guestinfo.metadata` and
+    `guestinfo.userdata` (base64 encoded) — not both. Passwords come
+    from sensitive variables.
+  - Keep VMware Tools current: `tools_upgrade_policy = "upgradeAtPowerCycle"`
+    and `sync_time_with_host = false` when the guest uses NTP.
+  - Set `annotation` to a short description with the owning team.
+  - Apply tags from the `environment`, `owner` and `managed-by`
+    categories.
+  - Add `lifecycle { ignore_changes = [clone[0].template_uuid] }` so
+    rebuilding the template does not force a replacement.
+  - Add `prevent_destroy = true` to the lifecycle block for
+    production virtual machines.

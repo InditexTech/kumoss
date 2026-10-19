@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere entity permissions default configuration (group, role, scope, propagation).
+body: |
+  # VMware vSphere Entity Permissions
+
+  For a `vsphere_entity_permissions`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Grant on the narrowest object: the workload's VM folder or
+    resource pool (`entity_type = "Folder"` or `"ResourcePool"`), not
+    the datacenter or the vCenter root.
+  - Each `permissions` block names an identity-provider group
+    (`user_or_group = "<DOMAIN>\\<group>"`, `is_group = true`); never
+    an individual user or a `vsphere.local` account.
+  - `role_id` references a `vsphere_role` or the built-in role looked
+    up with `data "vsphere_role"`; never the `Administrator` role.
+  - `propagate = true` only on folders and resource pools dedicated
+    to the workload.
+  - Keep all permissions for one entity in a single resource; do not
+    split them across several `vsphere_entity_permissions` blocks.

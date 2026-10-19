@@ -91,7 +91,8 @@ class BaseIacRequest(BaseModel):
                         - GCP -> project id
                         - AWS -> account id
                         - OCI -> compartment OCID
-                        - Kubernetes -> no cloud scope; any stable identifier""",
+                        - Kubernetes -> no cloud scope; any stable identifier
+                        - VMware -> vSphere datacenter name""",
         ),
     ] = None
     terraform_providers: Annotated[

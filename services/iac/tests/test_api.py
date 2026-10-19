@@ -666,6 +666,7 @@ def test_unscoped_endpoints_run_unscoped(
         ("aws", {}),
         ("oci", {}),
         ("kubernetes", {}),
+        ("vmware", {}),
     ],
 )
 def test_scope_is_injected_per_provider(
@@ -673,8 +674,8 @@ def test_scope_is_injected_per_provider(
 ) -> None:
     """scope_id reaches the engine as the environment overlay the
     request's terraform_provider selects, and only where that cloud has
-    a provider-level variable naming a scope. aws, oci and kubernetes
-    have none, so the engine is called with no overlay at all."""
+    a provider-level variable naming a scope. aws, oci, kubernetes and
+    vmware have none, so the engine is called with no overlay at all."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
@@ -969,11 +970,11 @@ def test_scope_resource_ids_reports_a_discovery_failure(tmp_path: Path) -> None:
     assert body["result"]["stderr"] == "403 from Resource Graph: denied"
 
 
-@pytest.mark.parametrize("terraform_provider", ["oci", "kubernetes"])
+@pytest.mark.parametrize("terraform_provider", ["oci", "kubernetes", "vmware"])
 def test_scope_resource_ids_reports_a_provider_without_discovery(
     terraform_provider: str, tmp_path: Path
 ) -> None:
-    """oci and kubernetes have no inventory query here. Exit 2 marks the
+    """oci, kubernetes and vmware have no inventory query here. Exit 2 marks the
     provider as unsupported, which is a different outcome from a cloud
     call that went wrong. No patching: this is the real dispatch, and it
     reaches no network."""

@@ -21,7 +21,7 @@ include::partial$interactive-diagram.adoc[]
 Named volumes are written into each container's subtitle instead of
 being drawn as separate nodes (`core_db_data`, `phoenix_db_data`,
 `object_storage_data`, and `workspaces`), and `phoenix-db` is folded
-into the phoenix node, so the eleventh container of the stack is not a
+into the phoenix node, so the ninth container of the stack is not a
 box of its own. Two edges are left out because the
 xref:main:architecture.adoc[system architecture diagram] already
 carries them — the core's OTLP traces and prompt calls to Phoenix, and
@@ -51,7 +51,7 @@ repository ships no Kubernetes manifests or Helm charts.
 
 === Topology
 
-* All eleven containers share one Docker bridge network. Only `proxy`
+* All nine containers share one Docker bridge network. Only `proxy`
   publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
   (presigned object-storage access); every other service is
   internal-only via `expose`.
@@ -63,8 +63,7 @@ repository ships no Kubernetes manifests or Helm charts.
   "unavailable" result. The core has no Compose dependency on Phoenix,
   which is why its prompt seeder retries.
 * Four named volumes persist state: `core_db_data`, `phoenix_db_data`,
-  `object_storage_data`, and `workspaces`. The authz sidecar's JSON
-  role store has no volume and does not survive container recreation.
+  `object_storage_data`, and `workspaces`.
 
 === Core start-up
 
@@ -72,10 +71,12 @@ repository ships no Kubernetes manifests or Helm charts.
   then object-storage bucket creation, then Phoenix prompt seeding.
   Failure of any step aborts boot. Git credential configuration follows
   and is best-effort.
-* Configuration comes from a single `config.yaml`, baked into the image
-  at `/etc/kumoss/config.yaml` by the core Dockerfile, so changes
-  require an image rebuild unless `KUMOSS_CONFIG` points at a file
-  mounted elsewhere in the container.
+* Configuration comes from a single `config.yaml`, read once at
+  startup from `/etc/kumoss/config.yaml` (or the path in
+  `KUMOSS_CONFIG`). The core Dockerfile bakes the repository's copy into
+  the image, and the checked-in Compose file bind-mounts it over that
+  path, so a change needs a core restart; without a mount, it needs an
+  image rebuild.
 * Secrets never appear in the file: `*_env` fields name environment
   variables (database URL, service bearer tokens, storage keys, git
   personal access token), and the core validates at boot that every
@@ -88,7 +89,7 @@ repository ships no Kubernetes manifests or Helm charts.
   boot; discovery and JWKS are fetched lazily on the first request, so a
   wrong or unreachable issuer surfaces as a `401` at first login, not at
   boot. Operationally, what matters here is that
-  enabling or changing OIDC means `docker compose build core`, and that
+  enabling or changing OIDC means `docker compose restart core`, and that
   the IdP must have `<origin>/auth/callback` registered as the SPA
   redirect URI.
 
@@ -132,9 +133,11 @@ to plan for before running more than one:
   execution, and storage backends are replaceable through configuration
   alone.
 * *Contract-first sidecars.* OpenAPI specifications are the
-  authoritative boundary, with generated clients on one side and
-  intentionally minimal reference implementations on the other,
-  inviting substitution in enterprise deployments.
+  authoritative boundary, with generated clients on one side and, on
+  the other, intentionally minimal bundled implementations for IaC and
+  notifications, inviting substitution in enterprise deployments; the
+  mapping and authorization contracts ship without an implementation,
+  as optional extension points you implement yourself.
 * *Deliberately direct execution.* Pipelines run as in-process
   background tasks with a database compare-and-set as the only
   concurrency control; sidecar calls are synchronous HTTP with job

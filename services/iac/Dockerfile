@@ -4,11 +4,11 @@
 
 # IaC engine: OpenTofu, taken from the official minimal image (the
 # install method the OpenTofu project documents for custom images).
-FROM ghcr.io/opentofu/opentofu:1.12.7-minimal@sha256:1349f86c125d1e72d63b9ef7f9492b5a4368820a7bc7c1e1f0f8374e02543973 AS tofu
+FROM ghcr.io/opentofu/opentofu:1.12.8-minimal@sha256:30aa20a0f9a05fa17e1b82687260677de0a26bcf493a1ee8f55c07eda748f353 AS tofu
 
-FROM ghcr.io/astral-sh/uv:0.13.0@sha256:cdc6093146eb3ff6a40107b38f008b789e050e77ad87865e381d9917da55a168 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.1@sha256:4a1f3666816dafadd20ceb71eac9a7d56d7ef30279f7d64048519ab901ada336 AS uv
 
-FROM python:3.13-slim@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81 AS base
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS base
 
 # Unprivileged runtime identity. The uid/gid MUST match the core image's
 # (same ARG names and defaults in core/Dockerfile): both containers
@@ -24,10 +24,12 @@ WORKDIR /app
 
 COPY --from=uv /uv /uvx /bin/
 
-# Terraform CLI installation
+# Terraform CLI installation. TARGETARCH is set by BuildKit (amd64, arm64),
+# which matches HashiCorp's release naming.
 ARG TERRAFORM_VERSION=1.16.0
+ARG TARGETARCH
 COPY --from=tofu /usr/local/bin/tofu /usr/local/bin/tofu
-RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_amd64.zip" \
+RUN tf_zip="terraform_${TERRAFORM_VERSION}_linux_${TARGETARCH}.zip" \
     && apt-get update \
     && apt-get install -y --no-install-recommends curl unzip ca-certificates \
     && curl -fsSL "https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/${tf_zip}" -o "/tmp/${tf_zip}" \

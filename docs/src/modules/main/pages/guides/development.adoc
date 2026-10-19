@@ -14,9 +14,9 @@ proposing a change.
 
 == Repository layout
 
-The repository is a monorepo: the FastAPI core in `core/`, sidecar
-services in `services/`, the React web application in `client/web/`,
-and the sidecar OpenAPI contracts in `contracts/`. See
+The repository is a monorepo: the FastAPI core in `core/`, the IaC and
+notifications sidecar services in `services/`, the React web application
+in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See
 xref:main:architecture.adoc[] for how they fit together.
 
 == Running the stack for development
@@ -24,13 +24,15 @@ xref:main:architecture.adoc[] for how they fit together.
 Copy each `env.sample` to a `.env` next to it (`core/.env` is
 required), set the two model strings in `config.yaml`, and run `docker
 compose up --build`. xref:main:quickstart.adoc[] is the step-by-step
-guide.
+guide. `--build` matters: without it, Compose runs the published
+release images (`ghcr.io/inditextech/kumoss-*`) instead of your
+checkout. A `docker compose pull` later replaces locally built images
+with the published ones again.
 
-`docker compose up --watch` syncs `core/` into the running container,
-but the server runs without `--reload` and does not pick up the change:
-run `docker compose restart core` after a sync (or `docker compose up
--d core`). It does not sync `config.yaml`, which is baked into the
-image.
+After a code change, rebuild and recreate the affected service, for
+example `docker compose up -d --build core`. An edit to `config.yaml`
+needs only `docker compose restart core`, because Compose bind-mounts
+that file.
 
 [#local-compose-overrides]
 === Local Compose overrides
@@ -89,7 +91,7 @@ belongs to the sinkhole. No configuration fixes that one.
 
 == Core tests
 
-Python 3.13, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
+Python 3.14, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
 dependency group, so sync the project first:
 
 [source,bash]

@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere resource pool default configuration (shares, reservations, limits).
+body: |
+  # VMware vSphere Resource Pool
+
+  For a `vsphere_resource_pool`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `rp-<application>-<environment>`.
+  - Parent: the compute cluster's root resource pool
+    (`data.vsphere_compute_cluster.<name>.resource_pool_id`) or the
+    team's resource pool.
+  - Use shares, not reservations, to express priority:
+    `cpu_share_level` and `memory_share_level` set to `normal`
+    (`high` for production only when requested).
+  - `cpu_reservation = 0` and `memory_reservation = 0`, with
+    `cpu_expandable = true` and `memory_expandable = true`.
+  - `cpu_limit = -1` and `memory_limit = -1` (unlimited) unless the
+    user asks for a cap.
+  - Do not place virtual machines as siblings of resource pools at
+    the same level; they compete unevenly for shares.
+  - Apply tags from the `environment`, `owner` and `managed-by`
+    categories.

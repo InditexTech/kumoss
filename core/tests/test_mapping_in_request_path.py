@@ -10,7 +10,7 @@ configured mapping microservice (or falls back to identity passthrough
 when the service is disabled in system config).
 
 Also covers the client facade itself: the disabled path answering
-byte-identically to what the reference service would return, the enum
+with an identity passthrough, the enum
 conversion at both edges of the wire, and the mapping of a response
 the contract does not allow onto 502 rather than an unhandled 500.
 """

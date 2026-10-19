@@ -34,14 +34,13 @@ This starts the full stack (core API, microservices, databases, Phoenix
 tracer, and the nginx proxy, which serves a production build of this client).
 Browse to `http://localhost`.
 
-The client is baked into the `kumoss-nginx` image as a static build. After
+The client is baked into the proxy image as a static build. Without
+`--build`, Compose runs the published proxy image, not this checkout. After
 changing frontend code, rebuild the proxy to see the changes:
 
 ```bash
 docker compose build proxy && docker compose up -d proxy
 ```
-
-`docker compose watch` syncs `core/` into the container; restart the core (`docker compose restart core`) to pick up changes. It does not touch this client at all.
 
 ## Commands
 

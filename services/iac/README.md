@@ -86,12 +86,13 @@ provider-level variable that names a scope:
 | `aws`                | none                  | —             |
 | `oci`                | none                  | —             |
 | `kubernetes`         | none                  | —             |
+| `vmware`             | none                  | —             |
 
 Only Azure and GCP have one. An AWS account is implicit in the
-credentials the provider resolves, and an OCI compartment or a
-Kubernetes namespace is a resource argument rather than a provider
-setting — no environment variable redirects a command to one. For those
-three the service injects nothing and the command runs against whatever
+credentials the provider resolves, and an OCI compartment, a
+Kubernetes namespace or a vSphere datacenter is a resource or
+data-source argument rather than a provider setting — no environment
+variable redirects a command to one. For those four the service injects nothing and the command runs against whatever
 scope its ambient credentials select, so a deployment that serves them
 is responsible for making those credentials agree with `scope_id`; it
 can also scope by another mechanism (an AWS AssumeRole into the
@@ -132,9 +133,9 @@ forms have no discovery equivalent; see `PROVIDERS.md`.
 | `azure`              | Resource Graph `providers/Microsoft.ResourceGraph/resources` | subscription ID    |
 | `gcp`                | Cloud Asset Inventory `searchAllResources` + Resource Manager `projects.get` and `getIamPolicy` | project ID |
 | `aws`                | Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources` | account ID   |
-| `oci`, `kubernetes`  | none                                                       | —                    |
+| `oci`, `kubernetes`, `vmware` | none                                              | —                    |
 
-`oci` and `kubernetes` are answered with exit code 2 and
+`oci`, `kubernetes` and `vmware` are answered with exit code 2 and
 `no scope discovery for provider '<p>'` in `stderr`. That is a
 deliberate outcome, not a crash: the job still ends `succeeded`, and
 the exit code tells the caller the provider is unsupported rather than

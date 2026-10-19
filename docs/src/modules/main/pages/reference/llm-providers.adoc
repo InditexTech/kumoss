@@ -158,9 +158,10 @@ ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ----
 
 Changing a model identifier to a different provider means changing the
-credential variables too. `config.yaml` is baked into the core image,
-so a model change requires `docker compose build core`; a credential
-change in `core/.env` only requires restarting the core container.
+credential variables too. A model change in `config.yaml` requires
+`docker compose restart core`; a credential change in `core/.env`
+requires `docker compose up -d core`, which recreates the container
+(`restart` does not reload `.env` files).
 
 [#startup-credential-validation]
 == Startup credential validation and its limits

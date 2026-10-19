@@ -34,13 +34,13 @@ jobs:
             project_name: kumoss-python
             conformance_dir_list: contracts/conformance/authz,contracts/conformance/iac,contracts/conformance/mapping,contracts/conformance/notifications
             coverage_paths: >-
-              services/authz/coverage.xml,services/iac/coverage.xml,services/mapping/coverage.xml,services/notifications/coverage.xml
+              services/iac/coverage.xml,services/notifications/coverage.xml
           - technology: web
             project_key: InditexTech_kumoss-web
             project_name: kumoss-web
             coverage_paths: client/web/coverage/lcov.info
     env:
-      PY_PACKAGES: services/authz services/iac services/mapping services/notifications
+      PY_PACKAGES: services/iac services/notifications
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -52,7 +52,7 @@ jobs:
         if: matrix.technology == 'python'
         uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
-          python-version: "3.13"
+          python-version: "3.14"
           enable-cache: true
           cache-dependency-glob: |
             core/uv.lock
@@ -78,7 +78,7 @@ jobs:
         # unittest.IsolatedAsyncioTestCase-driven.
         run: |
           set -euo pipefail
-          export UV_PYTHON=3.13
+          export UV_PYTHON=3.14
           for pkg in $PY_PACKAGES; do
             (
               cd "$pkg"
@@ -124,8 +124,8 @@ jobs:
             "-Dsonar.projectName=${SONAR_PROJECT_NAME}"
           )
           if [ "$SONAR_TECH" = "python" ]; then
-            sources="core/src,services/authz/src,services/iac/src,services/mapping/src,services/notifications/src"
-            tests="core/tests,services/authz/tests,services/iac/tests,services/mapping/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
+            sources="core/src,services/iac/src,services/notifications/src"
+            tests="core/tests,services/iac/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
             args+=(
               "-Dsonar.sources=$sources"
               "-Dsonar.tests=$tests"
