@@ -26,9 +26,10 @@ import {
   deleteSchedule,
 } from "@/services/core/schedules";
 import { listOperations } from "@/services/core/operations";
-import { StatusBadge, SideSheet, SessionsTable, formatDate } from "@/components/ui";
+import { StatusBadge, SideSheet, SessionsTable } from "@/components/ui";
 import type { ColumnDef, FilterConfig, FetchParams } from "@/components/ui";
 import type {
+  OperationKind,
   Schedule,
   ScheduleKind,
   ScheduleOperation,
@@ -36,13 +37,14 @@ import type {
   UpdateScheduleRequest,
 } from "@/types/api_scheduler";
 import { panelRoleAtLeast } from "@/types/api";
+import { formatDate } from "@/utils/datetime";
 import styles from "./SchedulerLayout.module.css";
 
-const KIND_LABELS: Record<ScheduleKind, string> = {
-  GENERATE: "Generate",
-  DRIFT: "Drift",
-  APPLY: "Apply",
-  IMPORT: "Import",
+const KIND_LABELS: Record<OperationKind, string> = {
+  generate: "Generate",
+  drift: "Drift",
+  import: "Import",
+  apply: "Apply",
 };
 
 const columns: ColumnDef<Schedule>[] = [
@@ -106,10 +108,8 @@ const filters: FilterConfig[] = [
     key: "kind",
     placeholder: "KIND",
     options: [
-      { value: "GENERATE", label: "Generate" },
-      { value: "DRIFT", label: "Drift" },
-      { value: "APPLY", label: "Apply" },
-      { value: "IMPORT", label: "Import" },
+      { value: "drift", label: "Drift" },
+      { value: "import", label: "Import" },
     ],
   },
 ];
@@ -117,7 +117,7 @@ const filters: FilterConfig[] = [
 type ViewMode = "list" | "detail" | "form";
 
 export default function SchedulerLayout() {
-  const { panelRole, user } = useAuth();
+  const { panelRole } = useAuth();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const scheduleId = searchParams.get("schedule");
@@ -312,7 +312,6 @@ export default function SchedulerLayout() {
       >
         <ScheduleForm
           schedule={editingSchedule}
-          userEmail={user?.email ?? ""}
           onSubmit={handleFormSubmit}
           onCancel={handleCloseOverlay}
         />
@@ -346,8 +345,8 @@ function ScheduleDetail({
           <span className={styles.detailValue}>
             {schedule.enabled ? "Yes" : "No"}
           </span>
-          <span className={styles.detailLabel}>User</span>
-          <span className={styles.detailValue}>{schedule.user_id ?? "-"}</span>
+          <span className={styles.detailLabel}>Owner</span>
+          <span className={styles.detailValue}>{schedule.owner_email ?? "-"}</span>
           <span className={styles.detailLabel}>Next Run</span>
           <span className={styles.detailValue}>
             {formatDate(schedule.next_run_at)}
@@ -399,9 +398,6 @@ function ScheduleDetail({
                   <span style={{ opacity: 0.6 }}>
                     {formatDate(op.scheduled_at)}
                   </span>
-                  <span style={{ opacity: 0.6 }}>
-                    Attempt {op.attempt}/{op.max_attempts}
-                  </span>
                 </div>
                 {op.error && (
                   <div className={styles.operationError}>{op.error}</div>
@@ -417,17 +413,15 @@ function ScheduleDetail({
 
 function ScheduleForm({
   schedule,
-  userEmail,
   onSubmit,
   onCancel,
 }: {
   schedule: Schedule | null;
-  userEmail: string;
   onSubmit: (data: CreateScheduleRequest | UpdateScheduleRequest) => void;
   onCancel: () => void;
 }) {
   const [name, setName] = useState(schedule?.name ?? "");
-  const [kind, setKind] = useState<ScheduleKind>(schedule?.kind ?? "DRIFT");
+  const [kind, setKind] = useState<ScheduleKind>(schedule?.kind ?? "drift");
   const [cron, setCron] = useState(schedule?.cron ?? "");
   const [enabled, setEnabled] = useState(schedule?.enabled ?? true);
   const [repoUri, setRepoUri] = useState(
@@ -475,7 +469,6 @@ function ScheduleForm({
         cron,
         enabled,
         params: buildParams(),
-        user_id: userEmail,
       });
     }
   }
@@ -498,7 +491,8 @@ function ScheduleForm({
           label="Kind"
           onChange={(e) => setKind(e.target.value as ScheduleKind)}
         >
-          <MenuItem value="DRIFT">Drift</MenuItem>
+          <MenuItem value="drift">Drift</MenuItem>
+          <MenuItem value="import">Import</MenuItem>
         </Select>
       </FormControl>
 

@@ -4,8 +4,8 @@
 
 import { apiFetch } from "@/services/api";
 import type {
+  OperationKind,
   PaginatedOperations,
-  ScheduleKind,
   ScheduleOperationStatus,
   ScheduleOperation,
 } from "@/types/api_scheduler";
@@ -16,9 +16,8 @@ export interface ListOperationsParams {
   page?: number;
   page_size?: number;
   session_id?: string;
-  kind?: ScheduleKind;
+  kind?: OperationKind;
   status?: ScheduleOperationStatus;
-  schedule_id?: number;
   schedule_uuid?: string;
 }
 

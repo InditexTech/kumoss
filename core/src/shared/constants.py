@@ -57,6 +57,20 @@ class OperationType(Enum):
     GENERATE = "generate"
     DRIFT = "drift"
     IMPORT = "import"
+    # Queued-operation kind only: apply runs on an existing session and is
+    # never a session's own operation.
+    APPLY = "apply"
+
+
+@unique
+class OperationStatus(Enum):
+    """Lifecycle of a queued operation row."""
+
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
 
 
 @unique

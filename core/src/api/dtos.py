@@ -8,9 +8,16 @@ from datetime import datetime
 from typing import Any, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
-from src.shared.constants import OperationRole, PanelRole, TerraformProvider
+from src.domains.services.operation_schedule_service import OperationScheduleService
+from src.shared.constants import (
+    OperationRole,
+    OperationStatus,
+    OperationType,
+    PanelRole,
+    TerraformProvider,
+)
 
 
 class AuthConfigResponse(BaseModel):
@@ -154,3 +161,84 @@ class MappingResolveResponse(BaseModel):
             "null if unknown."
         ),
     )
+
+
+class OperationAcceptedResponse(BaseModel):
+    """A terraform operation was queued on ``session_id``."""
+
+    session_id: UUID
+    operation_id: UUID
+
+
+class OperationResponse(BaseModel):
+    uuid: UUID
+    session_uuid: UUID
+    schedule_uuid: UUID | None = None
+    kind: OperationType
+    status: OperationStatus
+    params: dict[str, Any]
+    scheduled_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    error: str | None = None
+    created_at: datetime
+
+
+class PaginatedOperations(BaseModel):
+    items: list[OperationResponse]
+    total: int
+    page: int
+    page_size: int
+
+
+class CreateScheduleRequest(BaseModel):
+    """The owner is the authenticated caller; ``params`` is the first-call
+    body of the matching ``/iac`` endpoint (repo_uri, terraform_providers,
+    scope_id, q, ...)."""
+
+    name: str = Field(min_length=1, max_length=254)
+    kind: OperationType
+    cron: str = Field(min_length=1, max_length=128)
+    params: dict[str, Any] = Field(default_factory=dict)
+    enabled: bool = True
+
+    @field_validator("cron")
+    @classmethod
+    def _valid_cron(cls, cron: str | None) -> str | None:
+        if cron is not None and not OperationScheduleService.is_valid_cron(cron):
+            raise ValueError("Invalid cron expression.")
+        return cron
+
+
+class UpdateScheduleRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=254)
+    cron: str | None = Field(default=None, min_length=1, max_length=128)
+    params: dict[str, Any] | None = None
+    enabled: bool | None = None
+
+    @field_validator("cron")
+    @classmethod
+    def _valid_cron(cls, cron: str | None) -> str | None:
+        if cron is not None and not OperationScheduleService.is_valid_cron(cron):
+            raise ValueError("Invalid cron expression.")
+        return cron
+
+
+class ScheduleResponse(BaseModel):
+    uuid: UUID
+    owner_email: str | None = None
+    name: str
+    kind: OperationType
+    cron: str
+    enabled: bool
+    params: dict[str, Any]
+    next_run_at: datetime | None = None
+    last_run_at: datetime | None = None
+    created_at: datetime
+
+
+class PaginatedSchedules(BaseModel):
+    items: list[ScheduleResponse]
+    total: int
+    page: int
+    page_size: int

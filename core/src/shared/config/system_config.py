@@ -35,7 +35,6 @@ from src.shared.constants import (
     GitProviderName,
     ObjectStorageProvider,
 )
-from src.scheduler.config import SchedulerConfig
 
 
 class ConfigError(ValueError):
@@ -505,6 +504,19 @@ class StorageConfig(BaseModel):
                 + f"(the SigV4 7-day limit); got {self.presign_expiry_seconds}."
             )
         return self
+
+
+class SchedulerConfig(BaseModel, frozen=True):
+    """Durable operation queue: worker loops, leases and timeouts."""
+
+    concurrency: int = Field(default=4, ge=1)
+    claim_interval: float = 2.0
+    heartbeat_interval: float = 30.0
+    lease_seconds: float = 120.0
+    reaper_interval: float = 60.0
+    schedule_poll_interval: float = 30.0
+    default_timeout_seconds: int = 10800
+    shutdown_grace_seconds: float = 60.0
 
 
 class SystemConfig(BaseModel, frozen=True):

@@ -4,18 +4,21 @@
 
 import type { PaginatedResponse } from "@/types/api";
 
-export type ScheduleKind = "GENERATE" | "DRIFT" | "APPLY" | "IMPORT";
+export type OperationKind = "generate" | "drift" | "import" | "apply";
+
+/** Only drift and import can be scheduled. */
+export type ScheduleKind = Extract<OperationKind, "drift" | "import">;
 
 export type ScheduleOperationStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "SUCCEEDED"
-  | "FAILED"
-  | "CANCELLED";
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "cancelled";
 
 export interface Schedule {
   uuid: string;
-  user_id: string | null;
+  owner_email: string | null;
   name: string;
   kind: ScheduleKind;
   cron: string;
@@ -28,16 +31,14 @@ export interface Schedule {
 
 export interface ScheduleOperation {
   uuid: string;
-  session_uuid: string | null;
+  session_uuid: string;
   schedule_uuid: string | null;
-  kind: ScheduleKind;
+  kind: OperationKind;
   status: ScheduleOperationStatus;
   params: Record<string, unknown>;
   scheduled_at: string;
   started_at: string | null;
   finished_at: string | null;
-  attempt: number;
-  max_attempts: number;
   error: string | null;
   created_at: string;
 }
@@ -50,7 +51,6 @@ export interface CreateScheduleRequest {
   kind: ScheduleKind;
   cron: string;
   params: Record<string, unknown>;
-  user_id: string;
   enabled: boolean;
 }
 
