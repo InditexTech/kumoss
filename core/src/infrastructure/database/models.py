@@ -346,7 +346,7 @@ class Operation(Base):
             "uq_operations_active_session",
             "session_id",
             unique=True,
-            postgresql_where=text(
+            postgresql_where=text(  # nosemgrep: python.sqlalchemy.security.audit.avoid-sqlalchemy-text.avoid-sqlalchemy-text
                 f"status IN ('{OperationStatus.PENDING.name}', "
                 + f"'{OperationStatus.RUNNING.name}')"
             ),

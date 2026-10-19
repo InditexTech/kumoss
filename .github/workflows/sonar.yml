@@ -131,6 +131,7 @@ jobs:
               "-Dsonar.tests=$tests"
               "-Dsonar.test.inclusions=**/test_*.py,**/test_conformance.py,**/conftest.py"
               "-Dsonar.python.coverage.reportPaths=${SONAR_COVERAGE_PATHS}"
+              "-Dsonar.coverage.exclusions=core/src/**,core/tests/**"
             )
           else
             args+=(
