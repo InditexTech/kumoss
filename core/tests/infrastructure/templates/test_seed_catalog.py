@@ -98,5 +98,48 @@ class TestVmwareSeeds(unittest.TestCase):
             self.assertIn(rule, body)
 
 
+class TestGcpSeeds(unittest.TestCase):
+    def test_resource_creation_leaves_the_project_to_the_engine(self):
+        # The IaC sidecar injects the request's project as GOOGLE_PROJECT;
+        # a provider-level project would override it.
+        body = _body("gcp", "guidelines", "resource_creation")
+        self.assertIn('source  = "hashicorp/google"', body)
+        self.assertIn('version = "~> 7.0"', body)
+        self.assertIn("GOOGLE_PROJECT", body)
+        self.assertNotIn("project = var.", body)
+
+    def test_no_resource_template_suggests_command_execution(self):
+        for name in _names("gcp", "resources"):
+            with self.subTest(template=name):
+                body = _body("gcp", "resources", name)
+                for banned in ("null_resource", "local-exec", "remote-exec"):
+                    self.assertNotIn(banned, body)
+
+    def test_compute_templates_cover_vm_hardening(self):
+        for name in ("compute_instance", "instance_template"):
+            with self.subTest(template=name):
+                # Collapse the block scalar's line wrapping before matching prose.
+                body = " ".join(_body("gcp", "resources", name).split())
+                for rule in (
+                    "access_config",
+                    "enable-oslogin",
+                    "shielded_instance_config",
+                    "default service account",
+                ):
+                    self.assertIn(rule, body)
+
+    def test_forbidden_actions_cover_identity_and_data_guardrails(self):
+        body = " ".join(_body("gcp", "guidelines", "forbidden_actions").split())
+        for rule in (
+            "0.0.0.0/0",
+            "google_service_account_key",
+            "allUsers",
+            "_iam_policy",
+            "default service account",
+            "deletion_protection = false",
+        ):
+            self.assertIn(rule, body)
+
+
 if __name__ == "__main__":
     unittest.main()

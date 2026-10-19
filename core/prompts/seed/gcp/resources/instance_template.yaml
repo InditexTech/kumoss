@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Compute Engine instance template default configuration (immutable replacement, identity, hardening, disks).
+body: |
+  # GCP Instance Template
+
+  For an instance template, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Use `google_compute_instance_template`; use
+    `google_compute_region_instance_template` when data residency
+    requires the template to stay in one region.
+  - Templates are immutable: every change replaces the template.
+    Use `name_prefix = "tpl-<application>-<role>-<environment>-"`
+    instead of `name`, together with `lifecycle {
+    create_before_destroy = true }`, so the new template exists
+    before the managed instance group switches to it.
+  - Machine type and image follow the `compute_instance` template:
+    `e2-*` for non-production, general-purpose families for
+    production, and an image family string (e.g.
+    `debian-cloud/debian-12`) as `source_image`.
+  - Boot `disk` with `boot = true`, `auto_delete = true`, and
+    `disk_type = "pd-balanced"` (or `hyperdisk-balanced` on machine
+    series that require it).
+  - Instances must be stateless: keep data in managed services, not
+    on instance disks. Stateful managed instance groups only on
+    explicit request.
+  - `network_interface` on a subnetwork of a custom VPC, with no
+    `access_config` block (no external IP), and `can_ip_forward =
+    false`.
+  - A dedicated `service_account` with `scopes =
+    ["cloud-platform"]`; never the Compute Engine default service
+    account.
+  - Metadata `enable-oslogin = "TRUE"` and `block-project-ssh-keys
+    = "TRUE"`; never `ssh-keys` or `serial-port-enable`.
+  - `shielded_instance_config` with secure boot, vTPM, and integrity
+    monitoring enabled.
+  - Configure the guest through `metadata_startup_script` or
+    cloud-init `user-data` only, with no secrets in it.
+  - Apply standard labels (`labels`, which propagate to the
+    instances): environment, owner, and managed_by.

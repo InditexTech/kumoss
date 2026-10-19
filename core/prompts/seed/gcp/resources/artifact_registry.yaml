@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Artifact Registry default configuration (repository format, immutable tags, cleanup, scanning, IAM).
+body: |
+  # GCP Artifact Registry
+
+  For an Artifact Registry repository, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention (`repository_id`):
+    `ar-<application>-<format>-<environment>`.
+  - `format = "DOCKER"` unless the user asks for another package
+    format; `mode = "STANDARD_REPOSITORY"`. Remote repositories
+    (upstream proxies) and virtual repositories only on request.
+  - Location: the region where the consuming workloads run.
+  - Production Docker repositories use
+    `docker_config { immutable_tags = true }`.
+  - Cleanup policies that delete untagged images older than 30 days
+    and keep the 10 most recent versions. Start with
+    `cleanup_policy_dry_run = true` unless the user asks to enforce
+    them.
+  - Vulnerability scanning on
+    (`vulnerability_scanning_config { enablement_config =
+    "INHERITED" }`), with containerscanning.googleapis.com enabled.
+  - Grant `roles/artifactregistry.reader` on the repository to the
+    runtime service accounts (GKE nodes, Cloud Run) and
+    `roles/artifactregistry.writer` only to the CI/CD service
+    account, with `google_artifact_registry_repository_iam_member`.
+  - Encryption: Google-managed keys by default; `kms_key_name` only
+    when CMEK is requested (it cannot be changed later).
+  - Apply standard labels: environment, owner, and managed_by.

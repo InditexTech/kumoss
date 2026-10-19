@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Pub/Sub default configuration (topics, subscriptions, dead lettering, retry, residency).
+body: |
+  # GCP Pub/Sub
+
+  For Pub/Sub resources, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Topic
+  - Naming convention: `ps-<application>-<event>-<environment>`.
+  - `message_storage_policy` with `allowed_persistence_regions` set
+    to the workspace region(s) for data residency.
+  - Set `message_retention_duration` on the topic only when consumers
+    need to replay messages.
+  - Attach a schema (`schema_settings`) when the user provides one.
+  - Encryption: Google-managed keys by default; `kms_key_name` only
+    when CMEK is requested.
+  - Grant `roles/pubsub.publisher` per producer service account
+    with `google_pubsub_topic_iam_member`.
+  - Apply standard labels: environment, owner, and managed_by.
+
+  ## Subscription
+  - Naming convention: `sub-<consumer>-<event>-<environment>`.
+  - Pull delivery by default. Push only to HTTPS endpoints, with
+    `oidc_token` authentication through a dedicated service account.
+  - `ack_deadline_seconds` matched to processing time (default 60),
+    `message_retention_duration = "604800s"` (7 days), and
+    `retain_acked_messages = false`.
+  - `expiration_policy { ttl = "" }` so the subscription never
+    expires; the default deletes it after 31 days of inactivity.
+  - `dead_letter_policy` pointing to a dead-letter topic
+    (`ps-<application>-<event>-dlq-<environment>`) with
+    `max_delivery_attempts = 5`. The Pub/Sub service agent
+    (`service-<project-number>@gcp-sa-pubsub.iam.gserviceaccount.com`)
+    needs `roles/pubsub.publisher` on the dead-letter topic and
+    `roles/pubsub.subscriber` on the subscription.
+  - `retry_policy` with exponential backoff (minimum 10 seconds,
+    maximum 600 seconds).
+  - Enable message ordering or exactly-once delivery only on request.
+  - Grant `roles/pubsub.subscriber` per consumer service account
+    with `google_pubsub_subscription_iam_member`.
+  - Apply standard labels: environment, owner, and managed_by.

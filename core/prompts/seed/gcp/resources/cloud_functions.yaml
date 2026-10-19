@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud Run functions default configuration (2nd gen, ingress, identity, VPC egress, triggers).
+body: |
+  # GCP Cloud Run Functions
+
+  For a Cloud Run function (formerly Cloud Functions), unless
+  explicitly requested otherwise, use the following default
+  configuration:
+
+  - Use `google_cloudfunctions2_function`; never the 1st-gen
+    `google_cloudfunctions_function` resource.
+  - Naming convention: `fn-<application>-<purpose>-<environment>`.
+  - The latest supported runtime of the requested language.
+  - Source from an object in a Cloud Storage bucket that follows the
+    `storage_bucket` template (`build_config.source.storage_source`).
+  - A dedicated build service account (`build_config.service_account`)
+    and a dedicated runtime service account
+    (`service_config.service_account_email`); never the Compute
+    Engine default service account.
+  - `service_config`: `ingress_settings = "ALLOW_INTERNAL_ONLY"`
+    unless the function must be reachable from outside the VPC,
+    `min_instance_count = 0`, `max_instance_count = 10`,
+    `available_memory = "256M"`, and `timeout_seconds = 60`.
+  - Private resources through a Serverless VPC Access connector or
+    Direct VPC egress, with `vpc_connector_egress_settings =
+    "PRIVATE_RANGES_ONLY"`.
+  - Secrets through `secret_environment_variables` or
+    `secret_volumes` from Secret Manager; never plain environment
+    variables.
+  - Event-driven functions: `event_trigger` with a dedicated trigger
+    service account that holds `roles/run.invoker`, and
+    `retry_policy = "RETRY_POLICY_RETRY"` only when the function is
+    idempotent.
+  - Grant `roles/run.invoker` to `allUsers` only when the user
+    explicitly requests a public function.
+  - Apply standard labels: environment, owner, and managed_by.

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP GKE Autopilot default configuration (networking, security, maintenance).
+description: GCP GKE Autopilot default configuration (private networking, identity, upgrades, security).
 body: |
   # GCP GKE Autopilot
 
@@ -10,36 +10,44 @@ body: |
   otherwise, use the following default configuration:
 
   - Naming convention: `gke-<application>-<environment>`.
-  - Use Autopilot mode — node provisioning, scaling, and
-    management are fully automated by Google. Do not use Standard
-    mode unless the user explicitly requires custom node pools or
-    node-level configuration.
-  - Network configuration must use VPC-native (alias IP) mode.
-    Specify the VPC network and subnetwork with secondary ranges
-    for pods and services.
-  - Enable private cluster: private nodes (no external IPs on
-    nodes), and control plane accessible only from authorized
-    networks. Set master authorized networks to the VPN CIDR or
-    corporate network ranges.
-  - Control plane access: use private endpoint where possible.
-    Enable public endpoint with authorized networks only when
-    private endpoint is not feasible.
-  - Release channel set to REGULAR for production (balanced
-    between stability and features). Use RAPID for non-production
-    if early access to features is desired.
-  - Enable Workload Identity so pods authenticate to Google Cloud
-    APIs using Kubernetes service accounts mapped to GCP service
+  - Use Autopilot mode (`enable_autopilot = true`) — node
+    provisioning, scaling, and management are fully automated by
+    Google. Use the `gke_standard` template only when the user
+    explicitly requires custom node pools or node-level
+    configuration.
+  - Autopilot clusters are regional: set `location` to the region.
+  - Network configuration uses VPC-native (alias IP) mode. Specify
+    the VPC network and subnetwork, and reference the subnetwork's
+    secondary ranges for pods and services in
+    `ip_allocation_policy`.
+  - Private nodes (`enable_private_nodes = true`, no external IPs on
+    nodes). Restrict the control plane with
+    `master_authorized_networks_config` set to corporate or VPN
+    ranges, or use the IAM-protected DNS-based endpoint. Never open
+    the endpoint to `0.0.0.0/0`.
+  - Release channel `REGULAR` (balanced between stability and
+    features). Use `RAPID` for non-production only on request.
+  - Workload Identity Federation for GKE is always on in Autopilot:
+    pods authenticate to Google Cloud APIs through Kubernetes service
     accounts — never mount service account keys.
-  - Maintenance window must be defined (day, start time, duration)
-    to control when automatic upgrades occur.
-  - Define maintenance exclusions for critical business periods
-    (e.g. peak shopping seasons).
-  - Enable vertical and horizontal pod autoscaling (enabled by
-    default in Autopilot).
-  - Network policy enforcement is enabled by default in Autopilot.
-  - Binary Authorization should be enabled for production to
+  - Run nodes as a dedicated, minimal service account with
+    `roles/container.defaultNodeServiceAccount`, set through
+    `cluster_autoscaling.auto_provisioning_defaults.service_account`
+    — never the Compute Engine default service account.
+  - Maintenance window defined (recurring window with start time,
+    end time, and recurrence) to control when automatic upgrades
+    occur, with maintenance exclusions for critical business
+    periods (e.g. peak shopping seasons).
+  - Network policy enforcement (GKE Dataplane V2) and Shielded GKE
+    nodes are always on in Autopilot.
+  - Binary Authorization enabled for production
+    (`evaluation_mode = "PROJECT_SINGLETON_POLICY_ENFORCE"`) to
     enforce only trusted container images.
-  - Enable Cloud Logging and Cloud Monitoring for system and
-    workload components.
-  - Deletion protection must be enabled for production clusters.
-  - Apply standard labels: environment and managed_by.
+  - Application-layer secrets encryption with a Cloud KMS key
+    (`database_encryption`) when CMEK is requested.
+  - Cloud Logging and Cloud Monitoring enabled for system and
+    workload components, with Google Cloud Managed Service for
+    Prometheus.
+  - Keep `deletion_protection = true` (the provider default).
+  - Apply standard labels through `resource_labels`: environment,
+    owner, and managed_by.

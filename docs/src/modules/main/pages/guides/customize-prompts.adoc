@@ -350,10 +350,14 @@ resource prompts differ per cloud.
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
-|`bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`,
-`cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`,
-`project`, `service_account`, `spanner`, `storage_bucket`,
-`subnetwork`, `vertex`, `vpc_network`
+|`artifact_registry`, `bigquery`, `cloud_armor`, `cloud_dns`,
+`cloud_functions`, `cloud_kms`, `cloud_nat`, `cloud_router`,
+`cloud_run`, `cloud_sql_postgres`, `compute_instance`, `firewall`,
+`gke_autopilot`, `gke_standard`, `instance_template`,
+`load_balancer`, `managed_instance_group`, `memorystore_redis`,
+`persistent_disk`, `project`, `pubsub`, `secret_manager`,
+`service_account`, `spanner`, `storage_bucket`, `subnetwork`,
+`vertex`, `vpc_network`
 |none
 
 |`oci`

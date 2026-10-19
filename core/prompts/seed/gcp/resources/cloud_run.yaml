@@ -2,37 +2,50 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP Cloud Run default configuration (scaling, networking, identity, security).
+description: GCP Cloud Run default configuration (scaling, ingress, networking, identity, secrets).
 body: |
   # GCP Cloud Run
 
   For a Cloud Run service, unless explicitly requested otherwise,
   use the following default configuration:
 
+  - Use `google_cloud_run_v2_service`; never the v1
+    `google_cloud_run_service` resource.
   - Naming convention: `run-<application>-<service>-<environment>`.
-  - Use the second-generation execution environment (gen2) for
-    better performance and full Linux compatibility.
-  - Set minimum instances to 0 for non-production (scale to zero)
-    and at least 1 for production to avoid cold starts.
-  - Set maximum instances based on expected load. Default to 10
-    unless the user specifies otherwise.
-  - Container concurrency (max requests per instance) set to 80
-    (default). Adjust based on the application's concurrency model.
-  - CPU allocation set to "CPU is only allocated during request
-    processing" for cost efficiency. Use "CPU is always allocated"
-    only for background processing or WebSocket workloads.
-  - Memory limit set to 512Mi and CPU limit set to 1 unless the
-    user specifies otherwise.
-  - Timeout set to 300 seconds (default). Increase up to 3600
+  - Use the second-generation execution environment
+    (`EXECUTION_ENVIRONMENT_GEN2`).
+  - Minimum instances 0 for non-production (scale to zero) and at
+    least 1 for production to avoid cold starts.
+  - Maximum instances based on expected load. Default to 10 unless
+    the user specifies otherwise.
+  - Max concurrent requests per instance 80 (the default). Adjust
+    based on the application's concurrency model.
+  - CPU only allocated during request processing (`cpu_idle =
+    true`) for cost efficiency, with `startup_cpu_boost = true`.
+    Use always-allocated CPU only for background processing or
+    WebSocket workloads.
+  - Memory limit 512Mi and CPU limit 1 unless the user specifies
+    otherwise.
+  - Request timeout 300 seconds (the default). Increase up to 3600
     seconds for long-running requests.
-  - Ingress set to internal-only for services that should not be
-    publicly accessible. Use all (public) only when explicitly
-    required.
-  - Connect a dedicated VPC connector or use Direct VPC Egress for
-    access to private resources (Cloud SQL, Memorystore, etc.).
-  - Use a dedicated service account per service — do not use the
+  - Ingress `INGRESS_TRAFFIC_INTERNAL_ONLY` for services that should
+    not be publicly accessible. For public services, prefer
+    `INGRESS_TRAFFIC_INTERNAL_LOAD_BALANCER` behind an external
+    Application Load Balancer with Cloud Armor; use
+    `INGRESS_TRAFFIC_ALL` only when explicitly required.
+  - Grant `roles/run.invoker` to specific service accounts with
+    `google_cloud_run_v2_service_iam_member`. Grant it to `allUsers`
+    only when the user explicitly requests a public service.
+  - Use Direct VPC egress (`vpc_access` with a network interface)
+    or a Serverless VPC Access connector for access to private
+    resources (Cloud SQL, Memorystore, internal services), with
+    `egress = "PRIVATE_RANGES_ONLY"` unless all traffic must leave
+    through the VPC.
+  - Use a dedicated runtime service account per service — never the
     default Compute Engine service account.
-  - Store secrets in Secret Manager and mount them as environment
-    variables or volumes — never hardcode sensitive values.
+  - Store secrets in Secret Manager and reference them through
+    `value_source.secret_key_ref` or secret volumes — never
+    hardcode sensitive values. Pin secret versions in production.
+  - Pull images from Artifact Registry in the same region.
   - Enable startup and liveness probes for production services.
-  - Apply standard labels: environment and managed_by.
+  - Apply standard labels: environment, owner, and managed_by.

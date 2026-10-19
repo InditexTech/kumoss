@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP GKE Standard default configuration (separate node pools, private networking, Workload Identity, node hardening).
+body: |
+  # GCP GKE Standard
+
+  Use GKE Standard only when the user requires node-level control
+  that Autopilot does not offer (specific machine families, GPUs,
+  custom node configuration). Otherwise use `gke_autopilot`. For a
+  GKE Standard cluster, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Cluster
+  - Naming convention: `gke-<application>-<environment>`.
+  - Regional cluster (`location` set to the region) for production;
+    a zonal cluster is acceptable for non-production.
+  - `remove_default_node_pool = true` with `initial_node_count = 1`;
+    define every node pool as a separate `google_container_node_pool`.
+  - VPC-native networking (`networking_mode = "VPC_NATIVE"`) with
+    `ip_allocation_policy` referencing the subnetwork's secondary
+    ranges for pods and services.
+  - Private nodes (`enable_private_nodes = true`). Restrict the
+    control plane with `master_authorized_networks_config` or the
+    IAM-protected DNS-based endpoint; never open it to `0.0.0.0/0`.
+  - GKE Dataplane V2 (`datapath_provider = "ADVANCED_DATAPATH"`) for
+    built-in network policy enforcement.
+  - Workload Identity Federation for GKE:
+    `workload_identity_config { workload_pool =
+    "<project-id>.svc.id.goog" }`, with the project ID read from
+    `data "google_project" "current" {}`.
+  - Release channel `REGULAR`, a recurring maintenance window, and
+    maintenance exclusions for critical business periods.
+  - Shielded GKE nodes enabled, Binary Authorization enforced in
+    production, and application-layer secrets encryption with Cloud
+    KMS when CMEK is requested.
+  - Cloud Logging and Cloud Monitoring for system and workload
+    components, with Google Cloud Managed Service for Prometheus.
+  - Keep `deletion_protection = true` (the provider default).
+  - Apply standard labels through `resource_labels`.
+
+  ## Node pools
+  - Naming convention: `np-<purpose>` (e.g. `np-general`).
+  - Machine type `e2-standard-4` for non-production and
+    `n2-standard-4` or larger for production; image type
+    `COS_CONTAINERD`; boot disk `pd-balanced`.
+  - A dedicated node service account with
+    `roles/container.defaultNodeServiceAccount` and `oauth_scopes =
+    ["https://www.googleapis.com/auth/cloud-platform"]`; never the
+    Compute Engine default service account.
+  - `workload_metadata_config { mode = "GKE_METADATA" }` and
+    `shielded_instance_config` with secure boot and integrity
+    monitoring enabled.
+  - `autoscaling` with `total_min_node_count` and
+    `total_max_node_count`; do not also set `node_count`, which the
+    autoscaler owns.
+  - `management { auto_repair = true, auto_upgrade = true }` and
+    surge upgrades (`max_surge = 1`, `max_unavailable = 0`).
+  - Spot node pools only for fault-tolerant workloads on request,
+    with a taint so only tolerant pods land on them.
