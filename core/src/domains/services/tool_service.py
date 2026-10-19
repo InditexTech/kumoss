@@ -104,8 +104,9 @@ class ToolOrchestrationService:
                     error_message=e.message,
                 )
                 results.append(error_result)
-                logging.error(f"Tool {tool_call.name} failed: {e!r}")
-
+                logging.error(
+                    f"Tool {tool_call.name} failed: {e.message} ({e.__cause__!r})"
+                )
         return results
 
     @trace_tool

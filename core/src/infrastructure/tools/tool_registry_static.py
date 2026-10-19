@@ -28,8 +28,10 @@ from src.infrastructure.exceptions import (
 )
 from src.infrastructure.external.search_service import (
     SearchEngineError,
+    SearchResult,
     SearchServiceClient,
 )
+from src.infrastructure.external.search_summarizer import SearchResultsSummarizer
 from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
@@ -39,6 +41,7 @@ from src.shared.logger import logging
 class ToolRegistryStatic(IToolRegistry):
     def __init__(self, llm: ILLMProvider):
         self.__llm = llm
+        self.__search_dead_ends = 0
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
@@ -163,6 +166,11 @@ class ToolRegistryStatic(IToolRegistry):
                 error_message=None,
             )
         except ExceptionHandler as e:
+            # `message` reaches the agent and carries no backend detail,
+            # so the cause chain is the only diagnosis left.
+            logging.error(
+                f"Tool {tool_call.name} failed: {e.message} ({e.__cause__!r})"
+            )
             return ToolResultDTO(
                 name=tool_call.name,
                 tool_call_id=tool_call.id,
@@ -415,14 +423,83 @@ class ToolRegistryStatic(IToolRegistry):
                 "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
             }
         if not results:
+            return self.__dead_end(
+                query, f"Web search with query '{query}' returned no content."
+            )
+        if system_config.web_search.summarize:
+            summaries = await self.__summarized_search_results(query, results)
+            if summaries is None:
+                return self.__dead_end(
+                    query,
+                    f"Web search with query '{query}' returned no relevant content.",
+                )
+            body = summaries
+        else:
+            body = "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results)
+        self.__search_dead_ends = 0
+        return {"query": query, "result": body}
+
+    def __dead_end(self, query: str, reason: str) -> dict[str, Any]:
+        """Spend one try: ask for another query, or stop once they run out.
+
+        The budget counts *consecutive* dead ends; any search that
+        returns something resets it. Only query-shaped failures come
+        through here — a missing provider or a broken engine answers
+        immediately, since no rephrasing fixes either.
+        """
+        limit = system_config.web_search.max_query_retries
+        self.__search_dead_ends += 1
+        if self.__search_dead_ends >= limit:
             return {
                 "query": query,
-                "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+                "result": f"{reason} Do NOT retry web_search.",
             }
         return {
             "query": query,
-            "result": "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results),
+            "result": (
+                f"{reason} This was attempt {self.__search_dead_ends} of {limit}: "
+                + "search again with a different query — other keywords, "
+                + "synonyms, or a broader or narrower scope. Do NOT repeat this "
+                + "query."
+            ),
         }
+
+    async def __summarized_search_results(
+        self, query: str, results: list[SearchResult]
+    ) -> str | None:
+        """Condense every hit, rank them, return the top summaries.
+
+        ``None`` means the pages were read and none answers the query,
+        which the caller turns into a dead end. Every summarizer
+        *failure* instead degrades to the raw, unfiltered results, so
+        the tool call never fails on account of the reduction.
+        """
+        summarizer = SearchResultsSummarizer(self.__llm)
+        try:
+            selected, discarded = await summarizer.best(query, results)
+        except Exception as e:
+            logging.warning(
+                f"Search result summarization failed, returning raw results: {e!r}"
+            )
+            return "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results)
+        if not selected:
+            logging.debug(
+                f"web_search '{query}' found no relevant page among "
+                + f"{len(results)} result(s)."
+            )
+            return None
+        if discarded:
+            logging.debug(
+                "web_search '"
+                + query
+                + "' discarded "
+                + str(len(discarded))
+                + " source(s) considered less relevant: "
+                + "; ".join(f"{s.result.title} ({s.result.url})" for s in discarded)
+            )
+        return "\n".join(
+            f"- {s.result.title}: {s.summary} ({s.result.url})" for s in selected
+        )
 
     def _handle_compliance_findings(
         self, parameters: dict[str, Any]

@@ -125,13 +125,30 @@ class SearchConfig(BaseModel):
     result page. The tool's worst-case payload is ``max_results *
     max_page_chars`` characters of tool result, so raise it for richer
     source material at the cost of the calling agent's context.
+
+    With ``summarize`` enabled, two small-model inferences stand between
+    the pages and the agent — one summary per page, then a cross-page
+    ranking — and only the top ``summarize_top`` summaries reach it,
+    bounding a search's context cost at ``summarize_top *
+    summarize_max_chars`` instead. ``summarize_max_chars`` caps each
+    summary; too low and dense reference pages lose detail the agent
+    cannot get back. Any summarizer failure degrades to the raw results.
+
+    ``max_query_retries`` bounds how many consecutive dead-end searches
+    the agent may spend before ``web_search`` tells it to stop retrying.
+    Any search that returns something refills the budget, so it caps a
+    stuck agent, not a productive one.
     """
 
     provider: str = SearchProviders.SEARXNG.value
     endpoint: str = "http://localhost:8888"
     timeout: float = Field(default=30.0, gt=0)
-    max_results: int = Field(default=10, ge=1, le=20)
+    max_results: int = Field(default=5, ge=1, le=20)
     max_page_chars: int = Field(default=6000, ge=500, le=20000)
+    max_query_retries: int = Field(default=3, ge=1, le=10)
+    summarize: bool = True
+    summarize_top: int = Field(default=1, ge=1, le=10)
+    summarize_max_chars: int = Field(default=4000, ge=500, le=20000)
 
     @model_validator(mode="after")
     def _assert_provider(self) -> "SearchConfig":

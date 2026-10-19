@@ -457,7 +457,8 @@ report generator chains.
 |`small` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
-calls.
+calls, including the `web_search` summarisation when
+`web_search.summarize` is on.
 
 |`llm.temperature`
 |float
@@ -515,10 +516,10 @@ only needs a container restart.
 
 The search backend behind the agents' `web_search` tool. Requests go
 through the LiteLLM unified search API
-(https://docs.litellm.ai/docs/completion/web_search[LiteLLM search]),
-so the engine is swappable without code changes. The bundled Compose
-stack ships a SearXNG sidecar and the shipped `config.yaml` routes
-every search through it.
+(https://docs.litellm.ai/docs/completion/web_search[LiteLLM search]), and
+the shipped `config.yaml` routes every search through the bundled SearXNG
+sidecar. Pointing it at another provider is a config change, but the
+backend has to exist: the stack only deploys SearXNG.
 
 [cols="2,2,1,1,1,4",options="header"]
 |===
@@ -529,13 +530,16 @@ every search through it.
 |`searxng`
 |`searxng`
 |Optional
-|Selects the search engine called by the `web_search` tool: `searxng`,
-`tavily`, `brave`, `perplexity`, `exa_ai`, `google_pse` and others (see
-`litellm.types.utils.SearchProviders`). Empty disables web search
-altogether: there is no LLM-native fallback, so the tool answers
-"unavailable" instead of asking the model to search for itself. That is
-what lets self-hosted OpenAI-compatible endpoints (vLLM and the like)
-get live results.
+|Selects the search engine called by the `web_search` tool. The shipped
+stack deploys a SearXNG sidecar and leaves this at `searxng`. Any name in
+`litellm.types.utils.SearchProviders` is accepted — `tavily`, `brave`,
+`perplexity`, `exa_ai`, `google_pse` and others — but a hosted provider
+reads credentials from its own env vars, ignores `endpoint`, and needs a
+search service the stack does not ship: you have to provide that backend
+yourself. Empty disables web search altogether: there is no LLM-native
+fallback, so the tool answers "unavailable" instead of asking the model
+to search for itself. That is what lets self-hosted OpenAI-compatible
+endpoints (vLLM and the like) get live results.
 
 |`web_search.endpoint`
 |string (URL)
@@ -556,34 +560,99 @@ environment variables instead and usually need no endpoint.
 |`web_search.max_page_chars`
 |integer (500–20000)
 |`6000`
-|`6000`
+|`10000`
 |Optional
-|Truncates the readable text extracted from each result page. The
-tool's worst-case payload is `max_results × max_page_chars`, and that
-payload is the summarising inference's input, not the agent's context.
-Raise it for richer source material at the cost of a more expensive
-summarising call.
+|Truncates the readable text extracted from each result page. With
+`summarize` off this is the agent's context cost, worst case
+`max_results × max_page_chars`; with it on, that product is the
+summarising inferences' input and the agent sees only the summaries.
 
 |`web_search.timeout`
 |float (seconds, must be `> 0`)
 |`30.0`
 |`30.0`
 |Optional
-|Per-request HTTP budget, covering both the engine call and each
-individual page read.
+|Per-request HTTP budget, covering the engine call and each page read.
+
+|`web_search.max_query_retries`
+|integer (1–10)
+|`3`
+|commented out
+|Optional
+|How many consecutive dead-end searches the agent may spend before the
+tool stops inviting it to try again. A dead end is an engine that
+returns nothing, or (with `summarize` on) pages none of which answers
+the query. Any search that returns something refills the budget, so this
+caps a stuck agent, not a productive one; an unreachable engine or an
+empty `provider` answers immediately and spends no attempt.
+
+|`web_search.summarize`
+|boolean
+|`false`
+|`true`
+|Optional
+|Turns on the two-stage small-model reduction described below. Off, the
+agent receives every hit's full page text.
+
+|`web_search.summarize_top`
+|integer (1–10)
+|`1`
+|commented out
+|Optional
+|How many of the ranked summaries reach the agent, most relevant first.
+Only read when `summarize` is on.
+
+|`web_search.summarize_max_chars`
+|integer (500–20000)
+|`4000`
+|commented out
+|Optional
+|Caps each summary, and each raw excerpt kept when a page's summary
+inference fails. A summary stands in for its page, so too low a value
+loses detail the agent cannot get back. Only read when `summarize` is
+on.
 |===
 
-Each search runs in two steps: the engine returns ranked hits, and every
-hit's page is then fetched and reduced to text with
-https://trafilatura.readthedocs.io/[trafilatura], so the agent reads the
-pages themselves rather than the engine's one-line snippets. No model is
-involved at any point. A page that will not fetch or parse costs that
-hit its body and falls back to the engine snippet, so a partial failure
-costs detail rather than the whole search.
+Each search starts the same way: the engine returns ranked hits, and
+every hit's page is rendered in headless Chromium through Playwright and
+reduced to markdown with https://trafilatura.readthedocs.io/[trafilatura],
+so the agent works from the pages themselves — including
+JavaScript-rendered ones — rather than the engine's snippets. The pages
+are read concurrently from one shared browser, and Chromium presents the
+fingerprint bot protection expects, so blogs and forums answer `200`
+where a bare HTTP client would get `403`. A page that will not render
+falls back to its snippet, so a partial failure costs detail rather than
+the whole search.
+
+With `summarize` off, every page's text goes to the agent as it is. With
+it on, two small-model steps stand between the pages and the agent: one
+summary per page, all concurrent — an extract rather than a gist, since
+the summary replaces the page — then a single cross-page inference that
+ranks the pages answering the query. The top `summarize_top` summaries
+are what the agent reads, most relevant first, bounding a search's
+context cost at `summarize_top × summarize_max_chars` instead of the
+`max_results × max_page_chars` product.
+
+The reduction degrades in layers and never fails a search: a page whose
+summary inference fails keeps a truncated raw excerpt, a ranking that
+cannot be parsed falls back to every summary in engine order, and any
+other summariser error falls back to the raw, unfiltered results.
+Selecting *nothing* is a verdict rather than a failure — every page
+irrelevant, or a ranking that explicitly picks none — and is the dead end
+`max_query_retries` counts.
 
 Validation: an unknown provider name aborts the boot; `searxng` without
 an endpoint does too; an `endpoint` without a `provider` is rejected as
 a half-configured state.
+
+[NOTE]
+====
+On a network that inspects HTTPS, page reads fail with
+`CERTIFICATE_VERIFY_FAILED` while the engine call itself keeps working,
+and every hit silently degrades to its snippet. See
+xref:main:guides/development.adoc#tls-inspecting-proxy[Behind a
+TLS-inspecting proxy].
+====
 
 Related environment variables: the chosen provider's credential
 variables in `core/.env` (SearXNG needs none; see the

@@ -101,6 +101,18 @@ class PageReadError(ExceptionHandler):
     pass
 
 
+class PageSummaryError(ExceptionHandler):
+    """Raised when the summary inference for one search page fails"""
+
+    pass
+
+
+class PageSelectionError(ExceptionHandler):
+    """Raised when the cross-page selection inference fails"""
+
+    pass
+
+
 class CloudLoginError(ExceptionHandler):
     """Raised when an error occurs during cloud login"""
 
