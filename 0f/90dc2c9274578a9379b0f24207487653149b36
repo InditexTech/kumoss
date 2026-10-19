@@ -1,0 +1,97 @@
+core/prompts/seed/gcp/guidelines/abbreviations.yaml
+  s_bcb64414cd2430::t_4fd91603b227df 18,21,23,25-26,31-33,39
+core/prompts/seed/gcp/guidelines/forbidden_actions.yaml
+  s_bcb64414cd2430::t_831f9cdbd7ed6c 13-21,26-40,43-45,47-49,51,53-56,58,61-76,80-85
+core/prompts/seed/gcp/guidelines/networking.yaml
+  s_bcb64414cd2430::t_b2b971fae1db88 5,17-18,27-28,35-39,50-58,71-86,89-92,96-97
+core/prompts/seed/gcp/guidelines/permissions.yaml
+  s_bcb64414cd2430::t_b8b5147a29a414 5,12-30,35-42,45-52,55-57
+core/prompts/seed/gcp/guidelines/resource_creation.yaml
+  s_bcb64414cd2430::t_eed4798f150150 17,23,27-41,45-48,56-61,64-86
+core/prompts/seed/gcp/guidelines/resources_list.yaml
+  s_bcb64414cd2430::t_8471927d7a61bd 11-13,15,17-20,25,27-29,31-33,35-36,41
+core/prompts/seed/gcp/resources/artifact_registry.yaml
+  s_bcb64414cd2430::t_ab7fc30f46cee5 1-33
+core/prompts/seed/gcp/resources/bigquery.yaml
+  s_bcb64414cd2430::t_54f55acdc959b0 5,16-33,35,38-40,43-45,48-52
+core/prompts/seed/gcp/resources/cloud_armor.yaml
+  s_bcb64414cd2430::t_b3408cb679b7de 1-36
+core/prompts/seed/gcp/resources/cloud_dns.yaml
+  s_bcb64414cd2430::t_ffb6e24a309193 1-33
+core/prompts/seed/gcp/resources/cloud_functions.yaml
+  s_bcb64414cd2430::t_e539515fbc31ac 1-39
+core/prompts/seed/gcp/resources/cloud_kms.yaml
+  s_bcb64414cd2430::t_ade076c5f91f73 1-39
+core/prompts/seed/gcp/resources/cloud_nat.yaml
+  s_bcb64414cd2430::t_257ea9a3543a98 5,12-16,18-31,35
+core/prompts/seed/gcp/resources/cloud_router.yaml
+  s_bcb64414cd2430::t_99f2711718fb43 12,17-19,26-29,32
+core/prompts/seed/gcp/resources/cloud_run.yaml
+  s_bcb64414cd2430::t_96b313a7e00aa2 5,12-13,15-29,31-44,46-49,51
+core/prompts/seed/gcp/resources/cloud_sql_postgres.yaml
+  s_bcb64414cd2430::t_69433c079fb5f4 5,14-49
+core/prompts/seed/gcp/resources/compute_instance.yaml
+  s_bcb64414cd2430::t_73de33026d3bfc 1-93
+core/prompts/seed/gcp/resources/firewall.yaml
+  s_bcb64414cd2430::t_70b715b639f073 5,12-38
+core/prompts/seed/gcp/resources/gke_autopilot.yaml
+  s_bcb64414cd2430::t_f588813b4e51ff 5,13-31,33-44,46-53
+core/prompts/seed/gcp/resources/gke_standard.yaml
+  s_bcb64414cd2430::t_46c864d3c7a462 1-61
+core/prompts/seed/gcp/resources/instance_template.yaml
+  s_bcb64414cd2430::t_c67634cc0b91dd 1-43
+core/prompts/seed/gcp/resources/load_balancer.yaml
+  s_bcb64414cd2430::t_b22717e754b703 5,13-24,27-37,40-51,53-54,57-58,61-63
+core/prompts/seed/gcp/resources/managed_instance_group.yaml
+  s_bcb64414cd2430::t_9ee5c20a447beb 1-68
+core/prompts/seed/gcp/resources/memorystore_redis.yaml
+  s_bcb64414cd2430::t_5bcfd3142bd48b 1-33
+core/prompts/seed/gcp/resources/persistent_disk.yaml
+  s_bcb64414cd2430::t_77c52cd2af2208 1-39
+core/prompts/seed/gcp/resources/project.yaml
+  s_bcb64414cd2430::t_d46e0474f22640 5,12-15,17-26,28-31
+core/prompts/seed/gcp/resources/pubsub.yaml
+  s_bcb64414cd2430::t_0240e6d324d191 1-45
+core/prompts/seed/gcp/resources/secret_manager.yaml
+  s_bcb64414cd2430::t_724cfbbb4ab53c 1-35
+core/prompts/seed/gcp/resources/service_account.yaml
+  s_bcb64414cd2430::t_5b8dc8de9286cc 5,12-14,16-34,37-39
+core/prompts/seed/gcp/resources/spanner.yaml
+  s_bcb64414cd2430::t_b49f50a63ffc77 5,13-25,29-39,42-43
+core/prompts/seed/gcp/resources/storage_bucket.yaml
+  s_bcb64414cd2430::t_55b7718193b377 5,14-46
+core/prompts/seed/gcp/resources/subnetwork.yaml
+  s_bcb64414cd2430::t_5d600803c3a878 12-13,15-36
+core/prompts/seed/gcp/resources/vertex.yaml
+  s_bcb64414cd2430::t_d692bc27ae9d18 5,17-19,22,26,29,31-32,35,38-40,43-45,48-49,52-57
+core/prompts/seed/gcp/resources/vpc_network.yaml
+  s_bcb64414cd2430::t_fc278bd53662a9 5,13-17,19,22-26,28-33
+core/tests/infrastructure/templates/test_seed_catalog.py
+  s_bcb64414cd2430::t_89083e226334ad 101-143
+docs/src/modules/main/pages/guides/customize-prompts.adoc
+  s_797a3c02ece5bd::t_9bda5c7059bf14 353-360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f90dc2c9274578a9379b0f24207487653149b36",
+  "prompts": {},
+  "sessions": {
+    "s_797a3c02ece5bd": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "2fb01428-c21c-42da-be78-af4d8f644665",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_bcb64414cd2430": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "abcd19ed-b820-44da-84a9-b3cb46184695",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
