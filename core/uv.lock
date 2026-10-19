@@ -1497,7 +1497,7 @@ tooling = [
 
 [package.metadata]
 requires-dist = [
-    { name = "arize-phoenix-client", specifier = ">=2.13.0" },
+    { name = "arize-phoenix-client", specifier = ">=3.5.0" },
     { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "azure-storage-blob", specifier = ">=12.30.0" },
     { name = "boto3", specifier = ">=1.43.54" },
