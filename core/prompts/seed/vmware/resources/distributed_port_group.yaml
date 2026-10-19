@@ -1,0 +1,22 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere distributed port group default configuration (VLAN, security policy, binding).
+body: |
+  # VMware vSphere Distributed Port Group
+
+  For a `vsphere_distributed_port_group`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `pg-<application>-<environment>-<vlan>`.
+  - `distributed_virtual_switch_uuid` from
+    `data "vsphere_distributed_virtual_switch"`.
+  - Set `vlan_id` explicitly to the VLAN the user names; never use 0,
+    1 or a `vlan_range` trunk for workloads.
+  - Security policy: `allow_promiscuous = false`,
+    `allow_forged_transmits = false`, `allow_mac_changes = false`.
+  - `type = "earlyBinding"`, `number_of_ports = 16`,
+    `auto_expand = true`.
+  - Inherit the switch's teaming policy unless the user asks to
+    override it.

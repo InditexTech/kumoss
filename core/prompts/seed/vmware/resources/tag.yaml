@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere tag category and tag default configuration (cardinality, associable types).
+body: |
+  # VMware vSphere Tag Category and Tag
+
+  For `vsphere_tag_category` and `vsphere_tag`, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  - Tag categories are vCenter-wide. Reuse existing categories with
+    `data "vsphere_tag_category"`; create one only when the user
+    asks for a new classification.
+  - Category names are lowercase and hyphenated (`environment`,
+    `owner`, `managed-by`, `data-classification`).
+  - `cardinality = "SINGLE"` for classifications an object can only
+    have one value of; `MULTIPLE` only when several values make sense.
+  - Restrict `associable_types` to the object types the category
+    applies to (for example `VirtualMachine`, `Folder`,
+    `ResourcePool`, `Datastore`).
+  - Tag names are lowercase values (`prod`, `team-billing`); set a
+    `description` on every tag.
+  - Reference tags from resources with `tags = [vsphere_tag.<name>.id]`.

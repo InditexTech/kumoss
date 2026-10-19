@@ -120,6 +120,21 @@ Unusual quirk: this provider uses `TF_VAR_*` names as its own env-var defaults, 
 
 Compartment OCID is a *resource* argument, not an env var — commonly passed as `TF_VAR_compartment_ocid`, which is an ordinary Terraform variable rather than a provider setting.
 
+### VMware vSphere (`vmware/vsphere`)
+
+Names as documented by the upstream `vsphere` provider; no scope variable is injected. The datacenter is a data-source argument, not an env var.
+
+| Variable | Group | Purpose |
+|---|---|---|
+| `VSPHERE_SERVER` | Core | vCenter Server FQDN |
+| `VSPHERE_USER` | Core | vCenter user name |
+| `VSPHERE_PASSWORD` | Core | vCenter password |
+| `VSPHERE_ALLOW_UNVERIFIED_SSL` | Core | Skip certificate verification — lab self-signed certificates only; leave unset otherwise |
+| `VSPHERE_PERSIST_SESSION` | Session | Persist vSphere sessions to disk between runs |
+| `VSPHERE_VIM_SESSION_PATH` | Session | Directory for persisted VIM (SOAP) sessions |
+| `VSPHERE_REST_SESSION_PATH` | Session | Directory for persisted REST sessions |
+| `VSPHERE_API_TIMEOUT` | Behaviour | API operation timeout, in minutes |
+
 ## 2. Backend storage environment variables
 
 | Variable | Backend | Purpose |

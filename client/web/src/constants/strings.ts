@@ -180,6 +180,11 @@ export const STRINGS = {
         prompt: "Which Kubernetes namespace?",
         placeholder: "my-namespace",
       },
+      vmware: {
+        label: "Datacenter",
+        prompt: "Which vSphere datacenter?",
+        placeholder: "dc-01",
+      },
     },
     resolveError: "Could not resolve repository. Please try again.",
     scanError: "Could not scan repository for IaC paths. Please try again.",

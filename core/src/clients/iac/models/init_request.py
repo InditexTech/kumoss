@@ -23,14 +23,15 @@ class InitRequest:
             this is a path on the shared volume mounted into both the
             core and the IaC service.
         scope_id (str): Cloud scope the operation targets — Azure: subscription id,
-            GCP: project id, AWS: account id, OCI: compartment OCID.
+            GCP: project id, AWS: account id, OCI: compartment OCID,
+            VMware: vSphere datacenter name.
             Required: generated provider blocks do not carry a scope,
             so where the cloud has a provider-level variable for one
             the implementation injects it into the engine's
             environment for this command only (see "Scope injection").
         terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's
             provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
-            `kubernetes`), not Terraform registry provider names
+            `kubernetes`, `vmware`), not Terraform registry provider names
             (`azurerm`, `google`).
     """
 

@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Resource-name abbreviations the prompt compositor offers to the LLM.
+body: |
+  # VMware vSphere Resource Name Abbreviations
+
+  Standard short prefixes used in resource names. The LLM may pick
+  from this list when generating Terraform.
+
+  | Resource                          | Prefix |
+  |-----------------------------------|--------|
+  | Virtual Machine                   | vm     |
+  | VM Template                       | tpl    |
+  | Virtual Disk                      | vdisk  |
+  | VM Folder                         | fld    |
+  | Resource Pool                     | rp     |
+  | Compute Cluster                   | clu    |
+  | Datastore Cluster                 | dsc    |
+  | VM Storage Policy                 | sp     |
+  | Content Library                   | cl     |
+  | Distributed Virtual Switch        | vds    |
+  | Distributed Port Group            | pg     |
+  | Tag Category                      | tc     |
+  | Tag                               | tag    |
+  | Role                              | role   |
+  | VM Anti-Affinity Rule             | aar    |
+  | VM Affinity Rule                  | afr    |
+
+  vSphere object names are case-sensitive and unique per parent
+  folder. Use lowercase letters, digits and hyphens only.
+
+  Replace this list with your organization's naming standard.

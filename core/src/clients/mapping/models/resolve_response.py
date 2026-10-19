@@ -35,7 +35,8 @@ class ResolveResponse:
             guess — the caller skips its provider prompt when this is
             non-null, so a wrong value is never seen or corrected.
         scope_id (None | str | Unset): Cloud scope the deployment targets — Azure: subscription id,
-            GCP: project id, AWS: account id, OCI: compartment OCID — as
+            GCP: project id, AWS: account id, OCI: compartment OCID,
+            VMware: vSphere datacenter name — as
             a best-effort answer, or `null` for "I do not know, ask the
             user". Same warning as `terraform_provider`: the caller skips
             its scope prompt when this is non-null, so a wrong value
