@@ -64,9 +64,9 @@ class SessionService:
         rid = await DatabaseService.create_round(self.__ctx.id, q)
         self.__ctx.set_round(rid)
 
-    async def save(self) -> None:
-        reply = await self.__chat_reply(self.__ctx.round_query)
-        self.__ctx.chat_history.append_turn(self.__ctx.round_query, reply)
+    async def save(self, query: str) -> None:
+        reply = await self.__chat_reply(query)
+        self.__ctx.chat_history.append_turn(query, reply)
         await DatabaseService.update_history(self.__ctx)
 
     async def __chat_reply(self, query: str) -> str:

@@ -261,6 +261,6 @@ class TerraformImportHandler:
                     ),
                 )
             finally:
-                await self.__session_svc.save()
+                await self.__session_svc.save(q)
 
         return background_task

@@ -74,7 +74,7 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
         await self.svc.next_round("add a vnet")
         await self.svc.update_status("generating", SessionStatus.GENERATING)
         await self.svc.update_status("all good", SessionStatus.COMPLETED)
-        await self.svc.save()
+        await self.svc.save("add a vnet")
 
         self.assertEqual(
             self.chat(),
@@ -85,7 +85,7 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
     async def test_reply_is_inferred_from_the_internal_history_alone(self):
         self.ctx.history.append_turn("add a vnet", "<raw llm summary>")
         await self.svc.next_round("add a vnet")
-        await self.svc.save()
+        await self.svc.save("add a vnet")
 
         kwargs = self.llm.generate_text.await_args.kwargs
         self.assertEqual(kwargs["query"], "add a vnet")
@@ -106,7 +106,7 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
     async def test_each_round_adds_exactly_one_turn(self):
         for query in ("add a vnet", "and a subnet"):
             await self.svc.next_round(query)
-            await self.svc.save()
+            await self.svc.save(query)
 
         self.assertEqual(
             [turn["user"] for turn in self.chat()], ["add a vnet", "and a subnet"]
@@ -117,7 +117,7 @@ class TestSaveEdgeCases(_ServiceBase):
     async def test_an_empty_reply_skips_the_turn(self):
         self.llm.generate_text.return_value = ""
         await self.svc.next_round("add a vnet")
-        await self.svc.save()
+        await self.svc.save("add a vnet")
 
         self.assertEqual(self.chat(), [])
         self.database.update_history.assert_awaited_once_with(self.ctx)
@@ -127,7 +127,7 @@ class TestSaveEdgeCases(_ServiceBase):
         # here with the round open and the status already marked FAILED.
         await self.svc.next_round("add a vnet")
         await self.svc.update_status("boom", SessionStatus.FAILED)
-        await self.svc.save()
+        await self.svc.save("add a vnet")
 
         self.assertEqual(
             self.chat(),

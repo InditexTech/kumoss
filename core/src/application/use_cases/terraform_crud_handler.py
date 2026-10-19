@@ -157,6 +157,6 @@ class TerraformCRUDHandler:
                     )
                 self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:
-                await self.__session_svc.save()
+                await self.__session_svc.save(q)
 
         return background_task
