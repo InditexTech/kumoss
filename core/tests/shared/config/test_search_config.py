@@ -31,8 +31,12 @@ class TestSearchConfigAccepts(unittest.TestCase):
         self.assertEqual(config.provider, "searxng")
         self.assertEqual(config.endpoint, "http://localhost:8888")
         self.assertEqual(config.timeout, 30.0)
-        self.assertEqual(config.max_results, 10)
+        self.assertEqual(config.max_results, 5)
         self.assertEqual(config.max_page_chars, 6000)
+        self.assertEqual(config.max_query_retries, 3)
+        self.assertTrue(config.summarize)
+        self.assertEqual(config.summarize_top, 1)
+        self.assertEqual(config.summarize_max_chars, 4000)
 
     def test_accepts_searxng_with_an_endpoint(self):
         config = SearchConfig(provider="searxng", endpoint="http://searxng:8888")
@@ -88,6 +92,17 @@ class TestSearchConfigRejects(unittest.TestCase):
                         provider="searxng",
                         endpoint="http://x",
                         max_page_chars=max_page_chars,
+                    )
+
+    def test_max_query_retries_out_of_bounds_fail(self):
+        # One try is the floor: zero would leave the agent no search at all.
+        for max_query_retries in (0, 11):
+            with self.subTest(max_query_retries=max_query_retries):
+                with self.assertRaises(ValidationError):
+                    SearchConfig(
+                        provider="searxng",
+                        endpoint="http://x",
+                        max_query_retries=max_query_retries,
                     )
 
     def test_provider_with_surrounding_blanks_is_rejected(self):

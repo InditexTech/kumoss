@@ -11,19 +11,17 @@ provider, endpoint and limits; an unreachable or misbehaving engine is
 never surfaced raw — it is translated into the typed ``SearchEngineError``
 the ``web_search`` tool turns into a "do not retry" result.
 
-Each hit's page is then read and reduced to text. That read is best
-effort: the cases below pin that a page which will not fetch or parse
-costs its own hit the body and nothing more, leaving the engine snippet
-in its place. ``httpx`` is stubbed throughout — no case may touch the
-network.
+Each hit's page is then rendered in headless Chromium and reduced to
+markdown. That read is best effort: the cases below pin that a page
+which will not render costs its own hit the body and nothing more,
+leaving the engine snippet in its place. The page reader is stubbed
+throughout — no case may launch a browser or touch the network.
 """
 
 import asyncio
 import unittest
 from dataclasses import dataclass
 from unittest.mock import AsyncMock, MagicMock, patch
-
-import httpx
 
 from src.infrastructure.external.search_service import (
     SearchEngineError,
@@ -53,45 +51,42 @@ def _config(
     return config
 
 
-def _fake_httpx(get: AsyncMock) -> MagicMock:
-    """Stand in for the ``httpx.AsyncClient`` context manager."""
-    client = MagicMock()
-    client.get = get
-    ctx = MagicMock()
-    ctx.__aenter__ = AsyncMock(return_value=client)
+def _reader(
+    markdown: str | None = None,
+) -> MagicMock:
+    """A ``_PageReader`` class stub no browser escapes from.
+
+    With ``markdown``, every page read returns it; without, every read
+    raises, so the engine snippet stays.
+    """
+    stub = MagicMock()
+    ctx = stub.return_value
+    ctx.__aenter__ = AsyncMock(return_value=ctx)
     ctx.__aexit__ = AsyncMock(return_value=False)
-    return MagicMock(return_value=ctx)
+    if markdown is None:
+        ctx.read = AsyncMock(side_effect=RuntimeError("no browser"))
+    else:
+        ctx.read = AsyncMock(return_value=markdown)
+    return stub
 
 
-def _page(body: str = "<html><body>ignored</body></html>") -> AsyncMock:
-    """An ``AsyncClient.get`` that answers 200 with ``body``."""
-    response = MagicMock()
-    response.text = body
-    response.raise_for_status = MagicMock()
-    return AsyncMock(return_value=response)
-
-
-def _unreachable() -> AsyncMock:
-    return AsyncMock(side_effect=httpx.ConnectError("offline"))
-
-
-class _OfflineCase(unittest.IsolatedAsyncioTestCase):
+class _NoCrawlCase(unittest.IsolatedAsyncioTestCase):
     """Base case: every page read fails, so content is the snippet.
 
     Keeps the engine-delegation cases focused on the search call without
-    letting a page read escape to the network.
+    letting a page read launch Chromium or escape to the network.
     """
 
     def setUp(self) -> None:
         patcher = patch(
-            "src.infrastructure.external.search_service.httpx.AsyncClient",
-            _fake_httpx(_unreachable()),
+            "src.infrastructure.external.search_service._PageReader",
+            _reader(),
         )
         patcher.start()
         self.addCleanup(patcher.stop)
 
 
-class TestSearchServiceClient(_OfflineCase):
+class TestSearchServiceClient(_NoCrawlCase):
     async def test_delegates_to_litellm_with_the_configured_provider(self):
         fake = MagicMock()
         fake.results = [_FakeResult("Title", "https://x", "snippet")]
@@ -292,9 +287,15 @@ class TestSearchServiceClient(_OfflineCase):
 
 
 class TestPageReads(unittest.IsolatedAsyncioTestCase):
-    """Reading each hit's page, and degrading when that fails."""
+    """Rendering each hit's page in Chromium, and degrading when that
+    fails."""
 
-    async def _search(self, hits: list[object], get: AsyncMock, **cfg: object):
+    async def _search(
+        self,
+        hits: list[object],
+        reader: MagicMock | None = None,
+        **cfg: object,
+    ):
         response = MagicMock()
         response.results = hits
 
@@ -308,106 +309,106 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
                 AsyncMock(return_value=response),
             ),
             patch(
-                "src.infrastructure.external.search_service.httpx.AsyncClient",
-                _fake_httpx(get),
+                "src.infrastructure.external.search_service._PageReader",
+                reader or _reader(),
             ),
         ):
             return await SearchServiceClient().search("q")
 
-    async def test_extracted_page_text_replaces_the_snippet(self):
-        with patch(
-            "src.infrastructure.external.search_service.trafilatura.extract",
-            return_value="# The whole page",
-        ):
-            results = await self._search(
-                [_FakeResult("T", "https://a", "thin snippet")], _page()
-            )
-
-        self.assertEqual(results[0].content, "# The whole page")
-
-    async def test_an_unreachable_page_falls_back_to_the_snippet(self):
+    async def test_rendered_markdown_replaces_the_snippet(self):
         results = await self._search(
-            [_FakeResult("T", "https://a", "thin snippet")], _unreachable()
+            [_FakeResult("T", "https://a", "thin snippet")], _reader("# the page")
+        )
+
+        self.assertEqual(results[0].content, "# the page")
+
+    async def test_the_hit_url_is_read_with_the_configured_timeout(self):
+        reader = _reader("body")
+
+        await self._search([_FakeResult("T", "https://a", "snip")], reader)
+
+        read = reader.return_value.read
+        self.assertEqual(read.call_args.args, ("https://a", 30.0))
+
+    async def test_a_failed_read_falls_back_to_the_snippet(self):
+        results = await self._search(
+            [_FakeResult("T", "https://a", "thin snippet")], _reader()
         )
 
         self.assertEqual(results[0].content, "thin snippet")
 
-    async def test_a_non_2xx_page_falls_back_to_the_snippet(self):
-        get = _page()
-        get.return_value.raise_for_status.side_effect = httpx.HTTPStatusError(
-            "403", request=MagicMock(), response=MagicMock()
+    async def test_a_failed_read_is_logged_with_its_cause(self):
+        # The warning is the only trace a dropped page leaves, so it has
+        # to say *why*: a rejected certificate, a refused connection and
+        # a timeout are one undiagnosable "could not render" otherwise.
+        reader = _reader()
+        reader.return_value.read = AsyncMock(
+            side_effect=RuntimeError(
+                "[SSL: CERTIFICATE_VERIFY_FAILED] self-signed certificate"
+            )
         )
 
-        results = await self._search([_FakeResult("T", "https://a", "snip")], get)
+        with self.assertLogs("src.shared.logger._logger", level="WARNING") as logs:
+            await self._search([_FakeResult("T", "https://a", "snip")], reader)
 
-        self.assertEqual(results[0].content, "snip")
-
-    async def test_an_unparseable_page_falls_back_to_the_snippet(self):
-        # trafilatura returns None for what it cannot reduce to text
-        # (PDFs, JS-only pages).
-        with patch(
-            "src.infrastructure.external.search_service.trafilatura.extract",
-            return_value=None,
-        ):
-            results = await self._search(
-                [_FakeResult("T", "https://a", "snip")], _page()
-            )
-
-        self.assertEqual(results[0].content, "snip")
+        logged = "".join(logs.output)
+        self.assertIn("CERTIFICATE_VERIFY_FAILED", logged)
+        self.assertIn("RuntimeError", logged)
+        self.assertIn("https://a", logged)
 
     async def test_a_hit_without_a_url_falls_back_to_the_snippet(self):
-        results = await self._search([_FakeResult("T", "", "snip")], _page())
+        # The reader never sees the empty url: the facade must not spend
+        # a browser context on a hit the engine already sent without one.
+        reader = _reader("body")
+
+        results = await self._search([_FakeResult("T", "", "snip")], reader)
 
         self.assertEqual(results[0].content, "snip")
+        self.assertEqual(reader.return_value.read.call_count, 0)
 
     async def test_page_text_is_truncated_to_max_page_chars(self):
-        with patch(
-            "src.infrastructure.external.search_service.trafilatura.extract",
-            return_value="x" * 10_000,
-        ):
-            results = await self._search(
-                [_FakeResult("T", "https://a", "snip")], _page(), max_page_chars=500
-            )
+        results = await self._search(
+            [_FakeResult("T", "https://a", "snip")],
+            _reader("x" * 10_000),
+            max_page_chars=500,
+        )
 
         self.assertEqual(results[0].content, "x" * 500)
 
     async def test_one_bad_page_does_not_cost_the_other_hits(self):
-        # The whole point of the per-hit fallback: a single 403 in a page
-        # of ten results must not fail the search.
+        # The whole point of the per-hit fallback: a single dead link in a
+        # page of ten results must not fail the search.
         hits = [_FakeResult(f"T{i}", f"https://{i}", f"snip{i}") for i in range(3)]
-        responses = [MagicMock(text="ok"), MagicMock(text="ok"), MagicMock(text="ok")]
-        responses[1].raise_for_status.side_effect = httpx.HTTPStatusError(
-            "403", request=MagicMock(), response=MagicMock()
+        reader = _reader()
+        reader.return_value.read = AsyncMock(
+            side_effect=["body", RuntimeError("dead"), "body"]
         )
-        get = AsyncMock(side_effect=responses)
 
-        with patch(
-            "src.infrastructure.external.search_service.trafilatura.extract",
-            return_value="body",
-        ):
-            results = await self._search(hits, get)
+        results = await self._search(hits, reader)
 
         self.assertEqual([r.content for r in results], ["body", "snip1", "body"])
 
     async def test_pages_are_read_concurrently(self):
-        # Serialising the reads would multiply the per-request timeout by
-        # `max_results`, so they must all be in flight at once.
+        # Serialising the reads would multiply the per-page timeout by
+        # `max_results`, so they must all be in flight at once — and the
+        # facade must still run them through one reader, not one reader
+        # per page.
         in_flight = 0
         peak = 0
 
-        async def _slow(_url: str):
+        async def _slow(_url: str, _timeout: float):
             nonlocal in_flight, peak
             in_flight += 1
             peak = max(peak, in_flight)
             await asyncio.sleep(0)
             in_flight -= 1
-            return MagicMock(text="ok")
+            return "body"
 
+        reader = _reader()
+        reader.return_value.read = AsyncMock(side_effect=_slow)
         hits = [_FakeResult(f"T{i}", f"https://{i}", "s") for i in range(5)]
-        with patch(
-            "src.infrastructure.external.search_service.trafilatura.extract",
-            return_value="body",
-        ):
-            await self._search(hits, AsyncMock(side_effect=_slow))
+
+        await self._search(hits, reader)
 
         self.assertEqual(peak, 5)
+        self.assertEqual(reader.call_count, 1)
