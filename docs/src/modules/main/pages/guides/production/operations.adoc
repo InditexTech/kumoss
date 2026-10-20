@@ -148,9 +148,27 @@ Upgrading Kumoss:
   or drop the affected volume by hand before you point a current core
   at it.
 . Rebuild or pull the images and the configuration for the new version.
-. New prompt seed files are created in Phoenix on the next core start;
-  existing prompts are never overwritten, so review the seed changes
-  and apply the ones you want as new prompt versions in Phoenix.
+. On the next core start new prompt seed files are created in Phoenix,
+  and changed seeds replace the versions the seeder pushed. Prompts you
+  curated in Phoenix are never overwritten, so review the seed changes
+  for those and apply the ones you want as new prompt versions.
+. AWS deployments: the bundled iac service now checks, before every
+  AWS `init`, `plan`, `apply` and `import`, that its credentials belong
+  to the request's account, and refuses the command otherwise (see
+  xref:main:reference/api/iac.adoc[IaC service API]). Before upgrading,
+  set `AWS_REGION` (or `AWS_DEFAULT_REGION`) on the iac container, make
+  sure every AWS cloud project's scope is its 12-digit account ID, and
+  run one iac deployment per AWS account: commands for any other
+  account now fail instead of running in the credentials' own account.
+. Generated code changes shape (see
+  xref:main:reference/terraform-providers.adoc[Terraform providers]):
+** New workspaces get newer provider majors (for example
+   `hashicorp/aws` `~> 6.0`, `hashicorp/azurerm` `~> 5.0`). Existing
+   workspaces keep their pins and, on AWS, their provider `region`.
+** AWS and OCI code now declares `aws_account_id` or
+   `compartment_ocid` with no default. A repository pipeline that runs
+   merged code outside Kumoss must set `TF_VAR_aws_account_id` or
+   `TF_VAR_compartment_ocid`.
 . Do not change `environment` on an existing deployment without first
   tagging every prompt version with the new value.
 
