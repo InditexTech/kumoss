@@ -10,10 +10,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
         git curl ripgrep libnss3-tools \
     && rm -rf /var/lib/apt/lists/*
 
-# Corporate CA certs via an additional build context (docker-compose.yml:
-# build.additional_contexts), so the repo holds no local copies. Build-time
-# HTTPS — the Python index and the Chromium download below — must anchor
-# the MITM proxy's re-signed chain.
+# Extra CA roots from the "host-certs" build context (docker/certs, empty
+# by default; the override points it at the host's corporate roots behind a
+# TLS-inspecting proxy). Build-time HTTPS — the Python index and the
+# Chromium download below — needs them to anchor the proxy's re-signed chain.
 COPY --from=host-certs / /usr/local/share/ca-certificates/
 RUN update-ca-certificates
 
@@ -57,13 +57,17 @@ RUN uv run playwright install --with-deps chromium \
     && chmod -R a+rX /usr/local/share/ms-playwright
 
 # Chromium verifies TLS against the NSS database under its HOME, not the
-# system bundle, so the same roots go there too. PEM-then-DER because the
-# directory carries both encodings.
+# system bundle. Import the build-time roots there too; the loop is a no-op
+# when the "host-certs" context is empty. PEM-then-DER because the
+# directory may carry both encodings; files that are neither (the context's
+# .gitkeep) are skipped.
 RUN mkdir -p "${HOME}/.pki/nssdb" \
     && certutil -N -d "sql:${HOME}/.pki/nssdb" --empty-password \
     && for f in /usr/local/share/ca-certificates/*; do \
+        [ -f "$f" ] || continue; \
         openssl x509 -in "$f" -out /tmp/ca.pem 2>/dev/null \
-            || openssl x509 -inform DER -in "$f" -out /tmp/ca.pem; \
+            || openssl x509 -inform DER -in "$f" -out /tmp/ca.pem 2>/dev/null \
+            || continue; \
         certutil -A -d "sql:${HOME}/.pki/nssdb" \
             -n "host-$(basename "$f")" -t "C,," -i /tmp/ca.pem; \
     done \
@@ -71,9 +75,12 @@ RUN mkdir -p "${HOME}/.pki/nssdb" \
 
 COPY --chown=kumoss:kumoss core/src ./src
 COPY --chown=kumoss:kumoss core/prompts ./prompts
+COPY core/docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 USER ${KUMOSS_UID}:${KUMOSS_GID}
 
 EXPOSE 8000
 
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 CMD ["fastapi", "run", "src/main.py"]

@@ -11,12 +11,11 @@ USER root
 # Copy custom settings
 COPY settings.yml /etc/searxng/settings.yml
 
-# Pull corporate CA certificates in via an additional build context
-# (see docker-compose.yml: build.additional_contexts) so the repo holds
-# no local copies of them.
+# Extra CA roots from the "host-certs" build context (docker/certs, empty by
+# default; the override points it at the host's corporate roots behind a
+# TLS-inspecting proxy), so outbound HTTPS anchors the proxy's re-signed
+# chain. update-ca-certificates is a no-op when the directory is empty.
 COPY --from=host-certs / /usr/local/share/ca-certificates/
-
-# Trust them so outbound HTTPS works behind the MITM proxy
 RUN update-ca-certificates
 
 # Fix ownership and permissions

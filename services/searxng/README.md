@@ -124,11 +124,11 @@ Refer to the [SearxNG documentation](https://docs.searxng.org/) for all availabl
 - **Change the secret key** via `services/searxng/.env` (`SEARXNG_SECRET`) before deploying to production
 - The `limiter` is disabled by default - enable it for production use
 - Image proxy is enabled for privacy
-- **Corporate proxy TLS**: the Dockerfile pulls the certificates from the
-  host's `/usr/local/share/ca-certificates/` at build time (via the
-  `host-certs` additional build context in docker-compose.yml) and trusts
-  them with `update-ca-certificates`, so outbound HTTPS works behind the
-  SSL-inspecting proxy. Update the host folder if the corporate CA changes.
+- **Corporate proxy TLS**: behind an SSL-inspecting proxy, copy
+  `docker-compose.override.example.yml` to `docker-compose.override.yml`.
+  It points the `host-certs` build context at your corporate roots and
+  mounts them at `KUMOSS_CA_DIR`, which the container entrypoint merges
+  into a trust bundle at start. Nothing corporate enters the repository.
 - **Pinned SearXNG base image**: SearXNG is a rolling release — every
   master commit is a release, so `:latest` would silently change at each
   rebuild. The Dockerfile pins a datetagged build (currently
