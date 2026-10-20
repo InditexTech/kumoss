@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 from src.application.services.operation_executor import OperationExecutor
-from src.domains.exceptions import SessionConflict
+from src.domains.exceptions import SessionTerminal
 from src.shared.config.system_config import SchedulerConfig
 from src.shared.constants import OperationStatus, OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
@@ -44,9 +44,8 @@ class _ExecutorBase(unittest.IsolatedAsyncioTestCase):
 
         self.db = MagicMock()
         self.db.get_session_context = AsyncMock(return_value=self.ctx)
-        self.db.acquire_in_flight = AsyncMock()
+        self.db.assert_resumable = AsyncMock()
         self.db.is_session_blocked = AsyncMock(return_value=False)
-        self.db.release_in_flight = AsyncMock()
         self.db.get_last_status = AsyncMock(
             return_value=SimpleNamespace(status=SessionStatus.FILTERING)
         )
@@ -102,9 +101,8 @@ class TestSuccess(_ExecutorBase):
         )
         self.run_handler.assert_awaited_once()
         self.db.mark_completed.assert_awaited_once()
-        self.queue.complete.assert_awaited_once_with(op.id, release_session=True)
+        self.queue.complete.assert_awaited_once_with(op.id)
         self.queue.fail.assert_not_awaited()
-        self.db.release_in_flight.assert_not_awaited()  # freed by the finisher
 
     async def test_dispatches_on_kind(self):
         cases = {
@@ -128,23 +126,22 @@ class TestSuccess(_ExecutorBase):
 
 
 class TestFailures(_ExecutorBase):
-    async def test_busy_session_fails_without_running_or_releasing(self):
-        self.db.acquire_in_flight.side_effect = SessionConflict("busy", 409)
+    async def test_finished_session_fails_without_running(self):
+        self.db.assert_resumable.side_effect = SessionTerminal("finished", 409)
         op = _operation()
         await self.executor.execute(op, "w1")
-        self.queue.fail.assert_awaited_once_with(op.id, "busy")
+        self.queue.fail.assert_awaited_once_with(op.id, "finished")
         self.queue.fail_unstarted_session.assert_awaited_once_with(
-            op.session.uuid, "busy"
+            op.session.uuid, "finished"
         )
         self.run_handler.assert_not_awaited()
-        self.db.release_in_flight.assert_not_awaited()
 
     async def test_blocked_session_fails_only_the_queued_apply(self):
         self.db.is_session_blocked = AsyncMock(return_value=True)
         op = _operation(OperationType.APPLY, {})
         await self.executor.execute(op, "w1")
         self.queue.fail.assert_awaited_once()
-        self.db.acquire_in_flight.assert_not_awaited()
+        self.db.assert_resumable.assert_not_awaited()
         self.db.mark_failed.assert_not_awaited()
         self.run_handler.assert_not_awaited()
 
@@ -152,9 +149,7 @@ class TestFailures(_ExecutorBase):
         self.run_handler.side_effect = ExceptionHandler("kaput", 500)
         op = _operation()
         await self.executor.execute(op, "w1")
-        self.queue.fail.assert_awaited_once_with(
-            op.id, "runner failed: kaput", release_session=True
-        )
+        self.queue.fail.assert_awaited_once_with(op.id, "runner failed: kaput")
         self.db.mark_failed.assert_awaited_once_with(
             self.ctx.id, "runner failed: kaput"
         )
@@ -165,15 +160,16 @@ class TestFailures(_ExecutorBase):
         self.run_handler.side_effect = RuntimeError("bug")
         op = _operation()
         await self.executor.execute(op, "w1")
-        self.queue.fail.assert_awaited_once()
-        self.assertTrue(self.queue.fail.await_args.kwargs["release_session"])
+        self.queue.fail.assert_awaited_once_with(
+            op.id, "runner failed: unexpected error: bug"
+        )
 
     async def test_timeout_fails_the_operation(self):
         self.run_handler.side_effect = _hang
         op = _operation(timeout=0.05)
         await self.executor.execute(op, "w1")
         self.queue.fail.assert_awaited_once_with(
-            op.id, "runner failed: timed out after 0.05s", release_session=True
+            op.id, "runner failed: timed out after 0.05s"
         )
 
 
@@ -188,7 +184,7 @@ class TestCancellation(_ExecutorBase):
 
         await asyncio.wait_for(self.executor.execute(op, "w1"), timeout=2)
 
-        self.queue.mark_cancelled.assert_awaited_once_with(op.id, release_session=True)
+        self.queue.mark_cancelled.assert_awaited_once_with(op.id)
         self.queue.complete.assert_not_awaited()
         self.queue.fail.assert_not_awaited()
         self.db.mark_failed.assert_awaited_once()
@@ -210,7 +206,6 @@ class TestCancellation(_ExecutorBase):
         self.queue.fail.assert_awaited_once_with(
             op.id,
             "runner failed: Interrupted by a worker shutdown",
-            release_session=True,
         )
         self.queue.mark_cancelled.assert_not_awaited()
 
@@ -227,9 +222,7 @@ class TestCancellation(_ExecutorBase):
 
         self.db.mark_failed.assert_not_awaited()
         self.queue.mark_cancelled.assert_not_awaited()
-        self.queue.fail.assert_awaited_once_with(
-            op.id, "Worker lost (lease expired)", release_session=True
-        )
+        self.queue.fail.assert_awaited_once_with(op.id, "Worker lost (lease expired)")
 
     async def test_unrenewable_lease_stops_the_pipeline(self):
         self.run_handler.side_effect = _hang
@@ -242,9 +235,7 @@ class TestCancellation(_ExecutorBase):
 
         await asyncio.wait_for(self.executor.execute(op, "w1"), timeout=2)
 
-        self.queue.fail.assert_awaited_once_with(
-            op.id, "Worker lost (lease expired)", release_session=True
-        )
+        self.queue.fail.assert_awaited_once_with(op.id, "Worker lost (lease expired)")
         self.db.mark_failed.assert_awaited_once_with(
             self.ctx.id, "The worker running this session was lost."
         )

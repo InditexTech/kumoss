@@ -94,7 +94,6 @@ class Session(Base):
     uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     operation: Mapped[OperationType] = mapped_column()
-    in_flight: Mapped[bool] = mapped_column(default=False)
     is_blocked: Mapped[bool] = mapped_column(default=False)
     # relations
     workspaces: Mapped[list["Workspace"]] = relationship(
@@ -111,8 +110,7 @@ class Session(Base):
 
     @override
     def __repr__(self) -> str:
-        return f"""<Session(session_id='{self.uuid}',
-                      in_flight='{self.in_flight}, is_blocked='{self.is_blocked}')>"""
+        return f"<Session(session_id='{self.uuid}', is_blocked='{self.is_blocked}')>"
 
 
 @final
@@ -333,8 +331,8 @@ class Operation(Base):
     __tablename__ = "operations"
     __table_args__ = (
         Index("ix_operations_claim", "status", "scheduled_at"),
-        # At most one active operation per session: the enqueue-time guard
-        # that rejects concurrent calls on the same session.
+        # At most one active operation per session: the session's only
+        # concurrency lock; a session is in flight while it holds a row here.
         Index(
             "uq_operations_active_session",
             "session_id",

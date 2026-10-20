@@ -80,32 +80,23 @@ class OperationQueueService:
             operation_id, worker_id, self._config.lease_seconds
         )
 
-    async def complete(
-        self, operation_id: int, *, release_session: bool = False
-    ) -> bool:
+    async def complete(self, operation_id: int) -> bool:
         finished = await DatabaseService.finish_operation(
-            operation_id, OperationStatus.SUCCEEDED, None, release_session
+            operation_id, OperationStatus.SUCCEEDED, None
         )
         logging.info(f"Operation {operation_id} succeeded")
         return finished
 
-    async def fail(
-        self, operation_id: int, error: str, *, release_session: bool = False
-    ) -> bool:
+    async def fail(self, operation_id: int, error: str) -> bool:
         finished = await DatabaseService.finish_operation(
-            operation_id, OperationStatus.FAILED, error, release_session
+            operation_id, OperationStatus.FAILED, error
         )
         logging.info(f"Operation {operation_id} failed: {error}")
         return finished
 
-    async def mark_cancelled(
-        self, operation_id: int, *, release_session: bool = False
-    ) -> bool:
+    async def mark_cancelled(self, operation_id: int) -> bool:
         finished = await DatabaseService.finish_operation(
-            operation_id,
-            OperationStatus.CANCELLED,
-            "Cancelled by user",
-            release_session,
+            operation_id, OperationStatus.CANCELLED, "Cancelled by user"
         )
         logging.info(f"Operation {operation_id} cancelled")
         return finished

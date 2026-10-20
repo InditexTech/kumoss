@@ -224,25 +224,40 @@ class TestFinish(_QueueBase):
         self.assertEqual((await self._reload(op)).status, OperationStatus.CANCELLED)
 
 
-class TestFinishReleasesTheSession(_QueueBase):
-    async def test_finishing_frees_in_flight_in_the_same_step(self):
+class TestSessionInFlight(_QueueBase):
+    async def test_in_flight_while_the_operation_is_active(self):
         _ = await self._enqueue()
+        summary = await DatabaseService.get_session_summary(self.session_id)
+        self.assertTrue(summary.in_flight)  # pending holds the session too
+
         op = await self.queue.claim("w1")
         assert op is not None
-        await DatabaseService.acquire_in_flight(self.session_id)
+        detail = await DatabaseService.get_session_detail(self.session_id)
+        self.assertTrue(detail.in_flight)
 
-        self.assertTrue(await self.queue.complete(op.id, release_session=True))
-
+        self.assertTrue(await self.queue.complete(op.id))
         summary = await DatabaseService.get_session_summary(self.session_id)
         self.assertFalse(summary.in_flight)
 
-    async def test_a_late_finish_never_frees_a_successors_lock(self):
+    async def test_listing_reports_in_flight_per_session(self):
+        idle = await self._session(self.user.id)
+        _ = await self._enqueue()
+
+        page = await DatabaseService.list_sessions(self.user.id)
+
+        flags = {item.uuid: item.in_flight for item in page.items}
+        self.assertEqual(flags, {self.session_id: True, idle: False})
+
+    async def test_a_late_finish_never_touches_a_successor(self):
         op = await self._enqueue()
         await self.queue.fail(op.id, "reaped")
-        await DatabaseService.acquire_in_flight(self.session_id)  # successor
+        successor = await self._enqueue()
 
-        self.assertFalse(await self.queue.complete(op.id, release_session=True))
+        self.assertFalse(await self.queue.complete(op.id))
 
+        self.assertEqual(
+            (await self._reload(successor)).status, OperationStatus.PENDING
+        )
         summary = await DatabaseService.get_session_summary(self.session_id)
         self.assertTrue(summary.in_flight)
 
@@ -298,7 +313,6 @@ class TestReaper(_QueueBase):
         _ = await self._enqueue()
         op = await self.queue.claim("w1")
         assert op is not None
-        await DatabaseService.acquire_in_flight(self.session_id)
         async with db.transaction() as s:
             _ = await s.execute(
                 update(Operation)

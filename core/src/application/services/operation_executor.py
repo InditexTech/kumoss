@@ -30,8 +30,8 @@ class OperationExecutor:
     """Acquire → tracer → clone → handler → complete, for any operation kind.
 
     The pipeline runs in its own task so the heartbeat can stop it when the
-    user cancels or the lease is lost; the session's in-flight lock is
-    released with the operation's final transition, whatever the outcome.
+    user cancels or the lease is lost; the operation's final transition,
+    whatever the outcome, frees the session for its next call.
     """
 
     # Why the heartbeat stopped the pipeline.
@@ -58,18 +58,17 @@ class OperationExecutor:
                     message=f"Session {session_id} is blocked; apply is not allowed.",
                     error_code=409,
                 )
-            await DatabaseService.acquire_in_flight(session_id)
+            await DatabaseService.assert_resumable(session_id)
         except ExceptionHandler as e:
-            # Never got the lock: the session is gone, finished, blocked or busy.
+            # Never started: the session is gone, finished or blocked.
             _ = await self._queue.fail(operation.id, e.message)
             await self._queue.fail_unstarted_session(session_id, e.message)
             return
 
         run = asyncio.create_task(self._run(operation, ctx))
         heartbeat = asyncio.create_task(self._heartbeat_loop(operation, worker_id, run))
-        # Every finisher also frees in_flight, in the same transaction.
         finish: Callable[[], Awaitable[bool]] = partial(
-            self._queue.complete, operation.id, release_session=True
+            self._queue.complete, operation.id
         )
         lease_lost = False
         try:
@@ -83,20 +82,17 @@ class OperationExecutor:
                 )
                 raise
             if await heartbeat == self._LEASE_LOST:
-                # Usually the reaper already failed the op and the session and
-                # freed the lock; the finisher is then a no-op.
+                # Usually the reaper already failed the op and the session;
+                # the finisher is then a no-op.
                 lease_lost = True
                 finish = partial(
                     self._queue.fail,
                     operation.id,
                     OperationQueueService.LOST_OPERATION_MSG,
-                    release_session=True,
                 )
             else:
                 await DatabaseService.mark_failed(ctx.id, "Operation cancelled by user")
-                finish = partial(
-                    self._queue.mark_cancelled, operation.id, release_session=True
-                )
+                finish = partial(self._queue.mark_cancelled, operation.id)
         except TimeoutError:
             finish = await self.__fail(
                 operation, ctx, f"timed out after {operation.timeout_seconds}s"
@@ -224,4 +220,4 @@ class OperationExecutor:
             )
         except Exception:
             logging.exception(f"Failed to report failure of session {ctx.id}")
-        return partial(self._queue.fail, operation.id, msg, release_session=True)
+        return partial(self._queue.fail, operation.id, msg)
