@@ -10,7 +10,12 @@ from src.domains.services import SessionService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.shared.constants import OperationType, ToolContext, PromptsLibrary
+from src.shared.constants import (
+    OperationType,
+    SessionStatus,
+    ToolContext,
+    PromptsLibrary,
+)
 
 
 class RequestsFilterService:
@@ -31,7 +36,7 @@ class RequestsFilterService:
         q: str,
         history: History,
         operation_type: OperationType,
-    ) -> tuple[bool, str]:
+    ) -> bool:
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=q,
             tools=self.__tool_svc.get_available_tools(
@@ -47,5 +52,14 @@ class RequestsFilterService:
             history=history,
         )
         rationale: str = cast(str, response.result["explanation"])
+        ok: bool = response.result["status"]
 
-        return response.result["status"], rationale
+        if not ok:
+            history.append_turn(q, rationale)
+            await self.__session_svc.save(q)
+            await self.__session_svc.update_status(
+                msg=rationale,
+                status=SessionStatus.UNCOMPLETED,
+            )
+
+        return ok

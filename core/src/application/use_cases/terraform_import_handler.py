@@ -104,6 +104,7 @@ class TerraformImportHandler:
         ctx = self.__ctx
 
         async def background_task():
+            query_accepted = False
             try:
                 await self.__session_svc.next_round(q)
                 _ = await self.__session_svc.update_status(
@@ -115,16 +116,13 @@ class TerraformImportHandler:
                     history=ctx.history,
                 )
                 if is_partial:
-                    ok, rationale = await self.__requests_filter_svc.filter(
+                    query_accepted = await self.__requests_filter_svc.filter(
                         q, ctx.history, ctx.operation
                     )
-                    if not ok:
-                        ctx.history.append_turn(q, rationale)
-                        _ = await self.__session_svc.update_status(
-                            msg=rationale,
-                            status=SessionStatus.UNCOMPLETED,
-                        )
+                    if not query_accepted:
                         return
+                else:
+                    query_accepted = True
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
@@ -261,6 +259,7 @@ class TerraformImportHandler:
                     ),
                 )
             finally:
-                await self.__session_svc.save(q)
+                if query_accepted:
+                    await self.__session_svc.save(q)
 
         return background_task
