@@ -34,7 +34,6 @@ class TestSearchConfigAccepts(unittest.TestCase):
         self.assertEqual(config.max_results, 5)
         self.assertEqual(config.max_page_chars, 6000)
         self.assertEqual(config.max_query_retries, 3)
-        self.assertTrue(config.summarize)
         self.assertEqual(config.summarize_top, 1)
         self.assertEqual(config.summarize_max_chars, 4000)
 

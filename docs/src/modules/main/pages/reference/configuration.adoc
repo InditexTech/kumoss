@@ -463,8 +463,7 @@ report generator chains.
 |`small` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
-calls, including the `web_search` summarisation when
-`web_search.summarize` is on.
+calls, including the `web_search` summarisation.
 
 |`llm.temperature`
 |float
@@ -558,8 +557,8 @@ environment variables instead and usually need no endpoint.
 
 |`web_search.max_results`
 |integer (1–20)
-|`10`
-|`10`
+|`5`
+|`8`
 |Optional
 |Upper bound on results returned per query.
 
@@ -568,10 +567,9 @@ environment variables instead and usually need no endpoint.
 |`6000`
 |`10000`
 |Optional
-|Truncates the readable text extracted from each result page. With
-`summarize` off this is the agent's context cost, worst case
-`max_results × max_page_chars`; with it on, that product is the
-summarising inferences' input and the agent sees only the summaries.
+|Truncates the readable text extracted from each result page. That
+product — `max_results × max_page_chars` — is the summarising
+inferences' input; the agent sees only the summaries.
 
 |`web_search.timeout`
 |float (seconds, must be `> 0`)
@@ -587,18 +585,10 @@ summarising inferences' input and the agent sees only the summaries.
 |Optional
 |How many consecutive dead-end searches the agent may spend before the
 tool stops inviting it to try again. A dead end is an engine that
-returns nothing, or (with `summarize` on) pages none of which answers
-the query. Any search that returns something refills the budget, so this
-caps a stuck agent, not a productive one; an unreachable engine or an
-empty `provider` answers immediately and spends no attempt.
-
-|`web_search.summarize`
-|boolean
-|`false`
-|`true`
-|Optional
-|Turns on the two-stage small-model reduction described below. Off, the
-agent receives every hit's full page text.
+returns nothing, or pages none of which answers the query. Any search
+that returns something refills the budget, so this caps a stuck agent,
+not a productive one; an unreachable engine or an empty `provider`
+answers immediately and spends no attempt.
 
 |`web_search.summarize_top`
 |integer (1–10)
@@ -606,7 +596,6 @@ agent receives every hit's full page text.
 |commented out
 |Optional
 |How many of the ranked summaries reach the agent, most relevant first.
-Only read when `summarize` is on.
 
 |`web_search.summarize_max_chars`
 |integer (500–20000)
@@ -615,8 +604,7 @@ Only read when `summarize` is on.
 |Optional
 |Caps each summary, and each raw excerpt kept when a page's summary
 inference fails. A summary stands in for its page, so too low a value
-loses detail the agent cannot get back. Only read when `summarize` is
-on.
+loses detail the agent cannot get back.
 |===
 
 Each search starts the same way: the engine returns ranked hits, and
@@ -630,8 +618,7 @@ where a bare HTTP client would get `403`. A page that will not render
 falls back to its snippet, so a partial failure costs detail rather than
 the whole search.
 
-With `summarize` off, every page's text goes to the agent as it is. With
-it on, two small-model steps stand between the pages and the agent: one
+Two small-model steps stand between the pages and the agent: one
 summary per page, all concurrent — an extract rather than a gist, since
 the summary replaces the page — then a single cross-page inference that
 ranks the pages answering the query. The top `summarize_top` summaries

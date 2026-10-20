@@ -36,7 +36,6 @@ class TestToolFailureLogging(unittest.IsolatedAsyncioTestCase):
     def _config(self) -> MagicMock:
         config = MagicMock()
         config.web_search.provider = "searxng"
-        config.web_search.summarize = False
         return config
 
     async def _failing_tool(self, error: BaseException):

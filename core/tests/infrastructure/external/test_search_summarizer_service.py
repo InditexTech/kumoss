@@ -35,7 +35,9 @@ def _results() -> list[SearchResult]:
 
 def _summarizer(llm: MagicMock, top: int = 1) -> SearchResultsSummarizer:
     """A summarizer under a patched config, ``summarize_top: 1`` by default."""
-    with patch("src.infrastructure.external.search_summarizer.system_config") as config:
+    with patch(
+        "src.infrastructure.external.search_summarizer_service.system_config"
+    ) as config:
         config.web_search.summarize_top = top
         config.web_search.summarize_max_chars = 1200
         return SearchResultsSummarizer(llm)

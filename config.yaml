@@ -161,19 +161,18 @@ llm:
 #
 # `max_page_chars` truncates the text read from each result page, so the
 # tool's worst case is `max_results * max_page_chars` characters of tool
-# result. With `summarize` on, two small-model inferences stand between
-# the pages and the agent — one summary per page, then a cross-page
-# ranking — and only the top `summarize_top` summaries reach it, bounded
-# instead by `summarize_top * summarize_max_chars`. `max_query_retries`
-# bounds how many consecutive empty searches the agent may spend before
-# the tool tells it to stop retrying.
+# result. Two small-model inferences stand between the pages and the agent
+# — one summary per page, then a cross-page ranking — and only the top
+# `summarize_top` summaries reach it, bounded instead by `summarize_top *
+# summarize_max_chars`. `max_query_retries` bounds how many consecutive
+# empty searches the agent may spend before the tool tells it to stop
+# retrying.
 web_search:
   provider: "searxng"
   endpoint: "http://searxng:8888"
   timeout: 30.0
   max_results: 8
   max_page_chars: 10000
-  summarize: true
 
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the

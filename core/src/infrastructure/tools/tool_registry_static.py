@@ -428,18 +428,14 @@ class ToolRegistryStatic(IToolRegistry):
             return self.__dead_end(
                 query, f"Web search with query '{query}' returned no content."
             )
-        if system_config.web_search.summarize:
-            summaries = await self.__summarized_search_results(query, results)
-            if summaries is None:
-                return self.__dead_end(
-                    query,
-                    f"Web search with query '{query}' returned no relevant content.",
-                )
-            body = summaries
-        else:
-            body = "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results)
+        summaries = await self.__summarized_search_results(query, results)
+        if summaries is None:
+            return self.__dead_end(
+                query,
+                f"Web search with query '{query}' returned no relevant content.",
+            )
         self.__search_dead_ends = 0
-        return {"query": query, "result": body}
+        return {"query": query, "result": summaries}
 
     def __dead_end(self, query: str, reason: str) -> dict[str, Any]:
         """Spend one try: ask for another query, or stop once they run out.

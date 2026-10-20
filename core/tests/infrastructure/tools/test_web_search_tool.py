@@ -2,11 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""The web_search tool hands the engine's hits straight to the agent.
+"""The web_search tool reduces the engine's hits before the agent reads them.
 
 The query goes to whichever engine ``config.yaml`` names
-(``web_search.provider``) through the ``SearchServiceClient`` facade, and
-the agent gets plain ``title: content (url)`` lines back. There is no
+(``web_search.provider``) through the ``SearchServiceClient`` facade. Every
+page is rendered and summarized, then ranked, and the agent gets the top
+``summarize_top`` summaries as ``title: summary (url)`` lines. There is no
 LLM-native fallback: an unset provider and a dead engine degrade into a
 "do NOT retry" result the agent can read, and neither reaches an
 inference.
@@ -17,10 +18,7 @@ only once ``max_query_retries`` consecutive dead ends have been spent
 is it told to stop. Any search that returns something refills that
 budget.
 
-With ``web_search.summarize`` on, those lines carry the small model's
-condensed summaries instead of the raw pages, capped at
-``summarize_top`` and ordered by relevance; a summarizer that fails
-drops back to the raw hits.
+A summarizer that fails drops back to the raw hits.
 """
 
 import unittest
@@ -48,7 +46,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         """Patch web_search.provider while the registry is constructed."""
         config = MagicMock()
         config.web_search.provider = provider
-        config.web_search.summarize = False
         with patch(
             "src.infrastructure.tools.tool_registry_static.system_config",
             config,
@@ -64,7 +61,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
     def _tool_module_patch(
         self,
         provider: str,
-        summarize: bool = False,
         summarize_top: int = 1,
         max_query_retries: int = 3,
     ):
@@ -77,7 +73,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         """
         config = MagicMock()
         config.web_search.provider = provider
-        config.web_search.summarize = summarize
         config.web_search.summarize_top = summarize_top
         config.web_search.summarize_max_chars = 1200
         config.web_search.max_query_retries = max_query_retries
@@ -87,7 +82,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                 config,
             ),
             patch(
-                "src.infrastructure.external.search_summarizer.system_config",
+                "src.infrastructure.external.search_summarizer_service.system_config",
                 config,
             ),
         ):
@@ -100,8 +95,36 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         results: list[SearchResult] | None = None,
         side_effect: Exception | None = None,
     ):
-        llm = llm if llm is not None else MagicMock(inference=AsyncMock())
+        results = results if results is not None else _results()
+        if llm is None:
+            llm = MagicMock(inference=AsyncMock())
+            # Faithful default: each page's summary is its own content and
+            # the ranking keeps every page, so the search succeeds.
+            llm.inference.side_effect = [
+                *(SimpleNamespace(text=r.content) for r in results),
+                SimpleNamespace(
+                    text="SELECT: " + ",".join(str(i) for i in range(len(results)))
+                ),
+            ]
         registry = self._registry("searxng", llm=llm)
+        with (
+            self._tool_module_patch("searxng", summarize_top=len(results) or 1),
+            patch(
+                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+            ) as client_cls,
+        ):
+            client_cls.return_value.search = AsyncMock(
+                return_value=results,
+                side_effect=side_effect,
+            )
+            return await self._run(registry, query), llm
+
+    async def test_results_are_formatted_one_line_per_hit(self):
+        llm = MagicMock(inference=AsyncMock())
+        llm.inference.side_effect = [
+            SimpleNamespace(text="s3 bucket docs"),
+            SimpleNamespace(text="SELECT: 0"),
+        ]
         with (
             self._tool_module_patch("searxng"),
             patch(
@@ -109,38 +132,46 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
-                return_value=results if results is not None else _results(),
-                side_effect=side_effect,
-            )
-            return await self._run(registry, query), llm
-
-    async def test_results_are_formatted_one_line_per_hit(self):
-        result, llm = await self._search(
-            query="terraform s3 bucket",
-            results=_results(
-                (
-                    "Terraform Registry",
-                    "https://registry.terraform.io",
-                    "s3 bucket docs",
+                return_value=_results(
+                    (
+                        "Terraform Registry",
+                        "https://registry.terraform.io",
+                        "s3 bucket docs",
+                    )
                 )
-            ),
-        )
+            )
+            result = await self._run(
+                self._registry("searxng", llm=llm), "terraform s3 bucket"
+            )
 
         self.assertTrue(result.success, result.error_message)
         self.assertEqual(
             result.result["result"],
             "- Terraform Registry: s3 bucket docs (https://registry.terraform.io)",
         )
-        llm.inference.assert_not_awaited()
 
     async def test_multiple_results_are_joined_in_engine_order(self):
-        result, _ = await self._search(
-            results=_results(
-                ("First", "https://one", "a"),
-                ("Second", "https://two", "b"),
-                ("Third", "https://three", "c"),
+        llm = MagicMock(inference=AsyncMock())
+        llm.inference.side_effect = [
+            SimpleNamespace(text="a"),
+            SimpleNamespace(text="b"),
+            SimpleNamespace(text="c"),
+            SimpleNamespace(text="SELECT: 0,1,2"),
+        ]
+        with (
+            self._tool_module_patch("searxng", summarize_top=3),
+            patch(
+                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+            ) as client_cls,
+        ):
+            client_cls.return_value.search = AsyncMock(
+                return_value=_results(
+                    ("First", "https://one", "a"),
+                    ("Second", "https://two", "b"),
+                    ("Third", "https://three", "c"),
+                )
             )
-        )
+            result = await self._run(self._registry("searxng", llm=llm), "q")
 
         self.assertEqual(
             result.result["result"],
@@ -217,6 +248,11 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_search_that_works_refills_the_retry_budget(self):
         llm = MagicMock(inference=AsyncMock())
+        # The one successful search runs the summarizer: summary + ranking.
+        llm.inference.side_effect = [
+            SimpleNamespace(text="body"),
+            SimpleNamespace(text="SELECT: 0"),
+        ]
         registry = self._registry("searxng", llm=llm)
         with (
             self._tool_module_patch("searxng", max_query_retries=2),
@@ -260,7 +296,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(text="IRRELEVANT"),
         ]
         with (
-            self._tool_module_patch("searxng", summarize=True),
+            self._tool_module_patch("searxng"),
             patch(
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
@@ -288,7 +324,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(text="SELECT: 1,2"),
         ]
         with (
-            self._tool_module_patch("searxng", summarize=True),
+            self._tool_module_patch("searxng"),
             patch(
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
@@ -317,7 +353,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
             SimpleNamespace(text="SELECT: 2,0"),
         ]
         with (
-            self._tool_module_patch("searxng", summarize=True, summarize_top=3),
+            self._tool_module_patch("searxng", summarize_top=3),
             patch(
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
@@ -347,7 +383,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         ]
         registry = self._registry("searxng", llm=llm)
         with (
-            self._tool_module_patch("searxng", summarize=True),
+            self._tool_module_patch("searxng"),
             patch(
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
@@ -371,7 +407,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
     async def test_summarizer_failure_falls_back_to_raw_results(self):
         llm = MagicMock(inference=AsyncMock())
         with (
-            self._tool_module_patch("searxng", summarize=True),
+            self._tool_module_patch("searxng"),
             patch(
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
