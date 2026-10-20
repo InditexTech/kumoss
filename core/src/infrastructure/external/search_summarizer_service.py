@@ -10,12 +10,10 @@ not a gist: it must carry everything on the page that bears on the
 query, so nothing downstream has to go back to the raw scrape. Stage 2
 compares those summaries against the original query in a single
 cross-page inference and ranks the pages that validly answer it, best
-first. Ids are zero-based, matching Python indexing into the results
-list.
+first.
 
 The caller returns the top-ranked *summaries* to the main agent, so it
-reads a handful of dense, query-shaped extracts in relevance order
-instead of ``max_results * max_page_chars`` characters of raw scrapes.
+reads a handful of dense, query-shaped extracts in relevance order.
 
 Degradation is layered, mirroring ``search_service``: a page whose
 summary inference fails keeps its (truncated) raw content as its

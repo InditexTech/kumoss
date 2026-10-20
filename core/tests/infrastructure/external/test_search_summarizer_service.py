@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.infrastructure.external.search_service import SearchResult
-from src.infrastructure.external.search_summarizer import (
+from core.src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
     _parse_selection,
 )

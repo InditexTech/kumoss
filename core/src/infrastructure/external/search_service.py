@@ -144,6 +144,7 @@ class SearchServiceClient:
         try:
             response = await litellm.asearch(
                 query=query,
+                max_results=cfg.max_results,
                 search_provider=cfg.provider,
                 api_base=cfg.endpoint or None,
                 timeout=cfg.timeout,

@@ -31,7 +31,9 @@ from src.infrastructure.external.search_service import (
     SearchResult,
     SearchServiceClient,
 )
-from src.infrastructure.external.search_summarizer import SearchResultsSummarizer
+from core.src.infrastructure.external.search_summarizer_service import (
+    SearchResultsSummarizer,
+)
 from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
