@@ -36,4 +36,3 @@ body: |
     plus `lifecycle { ignore_changes = [attached_disk] }` on the
     instance — never both.
   - Add `lifecycle { prevent_destroy = true }` for production disks.
-  - Apply standard labels: environment, owner, and managed_by.

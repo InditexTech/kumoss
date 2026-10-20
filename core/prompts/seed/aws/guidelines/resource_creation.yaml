@@ -7,56 +7,176 @@ body: |
   # AWS Resource Creation Guidelines
 
   ## Provider
-  Use the `aws` provider, pinned to a known-good major version:
+  Use the `aws` provider, pinned to a known-good major version, with
+  a minimal provider block:
 
   ```hcl
   terraform {
     required_providers {
       aws = {
         source  = "hashicorp/aws"
-        version = "~> 5.0"
+        version = "~> 6.0"
       }
     }
   }
 
+  variable "aws_account_id" {
+    type        = string
+    description = "AWS account ID, set by the engine from the request scope."
+  }
+
   provider "aws" {
-    region = var.region
+    allowed_account_ids = [var.aws_account_id]
+
+    default_tags {
+      tags = local.standard_tags
+    }
   }
   ```
+
+  - The IaC engine sets `TF_VAR_aws_account_id` from the request's
+    scope. Declare `variable "aws_account_id"` (type string, no
+    default) and set `allowed_account_ids = [var.aws_account_id]`
+    so the provider refuses to run against any other account,
+    including after an assume_role. Never hardcode the account ID
+    and never give the variable a default. If the workspace already
+    pins the account (an existing `allowed_account_ids`, or a
+    differently named account variable), keep it as it is.
+  - `aws_account_id` is the only required variable without a
+    default that you may add: the engine supplies it. Do not add
+    other variables the engine cannot supply.
+  - The IaC engine supplies credentials and the region from its
+    environment (`AWS_REGION` plus the configured credential
+    chain). Never set `access_key`, `secret_key`, `token`,
+    `profile`, `shared_credentials_files`, `shared_config_files`,
+    `assume_role`, `assume_role_with_web_identity`, or `endpoints`
+    in the provider block.
+  - In a new workspace, do not set `region` on the provider and do
+    not add a region variable: the engine's `AWS_REGION` selects the
+    region. If an existing provider block already sets `region` (a
+    literal or a variable), never remove or change it: the
+    workspace's resources live there, and dropping it moves every
+    resource to the engine's region. Reuse that value wherever the
+    code needs the region instead of adding a second variable.
+  - Outside the provider block, read the account ID, partition,
+    and region from
+    `data "aws_caller_identity" "current" {}`,
+    `data "aws_partition" "current" {}`, and
+    `data "aws_region" "current" {}` instead of hardcoding them. In
+    provider v6 the region name is `data.aws_region.current.region`;
+    the old `.name` attribute is deprecated.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
+  - Provider v6 removed or renamed several v5 arguments (e.g.
+    `aws_eip.vpc` is now `domain = "vpc"`, `aws_flow_log`
+    `log_group_name` is now `log_destination`, `aws_eks_addon`
+    `resolve_conflicts` is split into `resolve_conflicts_on_create`
+    and `resolve_conflicts_on_update`, and `aws_ami` lookups with
+    `most_recent = true` require `owners`). Never emit the v5
+    forms in a workspace on v6. A workspace that already pins v5
+    stays on v5 (see the general Terraform guidelines): use the
+    v5 forms there.
 
   ## Accounts
   - One AWS account per environment per application is the default.
-  - Use AWS Organizations to group accounts under a management account.
-  - Reference the current account and region with the `aws_caller_identity`
-    and `aws_region` data sources rather than hardcoding values.
+  - Use AWS Organizations to group accounts under a management
+    account.
 
   ## Tagging
-  Every resource that supports `tags` carries at minimum:
-  - `Environment` — `dev`, `staging`, or `prod`.
-  - `Owner` — team or individual responsible.
-  - `ManagedBy` — set to `terraform`.
+  Apply the standard tags (`local.standard_tags`, defined in
+  `standard_tags.tf` as the general Terraform guidelines describe)
+  in one of two ways, decided by the provider block:
+  - When this change writes the `aws` provider block (a new
+    workspace), apply them once through its `default_tags { tags =
+    local.standard_tags }` block shown above; resource templates do
+    not repeat them.
+  - When the workspace already has an `aws` provider block without
+    `default_tags`, never add `default_tags` to it: they apply to
+    every resource the provider manages, so the plan would retag
+    all existing resources. Instead set `tags =
+    merge(local.standard_tags, { Name = "..." })` on each resource
+    this change creates. Add `default_tags` to an existing provider
+    only when the request asks to tag everything, and say in the
+    summary that every resource in the workspace will be updated.
+  Keys are lowercase on AWS too (`environment`, not
+  `Environment`), unless the workspace already uses another casing.
+  Every taggable resource also sets a `Name` tag in its own `tags`,
+  following its template's naming convention: `Name` is the AWS
+  console's display convention and the only capitalized key.
+  `default_tags` do not reach Auto Scaling groups, the instances
+  they launch, or resources that do not take `tags` (e.g. route
+  table associations, security group attachments, IAM policy
+  attachments); for launched instances, pass `local.standard_tags`
+  to the launch template's `tag_specifications`, and tag the group
+  itself as the `auto_scaling_group` template describes.
 
-  Use a `default_tags` block on the provider to apply baseline tags to
-  all resources without repeating them:
-
-  ```hcl
-  provider "aws" {
-    region = var.region
-    default_tags {
-      tags = {
-        Environment = var.environment
-        ManagedBy   = "terraform"
-      }
-    }
-  }
-  ```
-
-  No `tags_all` block should be used, defined or reconciled; it is a read-only view of the effective tags on a resource.
+  Never write `tags_all`; it is a read-only view of the effective
+  tags on a resource.
 
   ## Regions
-  - Default to a single primary region per environment.
-  - Use the full region name (`eu-west-1`, not `euw1`) in Terraform.
-  - For multi-region deployments, use provider aliases.
+  - Default to a single primary region per environment: the one the
+    workspace's provider block sets, or, when it sets none, the one
+    the engine's `AWS_REGION` selects.
+  - Keep data in the region the request or the workspace names;
+    never move it to another region as a side effect.
+  - Use the full region name (`eu-west-1`, not `euw1`).
+  - For multi-region deployments, set the per-resource `region`
+    argument (provider v6) or use provider aliases. Global services
+    (IAM, Route 53, CloudFront) are not region-scoped. Only
+    CloudFront-scoped resources live in `us-east-1`: ACM
+    certificates for CloudFront and WAF web ACLs with `scope =
+    "CLOUDFRONT"`. `REGIONAL` web ACLs (ALB, API Gateway, AppSync,
+    Cognito) live in the protected resource's region.
+
+  ## Availability zones
+  - Never hardcode availability zone names or letters
+    (`eu-west-1a`, `<region>a`): AZ letters map to different
+    physical zones per account and not every region has the same
+    number of zones.
+  - Read AZs from a data source and exclude Local Zones and
+    Wavelength Zones:
+
+    ```hcl
+    data "aws_availability_zones" "available" {
+      state = "available"
+      filter {
+        name   = "opt-in-status"
+        values = ["opt-in-not-required"]
+      }
+    }
+    ```
+
+  - Spread multi-AZ resources across
+    `slice(data.aws_availability_zones.available.names, 0,
+    min(3, length(data.aws_availability_zones.available.names)))`
+    rather than assuming three zones exist.
+  - When a specific instance type is required, check that it is
+    offered in each chosen AZ with
+    `data "aws_ec2_instance_type_offerings"` (`location_type =
+    "availability-zone"`) before placing subnets or instances.
+
+  ## Deletion safeguards
+  - Keep the protective defaults: `deletion_protection = true` (RDS,
+    Aurora, DynamoDB) and `enable_deletion_protection = true`
+    (production load balancers), `skip_final_snapshot = false` with
+    a `final_snapshot_identifier`, `force_destroy = false` on S3
+    buckets, `force_delete = false` on ECR repositories, and a
+    non-zero `recovery_window_in_days` on secrets and
+    `deletion_window_in_days` on KMS keys.
+  - Add `lifecycle { prevent_destroy = true }` to stateful
+    production resources (RDS, Aurora, DynamoDB, S3, EBS, EFS,
+    ElastiCache, Redshift, KMS keys).
+  - Never retrofit a setting that forces replacement onto an
+    existing resource unless the user asked for that change. A
+    template default (encryption, naming, path) applies when the
+    resource is created; on an existing resource that lacks it,
+    leave it and mention the gap in the summary.
+  - Whenever a plan replaces a resource, state the destroy-and-
+    recreate explicitly in the summary, with its data-loss and
+    downtime impact.
+  - Each resource template lists the arguments that force its
+    replacement.
 
   Replace this body with your organization's authoritative AWS
   resource-creation standards.

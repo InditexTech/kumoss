@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: OCI IAM Policy default configuration (statements, compartment scope).
+description: OCI IAM Policy default configuration (statements, compartment scope, home region).
 body: |
   # OCI IAM Policy
 
@@ -10,21 +10,40 @@ body: |
   following default configuration:
 
   - Naming convention: `pol-<purpose>-<application>-<environment>`.
-  - Scope policies to compartments, not the tenancy, unless
-    cross-compartment access is explicitly required.
+  - Identity writes go to the home region: create
+    `oci_identity_policy` through an aliased provider (e.g.
+    `provider "oci" { alias = "home" }`) whose region is the
+    tenancy's home region, read from
+    `data "oci_identity_region_subscriptions"` filtered on
+    `is_home_region = true`.
+  - Attach the policy to the compartment it governs (or its
+    parent). Tenancy-scope statements (`in tenancy`) must be
+    attached to the root compartment (`compartment_id =
+    var.tenancy_ocid`); use them only when cross-compartment access
+    is explicitly required.
   - Each policy should have a clear, single responsibility — do not
     bundle unrelated permissions into one policy.
   - Use the narrowest verb that satisfies the use case:
-    `inspect` < `read` < `use` < `manage`.
+    `inspect` < `read` < `use` < `manage`, and narrow further with
+    `where` conditions (e.g. `target.key.id`, `target.bucket.name`).
   - Never use `manage all-resources in tenancy` without an explicit
-    user request.
+    user request, and then only for an administrators group.
+  - Never write `Allow any-user` statements, except documented
+    service patterns constrained by a `request.principal` condition
+    and only when the request needs them.
   - Policy statements should reference groups or dynamic groups,
-    never individual users.
+    never individual users. In tenancies with identity domains,
+    qualify the subject with the domain, e.g.
+    `Allow group 'Default'/'grp-app-ops' to ...` (statements without
+    a domain resolve to the Default domain).
   - For compute workloads (instances, functions, container
-    instances), create a dynamic group with matching rules and
+    instances), create a dynamic group (see `dynamic_group`) and
     grant permissions via policy to the dynamic group.
-  - Dynamic group matching rules should be as specific as possible:
-    match on compartment OCID and resource type.
+  - Service policies for customer-managed keys follow the form
+    `Allow service <service> to use keys in compartment <cmp> where
+    target.key.id = '<key_ocid>'`.
+  - Statements are a list on one resource; editing the list
+    rewrites it in place, and removing a statement revokes access
+    immediately (high impact).
   - Add a description to the policy resource explaining its
     purpose.
-  - Apply freeform tags: Name.

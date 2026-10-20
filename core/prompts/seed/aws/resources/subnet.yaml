@@ -12,10 +12,17 @@ body: |
   - Naming convention: `snet-<purpose>-<environment>` (e.g.
     snet-web-prod, snet-app-dev, snet-data-staging).
   - Carve /24 CIDR blocks from the parent VPC address space.
-  - Map public IP on launch must be disabled. Only enable for
-    explicitly public subnets behind a load balancer.
+  - `map_public_ip_on_launch = false` on every subnet, public ones
+    included. Load balancers and NAT Gateways get public addresses
+    without it; instances belong in private subnets.
   - For high availability, create one subnet per availability zone
-    (typically 2-3 AZs).
+    per tier, iterating over the AZs read from `data
+    "aws_availability_zones" "available"` (up to three, as many as
+    the region has) and suffixing the name with the AZ; never
+    hardcode AZ names or letters.
+  - `cidr_block`, `availability_zone`, and `vpc_id` force
+    replacement; never change them on an existing subnet unless
+    asked.
   - Associate each subnet with an explicit route table. Subnets
     without an explicit association use the VPC main route table,
     which may have unintended routes.
@@ -23,4 +30,3 @@ body: |
   - Public subnets route 0.0.0.0/0 through the Internet Gateway.
   - Private subnets route 0.0.0.0/0 through a NAT Gateway deployed
     in a public subnet.
-  - Apply standard tags: Name.

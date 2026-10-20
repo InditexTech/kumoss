@@ -11,18 +11,36 @@ body: |
 
   - SKU tier set to Standard.
   - Do not create any certificate, secret, or key initially.
-  - Purge protection must be enabled.
-  - Soft-delete retention set to 90 days.
-  - Use RBAC authorization mode — do not use legacy access policies.
-  - Network restrictions must be enabled with default action set to
-    Deny.
-  - Add any existing subnet in the project to the allow list of the
-    network restriction via virtual network rules.
-  - Add a lifecycle block with ignore_changes on the IP rules
-    section, so changes to allowed IPs made outside Terraform are
-    not reverted.
-  - Public network access must be disabled.
-  - Apply standard tags: environment and managed_by.
+  - `purge_protection_enabled = true`; once enabled it cannot be
+    turned off.
+  - `soft_delete_retention_days = 90`; it cannot be changed after
+    creation.
+  - `rbac_authorization_enabled = true` (required in provider 5.x,
+    replacing `enable_rbac_authorization`) — do not use legacy
+    access policies.
+  - Add a lifecycle block with prevent_destroy for production
+    vaults. Changing the name forces replacement of the vault.
+  - Network access depends on who writes into the vault. When the
+    same configuration creates secrets, keys or certificates (e.g. a
+    generated admin password or a CMK), the Kumoss engine, which
+    runs outside the VNet, must reach the data plane:
+    - Default: `public_network_access_enabled = true` with
+      `network_acls { default_action = "Deny", bypass =
+      "AzureServices", ip_rules = [...] }` listing the engine egress
+      CIDRs the request or workspace provides.
+    - Private-only (public access disabled plus a private endpoint)
+      only when the request or workspace states the engine runs
+      inside the VNet.
+  - A vault that only holds secrets written by others may be
+    private-only: public network access disabled, `network_acls`
+    `default_action = "Deny"` and `bypass = "AzureServices"`, and no
+    IP or virtual network rules (they have no effect).
+  - A private vault is reached through a private endpoint in the
+    dedicated `snet-pe` subnet with a `private_dns_zone_group` to
+    `privatelink.vaultcore.azure.net`.
+  - Never write data-plane objects into a vault the engine cannot
+    reach (it fails with 403 ForbiddenByConnection); state the
+    vault's access path in the summary.
   - Naming convention: `kv-<application>-<environment>`.
   - Key Vault names are 3-24 characters and globally unique.
   - Grant consumers access via RBAC role assignments (e.g.

@@ -45,5 +45,5 @@ body: |
     service accounts (`google_sql_user` with type
     `CLOUD_IAM_SERVICE_ACCOUNT`). Built-in user passwords live in
     Secret Manager — never hardcode them or expose them in outputs.
-  - Apply standard labels (`user_labels`): environment, owner, and
-    managed_by.
+  - Labels go in `settings.user_labels`; the instance has no
+    top-level `labels` argument.

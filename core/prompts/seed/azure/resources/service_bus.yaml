@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Service Bus default configuration (namespace SKU, queues, topics, Entra auth, private endpoint).
+body: |
+  # Azure Service Bus
+
+  For Service Bus, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  ## Namespace
+  - Naming convention: `sbns-<application>-<environment>`;
+    queues `sbq-<purpose>`, topics `sbt-<purpose>`, subscriptions
+    `sbts-<consumer>`.
+  - `azurerm_servicebus_namespace` with
+    `location = azurerm_resource_group.<x>.location`, `sku =
+    "Standard"` (Basic has no topics). Use Premium only on request
+    or when private endpoints, VNet isolation, or predictable
+    throughput are required; size it with one messaging unit and
+    state the cost. Moving between Standard and Premium may force
+    replacement of the namespace (data loss) — call it out.
+  - `local_auth_enabled = false` (no SAS keys or connection
+    strings); clients use managed identities with `Azure Service Bus
+    Data Sender` / `Data Receiver` scoped to the queue or topic.
+  - `minimum_tls_version = "1.2"`.
+  - Premium: `public_network_access_enabled = false` and a private
+    endpoint in `snet-pe` (subresource `namespace`) with a
+    `private_dns_zone_group` to
+    `privatelink.servicebus.windows.net`. Standard does not support
+    private endpoints: say so in the summary and restrict access
+    through RBAC.
+
+  ## Queues, topics, and subscriptions
+  - `azurerm_servicebus_queue` or `azurerm_servicebus_topic`
+    (referencing `namespace_id`) with
+    `azurerm_servicebus_subscription` (referencing `topic_id`), with
+    dead-lettering on message expiration, max delivery count 10, and a
+    default message TTL appropriate to the workload (e.g. 14 days).
+  - Enable sessions (`requires_session`), duplicate detection
+    (`requires_duplicate_detection`), or partitioning
+    (`partitioning_enabled`) only on request; they cannot be changed
+    after creation (forces replacement and drops messages).
+  - Queues, topics, and subscriptions do not support tags.
+  - Enable diagnostic settings to a Log Analytics workspace.
+  - Add a lifecycle block with prevent_destroy on production Premium
+    namespaces.

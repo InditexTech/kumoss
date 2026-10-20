@@ -25,7 +25,6 @@ body: |
   - Always add `lifecycle { prevent_destroy = true }`: removing a
     key from Terraform schedules every key version for destruction
     and makes the data it protects unreadable.
-  - Apply standard labels: environment, owner, and managed_by.
 
   ## Access
   - Grant `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the

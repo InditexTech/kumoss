@@ -9,15 +9,18 @@ body: |
   For a RoleBinding, unless explicitly requested otherwise, use
   the following default configuration:
 
-  - Naming convention: `<subject>-<role>-rb`.
+  - Resource type: `kubernetes_role_binding_v1`.
+  - Naming convention: `<app>-<purpose>-rb`, where `<purpose>`
+    names the role granted.
   - Use RoleBinding for namespace-scoped permissions — prefer this
     over ClusterRoleBinding for application workloads.
   - `role_ref` can reference either a Role or a ClusterRole:
     - `api_group = "rbac.authorization.k8s.io"`.
     - `kind` — `Role` or `ClusterRole`.
     - `name` — the role to bind.
-  - The `role_ref` field is immutable — changing it requires
-    deleting and recreating the RoleBinding.
+  - `role_ref` is immutable: changing it makes Terraform replace
+    the binding (+/-). Subjects lose the granted access briefly
+    between destroy and create.
   - Binding a ClusterRole via RoleBinding scopes it to the
     RoleBinding's namespace — useful for reusing common ClusterRoles
     across namespaces without granting cluster-wide access.
@@ -25,4 +28,3 @@ body: |
     - `kind` — `ServiceAccount`, `User`, or `Group`.
     - `name` — the subject identifier.
     - `namespace` — required when kind is `ServiceAccount`.
-  - Apply standard labels for identification.

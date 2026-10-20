@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere content library item default configuration (OVF/OVA and ISO publication from approved sources).
+body: |
+  # VMware vSphere Content Library Item
+
+  For a `vsphere_content_library_item`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `<os>-<version>-<yyyymmdd>`, a new item per
+    image build, so existing VMs keep referencing the item they were
+    cloned from.
+  - `library_id` from the workspace's `vsphere_content_library` or
+    `data "vsphere_content_library"`.
+  - `file_url` points at the organization's approved artifact
+    repository over HTTPS (an `.ovf` or `.ova` for templates, an
+    `.iso` for media). Never use public internet, plain HTTP or
+    unverified sources.
+  - `type` matches the artifact (`ovf` or `iso`); set a
+    `description` with the image version and its source build.
+  - The resource does not verify a checksum itself: publish only
+    artifacts whose checksum the artifact pipeline has already
+    verified, and record the checksum in `description`.
+  - Treat changes to `file_url`, `type` or `library_id` as replacing
+    the item; publish a new versioned item instead of changing an
+    existing one.
+  - OVF/OVA items are hardened templates: EFI firmware and a
+    `pvscsi` controller, as `virtual_machine` requires.

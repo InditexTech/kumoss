@@ -32,7 +32,6 @@ body: |
     user explicitly requests it.
   - Add `lifecycle { prevent_destroy = true }` for production
     datasets.
-  - Apply standard labels: environment, owner, and managed_by.
 
   ## Tables (when the user specifies a schema)
   - Enable time-based partitioning (ingestion time or a

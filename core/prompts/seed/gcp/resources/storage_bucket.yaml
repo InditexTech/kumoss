@@ -43,4 +43,3 @@ body: |
     than legacy usage logs.
   - Add `lifecycle { prevent_destroy = true }` for production
     buckets that hold data.
-  - Apply standard labels: environment, owner, and managed_by.

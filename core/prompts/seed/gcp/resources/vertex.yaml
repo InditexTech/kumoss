@@ -19,7 +19,6 @@ body: |
   - Keep resources in one region, matching the training data.
   - Encryption uses Google-managed keys by default. Use CMEK via
     Cloud KMS only when explicitly requested.
-  - Apply standard labels: environment, owner, and managed_by.
 
   ## Datasets and training
   - Store training data in a Cloud Storage bucket following the

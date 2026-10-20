@@ -7,37 +7,65 @@ body: |
   # Kubernetes Resource Creation Guidelines
 
   ## Provider
-  Use the `kubernetes` provider, pinned to a recent stable minor:
+  Use the `kubernetes` provider, pinned to the current major version:
 
   ```hcl
   terraform {
     required_providers {
       kubernetes = {
         source  = "hashicorp/kubernetes"
-        version = "~> 2.35"
+        version = "~> 3.0"
       }
     }
   }
 
-  provider "kubernetes" {
-    config_path    = var.kubeconfig_path
-    config_context = var.kubeconfig_context
-  }
+  provider "kubernetes" {}
   ```
 
-  For cloud-managed clusters, prefer explicit authentication over
-  kubeconfig file paths:
+  - The IaC engine supplies the cluster connection from its
+    environment (`KUBE_CONFIG_PATH`, `KUBE_CTX`, `KUBE_HOST`,
+    `KUBE_TOKEN`, `KUBE_CLUSTER_CA_CERT_DATA`, or the in-cluster
+    service account). Never set `config_path`, `config_paths`,
+    `config_context`, `host`, `token`, `client_certificate`,
+    `client_key`, `cluster_ca_certificate`, `exec`, or `insecure`
+    in the provider block, and never add kubeconfig, endpoint, token
+    or certificate variables for them.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
+  - Provider 3.x deprecates every unversioned resource and data
+    source; use only the versioned types listed below.
+  - When Helm charts are also deployed, add the `helm` provider
+    (`hashicorp/helm`, pinned `~> 3.0`) as `provider "helm" {}`. It
+    reads the same `KUBE_*` environment, so configure no connection
+    for it either. Its syntax changed in 3.x (the old `kubernetes`
+    and `registry` blocks became nested object attributes, and
+    `set` on `helm_release` became a list of objects); check the
+    provider documentation before writing any argument for it.
 
-  ```hcl
-  provider "kubernetes" {
-    host                   = var.cluster_endpoint
-    cluster_ca_certificate = base64decode(var.cluster_ca_cert)
-    token                  = var.cluster_token
-  }
-  ```
+  ## Resource Types
+  Always use the versioned resource types; never the unversioned
+  aliases (`kubernetes_deployment`, `kubernetes_service`, ...):
+  `kubernetes_deployment_v1`, `kubernetes_stateful_set_v1`,
+  `kubernetes_daemon_set_v1`, `kubernetes_cron_job_v1`,
+  `kubernetes_job_v1`, `kubernetes_ingress_v1`,
+  `kubernetes_service_v1`, `kubernetes_config_map_v1`,
+  `kubernetes_secret_v1`, `kubernetes_namespace_v1`,
+  `kubernetes_service_account_v1`, `kubernetes_role_v1`,
+  `kubernetes_role_binding_v1`, `kubernetes_cluster_role_v1`,
+  `kubernetes_cluster_role_binding_v1`,
+  `kubernetes_network_policy_v1`,
+  `kubernetes_persistent_volume_claim_v1`,
+  `kubernetes_pod_disruption_budget_v1`,
+  `kubernetes_horizontal_pod_autoscaler_v2`,
+  `kubernetes_storage_class_v1`, `kubernetes_priority_class_v1`,
+  `kubernetes_limit_range_v1`, `kubernetes_resource_quota_v1`.
 
-  When Helm charts are also deployed, pair with the `helm` provider
-  using the same authentication block to avoid credential drift.
+  Objects defined by CRDs (Gateway API, cert-manager, External
+  Secrets Operator, ...) have no native resource: they need
+  `kubernetes_manifest`, which requires the CRD to already exist in
+  the cluster at plan time. Generate them only when the tool is
+  already installed in the target cluster.
 
   ## Namespaces
   - Always create resources within an explicit namespace.
@@ -53,28 +81,102 @@ body: |
   - `app.kubernetes.io/name` — application name.
   - `app.kubernetes.io/instance` — unique instance identifier.
   - `app.kubernetes.io/component` — the component within the architecture.
-  - `app.kubernetes.io/managed-by` — set to `terraform`.
+  - `app.kubernetes.io/managed-by` — the standard `managed_by`
+    value (`terraform`).
   - `app.kubernetes.io/part-of` — higher-level application group.
   - `app.kubernetes.io/version` — application version.
 
-  Use a `labels` local or variable to apply baseline labels across
-  all resources consistently.
+  Declare them once in a `labels` local that also merges in the
+  standard tags (`local.standard_tags`, defined in `standard_tags.tf`
+  as the general Terraform guidelines describe: `environment`,
+  `owner`, `managed_by`). Map the standard `managed_by` key to
+  `app.kubernetes.io/managed-by` (one label, never a separate
+  `managed_by` label next to it):
+
+  ```hcl
+  locals {
+    labels = merge(
+      { for k, v in local.standard_tags : k => v if k != "managed_by" },
+      {
+        "app.kubernetes.io/managed-by" = local.standard_tags.managed_by
+        # app.kubernetes.io/name, instance, component, part-of, version
+      },
+    )
+  }
+  ```
+
+  Merge resource-specific labels into it on `metadata.labels`. The
+  standard tags go on object metadata only, never on pod template
+  labels or selectors: changing a tag value would restart every
+  workload. Pod template labels carry the recommended
+  `app.kubernetes.io/*` labels (and any workload-specific ones).
+  Add the standard tags to the pod template only on request (for
+  example cost allocation per pod), and state in the summary that
+  every affected workload gets a rolling restart, now and whenever
+  a tag value changes. Every label and annotation value is a non-null
+  string: provider 3.x rejects `null` entries at plan time on
+  several resources, so never pass an optional variable that may be
+  `null` (for example the version) straight into a label map.
+
+  Selectors are a narrower, stable subset of these labels:
+  - Workload selectors (`spec.selector.match_labels` on
+    Deployments, StatefulSets and DaemonSets) and Service
+    selectors use ONLY `app.kubernetes.io/name` and
+    `app.kubernetes.io/instance`. Make `instance` unique per
+    workload (for example `<app>-<component>`) so selectors of
+    sibling workloads never overlap.
+  - `app.kubernetes.io/version` (and any other label that changes
+    over time) goes only in `metadata.labels` and the pod template
+    labels — never in a selector.
 
   ## Resource Naming
   - Use lowercase names with hyphens as separators.
-  - Follow the pattern `<app>-<component>-<environment>`.
-  - Maximum 253 characters for most Kubernetes names; 63 characters
-    for labels, label values, and container names.
+  - Follow the pattern `<app>-<component>-<suffix>`, where
+    `<component>` is the component, purpose or task and `<suffix>`
+    comes from the Abbreviations table (`-deploy`, `-svc`, `-cm`,
+    ...). Namespaces are the exception: `<app>-<environment>`, no
+    suffix. The environment is carried by the namespace, so
+    namespaced objects do not repeat it.
+  - Length limits:
+    - Namespaces and Services are DNS-1123 labels: at most 63
+      characters.
+    - Keep StatefulSet and CronJob names at most 52 characters —
+      the controller appends suffixes to derived pod, label and Job
+      names.
+    - Most other objects are DNS-1123 subdomains: at most 253
+      characters.
+    - Label values and container names: at most 63 characters.
   - Labels and annotations keys follow `prefix/name` convention.
 
   ## Lifecycle Management
   - Use `lifecycle { ignore_changes = [spec[0].replicas] }` on
     Deployments and StatefulSets managed by an HPA so Terraform
     does not fight the autoscaler.
-  - Use `lifecycle { prevent_destroy = true }` on PVCs holding
-    production data.
   - Set `wait_for_rollout = false` when Terraform should not block
     on Deployment readiness (e.g., initial bootstrapping).
+
+  ## Deletion safeguards
+  - Add `lifecycle { prevent_destroy = true }` to stateful
+    production objects: PVCs, StatefulSets with volume claim
+    templates, PersistentVolumes, and Namespaces holding production
+    data. Never remove an existing `prevent_destroy`.
+  - Keep `reclaim_policy = "Retain"` on StorageClasses and
+    `persistent_volume_reclaim_policy = "Retain"` on PersistentVolumes
+    for production data, and StatefulSet
+    `persistent_volume_claim_retention_policy` at `"Retain"`.
+  - Many Kubernetes fields are immutable: changing one turns the
+    plan into a destroy-and-recreate (+/-) of the object. This
+    always holds for `metadata.name` of any object and
+    `metadata.namespace` of namespaced objects. Each resource
+    template lists the fields that force its replacement.
+  - Never generate a change that forces replacement of a stateful
+    object (StatefulSet, PVC, PersistentVolume, Namespace, or a
+    StorageClass backing production data) unless the user explicitly
+    asked for the replacement, and state every replacement and its
+    consequence (data loss, restarted pods, lost access) explicitly
+    in the summary.
+  - Standalone deletions (an object destroyed and not recreated) are
+    always rejected by the compliance check, even when requested.
 
   Replace this body with your organization's authoritative Kubernetes
   resource-creation standards.

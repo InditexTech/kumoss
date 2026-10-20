@@ -29,4 +29,3 @@ body: |
     GKE is used.
   - Add `lifecycle { prevent_destroy = true }` for production
     projects.
-  - Apply standard labels: environment, owner, and managed_by.

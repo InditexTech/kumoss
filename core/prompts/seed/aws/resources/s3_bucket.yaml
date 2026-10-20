@@ -9,27 +9,53 @@ body: |
   For an S3 Bucket, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<project>-<purpose>-<environment>`. Bucket
-    names are globally unique, lowercase, 3-63 characters.
-  - Force destroy must be disabled — Terraform destroy will fail if
-    the bucket contains objects. Override only when intentional.
+  - Naming convention: `<application>-<purpose>-<environment>`.
+    Bucket names are globally unique, lowercase, 3-63 characters.
+    Changing `bucket` or `object_lock_enabled` forces replacement.
+    Never set the `region` argument unless the bucket must live
+    outside the engine's region; read a bucket's region from
+    `bucket_region` (in provider v6, `region` is the per-resource
+    region argument).
+  - Configure the bucket through the standalone resources, never the
+    deprecated inline blocks on `aws_s3_bucket`:
+    `aws_s3_bucket_versioning`,
+    `aws_s3_bucket_server_side_encryption_configuration`,
+    `aws_s3_bucket_public_access_block`,
+    `aws_s3_bucket_lifecycle_configuration`,
+    `aws_s3_bucket_ownership_controls`, and `aws_s3_bucket_logging`.
+  - `force_destroy = false`, so Terraform cannot destroy a bucket
+    that still contains objects.
   - Add a lifecycle block with prevent_destroy to guard against
     accidental data loss.
   - Versioning must be enabled.
   - Server-side encryption must use aws:kms with bucket key enabled
     to reduce KMS API costs. Specify a customer-managed KMS key
     when provided; otherwise the AWS-managed key is acceptable.
+  - Ownership controls set to `BucketOwnerEnforced` (ACLs disabled);
+    grant access through bucket policies only.
   - Block Public Access must be fully enabled: block public ACLs,
     block public policy, ignore public ACLs, and restrict public
     buckets. Override only if the request explicitly requires a
     public bucket (e.g. static website hosting).
-  - Add a lifecycle rule to transition objects to Standard-IA after
-    30 days and expire non-current versions after 90 days. Adjust
-    thresholds based on data access patterns.
-  - Enable server access logging pointing to a dedicated logging
-    bucket with its own lifecycle policy.
+  - Add a bucket policy that denies requests without TLS
+    (`aws:SecureTransport = false`).
+  - Add a lifecycle rule (with an explicit `filter {}`) to
+    transition objects to Standard-IA after 30 days, expire
+    non-current versions after 90 days, and abort incomplete
+    multipart uploads after 7 days. Adjust thresholds based on data
+    access patterns.
+  - Enable server access logging to the workspace's existing
+    central log bucket when there is one. Create a dedicated log
+    bucket (`<application>-access-logs-<environment>`, with its own
+    lifecycle policy) only in production; in non-production without
+    a central log bucket, skip access logging and say so in the
+    summary. Server access logs cannot be delivered to a
+    bucket whose default encryption is SSE-KMS, so a new log bucket
+    uses SSE-S3 (`sse_algorithm = "AES256"`) and a bucket policy
+    allowing the `logging.s3.amazonaws.com` service principal
+    `s3:PutObject` on the log prefix, with `aws:SourceAccount` and
+    `aws:SourceArn` conditions naming the source bucket.
   - For cross-region replication requirements, add replication
     configuration.
   - Consider Intelligent Tiering as an alternative to lifecycle
     rules when access patterns are unpredictable.
-  - Apply standard tags: Name.

@@ -16,14 +16,17 @@ body: |
     Use `name_prefix = "tpl-<application>-<role>-<environment>-"`
     instead of `name`, together with `lifecycle {
     create_before_destroy = true }`, so the new template exists
-    before the managed instance group switches to it.
+    before the managed instance group switches to it. `name_prefix`
+    is limited to 37 characters: abbreviate the application and role
+    so the whole prefix fits.
   - Machine type and image follow the `compute_instance` template:
     `e2-*` for non-production, general-purpose families for
     production, and an image family string (e.g.
     `debian-cloud/debian-12`) as `source_image`.
   - Boot `disk` with `boot = true`, `auto_delete = true`, and
     `disk_type = "pd-balanced"` (or `hyperdisk-balanced` on machine
-    series that require it).
+    series that require it). Always set `disk_type`; instance templates
+    get no provider default for it.
   - Instances must be stateless: keep data in managed services, not
     on instance disks. Stateful managed instance groups only on
     explicit request.
@@ -39,5 +42,4 @@ body: |
     monitoring enabled.
   - Configure the guest through `metadata_startup_script` or
     cloud-init `user-data` only, with no secrets in it.
-  - Apply standard labels (`labels`, which propagate to the
-    instances): environment, owner, and managed_by.
+  - The template's `labels` propagate to the instances it creates.

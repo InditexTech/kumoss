@@ -22,5 +22,3 @@ body: |
     user asks for a cap.
   - Do not place virtual machines as siblings of resource pools at
     the same level; they compete unevenly for shares.
-  - Apply tags from the `environment`, `owner` and `managed-by`
-    categories.

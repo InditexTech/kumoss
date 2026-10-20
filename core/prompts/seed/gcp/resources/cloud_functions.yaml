@@ -36,4 +36,3 @@ body: |
     idempotent.
   - Grant `roles/run.invoker` to `allUsers` only when the user
     explicitly requests a public function.
-  - Apply standard labels: environment, owner, and managed_by.

@@ -2,36 +2,38 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes Ingress default configuration (TLS, routing rules, annotations, Gateway API).
+description: Kubernetes Ingress default configuration (ingress class, TLS, routing rules, controller annotations).
 body: |
   # Kubernetes Ingress
 
   For an Ingress, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<environment>-ing`.
-  - Specify `ingress_class_name` to target the correct Ingress
-    controller (e.g., `nginx`, `traefik`, cloud-native).
-  - For advanced routing (TCP/UDP, traffic splitting, header
-    matching), consider the Gateway API
-    (`gateway.networking.k8s.io`) as a modern alternative.
+  - Resource type: `kubernetes_ingress_v1`.
+  - Naming convention: `<app>-<component>-ing`.
+  - Set `ingress_class_name` to an IngressClass that already exists
+    in the cluster. Do not assume a particular controller: the
+    community ingress-nginx controller is being retired, so never
+    default to `nginx` unless that is the class actually installed.
+  - Use the Gateway API (`gateway.networking.k8s.io`) instead only
+    when requested and when its CRDs and a Gateway controller are
+    already installed; its objects need `kubernetes_manifest`.
   - Always configure TLS termination:
-    - Reference a `kubernetes_secret` of type `kubernetes.io/tls`
-      containing the certificate and key.
+    - Reference a `kubernetes_secret_v1` of type
+      `kubernetes.io/tls` containing the certificate and key.
     - List all hosts under the `tls` block.
-    - Use cert-manager for automatic certificate provisioning and
-      renewal from Let's Encrypt or internal CAs.
+    - If cert-manager is already installed in the cluster, request
+      certificates through its annotations on the Ingress instead
+      of managing the TLS Secret by hand.
   - Define `rule` blocks with host-based routing:
     - Use `path` entries with `path_type = "Prefix"` as default.
       Use `"Exact"` when only an exact URL should match.
     - Map each path to a backend `service` with `name` and
       `port.number`.
-  - Configure a `default_backend` to handle unmatched requests
-    (returns 404 or a custom error page).
-  - Add annotations for controller-specific behavior:
-    - SSL redirect: `nginx.ingress.kubernetes.io/ssl-redirect: "true"`.
-    - Rate limiting: `nginx.ingress.kubernetes.io/limit-rps`.
-    - CORS, proxy timeouts, and body size as needed.
-  - For HTTPS-only services, redirect HTTP to HTTPS via
-    controller annotations.
-  - Apply standard labels for identification.
+  - Add a `default_backend` only when requested; otherwise the
+    controller's own default handles unmatched requests.
+  - Controller-specific behavior (HTTP-to-HTTPS redirect, rate
+    limiting, CORS, timeouts, body size) is configured through
+    annotations of the controller actually installed. Use only
+    that controller's annotation prefix; never mix annotations
+    from different controllers.

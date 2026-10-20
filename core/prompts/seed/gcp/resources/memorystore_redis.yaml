@@ -30,4 +30,3 @@ body: |
   - Weekly `maintenance_policy` window outside peak hours.
   - Encryption: Google-managed keys by default;
     `customer_managed_key` only when CMEK is requested.
-  - Apply standard labels: environment, owner, and managed_by.

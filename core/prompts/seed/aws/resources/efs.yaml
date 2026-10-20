@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS EFS file system default configuration (encryption, mount targets per AZ, access points, backups, TLS policy).
+body: |
+  # AWS EFS File System
+
+  For an EFS file system, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention (`Name` tag): `efs-<application>-<environment>`.
+  - `encrypted = true` with a customer-managed `kms_key_id` when
+    provided. `encrypted`, `kms_key_id`, `performance_mode`,
+    `creation_token`, and `availability_zone_name` apply at creation;
+    on an existing file system they force replacement and lose the
+    data, so never retrofit them unless asked.
+  - `performance_mode = "generalPurpose"`, `throughput_mode =
+    "elastic"`.
+  - Regional storage by default; One Zone (`availability_zone_name`)
+    only for non-production on request.
+  - `lifecycle_policy` blocks transitioning files to Infrequent
+    Access after 30 days and back to Standard after one access.
+  - `aws_efs_backup_policy` with `status = "ENABLED"`.
+  - One `aws_efs_mount_target` per AZ the workload uses, in the
+    private subnets of those AZs (never hardcoded AZ names), with a
+    dedicated
+    security group allowing TCP 2049 only from the client security
+    groups.
+  - `aws_efs_access_point` per application with a `posix_user` and a
+    `root_directory` (with `creation_info`), so clients cannot reach
+    the whole file system as root.
+  - `aws_efs_file_system_policy` that denies access without TLS
+    (`aws:SecureTransport = false`) and grants
+    `elasticfilesystem:ClientMount`/`ClientWrite` only to the
+    workload roles through the access points.
+  - Clients mount with the EFS mount helper using TLS and IAM.

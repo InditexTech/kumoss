@@ -30,4 +30,3 @@ body: |
     account, with `google_artifact_registry_repository_iam_member`.
   - Encryption: Google-managed keys by default; `kms_key_name` only
     when CMEK is requested (it cannot be changed later).
-  - Apply standard labels: environment, owner, and managed_by.

@@ -7,33 +7,65 @@ body: |
   # AWS Resource Name Abbreviations
 
   Standard short prefixes used in resource names. The LLM may pick
-  from this list when generating Terraform.
+  from this list when generating Terraform. Prefixes come first
+  (e.g. `role-<application>-<workload>-<environment>`), unless a
+  resource template gives an explicit naming pattern, which takes
+  precedence: S3 buckets (`<application>-<purpose>-<environment>`),
+  ECR repositories (`<application>/<component>`), CloudWatch log
+  group paths (`/app/...`, `/aws/...`), and KMS aliases
+  (`alias/kms-...`).
 
-  | Resource                       | Prefix |
-  |--------------------------------|--------|
-  | VPC                            | vpc    |
-  | Subnet                         | snet   |
-  | Security group                 | sg     |
-  | Internet gateway               | igw    |
-  | NAT gateway                    | natgw  |
-  | Route table                    | rtb    |
-  | Elastic Load Balancer          | elb    |
-  | Application Load Balancer      | alb    |
-  | Network Load Balancer          | nlb    |
-  | S3 bucket                      | s3     |
-  | IAM role                       | role   |
-  | IAM policy                     | pol    |
-  | EC2 instance                   | ec2    |
-  | EBS volume                     | ebs    |
-  | EKS cluster                    | eks    |
-  | ECR repository                 | ecr    |
-  | Lambda function                | lmb    |
-  | RDS instance                   | rds    |
-  | DynamoDB table                 | ddb    |
-  | SNS topic                      | sns    |
-  | SQS queue                      | sqs    |
-  | CloudWatch log group           | cwlog  |
-  | Secrets Manager secret         | sm     |
-  | KMS key                        | kms    |
+  | Resource                       | Prefix   |
+  |--------------------------------|----------|
+  | VPC                            | vpc      |
+  | Subnet                         | snet     |
+  | Route table                    | rtb      |
+  | Security group                 | sg       |
+  | Internet gateway               | igw      |
+  | NAT gateway                    | natgw    |
+  | Elastic IP                     | eip      |
+  | VPC endpoint                   | vpce     |
+  | Elastic Load Balancer          | elb      |
+  | Application Load Balancer      | alb      |
+  | Network Load Balancer          | nlb      |
+  | Target group                   | tg       |
+  | WAF web ACL                    | waf      |
+  | Route 53 hosted zone           | r53      |
+  | Route 53 health check          | r53hc    |
+  | S3 bucket                      | s3       |
+  | IAM role                       | role     |
+  | IAM policy                     | pol      |
+  | IAM instance profile           | ip       |
+  | EC2 instance                   | ec2      |
+  | Launch template                | lt       |
+  | Auto Scaling group             | asg      |
+  | EBS volume                     | ebs      |
+  | EFS file system                | efs      |
+  | EKS cluster                    | eks      |
+  | EKS node group                 | ng       |
+  | ECS cluster                    | ecs      |
+  | ECS service                    | svc      |
+  | ECS task definition family     | td       |
+  | ECR repository                 | ecr      |
+  | Lambda function                | lmb      |
+  | RDS instance                   | rds      |
+  | Aurora cluster                 | aurora   |
+  | DynamoDB table                 | ddb      |
+  | ElastiCache replication group  | elc      |
+  | Redshift cluster / namespace   | rs       |
+  | Redshift Serverless workgroup  | rswg     |
+  | SNS topic                      | sns      |
+  | SQS queue                      | sqs      |
+  | CloudWatch log group           | cwlog    |
+  | CloudWatch alarm               | cwalarm  |
+  | CloudWatch dashboard           | cwdash   |
+  | Secrets Manager secret         | sm       |
+  | EventBridge Scheduler schedule | sch      |
+  | KMS key (alias)                | kms      |
+  | SageMaker resource             | sgm      |
+  | Bedrock guardrail              | bedrock-guardrail |
+  | Bedrock agent                  | bedrock-agent     |
+
+  `sm` is reserved for Secrets Manager; SageMaker uses `sgm`.
 
   Replace this list with your organization's naming standard.

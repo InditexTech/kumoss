@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Monitor diagnostic setting default configuration (log categories, metrics, destination).
+body: |
+  # Azure Monitor Diagnostic Setting
+
+  For a diagnostic setting, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `diag-<target-resource-name>`.
+  - One `azurerm_monitor_diagnostic_setting` per target resource and
+    destination, with `target_resource_id` set to the resource (for
+    storage accounts, the blob/file/queue/table service IDs as
+    well) and `log_analytics_workspace_id` set to the environment's
+    `log_analytics_workspace`. Azure allows at most five settings
+    per resource.
+  - Logs: `enabled_log { category_group = "allLogs" }` by default;
+    use `"audit"` instead for high-volume resources in
+    non-production to control cost, or explicit `category` values
+    when the user lists them. Discover valid categories with
+    `data "azurerm_monitor_diagnostic_categories"` instead of
+    guessing.
+  - Metrics: `enabled_metric { category = "AllMetrics" }`. Never
+    use the legacy blocks: `log` was removed in provider 4.0
+    (use `enabled_log`) and `metric` in 5.x (use `enabled_metric`).
+  - Set `log_analytics_destination_type = "Dedicated"` where the
+    resource supports resource-specific tables.
+  - Do not set the deprecated retention policy blocks; retention is
+    configured on the workspace.
+  - Send to a storage account or Event Hub only on request (e.g.
+    long-term archive or SIEM export).
+  - Changing the name or target forces replacement, which briefly
+    stops log collection.
+  - Diagnostic settings do not support tags.

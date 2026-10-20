@@ -38,7 +38,8 @@ body: |
   - Cloud Logging and Cloud Monitoring for system and workload
     components, with Google Cloud Managed Service for Prometheus.
   - Keep `deletion_protection = true` (the provider default).
-  - Apply standard labels through `resource_labels`.
+  - Cluster labels go in `resource_labels`, not `labels`; set the
+    same labels on the node pools' `labels`.
 
   ## Node pools
   - Naming convention: `np-<purpose>` (e.g. `np-general`).

@@ -11,18 +11,34 @@ body: |
 
   ## Container Apps Environment
   - Naming convention: `cae-<application>-<environment>`.
-  - Associate with a Log Analytics workspace for logging.
-  - Deploy into a VNet-integrated subnet for network isolation.
-    The subnet must be dedicated to the Container Apps environment
-    with a minimum /23 prefix.
+  - Associate with a Log Analytics workspace for logging: set
+    `logs_destination = "log-analytics"` together with
+    `log_analytics_workspace_id` (provider 5.x no longer infers it).
+  - Deploy into a dedicated VNet-integrated subnet for network
+    isolation. Prefer a workload-profiles environment (with the
+    `Consumption` profile): its subnet needs at least a /27 and a
+    delegation to `Microsoft.App/environments`. A legacy
+    Consumption-only environment needs a /23 or larger, without
+    delegation. The infrastructure subnet cannot be changed later
+    (forces replacement).
   - Set the environment to internal-only (no public access) unless
     the user explicitly requires external ingress.
-  - Zone redundancy should be enabled for production.
+  - Production: `zone_redundancy_enabled = true` in regions that
+    support availability zones (state the assumption). It is set at
+    creation: changing it, `infrastructure_subnet_id`, or
+    `internal_load_balancer_enabled` forces replacement of the
+    environment and every app in it.
 
   ## Container App
   - Naming convention: `ca-<application>-<service>-<environment>`.
-  - Enable system-assigned managed identity for secure access to
-    other Azure services.
+  - Identity: when the app pulls from a container registry or
+    resolves Key Vault secrets, use a `user_assigned_identity`
+    created and granted `AcrPull` / `Key Vault Secrets User` before
+    the app, referenced in `identity`, `registry { identity = ... }`
+    and each secret's `identity` (no registry passwords). A
+    system-assigned identity and its role assignments only exist
+    after the app, so the first revision would fail. Use
+    system-assigned only when the app needs neither at creation.
   - Ingress must be configured with HTTPS only (allow insecure
     disabled). Set target port to match the container's listening
     port.
@@ -35,9 +51,8 @@ body: |
     triggers.
   - Define resource limits (CPU and memory) per container. Default
     to 0.5 CPU and 1Gi memory unless the user specifies otherwise.
-  - Store secrets in the Container App's secrets collection or
-    reference Azure Key Vault secrets — never hardcode sensitive
-    values in environment variables.
+  - Store secrets in the Container App's secrets collection as Key
+    Vault references resolved with the user-assigned identity — never
+    hardcode sensitive values in environment variables.
   - Set revision mode to Single unless the user requires traffic
     splitting across multiple revisions.
-  - Apply standard tags: environment and managed_by.

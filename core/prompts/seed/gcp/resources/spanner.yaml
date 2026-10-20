@@ -22,7 +22,6 @@ body: |
     `autoscaling_config` with minimum and maximum processing units
     and target high-priority CPU and storage utilization.
   - Add `lifecycle { prevent_destroy = true }`.
-  - Apply standard labels: environment, owner, and managed_by.
 
   ## Database
   - Naming convention: `db-<application>-<purpose>-<environment>`.

@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes Job default configuration (retries, deadlines, TTL cleanup, completion waiting, replacement).
+body: |
+  # Kubernetes Job
+
+  For a one-off Job, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Resource type: `kubernetes_job_v1`. For recurring work use
+    `kubernetes_cron_job_v1` instead.
+  - Naming convention: `<app>-<task>-job`.
+  - Set `backoff_limit` (e.g., `3`) to cap retries on failure.
+  - Set `active_deadline_seconds` so a stuck Job cannot run
+    forever.
+  - Set `template.spec.restart_policy = "Never"` (or `"OnFailure"`);
+    a Job never uses `Always`.
+  - `ttl_seconds_after_finished` lets Kubernetes delete the finished
+    Job. Once deleted, Terraform may see it as missing and create
+    it again — re-running the task — on the next apply, depending on
+    the provider version. Set it only when a re-run is harmless or
+    requested.
+  - `wait_for_completion` (default `true`) makes the apply block
+    until the Job succeeds and fail if it fails; bound it with a
+    `timeouts { create = "..." }` block. Set it to `false` only for
+    long-running tasks the apply should not wait for.
+  - The Job's pod template is immutable: changing the image,
+    command, env or any other template field makes Terraform
+    replace the Job (+/-), which runs it again.
+  - Apply the same security context as Deployments:
+    `run_as_non_root = true`, `allow_privilege_escalation = false`,
+    dropped capabilities, `seccomp_profile { type = "RuntimeDefault" }`,
+    and `automount_service_account_token = false` unless API access
+    is required.
+  - Define resource requests and limits and pin the image to a tag
+    or digest.
+  - Pod template labels carry the recommended `app.kubernetes.io/*`
+    labels but not the standard tags.

@@ -22,8 +22,10 @@ body: |
     `rs-<application>-<environment>`.
   - Workgroup naming convention:
     `rswg-<application>-<environment>`.
-  - Base RPU capacity set to 8 (minimum) for non-production.
-    Increase for production based on query complexity.
+  - Base RPU capacity for non-production: the smallest base
+    capacity the region allows (4 RPU where available, otherwise 8;
+    the 4 RPU tier has a lower managed-storage limit). Increase for
+    production based on query complexity.
   - Encryption must be enabled with KMS. Specify a customer-managed
     key when provided; otherwise the AWS-managed key is acceptable.
   - Use managed admin credentials (Secrets Manager integration) —
@@ -42,16 +44,23 @@ body: |
   - Node type should match the workload (ra3.xlplus for general
     purpose, ra3.4xlarge or ra3.16xlarge for large-scale). Prefer
     RA3 nodes for managed storage separation.
-  - Encryption must be enabled with KMS.
+  - Encryption must be enabled with KMS (`encrypted` defaults to
+    `true` in provider v6; set it explicitly with `kms_key_id`).
   - Use managed admin credentials (Secrets Manager integration).
-  - Automated snapshots retention set to 7 days minimum.
+  - Automated snapshots retention set to 7 days minimum;
+    cross-region snapshot copy through the
+    `aws_redshift_snapshot_copy` resource, on request.
+  - `skip_final_snapshot = false` with a
+    `final_snapshot_identifier`.
   - Must be placed in private subnets with publicly accessible set
     to false.
   - Enhanced VPC routing must be enabled.
-  - Enable audit logging to an S3 bucket for compliance.
+  - Enable audit logging with the `aws_redshift_logging` resource
+    (the inline `logging` block was removed in provider v6), to an
+    S3 bucket whose policy grants the `redshift.amazonaws.com`
+    service principal write access, or to CloudWatch Logs.
   - Maintenance window must be defined.
 
   ## Common
   - Enable CloudWatch logging for user activity and connection logs.
   - Add a lifecycle block with prevent_destroy for production.
-  - Apply standard tags: Name.

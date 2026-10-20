@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere cluster host group default configuration (host sets for VM-host rules).
+body: |
+  # VMware vSphere Cluster Host Group
+
+  For a `vsphere_compute_cluster_host_group`, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  - Naming convention: `hg-<purpose>-<environment>` (for example
+    `hg-oracle-licensed-prod`, `hg-zone-a-prod`).
+  - Create one only when the user asks for it, together with the
+    `vsphere_compute_cluster_vm_host_rule` that uses it. Hosts are
+    platform-owned: never create or reconfigure hosts.
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `host_system_ids` from `data "vsphere_host"` lookups (by host
+    name and `datacenter_id`) for the hosts the user names. Never
+    hardcode host managed object IDs and never guess host names.
+  - The resource owns the full member list: hosts added to the group
+    outside Terraform are removed on the next apply.
+  - Include at least two hosts so the VMs it pins can still fail
+    over within the group.
+  - Forces replacement: `compute_cluster_id`, `name` — never change
+    these on an existing host group without an explicit request.

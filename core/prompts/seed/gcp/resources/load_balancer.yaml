@@ -58,6 +58,6 @@ body: |
     every backend service of a public-facing load balancer.
   - Enable Identity-Aware Proxy (IAP) for internal applications
     that require user authentication.
-  - Apply the standard labels to forwarding rules and reserved
-    addresses; backend services, URL maps, and health checks do not
-    support labels.
+  - Only forwarding rules and reserved addresses take labels;
+    backend services, URL maps, and health checks do not support
+    labels.

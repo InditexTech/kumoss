@@ -9,14 +9,18 @@ body: |
   For a NetworkPolicy, unless explicitly requested otherwise, use
   the following default configuration:
 
+  - Resource type: `kubernetes_network_policy_v1`.
   - Naming convention: `<app>-<purpose>-netpol`.
-  - Start with a default-deny-all ingress AND egress policy per
-    namespace:
+  - For a new namespace, or when requested, start with a
+    default-deny-all ingress AND egress policy:
     - `pod_selector {}` (empty = all pods).
     - `policy_types = ["Ingress", "Egress"]`.
     - No `ingress` or `egress` rules = deny all traffic.
-  - Then add a DNS egress policy allowing port 53 (TCP and UDP) to
-    `kube-system` — without this, pods cannot resolve service names.
+    Never add a default-deny to an existing namespace unprompted —
+    it cuts traffic for running pods (high impact).
+  - Every default-deny egress needs a DNS egress policy allowing
+    port 53 (TCP and UDP) to `kube-system` — without it, pods
+    cannot resolve service names.
   - Then add explicit allow policies per workload:
     - Use `pod_selector` with `match_labels` to target specific pods.
     - Define `ingress` rules with `from` blocks using
@@ -32,6 +36,5 @@ body: |
     later allow policy — instead, the allow policy adds to the
     permitted set.
   - NetworkPolicies require a CNI plugin that supports them (Calico,
-    Cilium, Weave Net). Policies are silently ignored by CNIs that
-    do not implement them (e.g., default Flannel).
-  - Apply standard labels for identification.
+    Cilium). Policies are silently ignored by CNIs that do not
+    implement them (e.g., plain Flannel).

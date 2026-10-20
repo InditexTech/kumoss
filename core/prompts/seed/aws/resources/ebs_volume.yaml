@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS EBS volume default configuration (gp3, encryption, AZ placement, attachment, snapshots).
+body: |
+  # AWS EBS Volume
+
+  For an EBS volume, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention (`Name` tag):
+    `ebs-<application>-<purpose>-<environment>`.
+  - Keep application data on a separate `aws_ebs_volume` attached
+    with `aws_volume_attachment`, so the data outlives the instance.
+  - `availability_zone` must match the instance's AZ (take it from
+    the instance); `availability_zone`, `encrypted`, `kms_key_id`,
+    and `snapshot_id` apply at creation; on an existing volume they
+    force replacement, so never retrofit them unless asked, and
+    state any requested change in the summary as data loss unless
+    restored from a snapshot.
+  - `type = "gp3"` (3,000 IOPS and 125 MiB/s baseline included);
+    raise `iops` and `throughput` only when requested. Use io2 only
+    for latency-critical databases on request.
+  - `encrypted = true`, with a customer-managed `kms_key_id` when
+    provided; otherwise the AWS managed `aws/ebs` key.
+  - Size can only grow. A modification is applied online, but AWS
+    allows only one modification per volume every six hours.
+  - `final_snapshot = true` on volumes holding data.
+  - Back up with AWS Backup or a Data Lifecycle Manager policy
+    targeting the volume's tags (daily, 7-day retention by default).
+  - Detaching a volume from a running instance can corrupt mounted
+    file systems; state it in the summary and prefer stopping the
+    workload first.

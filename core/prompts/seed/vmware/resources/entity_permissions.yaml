@@ -19,5 +19,13 @@ body: |
     up with `data "vsphere_role"`; never the `Administrator` role.
   - `propagate = true` only on folders and resource pools dedicated
     to the workload.
+  - The resource is authoritative for the entity's permissions:
+    applying it removes any permission on that entity that is not
+    listed, including ones granted outside Terraform. Only target
+    folders and resource pools created in the same workspace; never
+    point it at a shared or pre-existing object, and warn about this
+    in the summary.
+  - Changing `entity_id` or `entity_type` replaces the resource:
+    permissions on the old entity are removed. Call it out.
   - Keep all permissions for one entity in a single resource; do not
     split them across several `vsphere_entity_permissions` blocks.

@@ -14,14 +14,12 @@ body: |
     required_providers {
       google = {
         source  = "hashicorp/google"
-        version = "~> 7.0"
+        version = "~> 8.0"
       }
     }
   }
 
-  provider "google" {
-    region = var.region
-  }
+  provider "google" {}
   ```
 
   - Do not set `project` on the provider block and do not add a
@@ -35,6 +33,15 @@ body: |
   - Never configure `credentials`, `access_token`, or
     `impersonate_service_account` in the provider block; the engine
     supplies credentials from its environment.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
+  - Do not set `region` or `zone` on the provider and do not add a
+    required region variable: nothing supplies it. Set `region`,
+    `location` or `zone` on each resource from the request or the
+    workspace (a `locals` value, or a variable whose default is the
+    request's region), or rely on `GOOGLE_REGION` when the engine's
+    environment sets it.
   - Use the `google-beta` provider only for arguments that do not
     exist in `google`, pinned to the same major version and set on
     just the resources that need it.
@@ -48,17 +55,17 @@ body: |
     disables an API other workloads still use.
 
   ## Labels
-  Every resource that supports `labels` carries at minimum:
-  - `environment` — `dev`, `staging`, or `prod`.
-  - `owner` — team or individual responsible.
-  - `managed_by` — set to `terraform`.
-
-  Declare them once in `locals` and merge resource-specific labels
-  into them. GCP labels must be lowercase, at most 63 characters, may
-  not start with a number, and may only contain letters, numbers,
-  hyphens, and underscores. Some resources do not support labels
-  (VPC networks, subnetworks, firewall rules, Cloud Routers, Cloud
-  NAT, KMS key rings); never add a `labels` argument to them.
+  Apply the standard tags (`local.standard_tags`, defined in
+  `standard_tags.tf` as the general Terraform guidelines describe) as
+  labels on every resource that supports `labels`: `labels =
+  merge(local.standard_tags, {...})` with any resource-specific
+  labels (some resources name the argument `resource_labels` or
+  `user_labels`). GCP labels must be lowercase, at most 63
+  characters, may not start with a number, and may only contain
+  letters, numbers, hyphens, and underscores. Some resources do not
+  support labels (VPC networks, subnetworks, firewall rules, Cloud
+  Routers, Cloud NAT, KMS key rings); never add a `labels` argument
+  to them.
 
   ## Regions and zones
   - Default to a single primary region per environment, taken from
@@ -80,10 +87,10 @@ body: |
     "PREVENT"` on projects.
   - Add `lifecycle { prevent_destroy = true }` to stateful production
     resources (databases, buckets, datasets, disks, KMS keys).
-  - Many GCP arguments are immutable (a bucket's or dataset's
-    `location`, a disk's `type`, a subnetwork's `network`, anything
-    inside an instance template). Changing one turns the plan into a
-    destroy-and-recreate; state it explicitly in the summary.
+  - Many GCP arguments are immutable: changing one turns the plan
+    into a destroy-and-recreate; state every replacement and its
+    impact explicitly in the summary. Each resource template lists
+    the arguments that force its replacement.
 
   Replace this body with your organization's authoritative GCP
   resource-creation standards.

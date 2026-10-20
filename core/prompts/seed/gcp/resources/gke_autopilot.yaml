@@ -49,5 +49,4 @@ body: |
     workload components, with Google Cloud Managed Service for
     Prometheus.
   - Keep `deletion_protection = true` (the provider default).
-  - Apply standard labels through `resource_labels`: environment,
-    owner, and managed_by.
+  - Cluster labels go in `resource_labels`, not `labels`.

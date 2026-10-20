@@ -22,7 +22,6 @@ body: |
     `restricted.googleapis.com` with VPC Service Controls) on
     request.
   - Keep `force_destroy = false`.
-  - Apply standard labels: environment, owner, and managed_by.
 
   ## Record sets
   - One `google_dns_record_set` per name and type, with TTL 300

@@ -90,4 +90,3 @@ body: |
     (`service-<project-number>@compute-system.iam.gserviceaccount.com`)
     needs `roles/compute.instanceAdmin.v1` to start and stop the
     instance.
-  - Apply standard labels: environment, owner, and managed_by.

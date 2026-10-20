@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure managed data disk default configuration (SKU, zones, encryption, attachment, resizing).
+body: |
+  # Azure Managed Disk
+
+  For a managed data disk, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `disk-<vm-name>-data<nn>` (e.g.
+    `disk-vm-app-prod-data01`).
+  - `azurerm_managed_disk` with `create_option = "Empty"` and
+    `location = azurerm_resource_group.<x>.location`.
+  - `storage_account_type`: `StandardSSD_LRS` for non-production and
+    `Premium_LRS` for production. Use `PremiumV2_LRS`, Ultra, or ZRS
+    variants only on request.
+  - When the VM is zonal, set `zone` to the VM's zone; a disk and its
+    VM must share the zone. Omit `zone` for a non-zonal VM or in
+    regions without availability zones. Changing the zone forces
+    replacement (data loss).
+  - `disk_size_gb` sized to the workload. Disks can only grow:
+    never reduce the size (it forces replacement and data loss).
+    Growing a disk may require the VM to be deallocated, depending
+    on the disk type — call out the downtime.
+  - Encryption at rest with platform-managed keys by default; set
+    `disk_encryption_set_id` only when customer-managed keys are
+    requested.
+  - Disable network export/import access: `public_network_access_enabled
+    = false` and `network_access_policy = "DenyAll"`.
+  - Attach with `azurerm_virtual_machine_data_disk_attachment`
+    (unique `lun`, `caching = "ReadOnly"` for read-heavy data,
+    `"None"` for write-heavy logs or databases). Never use the
+    inline disk blocks of the legacy VM resource. The attachment
+    does not support tags.
+  - Add a lifecycle block with prevent_destroy on production data
+    disks. Protect them with Azure Backup or snapshots on request.
