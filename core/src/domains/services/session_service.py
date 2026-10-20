@@ -65,8 +65,14 @@ class SessionService:
         self.__ctx.set_round(rid)
 
     async def save(self, query: str) -> None:
-        reply = await self.__chat_reply(query)
-        self.__ctx.chat_history.append_turn(query, reply)
+        try:
+            reply = await self.__chat_reply(query)
+            self.__ctx.chat_history.append_turn(query, reply)
+        except Exception:
+            logging.warning(
+                f"chat_reply failed for session {str(self.__ctx.id)[:4]}; "
+                "saving history without a chat turn"
+            )
         await DatabaseService.update_history(self.__ctx)
 
     async def __chat_reply(self, query: str) -> str:

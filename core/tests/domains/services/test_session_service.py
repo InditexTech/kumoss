@@ -122,6 +122,14 @@ class TestSaveEdgeCases(_ServiceBase):
         self.assertEqual(self.chat(), [])
         self.database.update_history.assert_awaited_once_with(self.ctx)
 
+    async def test_llm_failure_still_persists_the_internal_history(self):
+        self.llm.generate_text.side_effect = Exception("LLM down")
+        await self.svc.next_round("add a vnet")
+        await self.svc.save("add a vnet")
+
+        self.assertEqual(self.chat(), [])
+        self.database.update_history.assert_awaited_once_with(self.ctx)
+
     async def test_a_round_that_raised_still_gets_its_turn(self):
         # Use cases call save() from a finally, so the failure path reaches
         # here with the round open and the status already marked FAILED.
