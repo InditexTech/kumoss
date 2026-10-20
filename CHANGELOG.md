@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/InditexTech/kumoss/compare/v1.1.0...v1.2.0) (2026-10-20)
+
+
+### Features
+
+* align cloud seeds with best practices and enforce AWS/OCI scope ([#387](https://github.com/InditexTech/kumoss/issues/387)) ([534aac3](https://github.com/InditexTech/kumoss/commit/534aac38629fac0aa704a40892dabec668edc399))
+
 ## [1.1.0](https://github.com/InditexTech/kumoss/compare/v1.0.9...v1.1.0) (2026-10-16)
 
 
