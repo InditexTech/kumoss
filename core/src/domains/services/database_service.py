@@ -519,12 +519,7 @@ class DatabaseService:
             provider=terraform_prv,
             scope_id=scope_id,
         )
-        _ = await db.create(
-            History,
-            session_id=session.id,
-            first_query=query,
-            chat_payload=[],
-        )
+        _ = await db.create(History, session_id=session.id, first_query=query)
         round_id = await DatabaseService.create_round(session_id, query)
         _ = await DatabaseService.__create_status(
             session_id=session_id,
@@ -561,7 +556,7 @@ class DatabaseService:
                     message=f"Session {session_id} not found.",
                     error_code=404,
                 )
-            username, workspace, provider, payloads, round_id = await asyncio.gather(
+            username, workspace, provider, history, round_id = await asyncio.gather(
                 DatabaseService.__map_user_email(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
                 DatabaseService.__provider_facts(session_id),
@@ -583,6 +578,11 @@ class DatabaseService:
                     message=f"Session {session_id} does not have an associated round.",
                     error_code=409,
                 )
+            if history is None:
+                raise SessionConflict(
+                    message=f"Session {session_id} does not have an associated history.",
+                    error_code=409,
+                )
             ctx = SessionContext(
                 id=session.uuid,
                 user_id=username,
@@ -593,8 +593,8 @@ class DatabaseService:
                 terraform_prv=provider.provider,
                 branch_name=workspace.branch,
                 iac_path=workspace.root_path,
-                history=payloads["payload"],
-                chat_history=payloads["chat_payload"],
+                history=history["payload"],
+                chat_history=history["chat_payload"],
             )
             return _serialize_ctx(ctx)
 
