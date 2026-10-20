@@ -26,6 +26,11 @@ from src.shared.logger import logging
 class OperationQueueService:
     """Manages the lifecycle of durable operation rows."""
 
+    # Written when a worker stops heartbeating (by the reaper, or by the
+    # worker itself once it can't renew its lease).
+    LOST_OPERATION_MSG: ClassVar[str] = "Worker lost (lease expired)"
+    LOST_SESSION_MSG: ClassVar[str] = "The worker running this session was lost."
+
     # Kinds whose running terraform job can't be stopped from the core.
     _UNINTERRUPTIBLE: ClassVar[frozenset[OperationType]] = frozenset(
         {OperationType.APPLY, OperationType.IMPORT}
@@ -160,13 +165,11 @@ class OperationQueueService:
     async def reap_expired_leases(self) -> int:
         """Fail RUNNING ops whose worker stopped heartbeating; free their sessions."""
         session_ids = await DatabaseService.reap_expired_operations(
-            "Worker lost (lease expired)"
+            self.LOST_OPERATION_MSG
         )
         for session_id in session_ids:
             try:
-                await DatabaseService.mark_failed(
-                    session_id, "The worker running this session was lost."
-                )
+                await DatabaseService.mark_failed(session_id, self.LOST_SESSION_MSG)
             except Exception:
                 logging.exception(f"Failed to clean up session {session_id} after reap")
         return len(session_ids)

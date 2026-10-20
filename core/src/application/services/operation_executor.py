@@ -8,7 +8,7 @@ import asyncio
 import contextlib
 from collections.abc import Awaitable, Callable
 from functools import partial
-from typing import Any, final
+from typing import Any, ClassVar, final
 
 from src.application.factory import ApplicationFactory
 from src.domains.entities import SessionContext
@@ -24,11 +24,6 @@ from src.shared.constants import OperationStatus, OperationType, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
-_CANCELLED = "cancelled by user"
-_LEASE_LOST = "lease lost"
-_LOST_MSG = "Worker lost (lease expired)"
-_LOST_SESSION_MSG = "The worker running this session was lost."
-
 
 @final
 class OperationExecutor:
@@ -38,6 +33,10 @@ class OperationExecutor:
     user cancels or the lease is lost; the session's in-flight lock is
     released with the operation's final transition, whatever the outcome.
     """
+
+    # Why the heartbeat stopped the pipeline.
+    _CANCELLED: ClassVar[str] = "cancelled by user"
+    _LEASE_LOST: ClassVar[str] = "lease lost"
 
     def __init__(self, queue: OperationQueueService, config: SchedulerConfig) -> None:
         self._queue = queue
@@ -83,12 +82,15 @@ class OperationExecutor:
                     operation, ctx, "Interrupted by a worker shutdown"
                 )
                 raise
-            if await heartbeat == _LEASE_LOST:
+            if await heartbeat == self._LEASE_LOST:
                 # Usually the reaper already failed the op and the session and
                 # freed the lock; the finisher is then a no-op.
                 lease_lost = True
                 finish = partial(
-                    self._queue.fail, operation.id, _LOST_MSG, release_session=True
+                    self._queue.fail,
+                    operation.id,
+                    OperationQueueService.LOST_OPERATION_MSG,
+                    release_session=True,
                 )
             else:
                 await DatabaseService.mark_failed(ctx.id, "Operation cancelled by user")
@@ -113,7 +115,9 @@ class OperationExecutor:
                 # Not reaped (the database was unreachable for everyone):
                 # report the session the way the reaper would have.
                 try:
-                    await DatabaseService.mark_failed(ctx.id, _LOST_SESSION_MSG)
+                    await DatabaseService.mark_failed(
+                        ctx.id, OperationQueueService.LOST_SESSION_MSG
+                    )
                 except Exception:
                     logging.exception(f"Failed to report lost session {ctx.id}")
 
@@ -191,7 +195,7 @@ class OperationExecutor:
                 # The lease may have expired and been reaped by another
                 # replica: stop rather than keep working on a session we
                 # may no longer own.
-                reason = _LEASE_LOST
+                reason = self._LEASE_LOST
             logging.info(f"Stopping operation {operation.id}: {reason}")
             _ = run.cancel()
             return reason
@@ -204,8 +208,8 @@ class OperationExecutor:
             and current.status is OperationStatus.RUNNING
             and current.cancel_requested
         ):
-            return _CANCELLED
-        return _LEASE_LOST
+            return self._CANCELLED
+        return self._LEASE_LOST
 
     async def __fail(
         self, operation: Operation, ctx: SessionContext, reason: str

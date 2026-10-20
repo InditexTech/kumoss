@@ -6,11 +6,11 @@ import asyncio
 import math
 import random
 from datetime import datetime, timedelta, timezone
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
-from sqlalchemy import String, func, or_, select, text, update
+from sqlalchemy import String, delete, func, or_, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -55,6 +55,7 @@ from src.infrastructure.database.models import (
     Workspace,
     History,
     Operation,
+    OperationSchedule,
 )
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
@@ -113,9 +114,6 @@ _TTL_DETAIL = 24 * 60 * 60
 # never changes again (enforced by acquire_in_flight), so anything derived
 # from it is safe to cache aggressively.
 _TERMINAL = frozenset({SessionStatus.FAILED})
-
-# Queued-operation states that hold the session's active-operation slot.
-_ACTIVE_OPERATION = (OperationStatus.PENDING, OperationStatus.RUNNING)
 
 
 def _ttl(base: int) -> int:
@@ -1247,6 +1245,12 @@ class DatabaseService:
     # the database's ``now()``, never the app clock, so lease math stays
     # consistent across hosts whose clocks drift.
 
+    # Queued-operation states that hold the session's active-operation slot.
+    _ACTIVE_OPERATION: ClassVar[tuple[OperationStatus, ...]] = (
+        OperationStatus.PENDING,
+        OperationStatus.RUNNING,
+    )
+
     @staticmethod
     async def create_operation(
         session_id: UUID,
@@ -1364,7 +1368,7 @@ class DatabaseService:
                     update(Operation)
                     .where(
                         Operation.id == operation_id,
-                        Operation.status.in_(_ACTIVE_OPERATION),
+                        Operation.status.in_(DatabaseService._ACTIVE_OPERATION),
                     )
                     .values(
                         status=status,
@@ -1472,7 +1476,7 @@ class DatabaseService:
                     select(Operation.id)
                     .where(
                         Operation.schedule_id == schedule_pk,
-                        Operation.status.in_(_ACTIVE_OPERATION),
+                        Operation.status.in_(DatabaseService._ACTIVE_OPERATION),
                     )
                     .limit(1)
                 )
@@ -1525,3 +1529,98 @@ class DatabaseService:
                 .all()
             )
         return list(items), total
+
+    # --- Operation schedules ------------------------------------------------
+
+    @staticmethod
+    async def create_schedule(
+        user_pk: int,
+        name: str,
+        kind: OperationType,
+        cron: str,
+        params: dict[str, Any],
+        enabled: bool,
+        next_run_at: datetime,
+    ) -> OperationSchedule:
+        return await db.create(
+            OperationSchedule,
+            uuid=uuid4(),
+            user_id=user_pk,
+            name=name,
+            kind=kind,
+            cron=cron,
+            params=params,
+            enabled=enabled,
+            next_run_at=next_run_at,
+        )
+
+    @staticmethod
+    async def get_schedule(schedule_id: UUID) -> OperationSchedule | None:
+        return await db.get_by(OperationSchedule, uuid=schedule_id)
+
+    @staticmethod
+    async def list_schedules(
+        user_pk: int, offset: int, limit: int, kind: OperationType | None = None
+    ) -> tuple[list[OperationSchedule], int]:
+        """The user's schedules, newest first."""
+        return await db.query(
+            OperationSchedule,
+            order_by="created_at",
+            order_desc=True,
+            offset=offset,
+            limit=limit,
+            user_id=user_pk,
+            kind=kind,
+        )
+
+    @staticmethod
+    async def update_schedule(schedule_pk: int, values: dict[str, Any]) -> None:
+        async with db.transaction() as sess:
+            _ = await sess.execute(
+                update(OperationSchedule)
+                .where(OperationSchedule.id == schedule_pk)
+                .values(**values)
+            )
+
+    @staticmethod
+    async def delete_schedule(schedule_pk: int) -> None:
+        async with db.transaction() as sess:
+            _ = await sess.execute(
+                delete(OperationSchedule).where(OperationSchedule.id == schedule_pk)
+            )
+
+    @staticmethod
+    async def list_due_schedules(now: datetime) -> list[OperationSchedule]:
+        async with db.session() as sess:
+            result = await sess.execute(
+                select(OperationSchedule).where(
+                    OperationSchedule.enabled.is_(True),
+                    OperationSchedule.next_run_at <= now,
+                )
+            )
+            return list(result.scalars().all())
+
+    @staticmethod
+    async def advance_schedule(
+        schedule: OperationSchedule, next_run_at: datetime, now: datetime
+    ) -> bool:
+        """Move ``next_run_at`` on with a CAS; True only for the one winner.
+
+        Guarding on the previously read ``next_run_at`` makes each fire time
+        materialize exactly once, even across replicas. Guarding on
+        ``enabled`` and ``updated_at`` too means a schedule disabled or edited
+        since it was read is not fired from that stale snapshot; the next
+        poll reconsiders it.
+        """
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(OperationSchedule)
+                .where(
+                    OperationSchedule.id == schedule.id,
+                    OperationSchedule.next_run_at == schedule.next_run_at,
+                    OperationSchedule.enabled.is_(True),
+                    OperationSchedule.updated_at == schedule.updated_at,
+                )
+                .values(next_run_at=next_run_at, last_run_at=now)
+            )
+        return cast(CursorResult[Any], res).rowcount == 1

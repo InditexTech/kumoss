@@ -2,16 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Persistence and cron arithmetic for recurring operation schedules."""
+"""Cron arithmetic for recurring operation schedules; persistence lives in
+``DatabaseService``."""
 
 from datetime import datetime, timezone
-from typing import Any, cast
-from uuid import UUID, uuid4
+from typing import Any
+from uuid import UUID
 
 from croniter import CroniterBadDateError, croniter
-from sqlalchemy import CursorResult, delete, select, update
 
-from src.infrastructure.database import db
+from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.models import OperationSchedule
 from src.shared.constants import OperationType
 
@@ -46,10 +46,8 @@ class OperationScheduleService:
         params: dict[str, Any],
         enabled: bool,
     ) -> OperationSchedule:
-        return await db.create(
-            OperationSchedule,
-            uuid=uuid4(),
-            user_id=user_pk,
+        return await DatabaseService.create_schedule(
+            user_pk=user_pk,
             name=name,
             kind=kind,
             cron=cron,
@@ -60,71 +58,30 @@ class OperationScheduleService:
 
     @staticmethod
     async def get(schedule_id: UUID) -> OperationSchedule | None:
-        return await db.get_by(OperationSchedule, uuid=schedule_id)
+        return await DatabaseService.get_schedule(schedule_id)
 
     @staticmethod
     async def list_for_user(
         user_pk: int, offset: int, limit: int, kind: OperationType | None = None
     ) -> tuple[list[OperationSchedule], int]:
-        return await db.query(
-            OperationSchedule,
-            order_by="created_at",
-            order_desc=True,
-            offset=offset,
-            limit=limit,
-            user_id=user_pk,
-            kind=kind,
-        )
+        return await DatabaseService.list_schedules(user_pk, offset, limit, kind)
 
     @staticmethod
     async def update(schedule_pk: int, values: dict[str, Any]) -> None:
-        async with db.transaction() as session:
-            _ = await session.execute(
-                update(OperationSchedule)
-                .where(OperationSchedule.id == schedule_pk)
-                .values(**values)
-            )
+        await DatabaseService.update_schedule(schedule_pk, values)
 
     @staticmethod
     async def delete(schedule_pk: int) -> None:
-        async with db.transaction() as session:
-            _ = await session.execute(
-                delete(OperationSchedule).where(OperationSchedule.id == schedule_pk)
-            )
+        await DatabaseService.delete_schedule(schedule_pk)
 
     @staticmethod
     async def list_due(now: datetime) -> list[OperationSchedule]:
-        async with db.session() as session:
-            result = await session.execute(
-                select(OperationSchedule).where(
-                    OperationSchedule.enabled.is_(True),
-                    OperationSchedule.next_run_at <= now,
-                )
-            )
-            return list(result.scalars().all())
+        return await DatabaseService.list_due_schedules(now)
 
     @staticmethod
     async def claim_fire(schedule: OperationSchedule, now: datetime) -> bool:
-        """Advance ``next_run_at`` with a CAS; True only for the one winner.
-
-        Guarding on the previously read ``next_run_at`` makes each fire time
-        materialize exactly once, even across replicas. Guarding on
-        ``enabled`` and ``updated_at`` too means a schedule disabled or edited
-        since ``list_due`` read it is not fired from that stale snapshot; the
-        next poll reconsiders it.
-        """
-        async with db.transaction() as session:
-            res = await session.execute(
-                update(OperationSchedule)
-                .where(
-                    OperationSchedule.id == schedule.id,
-                    OperationSchedule.next_run_at == schedule.next_run_at,
-                    OperationSchedule.enabled.is_(True),
-                    OperationSchedule.updated_at == schedule.updated_at,
-                )
-                .values(
-                    next_run_at=OperationScheduleService.next_run(schedule.cron, now),
-                    last_run_at=now,
-                )
-            )
-        return cast(CursorResult[Any], res).rowcount == 1
+        """Advance the schedule past ``now``; True only for the one replica
+        that wins this fire time (see ``DatabaseService.advance_schedule``)."""
+        return await DatabaseService.advance_schedule(
+            schedule, OperationScheduleService.next_run(schedule.cron, now), now
+        )
