@@ -31,7 +31,7 @@ from src.infrastructure.external.search_service import (
     SearchResult,
     SearchServiceClient,
 )
-from core.src.infrastructure.external.search_summarizer_service import (
+from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
 )
 from src.shared.config import system_config
