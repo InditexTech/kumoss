@@ -30,7 +30,9 @@ body: |
     non-production and 30 days for production,
     `on_source_disk_delete = "KEEP_AUTO_SNAPSHOTS"`,
     `storage_locations` set to the disk's region), attached with
-    `google_compute_disk_resource_policy_attachment`.
+    `google_compute_disk_resource_policy_attachment` for zonal disks or
+    `google_compute_region_disk_resource_policy_attachment` for regional
+    disks.
   - Attach to an instance either with the instance's
     `attached_disk` block or with `google_compute_attached_disk`
     plus `lifecycle { ignore_changes = [attached_disk] }` on the

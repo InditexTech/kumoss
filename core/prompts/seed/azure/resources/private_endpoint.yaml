@@ -32,5 +32,9 @@ body: |
   - Changing the subnet, target resource, or sub-resource forces
     replacement and briefly breaks private connectivity — high
     impact.
-  - Disable public network access on the target resource; do not
-    keep IP or VNet firewall rules there as well.
+  - Disable public network access only when all data-plane clients,
+    including the Kumoss engine, can reach the private endpoint.
+    For Terraform-managed storage or Key Vault data-plane objects,
+    preserve firewall-restricted public access for the engine egress
+    CIDRs unless the engine can use the private path, as those
+    resource templates describe.
