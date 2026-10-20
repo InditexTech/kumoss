@@ -1326,7 +1326,7 @@ run against, and only those carry <code>scope_id</code> and
 </table></div></div>
 <div class="paragraph">
 <p>Generated provider blocks do not name a scope. So where a cloud
-exposes a provider-level environment variable that names one, the
+has an environment variable that names one, the
 implementation injects <code>scope_id</code> into the engine&#8217;s environment for
 that command only, picking the variable from <code>terraform_provider</code>:</p>
 </div>
@@ -1355,14 +1355,14 @@ that command only, picking the variable from <code>terraform_provider</code>:</p
 <td class="tableblock halign-left valign-top"><p class="tableblock">project</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>TF_VAR_compartment_ocid</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">compartment</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>TF_VAR_aws_account_id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">account</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
@@ -1377,17 +1377,36 @@ that command only, picking the variable from <code>terraform_provider</code>:</p
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Only Azure and GCP have such a variable. An AWS account is implicit in
-the credentials the provider resolves, and an OCI compartment, a
-Kubernetes namespace, or a vSphere datacenter is a resource or
-data-source argument rather than a provider setting, so no environment
-variable redirects a command to one. For those four the bundled
-implementation injects nothing: the command runs against whatever
-scope the deployment&#8217;s ambient credentials and configuration select,
-and making those agree with <code>scope_id</code> is the
-deployment&#8217;s responsibility. The pair stays required on the wire so
-the intended scope is always stated, and so an implementation that can
-enforce it has what it needs.</p>
+<p>Azure and GCP read theirs as provider settings. The OCI and AWS
+variables are Terraform input variables instead, which the engine
+ignores when the generated code declares none. An OCI compartment is a
+resource argument: the variable fills the <code>compartment_ocid</code> variable
+the generated code passes to its resources. An AWS account is implicit
+in the credentials the provider resolves, so nothing redirects a
+command to one: the variable fills the <code>aws_account_id</code> variable the
+generated code passes to the provider&#8217;s <code>allowed_account_ids</code>, which
+makes the provider refuse to run in any other account.</p>
+</div>
+<div class="paragraph">
+<p>The bundled implementation also checks AWS before the engine starts:
+before <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code> it asks STS which account
+its own credentials belong to and, when that is not <code>scope_id</code>, ends
+the command with exit code 1 and the reason on stderr. That check needs
+<code>AWS_REGION</code> (or <code>AWS_DEFAULT_REGION</code>) and a 12-digit <code>scope_id</code>, so a
+LocalStack deployment uses its account id <code>000000000000</code>. It compares
+the service&#8217;s own credentials, not a role the generated code might
+assume, so one deployment serves exactly the AWS account its
+credentials belong to; generated provider blocks never assume a role.</p>
+</div>
+<div class="paragraph">
+<p>A Kubernetes namespace or a vSphere datacenter is a resource or
+data-source argument the generated code names itself, so for those two
+the bundled implementation injects nothing. Their commands run against
+whatever scope the deployment&#8217;s ambient credentials and configuration
+select, and making those agree with <code>scope_id</code> is the deployment&#8217;s
+responsibility. The pair stays required on the wire so the intended
+scope is always stated, and so an implementation that can enforce it
+has what it needs.</p>
 </div>
 <div class="paragraph">
 <p>An implementation may scope a command by another mechanism instead —

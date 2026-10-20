@@ -804,12 +804,13 @@ reference</a> below.</p>
 </div>
 <div class="paragraph">
 <p>None of the tables below carries the variable the request&#8217;s cloud
-scope (<code>scope_id</code>) supplies: <code>ARM_SUBSCRIPTION_ID</code> and <code>GOOGLE_PROJECT</code>
-arrive with each request and overwrite whatever the container sets, so
-set the credential variables in each row and leave the scope to the
-request. Azure and GCP are the only providers with such a variable;
-AWS, OCI, Kubernetes, and VMware vSphere commands run on the container&#8217;s
-ambient credentials alone. See
+scope (<code>scope_id</code>) supplies: <code>ARM_SUBSCRIPTION_ID</code>, <code>GOOGLE_PROJECT</code>,
+<code>TF_VAR_compartment_ocid</code> and <code>TF_VAR_aws_account_id</code> arrive with each
+request and overwrite whatever the container sets, so set the
+credential variables in each row and leave the scope to the request.
+Kubernetes and VMware vSphere commands run on the container&#8217;s ambient
+credentials alone, and AWS commands are also refused when those
+credentials belong to an account other than <code>scope_id</code>. See
 <a href="../environment-variables/#iac-cloud-credentials" class="xref page">Cloud
 credentials for the IaC engine</a> for where these files fit in the
 deployment.</p>
@@ -954,12 +955,79 @@ only.</p>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><code>AWS_REGION</code> is the only universal requirement, and never an account
-id — unlike Azure and GCP, nothing here is injected from <code>scope_id</code>,
-because no environment variable redirects the provider to an account.
-Every command runs against whatever account the credentials above
-resolve to, so making them agree with the <code>scope_id</code> callers send is
-the deployment&#8217;s job.</p>
+<p><code>AWS_REGION</code> (or <code>AWS_DEFAULT_REGION</code>) is required in every row: the
+account check below needs it, and it is the default region for
+generated code.</p>
+</div>
+<div class="paragraph">
+<p><strong>Account.</strong> Do not set <code>TF_VAR_aws_account_id</code>; the sidecar injects
+<code>scope_id</code> as <code>TF_VAR_aws_account_id</code> for <code>init</code>, <code>plan</code>, <code>apply</code>, and
+<code>import</code>. The generated code passes it to the provider, which then
+refuses any other account:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>variable "aws_account_id" {</span></span>
+<span class="line"><span>  type = string # no default: the engine supplies it</span></span>
+<span class="line"><span>}</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>provider "aws" {</span></span>
+<span class="line"><span>  allowed_account_ids = [var.aws_account_id]</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Before those four commands the sidecar also calls STS
+<code>GetCallerIdentity</code> with the container&#8217;s credentials, and ends the
+command with exit code 1, without starting the engine, when the account
+is not <code>scope_id</code>. One deployment therefore serves one AWS account; a
+hub deployment that assumes a role into each target account is refused.
+For LocalStack the <code>scope_id</code> is its account id, <code>000000000000</code>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Region.</strong> The region is not part of the scope. The provider takes the
+first of:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>the <code>region</code> argument of the <code>provider "aws"</code> block;</p>
+</li>
+<li>
+<p><code>AWS_REGION</code>, then <code>AWS_DEFAULT_REGION</code>, on the iac container;</p>
+</li>
+<li>
+<p>the region of the AWS profile in use.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>New generated code sets no provider <code>region</code>, so every session that does
+not name a region lands in the container&#8217;s <code>AWS_REGION</code>. A request that
+names one gets the per-resource <code>region</code> argument (provider v6) or a
+provider alias. An existing provider <code>region</code> is kept as it is, so with
+<code>AWS_REGION=us-east-1</code> on the container:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>variable "region" {</span></span>
+<span class="line"><span>  default = "eu-west-1"</span></span>
+<span class="line"><span>}</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>provider "aws" {</span></span>
+<span class="line"><span>  region = var.region # eu-west-1 wins; AWS_REGION is ignored</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A <code>region</code> variable the provider block does not reference changes
+nothing: the provider falls back to <code>AWS_REGION</code>.</p>
+</div>
+<div class="paragraph">
+<p><strong>Running the code outside Kumoss.</strong> Code merged to a repository declares
+<code>aws_account_id</code> with no default, so a pipeline that runs it needs
+<code>TF_VAR_aws_account_id=&lt;account id&gt;</code> (and a region) in its own
+environment.</p>
 </div>
 <div class="paragraph">
 <p>Import discovery additionally requires AWS Resource Explorer to be
@@ -1082,8 +1150,45 @@ by the runtime</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Add <code>TF_VAR_compartment_ocid</code> in practice — not a provider setting,
-but nearly every resource needs it.</p>
+<p>Do not set <code>TF_VAR_compartment_ocid</code>. For OCI the request&#8217;s <code>scope_id</code>
+is the compartment OCID, and the sidecar injects it as
+<code>TF_VAR_compartment_ocid</code> for <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code>,
+overriding the container value. It is not a provider setting: it fills
+the <code>compartment_ocid</code> input variable the generated code declares.</p>
+</div>
+<div class="paragraph">
+<p>Because nothing confines the provider to a compartment, the core also
+reads every OCI plan and fails validation when it creates a resource in
+a compartment other than <code>scope_id</code>. The generator then rewrites the
+code:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>resource "oci_core_vcn" "main" {</span></span>
+<span class="line"><span>  compartment_id = var.compartment_ocid          # accepted</span></span>
+<span class="line"><span>  # compartment_id = "ocid1.compartment.oc1..x" # rejected unless it is scope_id</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A compartment the same plan creates is accepted, and so are resources
+created in the tenancy (root compartment). Only plain creations are
+checked: an update or replacement that moves an existing resource to
+another compartment is not caught. Code merged to a repository declares <code>compartment_ocid</code> with no
+default, so a pipeline that runs it outside Kumoss needs
+<code>TF_VAR_compartment_ocid</code>.</p>
+</div>
+<div class="paragraph">
+<p><code>TF_VAR_tenancy_ocid</code> stays in the container, because it belongs to the
+credential and one deployment serves one tenancy. The API key row
+already requires it. Add it to the other rows too when requests touch
+identity resources: the generated code reads it for resources that live
+in the root compartment (dynamic groups, tenancy-level policies,
+top-level compartments) and for the home-region lookup behind every
+identity write (compartments, policies, dynamic groups, groups, tag
+namespaces), including a compartment nested under the request&#8217;s
+compartment. Other requests do not need it; availability-domain lookups
+use the request&#8217;s compartment.</p>
 </div>
 </div>
 </div>
@@ -1385,6 +1490,62 @@ outside this service.</p>
 </div>
 </div>
 <div class="sect1">
+<h2 id="provider-versions-in-generated-code"><a class="anchor" href="#provider-versions-in-generated-code"></a>Provider versions in generated code</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The shipped prompt seeds pin these majors in <strong>new</strong> workspaces:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Constraint</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>hashicorp/aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~&gt; 6.0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>hashicorp/azurerm</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~&gt; 5.0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>hashicorp/google</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~&gt; 8.0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oracle/oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~&gt; 9.0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>hashicorp/kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~&gt; 3.0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware/vsphere</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>~&gt; 2.10</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>A workspace that already pins a provider keeps its pin, and the code
+generated for it uses that version&#8217;s syntax. The engine runs <code>init</code>
+without <code>-upgrade</code>, so rewriting the pin would fail against the
+workspace&#8217;s <code>.terraform.lock.hcl</code>. For example, a repository on
+<code>~&gt; 5.0</code> of <code>hashicorp/aws</code> keeps <code>~&gt; 5.0</code> and gets the v5 forms
+(<code>data.aws_region.current.name</code>, not <code>.region</code>); moving it to v6 is an
+upgrade to plan by hand. Pins can be changed in the
+<a href="../../guides/customize-prompts/" class="xref page">prompt seeds</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="three-things-that-trip-people-up"><a class="anchor" href="#three-things-that-trip-people-up"></a>Three things that trip people up</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -1640,8 +1801,8 @@ credentials</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>AWS_REGION</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Region — <strong>mandatory</strong> unless set in the provider
-block</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Region — <strong>mandatory</strong>: the sidecar&#8217;s account check
+needs it, and it is the region for code whose provider block sets none</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>AWS_DEFAULT_REGION</code></p></td>
@@ -1980,9 +2141,10 @@ Functions runtime</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Compartment OCID is a <strong>resource</strong> argument, not an environment
-variable — commonly passed as <code>TF_VAR_compartment_ocid</code>, an ordinary
-Terraform variable rather than a provider setting.</p>
+<p>Compartment OCID is a <strong>resource</strong> argument, not a provider setting —
+passed as <code>TF_VAR_compartment_ocid</code>, an ordinary Terraform input
+variable. The sidecar injects it per request from <code>scope_id</code>; do not set
+it in the container.</p>
 </div>
 <div class="paragraph">
 <p>=== Kubernetes (<code>kubernetes</code>, <code>helm</code>)</p>

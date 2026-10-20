@@ -1032,17 +1032,34 @@ fails with <code>Phoenix unreachable after 8 attempts</code>. Phoenix must
 therefore be available whenever the core starts.</p>
 </li>
 <li>
-<p>For each seed, asks Phoenix whether a prompt with that name exists
-(by name, regardless of tags). If it exists, the seed is skipped. If
-not, the seeder creates the prompt with one version whose displayed
-model name is <code>kumoss-seed</code> (Phoenix requires a model name; Kumoss
-ignores it) and tags that version with every <code>environment</code> value:
-<code>development</code>, <code>staging</code>, and <code>production</code>.</p>
+<p>For each seed, reads the prompt&#8217;s version tagged <code>seed</code>, the one the
+seeder last pushed. A prompt without that tag gets it on its latest
+version first; prompts seeded before the tag existed get it this way
+on the first boot that runs this seeder.</p>
 </li>
 <li>
-<p>Logs <code>Prompt seeding complete: N created, M already present</code>.</p>
+<p>If the prompt does not exist, the seeder creates it with one version
+whose displayed model name is <code>kumoss-seed</code> (Phoenix requires a model
+name; Kumoss ignores it) and tags that version with every
+<code>environment</code> value, <code>development</code>, <code>staging</code> and <code>production</code>, then
+with <code>seed</code>.</p>
+</li>
+<li>
+<p>If the text of the <code>seed</code> version differs from the seed file, the
+seeder pushes the seed as a new version, moves to it every
+environment tag that still points at the <code>seed</code> version, and moves
+<code>seed</code> last. A tag on any other version, or a tag you removed, is
+left alone.</p>
+</li>
+<li>
+<p>Logs <code>Prompt seeding complete: N created, M updated, K unchanged</code>.</p>
 </li>
 </ol>
+</div>
+<div class="paragraph">
+<p>Only the text counts: the seeder compares the <code>seed</code> version&#8217;s text
+with the seed file, and ignores its model, invocation parameters and
+description.</p>
 </div>
 <div class="paragraph">
 <p>Consequences to plan for:</p>
@@ -1050,20 +1067,25 @@ ignores it) and tags that version with every <code>environment</code> value:
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Seeding never overwrites.</strong> Editing a seed file after the first boot
-against a given Phoenix database has no effect on the prompt that
-already exists there. To change an already seeded prompt, edit it in
-Phoenix (see below) or delete it there and restart the core.</p>
+<p><strong>Seeding never moves a tag off your versions.</strong> A seed changed by a
+release reaches every environment tag that still points at the <code>seed</code>
+version. Once you point a tag at your own version, that tag keeps it
+on every later boot, and seed changes for it are yours to merge by
+hand. Do not move <code>seed</code> onto your own version, and do not remove it:
+without it the seeder takes the latest version as its own, which may
+be yours.</p>
 </li>
 <li>
-<p><strong>Only new names are pushed.</strong> Adding a new seed file and restarting the
-core does create the new prompt, even on an existing deployment.</p>
+<p><strong>New seed files are pushed too.</strong> Adding a seed file and restarting the
+core creates the new prompt, even on an existing deployment.</p>
 </li>
 <li>
-<p><strong>A failed tag is not retried.</strong> If Phoenix rejects one of the three tag
-writes, boot fails, but the prompt already exists and the next boot
-skips it. The error names the prompt, its version, and the tags still
-missing; add them to that version in Phoenix.</p>
+<p><strong>A failed tag is not always retried.</strong> If Phoenix rejects one of the
+tag writes, boot fails. The error names the prompt, its version, and
+the tags still missing; add them to that version in Phoenix. On an
+update the next boot retries the tags that still point at the <code>seed</code>
+version, which moves only once they all have, but on a new prompt the
+untagged environments look removed and are never tagged.</p>
 </li>
 <li>
 <p><strong>The environment tag matters.</strong> The core fetches prompts by name and
@@ -1305,9 +1327,14 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
 <code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
 <code>resources_list</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aurora</code>, <code>bedrock</code>, <code>cloudwatch</code>, <code>dynamodb</code>, <code>ec2</code>, <code>iam_role</code>,
-<code>internet_gateway</code>, <code>lambda</code>, <code>nat_gateway</code>, <code>rds</code>, <code>redshift</code>,
-<code>route53</code>, <code>s3_bucket</code>, <code>sagemaker</code>, <code>security_group</code>, <code>subnet</code>, <code>vpc</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aurora</code>, <code>auto_scaling_group</code>, <code>bedrock</code>, <code>cloudwatch</code>, <code>dynamodb</code>,
+<code>ebs_volume</code>, <code>ec2</code>, <code>ecr_repository</code>, <code>ecs_fargate_service</code>, <code>efs</code>,
+<code>eks_cluster</code>, <code>elasticache_redis</code>, <code>iam_role</code>, <code>internet_gateway</code>,
+<code>kms_key</code>, <code>lambda</code>, <code>launch_template</code>, <code>load_balancer</code>,
+<code>nat_gateway</code>, <code>rds</code>, <code>redshift</code>, <code>route53</code>, <code>route_table</code>,
+<code>s3_bucket</code>, <code>sagemaker</code>, <code>secrets_manager</code>, <code>security_group</code>,
+<code>sns_topic</code>, <code>sqs_queue</code>, <code>subnet</code>, <code>vpc</code>, <code>vpc_endpoint</code>,
+<code>waf_web_acl</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
@@ -1315,11 +1342,15 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
 <code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
 <code>resources_list</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>application_insights</code>, <code>azure_openai</code>, <code>container_app</code>, <code>cosmosdb</code>,
-<code>function</code>, <code>key_vault</code>, <code>nat_gateway</code>, <code>network_security_group</code>,
-<code>postgres_flexible_server</code>, <code>redis_managed</code>, <code>resource_group</code>,
-<code>storage_account</code>, <code>subnet</code>, <code>virtual_machine</code>, <code>virtual_network</code>,
-<code>webapp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aks_cluster</code>, <code>application_gateway</code>, <code>application_insights</code>,
+<code>azure_openai</code>, <code>bastion</code>, <code>container_app</code>, <code>container_registry</code>,
+<code>cosmosdb</code>, <code>diagnostic_setting</code>, <code>function</code>, <code>key_vault</code>,
+<code>load_balancer</code>, <code>log_analytics_workspace</code>, <code>managed_disk</code>,
+<code>nat_gateway</code>, <code>network_security_group</code>, <code>postgres_flexible_server</code>,
+<code>private_dns_zone</code>, <code>private_endpoint</code>, <code>public_ip</code>, <code>redis_managed</code>,
+<code>resource_group</code>, <code>role_assignment</code>, <code>service_bus</code>, <code>storage_account</code>,
+<code>subnet</code>, <code>user_assigned_identity</code>, <code>virtual_machine</code>,
+<code>virtual_network</code>, <code>vm_scale_set</code>, <code>webapp</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
@@ -1327,10 +1358,14 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
 <code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
 <code>resources_list</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>bigquery</code>, <code>cloud_nat</code>, <code>cloud_router</code>, <code>cloud_run</code>,
-<code>cloud_sql_postgres</code>, <code>firewall</code>, <code>gke_autopilot</code>, <code>load_balancer</code>,
-<code>project</code>, <code>service_account</code>, <code>spanner</code>, <code>storage_bucket</code>,
-<code>subnetwork</code>, <code>vertex</code>, <code>vpc_network</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>artifact_registry</code>, <code>bigquery</code>, <code>cloud_armor</code>, <code>cloud_dns</code>,
+<code>cloud_functions</code>, <code>cloud_kms</code>, <code>cloud_nat</code>, <code>cloud_router</code>,
+<code>cloud_run</code>, <code>cloud_sql_postgres</code>, <code>compute_instance</code>, <code>firewall</code>,
+<code>gke_autopilot</code>, <code>gke_standard</code>, <code>instance_template</code>,
+<code>load_balancer</code>, <code>managed_instance_group</code>, <code>memorystore_redis</code>,
+<code>persistent_disk</code>, <code>project</code>, <code>pubsub</code>, <code>secret_manager</code>,
+<code>service_account</code>, <code>spanner</code>, <code>storage_bucket</code>, <code>subnetwork</code>,
+<code>vertex</code>, <code>vpc_network</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
@@ -1338,11 +1373,14 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
 <code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
 <code>resources_list</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>autonomous_database</code>, <code>block_volume</code>, <code>compute_instance</code>,
-<code>dns_zone</code>, <code>file_storage</code>, <code>functions</code>, <code>iam_policy</code>,
-<code>internet_gateway</code>, <code>load_balancer</code>, <code>nat_gateway</code>,
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>autonomous_database</code>, <code>bastion</code>, <code>block_volume</code>, <code>certificate</code>,
+<code>compartment</code>, <code>compute_instance</code>, <code>container_repository</code>, <code>dns_zone</code>,
+<code>drg</code>, <code>dynamic_group</code>, <code>file_storage</code>, <code>functions</code>, <code>iam_policy</code>,
+<code>instance_configuration</code>, <code>instance_pool</code>, <code>internet_gateway</code>,
+<code>load_balancer</code>, <code>logging</code>, <code>mysql_db_system</code>, <code>nat_gateway</code>,
 <code>network_security_group</code>, <code>object_storage</code>, <code>oke_cluster</code>,
-<code>security_list</code>, <code>subnet</code>, <code>vault</code>, <code>vcn</code></p></td>
+<code>route_table</code>, <code>security_list</code>, <code>service_gateway</code>, <code>subnet</code>, <code>vault</code>,
+<code>vcn</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
@@ -1351,19 +1389,24 @@ resource prompts differ per cloud.</p>
 <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>cluster_role</code>, <code>cluster_role_binding</code>, <code>config_map</code>, <code>cron_job</code>,
 <code>daemon_set</code>, <code>deployment</code>, <code>horizontal_pod_autoscaler</code>, <code>ingress</code>,
-<code>namespace</code>, <code>network_policy</code>, <code>persistent_volume_claim</code>, <code>role</code>,
-<code>role_binding</code>, <code>secret</code>, <code>service</code>, <code>service_account</code>, <code>stateful_set</code></p></td>
+<code>job</code>, <code>limit_range</code>, <code>namespace</code>, <code>network_policy</code>,
+<code>persistent_volume_claim</code>, <code>pod_disruption_budget</code>, <code>priority_class</code>,
+<code>resource_quota</code>, <code>role</code>, <code>role_binding</code>, <code>secret</code>, <code>service</code>,
+<code>service_account</code>, <code>stateful_set</code>, <code>storage_class</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
 <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>compute_cluster</code>, <code>compute_cluster_vm_anti_affinity_rule</code>,
-<code>content_library</code>, <code>datastore_cluster</code>, <code>distributed_port_group</code>,
-<code>distributed_virtual_switch</code>, <code>entity_permissions</code>, <code>folder</code>,
-<code>resource_pool</code>, <code>role</code>, <code>tag</code>, <code>virtual_disk</code>, <code>virtual_machine</code>,
-<code>vm_storage_policy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>compute_cluster</code>, <code>compute_cluster_host_group</code>,
+<code>compute_cluster_vm_affinity_rule</code>,
+<code>compute_cluster_vm_anti_affinity_rule</code>, <code>compute_cluster_vm_group</code>,
+<code>compute_cluster_vm_host_rule</code>, <code>content_library</code>,
+<code>content_library_item</code>, <code>datastore_cluster</code>, <code>distributed_port_group</code>,
+<code>distributed_virtual_switch</code>, <code>drs_vm_override</code>, <code>entity_permissions</code>,
+<code>folder</code>, <code>ha_vm_override</code>, <code>resource_pool</code>, <code>role</code>, <code>tag</code>,
+<code>virtual_disk</code>, <code>virtual_machine</code>, <code>vm_storage_policy</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 </tbody>
@@ -1613,9 +1656,10 @@ under their own IDs.</p>
 </td>
 <td class="content">
 Before this list was parsed by the core, the <code>import_filter</code>
-agent read it as prose. Seeding never overwrites, so a deployment whose
-list was curated in free text keeps that text: any ID not written as a
-bullet is now silently ignored. Rewrite such lists as bullets.
+agent read it as prose. Seeding never overwrites your versions, so a
+deployment whose list was curated in free text keeps that text: any ID
+not written as a bullet is now silently ignored. Rewrite such lists as
+bullets.
 </td>
 </tr>
 </table>

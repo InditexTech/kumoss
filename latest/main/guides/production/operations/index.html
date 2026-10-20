@@ -990,9 +990,50 @@ at it.</p>
 <p>Rebuild or pull the images and the configuration for the new version.</p>
 </li>
 <li>
-<p>New prompt seed files are created in Phoenix on the next core start;
-existing prompts are never overwritten, so review the seed changes
-and apply the ones you want as new prompt versions in Phoenix.</p>
+<p>On the next core start new prompt seed files are created in Phoenix,
+and changed seeds replace the versions the seeder pushed: every
+environment tag on a prompt&#8217;s <code>seed</code> version moves to the new seed
+version. Tags you point at your own versions never move, so review the
+seed changes for those and apply the ones you want as new prompt
+versions.</p>
+</li>
+<li>
+<p>Upgrading from a release before the <code>seed</code> tag: the first start tags
+the latest version of every seeded prompt <code>seed</code> and treats it as the
+seeder&#8217;s. If you saved your own version of a prompt, it is that
+prompt&#8217;s latest version, and the environment tags on it would move to
+the new seed. Before upgrading, add the <code>seed</code> tag in Phoenix to the
+version the seeder created (the prompt&#8217;s first version) for every
+prompt you curated.</p>
+</li>
+<li>
+<p>AWS deployments: the bundled iac service now checks, before every
+AWS <code>init</code>, <code>plan</code>, <code>apply</code> and <code>import</code>, that its credentials belong
+to the request&#8217;s account, and refuses the command otherwise (see
+<a href="../../../reference/api/iac/" class="xref page">IaC service API</a>). Before upgrading,
+set <code>AWS_REGION</code> (or <code>AWS_DEFAULT_REGION</code>) on the iac container, make
+sure every AWS cloud project&#8217;s scope is its 12-digit account ID, and
+run one iac deployment per AWS account: commands for any other
+account now fail instead of running in the credentials' own account.</p>
+</li>
+<li>
+<p>Generated code changes shape (see
+<a href="../../../reference/terraform-providers/" class="xref page">Terraform providers</a>):</p>
+<div class="ulist">
+<ul>
+<li>
+<p>New workspaces get newer provider majors (for example
+<code>hashicorp/aws</code> <code>~&gt; 6.0</code>, <code>hashicorp/azurerm</code> <code>~&gt; 5.0</code>). Existing
+workspaces keep their pins and, on AWS, their provider <code>region</code>.</p>
+</li>
+<li>
+<p>AWS and OCI code now declares <code>aws_account_id</code> or
+<code>compartment_ocid</code> with no default. A repository pipeline that runs
+merged code outside Kumoss must set <code>TF_VAR_aws_account_id</code> or
+<code>TF_VAR_compartment_ocid</code>.</p>
+</li>
+</ul>
+</div>
 </li>
 <li>
 <p>Do not change <code>environment</code> on an existing deployment without first
