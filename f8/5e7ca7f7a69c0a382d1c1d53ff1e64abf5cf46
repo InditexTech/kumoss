@@ -1,0 +1,31 @@
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_eb3c27806165ad::t_292a212ce2d934 94
+docs/src/modules/main/pages/guides/production/operations.adoc
+  s_835477198d1c2c::t_28b2bbded5b81c 151-171
+docs/src/modules/main/pages/reference/terraform-providers.adoc
+  s_835477198d1c2c::t_fe5a66d4ca5252 13-19,119-176,259-294,507-531,660-661,810-813
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f85e7ca7f7a69c0a382d1c1d53ff1e64abf5cf46",
+  "prompts": {},
+  "sessions": {
+    "s_835477198d1c2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "329379c5-3da5-45f7-b41c-39491742878a",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_eb3c27806165ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8277c4e-37f2-43f3-9b02-ff3f3a1a778d",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
