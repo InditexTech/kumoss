@@ -188,6 +188,7 @@ class Terraform(ITerraform):
                     ),
                     cfg,
                 )
+                # FIXME: ad hoc OCI workaround - AWS, GCP and OCI doesn't bind scope id to terraform scope the same way Azure does (enforced via env variable)
                 scope_feedback = (
                     await self.__oci_scope_feedback(c, cfg)
                     if plan_res.exit_code == 0
