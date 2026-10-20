@@ -506,6 +506,23 @@ class StorageConfig(BaseModel):
         return self
 
 
+class SchedulerConfig(BaseModel, frozen=True):
+    """Durable operation queue: worker loops, leases and timeouts."""
+
+    concurrency: int = Field(default=4, ge=1)
+    # Slots per replica that cron-fired operations may not take, so user
+    # calls never queue behind long scheduled runs (at least one slot always
+    # stays available to schedules).
+    interactive_reserved_slots: int = Field(default=1, ge=0)
+    claim_interval: float = 2.0
+    heartbeat_interval: float = 30.0
+    lease_seconds: float = 120.0
+    reaper_interval: float = 60.0
+    schedule_poll_interval: float = 30.0
+    default_timeout_seconds: int = 10800
+    shutdown_grace_seconds: float = 60.0
+
+
 class SystemConfig(BaseModel, frozen=True):
     environment: Environment = "development"  # development | staging | production
     oidc: OidcConfig = Field(default_factory=OidcConfig)
@@ -520,6 +537,7 @@ class SystemConfig(BaseModel, frozen=True):
     telemetry: TelemetryConfig = Field(default_factory=TelemetryConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
     git: GitConfig = Field(default_factory=GitConfig)
+    scheduler: SchedulerConfig = Field(default_factory=SchedulerConfig)
 
     @model_validator(mode="after")
     def _assert_service_tokens(self) -> "SystemConfig":

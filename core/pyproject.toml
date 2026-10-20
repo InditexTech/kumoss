@@ -28,6 +28,7 @@ dependencies = [
     "mcp==2.3.0",
     "litellm>=1.103.2",
     "google-cloud-aiplatform>=1.165.1",
+    "croniter>=6.2.4",
 ]
 
 [dependency-groups]

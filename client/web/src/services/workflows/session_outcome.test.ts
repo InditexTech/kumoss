@@ -647,6 +647,19 @@ describe("waitForNewRound", () => {
 
     await expect(waitForNewRound("sess-1", 1)).resolves.toBeUndefined();
   });
+
+  it("fails fast when the queued operation ends without a new round", async () => {
+    mockState.addSession(makeSessionDetail({ rounds: [makeRound()] }));
+    server.use(
+      http.get("/api/v1/operations/:id", () =>
+        HttpResponse.json({ status: "cancelled", error: "Cancelled by user" }),
+      ),
+    );
+
+    await expect(waitForNewRound("sess-1", 1, undefined, "op-1")).rejects.toThrow(
+      "Cancelled by user",
+    );
+  });
 });
 
 describe("isApplyRound", () => {

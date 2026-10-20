@@ -242,41 +242,29 @@ class TestRounds(_SessionBase):
         self.assertIs(detail.current_status, SessionStatus.GENERATING)
 
 
-class TestInFlightEnforcement(_SessionBase):
-    async def test_acquire_is_a_real_cas(self):
-        await DatabaseService.acquire_in_flight(self.sid)
-        with self.assertRaises(SessionConflict):
-            await DatabaseService.acquire_in_flight(self.sid)
-        await DatabaseService.release_in_flight(self.sid)
-        # Reacquirable after release.
-        await DatabaseService.acquire_in_flight(self.sid)
-        await DatabaseService.release_in_flight(self.sid)
-
+class TestResumableGuard(_SessionBase):
     async def test_completed_session_can_be_resumed(self):
         await DatabaseService.mark_completed(self.sid, "done")
-        await DatabaseService.acquire_in_flight(self.sid)
-        await DatabaseService.release_in_flight(self.sid)
+        await DatabaseService.assert_resumable(self.sid)
 
     async def test_failed_session_cannot_be_resumed(self):
         await DatabaseService.mark_failed(self.sid, "boom")
         with self.assertRaises(SessionTerminal):
-            await DatabaseService.acquire_in_flight(self.sid)
+            await DatabaseService.assert_resumable(self.sid)
 
     async def test_uncompleted_session_can_be_resumed(self):
         await DatabaseService.mark_uncompleted(self.sid, "gave up")
-        await DatabaseService.acquire_in_flight(self.sid)
-        await DatabaseService.release_in_flight(self.sid)
+        await DatabaseService.assert_resumable(self.sid)
 
-    async def test_live_statuses_do_not_block_acquire(self):
+    async def test_live_statuses_do_not_block_resume(self):
         await DatabaseService.mark_session_status(
             self.sid, SessionStatus.GENERATING, "working"
         )
-        await DatabaseService.acquire_in_flight(self.sid)
-        await DatabaseService.release_in_flight(self.sid)
+        await DatabaseService.assert_resumable(self.sid)
 
     async def test_unknown_session_is_not_found(self):
         with self.assertRaises(SessionTerminal):
-            await DatabaseService.acquire_in_flight(uuid4())
+            await DatabaseService.assert_resumable(uuid4())
 
 
 class TestFinishedSessionDetailCache(_SessionBase):

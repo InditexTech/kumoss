@@ -5,16 +5,19 @@
 """Database models for Kumoss application."""
 
 from datetime import datetime, timezone
-from typing import final, override
+from typing import Any, final, override
 
 from sqlalchemy import (
+    Boolean,
     ForeignKey,
+    Index,
     String,
     Text,
     DateTime,
     Integer,
     JSON,
     UniqueConstraint,
+    column,
 )
 from sqlalchemy.dialects.postgresql import UUID, ARRAY
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -22,6 +25,7 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 from src.shared.constants import (
     GitProviderName,
     OperationRole,
+    OperationStatus,
     OperationType,
     PanelRole,
     ReportType,
@@ -90,7 +94,6 @@ class Session(Base):
     uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     operation: Mapped[OperationType] = mapped_column()
-    in_flight: Mapped[bool] = mapped_column(default=False)
     is_blocked: Mapped[bool] = mapped_column(default=False)
     # relations
     workspaces: Mapped[list["Workspace"]] = relationship(
@@ -107,8 +110,7 @@ class Session(Base):
 
     @override
     def __repr__(self) -> str:
-        return f"""<Session(session_id='{self.uuid}',
-                      in_flight='{self.in_flight}, is_blocked='{self.is_blocked}')>"""
+        return f"<Session(session_id='{self.uuid}', is_blocked='{self.is_blocked}')>"
 
 
 @final
@@ -320,3 +322,72 @@ class CodeChange(Base):
     @override
     def __repr__(self) -> str:
         return f"<CodeChange(round_id='{self.round_id}', file_name='{self.file_name}')>"
+
+
+@final
+class Operation(Base):
+    """One queued terraform operation on a session."""
+
+    __tablename__ = "operations"
+    __table_args__ = (
+        Index("ix_operations_claim", "status", "scheduled_at"),
+        # At most one active operation per session: the session's only
+        # concurrency lock; a session is in flight while it holds a row here.
+        Index(
+            "uq_operations_active_session",
+            "session_id",
+            unique=True,
+            postgresql_where=column("status").in_(
+                [OperationStatus.PENDING.name, OperationStatus.RUNNING.name]
+            ),
+        ),
+    )
+
+    uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
+    schedule_id: Mapped[int | None] = mapped_column(
+        ForeignKey("operation_schedules.id", ondelete="SET NULL"), index=True
+    )
+    kind: Mapped[OperationType] = mapped_column()
+    params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    status: Mapped[OperationStatus] = mapped_column(default=OperationStatus.PENDING)
+    scheduled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    timeout_seconds: Mapped[int] = mapped_column(Integer)
+    lease_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    claimed_by: Mapped[str | None] = mapped_column(String(254))
+    cancel_requested: Mapped[bool] = mapped_column(Boolean, default=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+    # relations
+    session: Mapped["Session"] = relationship("Session", lazy="joined")
+    schedule: Mapped["OperationSchedule | None"] = relationship(
+        "OperationSchedule", lazy="joined"
+    )
+
+    @override
+    def __repr__(self) -> str:
+        return f"<Operation(uuid='{self.uuid}', kind={self.kind.name}, status={self.status.name})>"
+
+
+@final
+class OperationSchedule(Base):
+    """A cron schedule that fires a fresh-session operation for its owner."""
+
+    __tablename__ = "operation_schedules"
+
+    uuid: Mapped[UUID[str]] = mapped_column(UUID(as_uuid=True), unique=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    name: Mapped[str] = mapped_column(String(254))
+    kind: Mapped[OperationType] = mapped_column()
+    params: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict)
+    cron: Mapped[str] = mapped_column(String(128))
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    next_run_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @override
+    def __repr__(self) -> str:
+        return f"<OperationSchedule(uuid='{self.uuid}', name='{self.name}', cron='{self.cron}')>"

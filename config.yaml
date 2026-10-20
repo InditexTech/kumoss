@@ -274,4 +274,32 @@ git:
   author_name: "Kumoss"
   author_email: "kumoss@noreply.invalid"
 
+# Durable operations queue. Every terraform operation (generate, drift,
+# apply, import) is enqueued as a Postgres row, claimed by worker loops
+# via FOR UPDATE SKIP LOCKED, and tracked end to end. Workers always run:
+# without them no operation would ever execute. Operations are never
+# retried automatically; a failed or lost operation ends FAILED.
+#
+# `concurrency` — parallel claim→execute asyncio tasks (pipelines are
+# I/O-bound: LLM, iac polling, git). Raise only if the host has headroom.
+# `interactive_reserved_slots` — slots cron-fired operations may not use,
+# so user calls never wait behind scheduled runs. Interactive operations
+# are also always claimed before scheduled ones.
+# `lease_seconds` — if a worker doesn't heartbeat within this window the
+# reaper considers it dead, fails the operation and frees the session.
+# `schedule_poll_interval` — how often due cron schedules are fired.
+# `default_timeout_seconds` — matches the SSE ~3h budget.
+# `shutdown_grace_seconds` — how long shutdown waits for running
+# operations before interrupting them.
+scheduler:
+  concurrency: 4
+  interactive_reserved_slots: 1
+  claim_interval: 2.0
+  heartbeat_interval: 30.0
+  lease_seconds: 120.0
+  reaper_interval: 60.0
+  schedule_poll_interval: 30.0
+  default_timeout_seconds: 10800
+  shutdown_grace_seconds: 60.0
+
 

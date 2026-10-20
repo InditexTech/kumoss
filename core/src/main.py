@@ -18,7 +18,15 @@ from src.api.v1 import (
     mapping,
     users,
     notifications,
+    operations,
+    schedules,
 )
+from src.application.services.operation_executor import OperationExecutor
+from src.application.services.operation_scheduler import OperationScheduler
+from src.application.services.operation_submission_service import (
+    OperationSubmissionService,
+)
+from src.domains.services.operation_queue_service import OperationQueueService
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
@@ -69,9 +77,19 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logging.warning(f"Failed to configure git credentials: {e}")
 
+    queue = OperationQueueService(system_config.scheduler)
+    scheduler = OperationScheduler(
+        queue=queue,
+        executor=OperationExecutor(queue, system_config.scheduler),
+        submission=OperationSubmissionService(queue),
+        config=system_config.scheduler,
+    )
+    await scheduler.start()
+
     yield
 
     # Shutdown
+    await scheduler.stop()
     logging.info("Shutting down Kumoss application...")
     shutdown_tracer_providers()
     logging.info("Tracer providers flushed and shut down")
@@ -84,7 +102,15 @@ async def lifespan(app: FastAPI):
 tags_metadata: list[dict[str, str]] = [
     {
         "name": "Infrastructure as Code",
-        "description": "Session-creating IaC operations (generate, drift, apply).",
+        "description": "Queue IaC operations (generate, drift, apply, import).",
+    },
+    {
+        "name": "Operations",
+        "description": "Queued IaC operations of the caller's sessions: status and cancel.",
+    },
+    {
+        "name": "Schedules",
+        "description": "Recurring (cron) drift and import operations.",
     },
     {
         "name": "Events Subscription",
@@ -158,3 +184,5 @@ app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
+app.include_router(operations.router, prefix="/v1")
+app.include_router(schedules.router, prefix="/v1")

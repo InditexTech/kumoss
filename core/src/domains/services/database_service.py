@@ -5,12 +5,12 @@
 import asyncio
 import math
 import random
-from datetime import datetime, timezone
-from typing import Any, cast
-from uuid import UUID
+from datetime import datetime, timedelta, timezone
+from typing import Any, ClassVar, cast
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError
-from sqlalchemy import String, func, or_, select, update
+from sqlalchemy import String, delete, func, or_, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -53,6 +53,8 @@ from src.infrastructure.database.models import (
     Session,
     Workspace,
     History,
+    Operation,
+    OperationSchedule,
 )
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
@@ -60,6 +62,7 @@ from src.shared.config.system_config import system_config
 from src.shared.logger import logging
 from src.shared.constants import (
     OperationRole,
+    OperationStatus,
     OperationType,
     PanelRole,
     ReportType,
@@ -86,7 +89,7 @@ from src.shared.constants import (
 #
 # A third flavour exists for FINISHED sessions: once a session's latest
 # status is terminal (FAILED) it can never change again —
-# ``acquire_in_flight`` enforces this — so the full detail aggregate is
+# ``assert_resumable`` enforces this — so the full detail aggregate is
 # cached and the last-status key gets a long TTL. The only mutation still
 # possible on a finished session is the admin ``set_lock`` toggle, which
 # drops the cached detail.
@@ -107,7 +110,7 @@ _TTL_PR = 7 * 24 * 60 * 60  # pull requests; written through on add
 _TTL_DETAIL = 24 * 60 * 60
 
 # Session-level end states. Once a session's latest status is terminal it
-# never changes again (enforced by acquire_in_flight), so anything derived
+# never changes again (enforced by assert_resumable), so anything derived
 # from it is safe to cache aggressively.
 _TERMINAL = frozenset({SessionStatus.FAILED})
 
@@ -214,8 +217,8 @@ class DatabaseService:
 
     @staticmethod
     async def __load_session(uuid: UUID) -> Session | None:
-        # Not cached: the Session row carries mutable lock state (in_flight,
-        # is_blocked) that must always be read fresh.
+        # Not cached: the Session row carries the mutable is_blocked lock,
+        # which must always be read fresh.
         session: Session | None = await db.get_by(Session, uuid=uuid)
         return session
 
@@ -597,7 +600,23 @@ class DatabaseService:
         return status.status
 
     @staticmethod
-    async def __construct_summary(s: Session) -> SessionSummary:
+    async def __in_flight(session_pks: list[int]) -> set[int]:
+        """The sessions among ``session_pks`` holding an active operation."""
+        if not session_pks:
+            return set()
+        async with db.session() as sess:
+            rows = await sess.execute(
+                select(Operation.session_id)
+                .where(
+                    Operation.session_id.in_(session_pks),
+                    Operation.status.in_(DatabaseService._ACTIVE_OPERATION),
+                )
+                .distinct()
+            )
+        return set(rows.scalars())
+
+    @staticmethod
+    async def __construct_summary(s: Session, in_flight: bool) -> SessionSummary:
         (
             workspace,
             provider,
@@ -628,7 +647,7 @@ class DatabaseService:
                 root_path=workspace.root_path,
             ),
             current_status=current_status,
-            in_flight=s.in_flight,
+            in_flight=in_flight,
             is_blocked=s.is_blocked,
             created_at=s.created_at,
             updated_at=s.updated_at,
@@ -642,7 +661,8 @@ class DatabaseService:
                 message=f"Session {session_id} not found.",
                 error_code=404,
             )
-        return await DatabaseService.__construct_summary(s)
+        in_flight = s.id in await DatabaseService.__in_flight([s.id])
+        return await DatabaseService.__construct_summary(s, in_flight)
 
     @staticmethod
     async def list_sessions(
@@ -710,9 +730,13 @@ class DatabaseService:
 
         # Summaries only touch the cache / point reads, so build the whole
         # page concurrently instead of paying the fan-out sequentially.
+        in_flight = await DatabaseService.__in_flight([s.id for s in sessions])
         summaries: list[SessionSummary] = list(
             await asyncio.gather(
-                *(DatabaseService.__construct_summary(s) for s in sessions)
+                *(
+                    DatabaseService.__construct_summary(s, s.id in in_flight)
+                    for s in sessions
+                )
             )
         )
 
@@ -799,7 +823,7 @@ class DatabaseService:
         Live sessions are always read fresh: the aggregate mutates while a
         session runs and the push channel triggers client refetches of this
         exact read model. Finished sessions can never change again
-        (``acquire_in_flight`` refuses them), so those are served from a
+        (``assert_resumable`` refuses them), so those are served from a
         cached copy. The history variant (``include_history=True``) is
         always read fresh.
         """
@@ -873,7 +897,7 @@ class DatabaseService:
                 root_path=workspace.root_path,
             ),
             current_status=current.status if current else SessionStatus.STARTED,
-            in_flight=s.in_flight,
+            in_flight=s.id in await DatabaseService.__in_flight([s.id]),
             is_blocked=s.is_blocked,
             created_at=s.created_at,
             updated_at=s.updated_at,
@@ -932,39 +956,17 @@ class DatabaseService:
         _ = await redis_client.invalidate(_k_detail(ctx.id))
 
     @staticmethod
-    async def acquire_in_flight(session_id: UUID) -> None:
-        """Compare-and-set the in-flight lock, refusing finished sessions.
+    async def assert_resumable(session_id: UUID) -> None:
+        """Refuse to run on a missing or finished session.
 
-        One atomic UPDATE is both the CAS (``in_flight`` must be false) and
-        the terminal guard (latest status must not be FAILED), so
-        two runners can never both win the lock and a finished session can
-        never be resumed — which is what makes finished sessions safe to
-        cache aggressively.
+        Concurrency is the operations table's job (one active operation per
+        session); this is only the terminal guard. It needs no lock: the
+        caller's operation holds the session's active slot, and only that
+        operation can move the session to a terminal status. So a finished
+        session can never be resumed, which is what makes finished sessions
+        safe to cache aggressively.
         """
-        last_status = (
-            select(DbStatus.status)
-            .where(DbStatus.session_id == Session.id)
-            .order_by(DbStatus.id.desc())
-            .limit(1)
-            .scalar_subquery()
-        )
-        async with db.transaction() as sess:
-            stmt = (
-                update(Session)
-                .where(
-                    Session.uuid == session_id,
-                    Session.in_flight.is_(False),
-                    # No status rows yet counts as live (implicit STARTED).
-                    or_(last_status.is_(None), last_status.notin_(_TERMINAL)),
-                )
-                .values(in_flight=True, updated_at=datetime.now(timezone.utc))
-            )
-            res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount == 1:
-                return
-        # Lost the CAS: reload once to report precisely why.
-        session = await DatabaseService.__load_session(session_id)
-        if session is None:
+        if await DatabaseService.__load_session(session_id) is None:
             raise SessionTerminal(
                 message=f"Session {session_id} not found.",
                 error_code=404,
@@ -974,26 +976,6 @@ class DatabaseService:
                 message=f"Session {session_id} is finished and cannot be resumed.",
                 error_code=409,
             )
-        raise SessionConflict(
-            message=f"Session {session_id} already has an operation in flight.",
-            error_code=409,
-        )
-
-    @staticmethod
-    async def release_in_flight(session_id: UUID) -> None:
-        """Atomic compare-and-set: True if we free lock, False otherwise."""
-        async with db.transaction() as sess:
-            stmt = (
-                update(Session)
-                .where(Session.uuid == session_id)
-                .values(in_flight=False, updated_at=datetime.now(timezone.utc))
-            )
-            res = await sess.execute(stmt)
-            if cast(CursorResult[Any], res).rowcount != 1:
-                raise SessionConflict(
-                    message=f"Failed to release in-flight lock on session {session_id}.",
-                    error_code=500,
-                )
 
     @staticmethod
     async def mark_session_status(
@@ -1233,3 +1215,369 @@ class DatabaseService:
             _k_pull_requests(session_id), prs, ttl=_ttl(_TTL_PR)
         )
         _ = await redis_client.invalidate(_k_detail(session_id))
+
+    # --- Operations -----------------------------------------------------------
+    #
+    # Every transition is one statement guarded on the current status, so a
+    # late writer can never resurrect a finished operation. Timestamps are
+    # the database's ``now()``, never the app clock, so lease math stays
+    # consistent across hosts whose clocks drift.
+
+    # Queued-operation states that hold the session's active-operation slot.
+    _ACTIVE_OPERATION: ClassVar[tuple[OperationStatus, ...]] = (
+        OperationStatus.PENDING,
+        OperationStatus.RUNNING,
+    )
+
+    @staticmethod
+    async def create_operation(
+        session_id: UUID,
+        kind: OperationType,
+        params: dict[str, Any],
+        timeout_seconds: int,
+        schedule_id: int | None = None,
+    ) -> Operation:
+        """Insert a PENDING operation; 409 when the session already has an
+        active one (partial unique index)."""
+        sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        try:
+            return await db.create(
+                Operation,
+                uuid=uuid4(),
+                session_id=sid,
+                schedule_id=schedule_id,
+                kind=kind,
+                params=params,
+                status=OperationStatus.PENDING,
+                scheduled_at=func.now(),
+                timeout_seconds=timeout_seconds,
+            )
+        except IntegrityError:
+            raise SessionConflict(
+                message=f"Session {session_id} already has an operation in flight.",
+                error_code=409,
+            )
+
+    @staticmethod
+    async def claim_operation(
+        worker_id: str, lease_seconds: float, allow_scheduled: bool
+    ) -> Operation | None:
+        """Mark the next due operation RUNNING for ``worker_id``, interactive
+        calls before cron fires; ``FOR UPDATE SKIP LOCKED`` keeps concurrent
+        workers from blocking each other."""
+        # Raw SQL: subquery + FOR UPDATE SKIP LOCKED + RETURNING is not
+        # expressible through the ORM.
+        sql = text("""
+            UPDATE operations
+            SET status           = :running,
+                claimed_by       = :worker_id,
+                started_at       = now(),
+                lease_expires_at = now() + :lease,
+                updated_at       = now()
+            WHERE id = (
+                SELECT id FROM operations
+                WHERE status = :pending
+                  AND scheduled_at <= now()
+                  AND (:allow_scheduled OR schedule_id IS NULL)
+                ORDER BY (schedule_id IS NOT NULL), scheduled_at, id
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+            )
+            RETURNING id
+        """)
+        async with db.transaction() as sess:
+            result = await sess.execute(
+                sql,
+                {
+                    "running": OperationStatus.RUNNING.name,
+                    "pending": OperationStatus.PENDING.name,
+                    "worker_id": worker_id,
+                    "allow_scheduled": allow_scheduled,
+                    "lease": timedelta(seconds=lease_seconds),
+                },
+            )
+            op_id = result.scalar_one_or_none()
+        if op_id is None:
+            return None
+        return await db.get_by(Operation, id=op_id)
+
+    @staticmethod
+    async def renew_operation_lease(
+        operation_id: int, worker_id: str, lease_seconds: float
+    ) -> bool:
+        """Extend the lease; False when the worker must stop (cancel
+        requested, or the operation is no longer its own)."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.claimed_by == worker_id,
+                    Operation.status == OperationStatus.RUNNING,
+                    Operation.cancel_requested.is_(False),
+                )
+                .values(lease_expires_at=func.now() + timedelta(seconds=lease_seconds))
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def finish_operation(
+        operation_id: int,
+        status: OperationStatus,
+        error: str | None,
+    ) -> bool:
+        """End an active operation, freeing its session's active slot; True
+        when this call made the transition. An operation that already ended
+        (e.g. reaped) is left alone, so a late worker can never touch a
+        successor."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.status.in_(DatabaseService._ACTIVE_OPERATION),
+                )
+                .values(
+                    status=status,
+                    finished_at=func.now(),
+                    lease_expires_at=None,
+                    claimed_by=None,
+                    error=error,
+                )
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def cancel_pending_operation(operation_id: int, error: str) -> bool:
+        """PENDING -> CANCELLED; False when it was no longer pending."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.status == OperationStatus.PENDING,
+                )
+                .values(
+                    status=OperationStatus.CANCELLED,
+                    finished_at=func.now(),
+                    error=error,
+                )
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def request_operation_cancel(operation_id: int) -> bool:
+        """Flag a RUNNING operation for its worker; False when it was no
+        longer running."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.status == OperationStatus.RUNNING,
+                )
+                .values(cancel_requested=True)
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def reap_expired_operations(error: str) -> list[UUID]:
+        """Fail RUNNING operations whose lease expired, freeing their
+        sessions' active slot. Returns those session ids."""
+        async with db.transaction() as sess:
+            session_pks = list(
+                (
+                    await sess.execute(
+                        update(Operation)
+                        .where(
+                            Operation.status == OperationStatus.RUNNING,
+                            Operation.lease_expires_at < func.now(),
+                        )
+                        .values(
+                            status=OperationStatus.FAILED,
+                            finished_at=func.now(),
+                            lease_expires_at=None,
+                            claimed_by=None,
+                            error=error,
+                        )
+                        .returning(Operation.session_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if not session_pks:
+                return []
+            uuids = (
+                await sess.execute(
+                    select(Session.uuid).where(Session.id.in_(session_pks))
+                )
+            ).scalars()
+            return cast(list[UUID], list(uuids))
+
+    @staticmethod
+    async def get_operation(operation_id: UUID) -> Operation | None:
+        return await db.get_by(Operation, uuid=operation_id)
+
+    @staticmethod
+    async def has_active_schedule_operation(schedule_pk: int) -> bool:
+        """True while an operation fired by the schedule is pending or running."""
+        async with db.session() as sess:
+            found = (
+                await sess.execute(
+                    select(Operation.id)
+                    .where(
+                        Operation.schedule_id == schedule_pk,
+                        Operation.status.in_(DatabaseService._ACTIVE_OPERATION),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        return found is not None
+
+    @staticmethod
+    async def list_operations(
+        *,
+        user_pk: int,
+        session_id: UUID | None = None,
+        schedule_pk: int | None = None,
+        kind: OperationType | None = None,
+        status: OperationStatus | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[Operation], int]:
+        """Operations on sessions owned by ``user_pk``, newest first."""
+        conditions = [Session.user_id == user_pk]
+        if session_id is not None:
+            conditions.append(Session.uuid == session_id)
+        if schedule_pk is not None:
+            conditions.append(Operation.schedule_id == schedule_pk)
+        if kind is not None:
+            conditions.append(Operation.kind == kind)
+        if status is not None:
+            conditions.append(Operation.status == status)
+
+        async with db.session() as sess:
+            total = (
+                await sess.execute(
+                    select(func.count(Operation.id))
+                    .join(Operation.session)
+                    .where(*conditions)
+                )
+            ).scalar_one()
+            items = (
+                (
+                    await sess.execute(
+                        select(Operation)
+                        .join(Operation.session)
+                        .where(*conditions)
+                        .order_by(Operation.created_at.desc(), Operation.id.desc())
+                        .offset(offset)
+                        .limit(limit)
+                    )
+                )
+                .scalars()
+                .unique()
+                .all()
+            )
+        return list(items), total
+
+    # --- Operation schedules ------------------------------------------------
+
+    @staticmethod
+    async def create_schedule(
+        user_pk: int,
+        name: str,
+        kind: OperationType,
+        cron: str,
+        params: dict[str, Any],
+        enabled: bool,
+        next_run_at: datetime,
+    ) -> OperationSchedule:
+        return await db.create(
+            OperationSchedule,
+            uuid=uuid4(),
+            user_id=user_pk,
+            name=name,
+            kind=kind,
+            cron=cron,
+            params=params,
+            enabled=enabled,
+            next_run_at=next_run_at,
+        )
+
+    @staticmethod
+    async def get_schedule(schedule_id: UUID) -> OperationSchedule | None:
+        return await db.get_by(OperationSchedule, uuid=schedule_id)
+
+    @staticmethod
+    async def list_schedules(
+        user_pk: int, offset: int, limit: int, kind: OperationType | None = None
+    ) -> tuple[list[OperationSchedule], int]:
+        """The user's schedules, newest first."""
+        return await db.query(
+            OperationSchedule,
+            order_by="created_at",
+            order_desc=True,
+            offset=offset,
+            limit=limit,
+            user_id=user_pk,
+            kind=kind,
+        )
+
+    @staticmethod
+    async def update_schedule(schedule_pk: int, values: dict[str, Any]) -> None:
+        async with db.transaction() as sess:
+            _ = await sess.execute(
+                update(OperationSchedule)
+                .where(OperationSchedule.id == schedule_pk)
+                .values(**values)
+            )
+
+    @staticmethod
+    async def delete_schedule(schedule_pk: int) -> None:
+        async with db.transaction() as sess:
+            _ = await sess.execute(
+                delete(OperationSchedule).where(OperationSchedule.id == schedule_pk)
+            )
+
+    @staticmethod
+    async def list_due_schedules(now: datetime) -> list[OperationSchedule]:
+        async with db.session() as sess:
+            result = await sess.execute(
+                select(OperationSchedule).where(
+                    OperationSchedule.enabled.is_(True),
+                    OperationSchedule.next_run_at <= now,
+                )
+            )
+            return list(result.scalars().all())
+
+    @staticmethod
+    async def advance_schedule(
+        schedule: OperationSchedule, next_run_at: datetime, now: datetime
+    ) -> bool:
+        """Move ``next_run_at`` on with a CAS; True only for the one winner.
+
+        Guarding on the previously read ``next_run_at`` makes each fire time
+        materialize exactly once, even across replicas. Guarding on
+        ``enabled`` and ``updated_at`` too means a schedule disabled or edited
+        since it was read is not fired from that stale snapshot; the next
+        poll reconsiders it.
+        """
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(OperationSchedule)
+                .where(
+                    OperationSchedule.id == schedule.id,
+                    OperationSchedule.next_run_at == schedule.next_run_at,
+                    OperationSchedule.enabled.is_(True),
+                    OperationSchedule.updated_at == schedule.updated_at,
+                )
+                .values(next_run_at=next_run_at, last_run_at=now)
+            )
+        return cast(CursorResult[Any], res).rowcount == 1

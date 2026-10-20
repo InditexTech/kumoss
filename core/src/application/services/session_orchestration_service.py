@@ -17,15 +17,14 @@ from src.shared.constants import OperationType
 
 
 class SessionOrchestrationService:
-    """Resolves an incoming request into an in-flight SessionContext.
+    """Resolves an incoming request into a SessionContext; creates the
+    session on a first call."""
 
-    Caller MUST pair `resolve(...)` with `release(session_id)` in a
-    try/finally to clear the in_flight flag.
-    """
-
-    def __new_branch_name(self) -> str:
+    def __new_branch_name(self, session_id: UUID) -> str:
+        # The session id suffix keeps sessions created in the same second
+        # (e.g. schedules sharing a cron) off each other's branch.
         ts = datetime.now(timezone.utc).strftime("%Y-%m-%d_%H%M%S")
-        return f"Kumoss/{ts}"
+        return f"Kumoss/{ts}_{session_id.hex[:8]}"
 
     async def resolve(
         self,
@@ -56,7 +55,7 @@ class SessionOrchestrationService:
             repo_uri=request.repo_uri,
             terraform_prv=request.terraform_providers,
             scope_id=request.scope_id,
-            branch_name=self.__new_branch_name(),
+            branch_name=self.__new_branch_name(sid),
             query=request.q,
             iac_path=request.iac_path,
         )
@@ -64,9 +63,3 @@ class SessionOrchestrationService:
 
     async def _load(self, request: BaseIacRequest | SessionRequest) -> SessionContext:
         return await DatabaseService.get_session_context(request.session_id)
-
-    async def acquire(self, session_id: UUID) -> None:
-        _ = await DatabaseService.acquire_in_flight(session_id)
-
-    async def release(self, session_id: UUID) -> None:
-        _ = await DatabaseService.release_in_flight(session_id)
