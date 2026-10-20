@@ -21,3 +21,5 @@ body: |
     only when the user asks for a hard rule.
   - The cluster must have at least as many hosts as virtual
     machines in the rule.
+  - Forces replacement: `compute_cluster_id`, `name` — never change
+    these on an existing rule without an explicit request.

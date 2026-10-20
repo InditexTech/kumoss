@@ -8,22 +8,37 @@ body: |
 
   When the user's request mentions one of these resources, select the
   matching template. The name on the left is the literal prompt name
-  in this Phoenix repository.
+  in this Phoenix repository. Select every template the request
+  touches: an instance pool also needs `instance_configuration`, a
+  private subnet also needs `route_table` and `service_gateway`, and
+  a dynamic group usually needs an `iam_policy`.
 
   - `autonomous_database` — Autonomous Database (ATP or ADW).
+  - `bastion` — OCI Bastion service for managed SSH and port-forwarding sessions.
   - `block_volume` — Block Volume with backup policy.
+  - `certificate` — OCI Certificates private CA and TLS certificate with renewal.
+  - `compartment` — Compartment under an application parent compartment.
   - `compute_instance` — Compute instance with boot volume and networking.
-  - `dns_zone` — DNS zone and records.
+  - `container_repository` — OCI Container Registry (OCIR) repository.
+  - `dns_zone` — DNS zone and record sets.
+  - `drg` — Dynamic Routing Gateway with VCN attachments and DRG route tables.
+  - `dynamic_group` — Dynamic group with matching rules for instance or resource principals.
   - `file_storage` — File Storage with mount target and export.
   - `functions` — OCI Functions application and function.
   - `iam_policy` — IAM policy with compartment-scoped statements.
+  - `instance_configuration` — Instance configuration (launch template) for instance pools.
+  - `instance_pool` — Instance pool with load balancer attachment and autoscaling configuration.
   - `internet_gateway` — Internet Gateway attached to a VCN.
   - `load_balancer` — Flexible or network load balancer.
+  - `logging` — Log group and service logs (VCN flow logs, load balancer, Object Storage).
+  - `mysql_db_system` — HeatWave MySQL DB system.
   - `nat_gateway` — NAT Gateway for private subnet outbound access.
   - `network_security_group` — Network Security Group with rules.
   - `object_storage` — Object Storage bucket with encryption and versioning.
   - `oke_cluster` — OKE (Kubernetes) cluster.
+  - `route_table` — Route table for public or private subnet tiers.
   - `security_list` — Security List with ingress and egress rules.
+  - `service_gateway` — Service Gateway to the Oracle Services Network.
   - `subnet` — Subnet within a VCN.
   - `vault` — OCI Vault with master encryption key.
   - `vcn` — Virtual Cloud Network with DNS.

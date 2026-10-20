@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Certificates service default configuration (private CA, issued certificates, renewal).
+body: |
+  # OCI Certificates
+
+  For OCI Certificates resources, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Certificate authority
+  - Naming convention: `ca-<application>-<environment>`.
+  - Use `oci_certificates_management_certificate_authority` only for
+    private (internal) TLS. Its `kms_key_id` must be an
+    HSM-protected asymmetric key (RSA or ECDSA) in an OCI Vault.
+  - `certificate_authority_config` with `config_type =
+    "ROOT_CA_GENERATED_INTERNALLY"` (or a subordinate CA on
+    request), a `subject` with the organization's common name, and
+    a validity of several years.
+  - `certificate_authority_rules` with an issuance-expiry rule that
+    caps leaf certificates at 90 days.
+  - The service needs a dynamic group matching
+    `resource.type = 'certificateauthority'` in the compartment and
+    a policy letting it use the key and manage objects there.
+  - Add `lifecycle { prevent_destroy = true }` for production.
+
+  ## Certificate
+  - Naming convention: `cert-<application>-<environment>`.
+  - `oci_certificates_management_certificate` with
+    `certificate_config { config_type = "ISSUED_BY_INTERNAL_CA" }`,
+    the issuing CA, `certificate_profile_type =
+    "TLS_SERVER_OR_CLIENT"`, the DNS names as
+    `subject_alternative_names`, and an ECDSA P-256 or RSA 2048 key.
+  - Rotation: a `certificate_rules` renewal rule that renews 30 days
+    before expiry; consumers referencing the certificate OCID (e.g.
+    the load balancer listener `ssl_configuration.certificate_ids`)
+    pick up new versions without Terraform changes.
+  - Publicly trusted certificates cannot be issued by the service;
+    import them (`config_type = "IMPORTED"`) only on request, and
+    state that the private key lands in Terraform state. Never pass
+    the private key as a literal or variable default.

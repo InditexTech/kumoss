@@ -9,7 +9,10 @@ body: |
   For a Role, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<purpose>-role`.
+  - Resource type: `kubernetes_role_v1`.
+  - Naming convention: `<app>-<purpose>-role`. Set
+    `metadata.name`, never `generate_name` (provider 3.4+ rejects
+    both together).
   - Use Role for namespace-scoped permissions — prefer this over
     ClusterRole for application workloads.
   - Define `rule` blocks with the narrowest set of `api_groups`,
@@ -18,10 +21,11 @@ body: |
   - Use `resource_names` to restrict access to specific named
     resources when possible.
   - When granting access to subresources, specify them explicitly
-    (e.g., `pods/log`, `pods/status`, `deployments/scale`).
+    (e.g., `pods/log`, `pods/status`, `deployments/scale`). Never
+    grant `pods/exec` or `pods/attach` to application workloads.
   - Common patterns:
-    - Read ConfigMaps/Secrets: `verbs = ["get", "list", "watch"]`.
+    - Read ConfigMaps/Secrets: `verbs = ["get", "list", "watch"]`,
+      narrowed with `resource_names` for Secrets.
     - Manage Deployments: `verbs = ["get", "list", "create", "update", "patch"]`.
     - Read-only access: `verbs = ["get", "list", "watch"]`.
-  - Pair with a `kubernetes_role_binding` to bind to subjects.
-  - Apply standard labels for identification.
+  - Pair with a `kubernetes_role_binding_v1` to bind to subjects.

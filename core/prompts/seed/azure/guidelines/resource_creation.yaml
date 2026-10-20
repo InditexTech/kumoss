@@ -14,7 +14,7 @@ body: |
     required_providers {
       azurerm = {
         source  = "hashicorp/azurerm"
-        version = "~> 3.0"
+        version = "~> 5.0"
       }
     }
   }
@@ -24,21 +24,100 @@ body: |
   }
   ```
 
+  - Never set `subscription_id`, `tenant_id`, `client_id`,
+    `client_secret`, `client_certificate`, `client_certificate_path`,
+    `client_certificate_password`, `use_msi`, `use_oidc`,
+    `use_cli`, `oidc_token`, or any other credential or identity
+    argument in the provider block, and never add a subscription or
+    tenant variable for them. The IaC engine supplies credentials
+    from its `ARM_*` environment variables and injects the request's
+    subscription as `ARM_SUBSCRIPTION_ID`, which satisfies the
+    provider's mandatory subscription setting.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
+  - When a value needs the subscription ID, tenant ID, or the
+    deploying principal's object ID (Key Vault role assignments,
+    scopes), read it from `data "azurerm_client_config" "current"
+    {}` or `data "azurerm_subscription" "current" {}`.
+  - Keep `features {}` free of flags that weaken deletion safety:
+    never set `resource_group { prevent_deletion_if_contains_resources
+    = false }`, and never add `key_vault`, `cognitive_account`, or
+    other feature flags that purge soft-deleted items on destroy or
+    skip their recovery.
+  - Leave resource provider registration at the provider default
+    (`resource_provider_registrations` is `none` in 5.x, and
+    `skip_provider_registration` no longer exists). When the
+    configuration needs a resource provider that may not be
+    registered in the subscription, say so in the summary.
+  - A workspace that already pins an older `azurerm` major stays on
+    it (see the general Terraform guidelines): use that version's
+    argument names and resources, and skip the 5.x rules below that
+    it does not support.
+  - Use provider 5.x argument names: boolean flags end in
+    `_enabled` (`auto_scaling_enabled`, `rbac_authorization_enabled`,
+    `https_traffic_only_enabled`, `local_authentication_enabled`),
+    never the removed `enable_*` or `*_disabled` forms. The legacy
+    `azurerm_app_service*`, `azurerm_function_app*`, and single-server
+    `azurerm_postgresql_*` resources are removed; use
+    `azurerm_service_plan`, `azurerm_linux_web_app`,
+    `azurerm_function_app_flex_consumption`, and
+    `azurerm_postgresql_flexible_server`.
+
   ## Resource groups
   - Every Azure resource belongs to a resource group.
   - One resource group per logical unit (environment, application).
-  - Region is declared on the resource group; resources inherit it
-    where the provider allows.
+  - Resources do not inherit the resource group's region: set
+    `location` on every resource that takes one, referencing the
+    resource group (`location = azurerm_resource_group.<x>.location`).
+    Never hardcode a region string on individual resources.
 
   ## Tagging
-  Every resource that supports `tags` carries at minimum:
-  - `environment` — `dev`, `staging`, or `prod`.
-  - `owner` — team or individual responsible.
-  - `managed_by` — set to `terraform`.
+  Apply the standard tags (`local.standard_tags`, defined in
+  `standard_tags.tf` as the general Terraform guidelines describe;
+  organizations may add keys, so never hardcode the key list) to
+  every resource that supports `tags`: `tags =
+  merge(local.standard_tags, {...})` with any resource-specific tags.
+  Resource templates do not repeat this rule.
+  Many child and link resources do not support tags (subnets, NSG
+  rules, subnet associations, role assignments, diagnostic settings,
+  load balancer pools, probes and rules, Service Bus queues and
+  topics, cognitive deployments, federated identity credentials,
+  disk attachments); never add a `tags` argument to them.
 
-  ## Locations
-  - Default to a single primary region per environment.
+  ## Regions and zones
+  - Default to a single primary region per environment, taken from
+    the workspace when it already declares one.
   - Use the long form (`westeurope`, not `weu`) in Terraform.
+  - Keep data in the region the request or the workspace names;
+    never move it to another region or geography as a side effect.
+  - Not every region has availability zones, and not every SKU is
+    zonal or zone-redundant in every region. Set `zones = ["1", "2",
+    "3"]` (or a single `zone`) only in regions that support them,
+    and state that assumption in the summary. Never assume zonal
+    support for every SKU; omit zone arguments in regions without
+    zones.
+  - Keep zone choices consistent across dependent zonal resources:
+    a VM, its managed disks, and a zonal public IP or NAT Gateway
+    serving its subnet share the same zone.
+
+  ## Deletion safeguards
+  - Keep the protective defaults: Key Vault purge protection and
+    soft delete, storage blob and container soft delete and
+    versioning, Cosmos DB continuous backup, PostgreSQL backups, and
+    the provider's `prevent_deletion_if_contains_resources`.
+  - Add `lifecycle { prevent_destroy = true }` to stateful
+    production resources (storage accounts, databases, Cosmos DB
+    accounts, Key Vaults, managed data disks, Redis caches, Service
+    Bus Premium namespaces).
+  - Never retrofit a replacement-forcing setting onto an existing
+    resource without an explicit request. When a plan replaces a
+    resource, state the replacement explicitly in the summary, with
+    its data-loss and downtime impact.
+  - `name`, `location`, and `resource_group_name` force replacement
+    on almost every resource; renaming or moving a resource group
+    replaces everything in it. Each resource template lists the
+    other arguments that force its replacement.
 
   Replace this body with your organization's authoritative Azure
   resource-creation standards.

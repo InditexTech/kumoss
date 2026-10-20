@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes ResourceQuota default configuration (namespace CPU, memory, storage and object caps).
+body: |
+  # Kubernetes ResourceQuota
+
+  For a ResourceQuota, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Resource type: `kubernetes_resource_quota_v1`.
+  - Naming convention: `<app>-<purpose>-quota`.
+  - Create one when creating a new namespace, or when requested.
+    Adding or tightening a quota on an existing namespace can block
+    new pods (including rollouts and autoscaling) once usage is at
+    the cap — treat it as high impact and size it above current
+    usage.
+  - Set `spec { hard = { ... } }` with:
+    - `requests.cpu`, `requests.memory`, `limits.cpu`,
+      `limits.memory` — sized from the expected workloads.
+    - `requests.storage` and `persistentvolumeclaims` when the
+      namespace uses persistent storage.
+    - Object counts such as `pods`, `services.loadbalancers` and
+      `services.nodeports` to stop accidental cost or exposure.
+  - Once a quota covers CPU or memory, every container must declare
+    requests and limits or its pods are rejected — pair the quota
+    with a `kubernetes_limit_range_v1` providing defaults.
+  - Use `scopes` or `scope_selector` (e.g., by priority class) only
+    when requested.

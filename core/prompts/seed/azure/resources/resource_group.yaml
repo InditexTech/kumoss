@@ -11,10 +11,14 @@ body: |
 
   - Naming convention: `rg-<application>-<environment>`.
   - Location should match the primary deployment region.
-  - Apply standard tags: environment, owner, and managed_by.
   - A resource group is the foundational container — every module
     should begin with one.
-  - All child resources inherit their location from the resource
-    group; do not hardcode regions on individual resources.
+  - Child resources do not inherit the resource group's location:
+    set `location = azurerm_resource_group.<x>.location` on every
+    resource that takes one, and never hardcode regions on
+    individual resources.
+  - Changing the name or location of a resource group forces its
+    replacement together with everything in it; never change them
+    without an explicit request, and call it out in the summary.
   - One resource group per application per environment, unless the
     user explicitly requests a shared resource group.

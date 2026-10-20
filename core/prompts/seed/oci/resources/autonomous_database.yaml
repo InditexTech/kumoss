@@ -10,42 +10,74 @@ body: |
   use the following default configuration:
 
   ## Type selection
-  - Default to Autonomous Transaction Processing (ATP) for OLTP
-    workloads.
-  - Use Autonomous Data Warehouse (ADW) when the user explicitly
-    requests analytics or data warehousing.
+  - Default to Autonomous Transaction Processing (`db_workload =
+    "OLTP"`) for OLTP workloads.
+  - Use Autonomous Data Warehouse (`db_workload = "DW"`) when the
+    user explicitly requests analytics or data warehousing.
   - Use Serverless deployment for variable workloads. Use Dedicated
     infrastructure only when the user requires full isolation.
 
   ## General
-  - Naming convention: `adb-<application>-<environment>`.
-  - Display name should be descriptive and include the application
-    and environment.
-  - OCPU count set to 1 for non-production, scaled per user
-    request for production.
-  - Storage size set to 1 TB for non-production. Scale per user
-    request for production.
-  - Auto-scaling must be enabled for production databases.
+  - Naming convention: `adb-<application>-<environment>`. `db_name`
+    is letters and digits only, starts with a letter, and cannot
+    change after creation.
+  - Compute model: `compute_model = "ECPU"` with `compute_count = 2`
+    (the minimum) for non-production, scaled per user request for
+    production. Do not use the legacy OCPU model for new databases.
+  - Storage: keep ATP small (e.g. `data_storage_size_in_gb = 20`,
+    near the service minimum). ADW needs more (around 1 TB is the
+    usual minimum); size per request. Minimums vary by model, so
+    honour the service's lower bound.
+  - `is_auto_scaling_enabled = true` (and storage auto-scaling) for
+    production databases; keep both `false` for non-production.
   - License model set to LICENSE_INCLUDED unless the user has
     existing Oracle licenses (BRING_YOUR_OWN_LICENSE).
 
   ## Networking
-  - Private endpoint access only — set
-    `is_mtls_connection_required = true`.
-  - Deploy into a private subnet with an NSG controlling access.
-  - Whitelisted IPs should reference application subnet CIDRs,
-    not 0.0.0.0/0.
-  - Never allow public access to production databases.
+  - Private endpoint: set `subnet_id` (a private subnet), `nsg_ids`
+    allowing 1521/1522 only from the application tier, and
+    `private_endpoint_label`. This, not mTLS, is what makes the
+    database private.
+  - Do not set `whitelisted_ips`; access control lists only apply to
+    public endpoints. Never allow public access to production
+    databases.
+  - `is_mtls_connection_required` is a separate choice: keep `true`
+    (wallet-based mTLS) unless the user asks for TLS without a
+    wallet on a private endpoint.
 
   ## Security
-  - Admin password must be stored in OCI Vault or passed via a
-    sensitive Terraform variable — never hardcoded.
-  - Encryption uses Oracle-managed keys by default. Use a
-    customer-managed key (OCI Vault) when requested.
+  - Admin password: never a required variable without a value and
+    never hardcoded. Reference an OCI Vault secret (`secret_id`,
+    `secret_version_number`), or generate one with
+    `random_password` (12-30 characters, upper, lower and digits, no
+    `"`), store it in a Vault secret, and mark any output
+    `sensitive = true`. Generated values land in state.
+  - Encryption uses Oracle-managed keys by default. For a
+    customer-managed key (`kms_key_id`, `vault_id`), create a dynamic
+    group matching the database (`resource.type =
+    'autonomousdatabase'`, its compartment) and grant it
+    `use keys` and `read vaults` on the vault compartment; changing
+    keys later re-encrypts the database (high impact).
 
   ## Backups
   - Automatic backups are enabled by default — do not disable them.
-  - Retention period: 60 days for production, 30 days for
-    non-production.
+  - Retention (`backup_retention_period_in_days`): 60 days for
+    production, 30 days for non-production.
   - Add a lifecycle block with prevent_destroy for production.
-  - Apply freeform tags: Name.
+    `db_name` cannot change after creation: changing it replaces
+    the database, so never edit it on an existing database without
+    an explicit request.
+
+  ## Non-production stop schedule
+  - Non-production Serverless databases stop outside working hours
+    with the built-in `scheduled_operations` blocks, one per day:
+    `day_of_week { name = "MONDAY" }` with `scheduled_start_time =
+    "07:00"` and `scheduled_stop_time = "19:00"` ("HH:mm"; the
+    service evaluates them in UTC, so convert local hours). Days
+    without a block are left running or stopped as they are.
+  - Alternatively, use an `oci_resource_scheduler_schedule` with
+    `STOP_RESOURCE` / `START_RESOURCE` actions on the database OCID,
+    as described in `compute_instance`; verify that the Resource
+    Scheduler supports the database type in the region.
+  - A stopped database bills storage only; scheduling never applies
+    to production databases without an explicit request.

@@ -8,24 +8,42 @@ body: |
 
   When the user's request mentions one of these resources, select the
   matching template. The name on the left is the literal prompt name
-  in this Phoenix repository.
+  in this Phoenix repository. Select every template the request
+  touches: a PaaS service reached privately also needs
+  `private_endpoint` and `private_dns_zone`, and a scale set also
+  needs `load_balancer` when it serves traffic.
 
-  - `resource_group` — Azure resource group.
-  - `virtual_network` — Virtual network (VNet) with subnets.
-  - `subnet` — Standalone subnet (when not declared inline on a VNet).
-  - `storage_account` — Storage account (blob, file, queue, table).
-  - `key_vault` — Key Vault for secrets, keys, and certificates.
-  - `network_security_group` — NSG with inbound and outbound rules.
-  - `virtual_machine` — Virtual machine with managed disks, identity, and networking.
-  - `webapp` — Web App (App Service) with plan, networking, and TLS.
-  - `function` — Function App (Flex Consumption) with networking and monitoring.
-  - `container_app` — Container Apps environment with scaling and ingress.
-  - `postgres_flexible_server` — PostgreSQL Flexible Server with HA, networking, and backups.
-  - `cosmosdb` — Cosmos DB account with consistency, networking, and backup settings.
-  - `redis_managed` — Managed Redis cache with TLS and persistence.
-  - `nat_gateway` — NAT Gateway for private outbound internet access.
+  - `aks_cluster` — Azure Kubernetes Service (AKS) cluster with node pools.
+  - `application_gateway` — Application Gateway (WAF_v2) for HTTP(S) ingress.
   - `application_insights` — Application Insights (workspace-based) for monitoring and telemetry.
   - `azure_openai` — Azure OpenAI Service with networking, identity, and deployments.
+  - `bastion` — Azure Bastion host for private RDP/SSH access.
+  - `container_app` — Container Apps environment with scaling and ingress.
+  - `container_registry` — Azure Container Registry (ACR).
+  - `cosmosdb` — Cosmos DB account with consistency, networking, and backup settings.
+  - `diagnostic_setting` — Azure Monitor diagnostic setting sending logs and metrics to Log Analytics.
+  - `function` — Function App (Flex Consumption) with networking and monitoring.
+  - `key_vault` — Key Vault for secrets, keys, and certificates.
+  - `load_balancer` — Standard Load Balancer (internal or public) with probes and rules.
+  - `log_analytics_workspace` — Log Analytics workspace.
+  - `managed_disk` — Managed data disk and its VM attachment.
+  - `nat_gateway` — NAT Gateway for private outbound internet access.
+  - `network_security_group` — NSG with inbound and outbound rules.
+  - `postgres_flexible_server` — PostgreSQL Flexible Server with HA, networking, and backups.
+  - `private_dns_zone` — Private DNS zone (privatelink zones) with VNet links.
+  - `private_endpoint` — Private endpoint for a PaaS resource with DNS registration.
+  - `public_ip` — Standard public IP address.
+  - `redis_managed` — Azure Managed Redis cache (Entra auth, private endpoint).
+  - `resource_group` — Azure resource group.
+  - `role_assignment` — Azure RBAC role assignment.
+  - `service_bus` — Service Bus namespace with queues, topics, and subscriptions.
+  - `storage_account` — Storage account (blob, file, queue, table).
+  - `subnet` — Subnet (always a standalone resource) with NSG and NAT associations.
+  - `user_assigned_identity` — User-assigned managed identity with federated credentials.
+  - `virtual_machine` — Single virtual machine with managed disks, identity, and networking.
+  - `virtual_network` — Virtual network (VNet).
+  - `vm_scale_set` — Virtual Machine Scale Set (Flexible orchestration) with autoscale.
+  - `webapp` — Web App (App Service) with plan, networking, and TLS.
 
   This list is the source of truth. Adding a new
   `core/prompts/seed/azure/resources/<name>.yaml` requires adding the

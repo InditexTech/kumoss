@@ -10,6 +10,13 @@ body: |
   the following default configuration:
 
   - Naming convention: `bv-<purpose>-<application>-<environment>`.
+  - Placement: a block volume lives in one availability domain and
+    can only attach to instances in that AD. Set
+    `availability_domain` to the consuming instance's AD
+    (`oci_core_instance.<name>.availability_domain`) or an entry of
+    `data "oci_identity_availability_domains"`, never a hardcoded
+    name. It is immutable: changing it replaces the volume and
+    loses its data.
   - Size defaults to 50 GB. Increase based on workload
     requirements. Minimum 50 GB, maximum 32 TB.
   - VPUs (Volume Performance Units) per GB:
@@ -20,7 +27,10 @@ body: |
     - 30-120 VPUs (Ultra High Performance) only when explicitly
       requested.
   - Encryption uses Oracle-managed keys by default. Use a
-    customer-managed key (OCI Vault) when requested.
+    customer-managed key (`kms_key_id`, OCI Vault) when requested,
+    with the service policy (home region):
+    `Allow service blockstorage to use keys in compartment <cmp>
+    where target.key.id = '<key_ocid>'`.
   - In-transit encryption must be enabled for the volume
     attachment.
   - Attachment type: paravirtualized for general use. Use iSCSI
@@ -33,4 +43,3 @@ body: |
   - Cross-region replication should be enabled for disaster
     recovery on critical volumes when requested.
   - Add a lifecycle block with prevent_destroy for production.
-  - Apply freeform tags: Name.

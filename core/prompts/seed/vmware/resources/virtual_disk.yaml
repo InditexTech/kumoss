@@ -11,15 +11,27 @@ body: |
 
   - Naming convention: `vdisk-<application>-<environment>-<purpose>`;
     the `vmdk_path` is `<application>/<name>.vmdk`.
-  - Prefer an additional `disk` block on the virtual machine (with
-    `attach = false`) over a standalone disk; use a standalone disk
+  - Prefer an additional `disk` block on the virtual machine (with a
+    unique `label`) over a standalone disk; use a standalone disk
     only when it must outlive the virtual machine.
+  - The virtual machine attaches it with a `disk` block that sets
+    `attach = true`, `path` to the disk's `vmdk_path` and
+    `datastore_id`. A VM with an attached disk must use
+    `datastore_id`, not `datastore_cluster_id`: Storage DRS cannot
+    manage attached disks.
   - `type = "thin"`. Use `eagerZeroedThick` only when the user
     explicitly requests it (for example clustered workloads).
   - Set `create_directories = true` so the folder exists on the
     datastore.
   - Look up `datacenter` and `datastore` names from the same data
     sources the virtual machine uses.
-  - Size the disk to the user's request; default to 50 GB.
+  - Size the disk to the user's request (`size` in GB); default to
+    50. Disks can grow but never shrink; never reduce `size`.
+  - Changes to `datastore`, `datacenter` or `type`, or a `size`
+    reduction, replace the disk, destroying its data; treat a
+    `vmdk_path` change the same way unless the plan shows an
+    in-place update. Never make these
+    changes unless the user asked for the replacement, and call it
+    out in the summary.
   - Add `lifecycle { prevent_destroy = true }` for any disk holding
     production data.

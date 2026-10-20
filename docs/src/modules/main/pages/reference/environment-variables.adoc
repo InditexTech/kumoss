@@ -320,9 +320,10 @@ exception to "does not interpret": it launches no engine and instead
 reads the same `ARM_*`, `GOOGLE_*`, and `AWS_*` credential variables
 itself through the clouds' auth libraries to query Azure Resource
 Graph, GCP Cloud Asset Inventory, or AWS Resource Explorer. Two extra
-requirements apply to it only: on AWS `AWS_REGION` or
-`AWS_DEFAULT_REGION` must be set and Resource Explorer must be enabled
-for the account; on GCP the
+requirements apply to it only: on AWS Resource Explorer must be enabled
+for the account (`AWS_REGION` or `AWS_DEFAULT_REGION` is required on
+AWS anyway, by the account check before every engine command); on GCP
+the
 `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com`
 APIs must be enabled. The core does not call this endpoint today. See
 xref:main:reference/api/iac.adoc#import-discovery[Import discovery] in

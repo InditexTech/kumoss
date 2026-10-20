@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS KMS customer-managed key default configuration (key policy, rotation, alias, deletion window).
+body: |
+  # AWS KMS Key
+
+  For a KMS customer-managed key, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Create a customer-managed key only when the request needs one
+    (cross-account access, key-policy control, or compliance);
+    otherwise AWS managed keys are acceptable. Each key costs a
+    monthly fee plus API requests.
+  - One key per application and data classification, not per
+    resource. Reference it through an `aws_kms_alias` named
+    `alias/kms-<application>-<purpose>-<environment>`.
+  - Symmetric encryption key (`key_usage = "ENCRYPT_DECRYPT"`,
+    `customer_master_key_spec = "SYMMETRIC_DEFAULT"`). Both
+    arguments, and `multi_region`, force replacement; set
+    `multi_region = true` only on request.
+  - `enable_key_rotation = true`.
+  - `deletion_window_in_days = 30`, so a key scheduled for deletion
+    can be recovered. Removing a key from the code schedules its
+    deletion and makes every resource encrypted with it unreadable
+    once the window ends.
+  - Write an explicit `policy` with `aws_iam_policy_document`:
+    - the account root (`arn:aws:iam::<account-id>:root`, from
+      `aws_caller_identity`) with `kms:*`, so IAM policies can
+      delegate access and the key cannot become unmanageable;
+    - key administrators (a named role) for management actions only;
+    - key users (workload roles) for `kms:Encrypt`, `kms:Decrypt`,
+      `kms:ReEncrypt*`, `kms:GenerateDataKey*`, `kms:DescribeKey`;
+    - AWS service principals (e.g. `logs.<region>.amazonaws.com`)
+      only when that service must use the key directly, with
+      `aws:SourceAccount` or encryption-context conditions.
+  - Never set `bypass_policy_lockout_safety_check = true`.
+  - Use `kms:ViaService` conditions to restrict key users to the
+    services that need the key when the request allows it.
+  - Aliases take no tags.

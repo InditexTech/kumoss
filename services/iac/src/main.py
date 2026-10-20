@@ -232,6 +232,22 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
 
 
+async def _scoped(
+    discovery: ScopeDiscovery,
+    terraform_provider: str,
+    scope_id: str,
+    command: Callable[[], Awaitable[CommandResult]],
+) -> CommandResult:
+    """Run ``command`` only when the ambient credentials can serve
+    ``scope_id``; otherwise end it as a failed command, the same plane
+    as an engine failure, without starting the engine."""
+    try:
+        await discovery.verify_scope(terraform_provider, scope_id)
+    except DiscoveryError as exc:
+        return CommandResult(ok=False, stdout="", stderr=str(exc), exit_code=1)
+    return await command()
+
+
 async def _scope_resource_ids(
     discovery: ScopeDiscovery, terraform_provider: str, scope_id: str
 ) -> OperationResult:
@@ -259,6 +275,7 @@ async def init(
     body: InitRequest,
     workspace: Workspace,
     engine: Engine,
+    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -266,7 +283,12 @@ async def init(
         "init",
         workspace,
         response,
-        lambda: engine.init(workspace, env),
+        lambda: _scoped(
+            discovery,
+            body.terraform_provider,
+            body.scope_id,
+            lambda: engine.init(workspace, env),
+        ),
     )
 
 
@@ -302,6 +324,7 @@ async def plan(
     body: PlanRequest,
     workspace: Workspace,
     engine: Engine,
+    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -309,7 +332,12 @@ async def plan(
         "plan",
         workspace,
         response,
-        lambda: engine.plan(workspace, body.targets, body.plan_file, env),
+        lambda: _scoped(
+            discovery,
+            body.terraform_provider,
+            body.scope_id,
+            lambda: engine.plan(workspace, body.targets, body.plan_file, env),
+        ),
     )
 
 
@@ -345,6 +373,7 @@ async def apply(
     body: ApplyRequest,
     workspace: Workspace,
     engine: Engine,
+    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -352,7 +381,12 @@ async def apply(
         "apply",
         workspace,
         response,
-        lambda: engine.apply(workspace, body.plan_file, env),
+        lambda: _scoped(
+            discovery,
+            body.terraform_provider,
+            body.scope_id,
+            lambda: engine.apply(workspace, body.plan_file, env),
+        ),
     )
 
 
@@ -367,6 +401,7 @@ async def import_resource(
     body: ImportRequest,
     workspace: Workspace,
     engine: Engine,
+    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
     env = engine.scope_env(body.terraform_provider, body.scope_id)
@@ -374,7 +409,14 @@ async def import_resource(
         "import",
         workspace,
         response,
-        lambda: engine.import_resource(workspace, body.address, body.resource_id, env),
+        lambda: _scoped(
+            discovery,
+            body.terraform_provider,
+            body.scope_id,
+            lambda: engine.import_resource(
+                workspace, body.address, body.resource_id, env
+            ),
+        ),
     )
 
 

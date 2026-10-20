@@ -14,20 +14,37 @@ body: |
   - Do NOT run containers as root (`run_as_user = 0`) or with
     `privileged = true` unless explicitly requested.
   - Do NOT set `host_network = true`, `host_pid = true`, or
-    `host_ipc = true` on pods.
+    `host_ipc = true` on pods (see the node-agent exception below).
   - Do NOT use `allow_privilege_escalation = true` in security
     contexts.
   - Do NOT mount the Docker socket or container runtime socket
     (`/var/run/docker.sock`, `/run/containerd/containerd.sock`)
     into containers.
   - Do NOT use `hostPath` volumes — they bypass namespace isolation
-    and expose the node filesystem to the pod. Use PVCs instead.
+    and expose the node filesystem to the pod. Use PVCs instead
+    (see the node-agent exception below).
   - Do NOT disable or set the seccomp profile to `Unconfined` —
-    use `RuntimeDefault` or a custom profile.
+    use `seccomp_profile { type = "RuntimeDefault" }` or a custom
+    profile.
   - Do NOT store secrets as plain-text ConfigMap values — use
-    `kubernetes_secret` resources or external secrets operators.
+    `kubernetes_secret_v1` resources or an external secrets
+    operator already installed in the cluster.
   - Do NOT add `SYS_ADMIN`, `NET_RAW`, or `ALL` capabilities
     unless explicitly requested with security justification.
+
+  ### Node-agent exception
+  `hostPath` volumes and `host_network = true` are allowed ONLY
+  when all of these hold:
+  - The user explicitly requested a node agent (log collector,
+    monitoring agent, CNI or storage plugin) deployed as a
+    `kubernetes_daemon_set_v1`.
+  - It runs in a dedicated namespace whose Pod Security Admission
+    `enforce` label is `privileged`, holding nothing but that
+    agent. Never relax PSA on an application namespace.
+  - `hostPath` mounts are limited to the paths the agent needs and
+    are `read_only = true` wherever the agent only reads.
+  The container runtime socket ban above still applies unless that
+  socket is the explicit purpose of the request.
 
   ## RBAC
   - Do NOT bind `cluster-admin` to application service accounts.
@@ -55,11 +72,31 @@ body: |
 
   ## Networking
   - Do NOT expose services externally without TLS termination.
-  - Do NOT create `NodePort` services with hardcoded port numbers
-    unless explicitly requested.
-  - Do NOT omit NetworkPolicies in production namespaces.
+  - Do NOT create `NodePort` services with hardcoded `node_port`
+    numbers unless explicitly requested; omit `node_port` so
+    Kubernetes allocates one.
+  - Do NOT create a new production namespace without NetworkPolicies.
+    Add NetworkPolicies to an existing namespace only when requested:
+    an unrequested default-deny (especially egress) breaks running
+    pods and is a high-impact change.
 
   ## Data
-  - Do NOT set `reclaim_policy = "Delete"` on PersistentVolumes
-    holding production data without explicit confirmation.
+  - Do NOT change `persistent_volume_reclaim_policy` on
+    PersistentVolumes, or `reclaim_policy` on StorageClasses, from
+    `Retain` to `Delete` without an explicit user request. New
+    StorageClasses for production data use `reclaim_policy =
+    "Retain"` (the Kubernetes default `Delete` is inherited by every
+    dynamically provisioned PersistentVolume).
+  - Do NOT change a StatefulSet's
+    `persistent_volume_claim_retention_policy` from `Retain` to
+    `Delete` without an explicit user request.
+  - Do NOT remove `lifecycle.prevent_destroy` from objects that
+    already have it.
+  - Do NOT generate changes that force replacement of a stateful
+    object (StatefulSets, PersistentVolumeClaims, PersistentVolumes,
+    Namespaces, StorageClasses backing production data) unless the
+    user explicitly asked for the replacement; see the Deletion
+    safeguards in the Resource Creation guidelines for the fields
+    that force it. Standalone deletions are always rejected by the
+    compliance check, even when requested.
   - Do NOT disable PersistentVolumeClaim protection finalizers.

@@ -1,0 +1,45 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS WAFv2 web ACL default configuration (AWS managed rule groups, rate-based rule, logging, association).
+body: |
+  # AWS WAF Web ACL
+
+  For an AWS WAF (WAFv2) web ACL, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `waf-<application>-<environment>`.
+  - `scope = "REGIONAL"` for ALB, API Gateway, AppSync, and
+    Cognito, created in the protected resource's region. Only for
+    CloudFront use `scope = "CLOUDFRONT"`, created in us-east-1
+    (provider alias or per-resource `region`). `name` and `scope`
+    force replacement.
+  - Required for an internet-facing Application Load Balancer in
+    production; for non-production only on request. WAFv2 cannot
+    be associated with Network Load Balancers.
+  - `default_action { allow {} }`, with blocking done by rules.
+  - Rules, each with its own `priority` and `visibility_config`:
+    - AWS managed rule groups through
+      `managed_rule_group_statement` with `vendor_name = "AWS"`:
+      `AWSManagedRulesCommonRuleSet`,
+      `AWSManagedRulesKnownBadInputsRuleSet`,
+      `AWSManagedRulesAmazonIpReputationList`, and
+      `AWSManagedRulesSQLiRuleSet` when there is a SQL backend;
+      `override_action { none {} }`. When adding them to a web ACL
+      that already serves production traffic, start with
+      `override_action { count {} }` and say so in the summary.
+    - A rate-based rule (`rate_based_statement`, `aggregate_key_type
+      = "IP"`, limit 2000 requests per 5 minutes unless the request
+      gives another) with `action { block {} }`.
+  - Paid rule groups (Bot Control, Account Takeover Prevention) only
+    on request.
+  - `visibility_config` with `cloudwatch_metrics_enabled = true` and
+    `sampled_requests_enabled = true` on the web ACL and every rule.
+  - Logging with `aws_wafv2_web_acl_logging_configuration` to a
+    CloudWatch log group whose name starts with `aws-waf-logs-`,
+    with retention; redact the `authorization` and `cookie` headers
+    (`redacted_fields`), and use a `logging_filter` to keep only
+    blocked and counted requests when log volume is a cost concern.
+  - Associate it with `aws_wafv2_web_acl_association` (regional
+    resources) or the distribution's `web_acl_id` (CloudFront).

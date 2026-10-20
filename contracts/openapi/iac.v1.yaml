@@ -61,25 +61,42 @@ info:
     where the operation acts on it.
 
     Generated provider blocks do not name a scope, so where a cloud
-    exposes a provider-level environment variable that names one, the
-    implementation injects `scope_id` into the engine's environment
-    for that command only, picking the variable from
-    `terraform_provider`:
+    has an environment variable that names one, the implementation
+    injects `scope_id` into the engine's environment for that command
+    only, picking the variable from `terraform_provider`:
 
-    | `terraform_provider` | Environment variable  | Scope it sets |
-    |----------------------|-----------------------|---------------|
-    | `azure`              | `ARM_SUBSCRIPTION_ID` | subscription  |
-    | `gcp`                | `GOOGLE_PROJECT`      | project       |
-    | `aws`                | none                  | —             |
-    | `oci`                | none                  | —             |
-    | `kubernetes`         | none                  | —             |
-    | `vmware`             | none                  | —             |
+    | `terraform_provider` | Environment variable       | Scope it sets |
+    |----------------------|----------------------------|---------------|
+    | `azure`              | `ARM_SUBSCRIPTION_ID`      | subscription  |
+    | `gcp`                | `GOOGLE_PROJECT`           | project       |
+    | `oci`                | `TF_VAR_compartment_ocid`  | compartment   |
+    | `aws`                | `TF_VAR_aws_account_id`    | account       |
+    | `kubernetes`         | none                       | —             |
+    | `vmware`             | none                       | —             |
 
-    Only Azure and GCP have such a variable. An AWS account is implicit
-    in the credentials the provider resolves, and an OCI compartment,
-    a Kubernetes namespace or a vSphere datacenter is a resource
-    argument rather than a provider setting — no environment variable
-    redirects a command to one. For those providers this implementation injects nothing: the
+    Azure and GCP read theirs as provider settings. The OCI and AWS
+    variables are input variables instead, which the engine ignores
+    when the generated code declares no such variable. An OCI
+    compartment is a resource argument, not a provider setting: the
+    variable fills the `compartment_ocid` variable the generated code
+    passes to its resources. An AWS account is implicit in the
+    credentials the provider resolves, so nothing can redirect a
+    command to one: the variable fills the `aws_account_id` variable
+    the generated code passes to the provider's `allowed_account_ids`,
+    which makes the provider refuse to run in any other account. For
+    AWS this implementation also checks before the engine starts:
+    before `init`, `plan`, `apply` and `import` it asks STS which
+    account its own credentials belong to and, when that is not
+    `scope_id`, ends the command with exit code 1 and the reason on
+    stderr, without starting the engine. That check requires
+    `AWS_REGION` (or `AWS_DEFAULT_REGION`) and a 12-digit `scope_id`.
+    It compares the service's ambient credentials, not any role the
+    generated code might assume, so one deployment of this
+    implementation serves exactly the AWS account its credentials
+    belong to; generated provider blocks never assume a role.
+    A Kubernetes namespace or a vSphere datacenter is a resource
+    argument the generated code names itself, so for those providers
+    this implementation injects nothing. A Kubernetes or vSphere
     command runs against whatever scope the deployment's ambient
     credentials and configuration select, and making those agree with
     `scope_id` is the deployment's responsibility. The pair stays
@@ -971,7 +988,7 @@ components:
             GCP: project id, AWS: account id, OCI: compartment OCID,
             VMware: vSphere datacenter name.
             Required: generated provider blocks do not carry a scope,
-            so where the cloud has a provider-level variable for one
+            so where the cloud has an environment variable for one
             the implementation injects it into the engine's
             environment for this command only (see "Scope injection").
           minLength: 1
@@ -1021,7 +1038,7 @@ components:
             GCP: project id, AWS: account id, OCI: compartment OCID,
             VMware: vSphere datacenter name.
             Required: generated provider blocks do not carry a scope,
-            so where the cloud has a provider-level variable for one
+            so where the cloud has an environment variable for one
             the implementation injects it into the engine's
             environment for this command only (see "Scope injection").
           minLength: 1
@@ -1099,7 +1116,7 @@ components:
             GCP: project id, AWS: account id, OCI: compartment OCID,
             VMware: vSphere datacenter name.
             Required: generated provider blocks do not carry a scope,
-            so where the cloud has a provider-level variable for one
+            so where the cloud has an environment variable for one
             the implementation injects it into the engine's
             environment for this command only (see "Scope injection").
           minLength: 1
@@ -1142,7 +1159,7 @@ components:
             GCP: project id, AWS: account id, OCI: compartment OCID,
             VMware: vSphere datacenter name.
             Required: generated provider blocks do not carry a scope,
-            so where the cloud has a provider-level variable for one
+            so where the cloud has an environment variable for one
             the implementation injects it into the engine's
             environment for this command only (see "Scope injection").
           minLength: 1

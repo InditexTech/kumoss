@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Container Registry (OCIR) repository default configuration (private, immutable, scanning, access).
+body: |
+  # OCI Container Registry Repository
+
+  For a container image repository, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Use `oci_artifacts_container_repository` in the application
+    compartment. `display_name` is the repository path, lowercase,
+    e.g. `<application>/<component>`; it is unique per tenancy
+    namespace and region, and changing it replaces the repository.
+  - `is_public = false`. Public repositories only on explicit
+    request.
+  - `is_immutable = true` for production, so tags cannot be
+    overwritten; deploy by digest or unique tag.
+  - Create repositories explicitly instead of relying on
+    create-on-first-push, which would place them in the root
+    compartment.
+  - Vulnerability scanning on request: an
+    `oci_vulnerability_scanning_container_scan_recipe` and
+    `oci_vulnerability_scanning_container_scan_target` pointing at
+    the repository compartment.
+  - Access: pull with `read repos` for the workload's dynamic group
+    or OKE workload identity; push with `manage repos` only for the
+    CI group, scoped to the compartment. Do not create auth tokens
+    for image pulls unless explicitly requested.
+  - Sign images with a Vault key and enforce signatures through the
+    OKE image verification policy for production.
+  - Add a `readme` describing the image and its owner.
+  - Repositories with images are stateful; add
+    `lifecycle { prevent_destroy = true }` for production.

@@ -20,16 +20,36 @@ body: |
   | NAT Gateway                    | natgw  |
   | Service Gateway                | sgw    |
   | Route Table                    | rt     |
+  | Dynamic Routing Gateway        | drg    |
+  | DRG Attachment                 | drgatt |
+  | DRG Route Table                | drgrt  |
   | Load Balancer                  | lb     |
+  | Network Load Balancer          | nlb    |
   | Compute Instance               | inst   |
+  | Instance Configuration         | ic     |
+  | Instance Pool                  | pool   |
+  | Autoscaling Configuration      | asc    |
   | Block Volume                   | bv     |
   | Object Storage Bucket          | bkt    |
   | File Storage                   | fss    |
+  | Mount Target                   | mt     |
   | Autonomous Database            | adb    |
+  | MySQL DB System                | mysql  |
   | OKE Cluster                    | oke    |
+  | OKE Node Pool                  | np     |
   | Vault                          | vlt    |
+  | Vault Key                      | key    |
+  | Vault Secret                   | secret |
+  | Certificate Authority          | ca     |
+  | Certificate                    | cert   |
   | Functions Application          | fnapp  |
+  | Function                       | fn     |
+  | Container Repository (OCIR)    | ocir   |
   | DNS Zone                       | dns    |
+  | IAM Policy                     | pol    |
   | Dynamic Group                  | dg     |
+  | Log Group                      | lg     |
+  | Log                            | log    |
+  | Bastion                        | bst    |
 
   Replace this list with your organization's naming standard.

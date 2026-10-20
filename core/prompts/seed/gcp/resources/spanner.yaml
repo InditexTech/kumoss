@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP Cloud Spanner default configuration (instance, database, encryption, backup).
+description: GCP Cloud Spanner default configuration (instance, edition, database, protection, backup).
 body: |
   # GCP Cloud Spanner
 
@@ -10,34 +10,33 @@ body: |
   otherwise, use the following default configuration:
 
   ## Instance
-  - Naming convention: `spanner-<application>-<environment>`.
-  - Use a regional configuration (e.g. regional-europe-west1) for
-    cost efficiency. Use multi-regional configurations only when
-    the user explicitly requires cross-region high availability.
-  - Processing units set to 100 (minimum, equivalent to 1 node)
-    for non-production. For production, size based on the workload
-    requirements.
-  - Enable autoscaling for production instances by configuring
-    minimum and maximum processing units and target CPU and storage
-    utilization thresholds.
-  - Add a lifecycle block with prevent_destroy.
-  - Apply standard labels: environment and managed_by.
+  - Naming convention: `spn-<application>-<environment>`.
+  - Use a regional configuration (e.g. `regional-europe-west1`) for
+    cost efficiency. Use multi-regional configurations only when the
+    user explicitly requires cross-region high availability.
+  - `edition = "STANDARD"` unless the user needs features of the
+    Enterprise editions.
+  - Processing units set to 100 (the minimum) for non-production.
+    For production, size based on the workload.
+  - Enable autoscaling for production instances through
+    `autoscaling_config` with minimum and maximum processing units
+    and target high-priority CPU and storage utilization.
+  - Add `lifecycle { prevent_destroy = true }`.
 
   ## Database
   - Naming convention: `db-<application>-<purpose>-<environment>`.
-  - Use GoogleSQL dialect unless the user explicitly requires
-    PostgreSQL dialect.
-  - Database deletion protection must be enabled for production.
-  - Enable drop protection for production databases.
-  - Do not define the schema inline — use DDL statements in a
-    separate migration process. Only specify initial DDL if the
-    user provides the schema.
-  - Encryption uses Google-managed keys by default. Use
-    customer-managed encryption keys (CMEK) via Cloud KMS only
-    when explicitly requested.
+  - Use the GoogleSQL dialect unless the user explicitly requires
+    the PostgreSQL dialect.
+  - Keep `deletion_protection = true` (Terraform) and set
+    `enable_drop_protection = true` (API-level) for production.
+  - Do not define the schema inline — DDL belongs to a separate
+    migration process. Only specify initial `ddl` if the user
+    provides the schema.
+  - Set `version_retention_period` (point-in-time recovery window,
+    up to 7 days) for production databases.
+  - Encryption uses Google-managed keys by default. Use CMEK via
+    Cloud KMS only when explicitly requested.
 
   ## Backup
-  - Configure automated backups with a retention period of at
-    least 7 days for production.
-  - Consider point-in-time recovery (PITR) for production
-    databases — it retains version history for up to 7 days.
+  - Configure a `google_spanner_backup_schedule` with a retention
+    of at least 7 days for production databases.

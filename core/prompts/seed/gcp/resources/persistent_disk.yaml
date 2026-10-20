@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP persistent disk default configuration (disk type, regional replication, snapshot schedules, encryption).
+body: |
+  # GCP Persistent Disk
+
+  For a persistent or Hyperdisk volume, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `disk-<application>-<purpose>-<environment>`.
+  - Use a zonal `google_compute_disk` in the same zone as the
+    instance it attaches to. Use `google_compute_region_disk`
+    (synchronously replicated across two zones) for production
+    stateful workloads that must survive a zone failure.
+  - Disk type `pd-balanced` by default; `pd-ssd` for IOPS-intensive
+    databases; Hyperdisk (`hyperdisk-balanced` with provisioned IOPS
+    and throughput) on machine series that require it (C4, N4,
+    C4A). Changing `type` replaces the disk.
+  - Size as requested. A disk can grow in place but never shrink;
+    never reduce `size`.
+  - Encryption: Google-managed keys by default. Use CMEK
+    (`disk_encryption_key { kms_key_self_link }`) only when
+    requested, and never remove it once set.
+  - Snapshot schedule for every disk that holds data: a
+    `google_compute_resource_policy` named
+    `rp-<application>-<environment>-snapshots` with
+    `snapshot_schedule_policy` (daily, retention 7 days for
+    non-production and 30 days for production,
+    `on_source_disk_delete = "KEEP_AUTO_SNAPSHOTS"`,
+    `storage_locations` set to the disk's region), attached with
+    `google_compute_disk_resource_policy_attachment` for zonal disks or
+    `google_compute_region_disk_resource_policy_attachment` for regional
+    disks.
+  - Attach to an instance either with the instance's
+    `attached_disk` block or with `google_compute_attached_disk`
+    plus `lifecycle { ignore_changes = [attached_disk] }` on the
+    instance — never both.
+  - Add `lifecycle { prevent_destroy = true }` for production disks.

@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI route table default configuration (public and private subnet tiers, gateways, DRG).
+body: |
+  # OCI Route Table
+
+  For a route table, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `rt-<tier>-<application>-<environment>`
+    (e.g. `rt-public-...`, `rt-private-...`).
+  - One `oci_core_route_table` per subnet tier, attached through the
+    subnet's `route_table_id`. Do not add rules to the VCN default
+    route table.
+  - Public tier: `0.0.0.0/0` (`destination_type = "CIDR_BLOCK"`) to
+    the Internet Gateway.
+  - Private tier: `0.0.0.0/0` to the NAT Gateway, plus the Oracle
+    Services Network label (`destination_type =
+    "SERVICE_CIDR_BLOCK"`) to the Service Gateway (see
+    `service_gateway`).
+  - On-premises or peered-VCN CIDRs: route each prefix to the DRG
+    (see `drg`). Never route `0.0.0.0/0` to the DRG unless the user
+    explicitly wants forced tunnelling through on-premises.
+  - Add a `description` to every rule.
+  - Rules are inline `route_rules` blocks; there is no separate rule
+    resource. Changing them updates the table in place, but a wrong
+    or missing rule cuts traffic for every subnet using the table —
+    treat route edits as high impact and list the affected subnets
+    in the summary.
+  - Changing a subnet's `route_table_id` is in place; switching
+    tables is safer than editing a shared one.

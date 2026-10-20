@@ -17,28 +17,41 @@ body: |
   - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs
     or other VPCs that will be peered.
   - Allocate `/16` per VPC by default; carve `/24` subnets within.
-  - Spread subnets across at least two availability zones.
+  - Spread subnets across at least two availability zones, taken
+    from `data "aws_availability_zones" "available"` (see
+    `resource_creation`); never hardcode AZ names or letters.
 
   ## Subnets
   - Separate public subnets (with Internet Gateway route) from
     private subnets (with NAT Gateway route).
   - One subnet tier per function: `public`, `app`, `data`, `mgmt`.
-  - Use `map_public_ip_on_launch = false` on private subnets.
+  - Set `map_public_ip_on_launch = false` on every subnet, public
+    ones included: load balancers and NAT Gateways get their public
+    addresses without it.
 
   ## Route tables
-  - One route table per subnet tier.
-  - Public subnets route `0.0.0.0/0` through the Internet Gateway.
-  - Private subnets route `0.0.0.0/0` through a NAT Gateway
-    deployed in a public subnet.
+  - One public route table shared by the public subnets (the
+    Internet Gateway is regional).
+  - One private route table per availability zone per tier, so each
+    private subnet routes `0.0.0.0/0` through the NAT Gateway in its
+    own AZ. Non-production with a single NAT Gateway may point every
+    private route table at that one gateway.
+  - Associate every subnet explicitly; never rely on the main route
+    table.
 
   ## Security groups
-  - One security group per workload, named `<application>-<tier>-sg`.
+  - One security group per workload tier, named
+    `sg-<application>-<tier>-<environment>`.
   - Default-deny inbound; allow rules are explicit and narrow.
   - Prefer referencing other security groups as sources instead of
     CIDR blocks for intra-VPC traffic.
-  - Avoid inline `ingress`/`egress` blocks; use separate
-    `aws_security_group_rule` or `aws_vpc_security_group_ingress_rule`
-    resources for clarity and merge-safety.
+  - Avoid inline `ingress`/`egress` blocks and the legacy
+    `aws_security_group_rule`; use one
+    `aws_vpc_security_group_ingress_rule` or
+    `aws_vpc_security_group_egress_rule` resource per rule.
+  - The provider removes AWS's default allow-all egress rule from
+    every new `aws_security_group`, so declare the egress each
+    workload needs explicitly.
 
   ## VPC endpoints
   - Prefer VPC gateway endpoints for S3 and DynamoDB (free).

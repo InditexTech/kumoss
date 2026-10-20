@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Application Gateway default configuration (WAF_v2 or Standard_v2, autoscale, zones, TLS policy, Key Vault certificates).
+body: |
+  # Azure Application Gateway
+
+  For an Application Gateway, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `agw-<application>-<environment>`; WAF policy
+    `waf-<application>-<environment>`.
+  - `azurerm_application_gateway` with
+    `location = azurerm_resource_group.<x>.location`. SKU: `sku {
+    name = "WAF_v2", tier = "WAF_v2" }` for internet-facing
+    production gateways; `Standard_v2` otherwise, unless the user
+    requests WAF. v1 SKUs are retired.
+  - `autoscale_configuration` with `min_capacity` 0 (non-prod) or 2
+    (prod) and a `max_capacity` sized to the workload; do not set a
+    fixed `capacity` alongside it.
+  - Production: `zones = ["1", "2", "3"]` with a zone-redundant
+    Standard `public_ip`, in regions that support availability zones
+    (state the assumption in the summary). Changing zones forces
+    replacement.
+  - Deploy into a dedicated subnet (`snet-agw`, /24 recommended)
+    that hosts nothing else. Its NSG must allow inbound TCP
+    65200-65535 from `GatewayManager`, `AzureLoadBalancer`, and the
+    listener ports (80, 443) from the clients.
+  - WAF (WAF_v2 only): a separate `azurerm_web_application_firewall_policy` in
+    Prevention mode with the latest Microsoft managed rule set
+    (e.g. `Microsoft_DefaultRuleSet` 2.1) and bot protection,
+    referenced through `firewall_policy_id`.
+  - TLS: `ssl_policy` with `policy_type = "Predefined"` and a policy
+    enforcing TLS 1.2 or later (e.g. `AppGwSslPolicy20220101S`).
+    HTTPS listeners only; redirect HTTP to HTTPS.
+  - Certificates: never inline certificate data or passwords. Use
+    `ssl_certificate { key_vault_secret_id = ... }` with a
+    `user_assigned_identity` attached to the gateway and granted
+    `Key Vault Secrets User` on the vault.
+  - Backends: HTTPS backend settings with a custom health probe per
+    backend pool.
+  - Changes to listeners, rules, and backends apply in place, but
+    may briefly interrupt traffic — rate them at least medium.
+  - Enable diagnostic settings (access, firewall logs) to a Log
+    Analytics workspace.

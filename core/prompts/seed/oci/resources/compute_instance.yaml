@@ -17,19 +17,66 @@ body: |
     when the workload supports ARM architecture.
   - Place instances in private subnets. Only use public subnets
     when direct internet access is explicitly required.
-  - Assign a Network Security Group to the VNIC, not just a
-    security list.
+  - Placement: take `availability_domain` from
+    `data "oci_identity_availability_domains"` and `fault_domain`
+    from `data "oci_identity_fault_domains"`, never hardcoded
+    names. Spread several instances across ADs where the region has
+    more than one, otherwise across fault domains (index with
+    `count.index % length(...)`). `availability_domain` is
+    immutable: changing it replaces the instance and its boot
+    volume.
+  - Assign a Network Security Group to the VNIC
+    (`create_vnic_details.nsg_ids`), not just a security list.
   - Boot volume encryption uses Oracle-managed keys by default.
     Use a customer-managed key (OCI Vault) when requested.
   - Boot volume size defaults to 50 GB. Increase based on workload
     requirements.
-  - In-transit encryption must be enabled for boot and block
-    volume attachments.
-  - Use instance metadata service v2 (IMDSv2) when available.
-  - Do not assign a public IP unless explicitly requested.
-  - Use cloud-init for instance initialization rather than
-    provisioners.
+  - In-transit encryption for paravirtualized boot and block volume
+    attachments:
+    `launch_options { is_pv_encryption_in_transit_enabled = true }`.
+  - Disable the legacy IMDSv1 endpoints
+    (`instance_options { are_legacy_imds_endpoints_disabled = true }`).
+  - Do not assign a public IP unless explicitly requested
+    (`create_vnic_details.assign_public_ip = false`).
+  - Use cloud-init (`metadata.user_data`) for instance
+    initialization rather than provisioners.
+  - Changing the shape or `shape_config` restarts the instance
+    (high impact). Changing the image in `source_details` rebuilds
+    the boot volume, and moving between x86 and Arm shapes needs a
+    different image; state either in the summary.
   - For production instances, configure a boot volume backup policy
     (Bronze, Silver, or Gold).
   - Add a lifecycle block with prevent_destroy for production.
-  - Apply freeform tags: Name.
+
+  ## Non-production stop schedule
+  Standalone instances in non-production environments get a stop
+  and start schedule from the OCI Resource Scheduler, for example
+  stopping at 19:00 and starting at 07:00 on weekdays:
+
+  ```hcl
+  resource "oci_resource_scheduler_schedule" "stop" {
+    compartment_id     = var.compartment_ocid
+    display_name       = "sched-stop-<application>-<environment>"
+    action             = "STOP_RESOURCE"
+    recurrence_type    = "CRON"
+    recurrence_details = "0 19 * * 1-5"
+    resources {
+      id = oci_core_instance.<name>.id
+    }
+    freeform_tags = local.standard_tags
+  }
+  ```
+
+  - A matching schedule with `action = "START_RESOURCE"` and
+    `recurrence_details = "0 7 * * 1-5"` starts it again. Set
+    `local_time_zone` (an IANA name) when the times are not UTC.
+  - The schedule acts through a resource principal: add a dynamic
+    group matching `ALL {resource.type = 'resourceschedule',
+    resource.compartment.id = '<cmp_ocid>'}` and a policy letting it
+    start and stop instances in the compartment (see
+    `dynamic_group` and `iam_policy`; home-region alias).
+  - Verify the recurrence syntax and the argument names against the
+    provider documentation for the pinned version; ICAL
+    (`recurrence_type = "ICAL"`, RFC 5545 rules) is the alternative.
+  - Instances in an instance pool are scheduled through the pool's
+    autoscaling configuration instead (see `instance_pool`).

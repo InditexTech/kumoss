@@ -36,6 +36,11 @@ body: |
   - Assign addresses through the organization's IPAM or DHCP; when
     static addressing is requested, set it in the guest
     customization, not in a startup script.
+  - Guest customization runs only when the VM is created, and any
+    change to the `clone.customize` block forces a new VM. Never
+    re-IP an existing VM through `customize`; that is a change inside
+    the guest (or a new VM, which is a replacement and must be called
+    out).
   - Segment application tiers into separate port groups (or NSX
     segments) and filter traffic between them with the
     organization's firewall (NSX distributed firewall or perimeter).
