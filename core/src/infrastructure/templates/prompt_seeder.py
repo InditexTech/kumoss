@@ -4,18 +4,17 @@
 
 """Bootstraps Phoenix with the example prompts needed for Kumoss's IaC flows.
 
-Runs at application startup. A missing prompt is created. An existing one is
-brought up to date only for the environment tags that still point at a version
-the seeder itself pushed, so a seed improved in a release reaches upgraded
-installs while user-curated prompts are never overwritten: once an operator
-saves their own version under a tag, the seeder leaves that tag alone.
+Runs at application startup. A missing prompt is created. The version the
+seeder last pushed carries the `seed` tag; when its text differs from the seed
+on disk, the seeder pushes the seed again and moves the environment tags still
+on that version, so a seed improved in a release reaches upgraded installs
+while an environment tag an operator points at their own version is never
+moved.
 """
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
-import re
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, get_args
@@ -25,9 +24,6 @@ from phoenix.client import AsyncClient
 from phoenix.client.types.prompts import PromptVersion
 
 from src.infrastructure.exceptions import PromptSeedPushError
-from src.infrastructure.templates._released_seed_digests import (
-    RELEASED_SEED_DIGESTS,
-)
 from src.infrastructure.templates._seed_loader import SeedEntry, SeedLoader
 from src.shared.config import system_config
 from src.shared.constants import Environment
@@ -54,12 +50,8 @@ class PromptSeeder:
     # seeded prompts without re-tagging them by hand in Phoenix.
     _TAGS: tuple[Environment, ...] = get_args(Environment)
 
-    # Appended to the description of every version the seeder pushes. The
-    # digest is of the version's own text, so a user who saves an edited copy
-    # (description included) produces a version whose marker no longer matches.
-    _DIGEST_MARKER: re.Pattern[str] = re.compile(
-        r"\[kumoss-seed sha256:([0-9a-f]{64})\]"
-    )
+    # On the version the seeder last pushed for each prompt.
+    _SEED_TAG: str = "seed"
 
     def __init__(self, seed_dir: Path, phoenix_base_url: str):
         self._loader = SeedLoader(seed_dir)
@@ -67,7 +59,7 @@ class PromptSeeder:
 
     async def ensure_seeded(self) -> None:
         """Load YAML seeds, create the ones missing from Phoenix and update
-        the ones still on a seeder-pushed version that differs from disk.
+        the ones whose `seed` version differs from disk.
 
         Raises:
             PromptSeedLoadError: a seed file is malformed or the seed dir is missing.
@@ -84,22 +76,22 @@ class PromptSeeder:
 
         created = 0
         updated = 0
-        skipped = 0
+        unchanged = 0
         for entry in entries:
-            if not await self._exists(entry.qualified_name):
-                await self._push(entry, self._TAGS)
+            seed = await self._seed_version(entry)
+            if seed is None:
+                await self._push(entry, (*self._TAGS, self._SEED_TAG))
                 created += 1
-                continue
-            stale, current_id = await self._stale_tags(entry)
-            if stale:
-                await self._push(entry, stale, version_id=current_id)
+            elif self._text(self._data(seed)) != entry.body:
+                owned, current_id = await self._owned_tags(entry, seed)
+                await self._push(entry, (*owned, self._SEED_TAG), version_id=current_id)
                 updated += 1
             else:
-                skipped += 1
+                unchanged += 1
 
         logging.info(
             f"Prompt seeding complete: {created} created, {updated} updated, "
-            + f"{skipped} unchanged or curated"
+            + f"{unchanged} unchanged"
         )
 
     async def _probe_phoenix(self) -> None:
@@ -141,56 +133,72 @@ class PromptSeeder:
             error_code=504,
         )
 
-    async def _exists(self, qualified_name: str) -> bool:
+    async def _get(
+        self, entry: SeedEntry, tag: str | None = None
+    ) -> PromptVersion | None:
+        """The version ``tag`` points at, or the latest one without a tag;
+        None when there is none."""
         try:
-            _ = await self._client.prompts.get(prompt_identifier=qualified_name)
-            return True
+            return await self._client.prompts.get(
+                prompt_identifier=entry.qualified_name, tag=tag
+            )
         except ValueError:
             # Phoenix client wraps 404 as ValueError("Prompt not found: ...").
-            return False
+            return None
         except httpx.HTTPError as e:
             raise PromptSeedPushError(
-                message=f"Error checking existence of '{qualified_name}': {e}",
+                message=(
+                    f"Error reading '{entry.qualified_name}'"
+                    + (f" tagged '{tag}'" if tag else "")
+                    + f": {e}"
+                ),
                 error_code=502,
             ) from e
 
-    async def _stale_tags(
-        self, entry: SeedEntry
-    ) -> tuple[tuple[Environment, ...], str | None]:
-        """The environment tags whose version the seeder pushed and whose text
-        differs from the seed on disk, and the id of a seeder-pushed version
-        another tag already holds with the text on disk, if any.
+    async def _seed_version(self, entry: SeedEntry) -> PromptVersion | None:
+        """The version tagged `seed`, or None when the prompt is missing.
 
-        A tag on a version the seeder did not push, or a tag an operator
-        removed, is left alone. The current version is there when an earlier
-        boot moved only some tags before failing: the rest join it rather
-        than getting another copy of the same text.
+        A prompt without the tag was seeded before it existed or had it
+        removed: its latest version is taken as the seeder's and tagged.
         """
-        stale: list[Environment] = []
-        current_id: str | None = None
+        seed = await self._get(entry, self._SEED_TAG)
+        if seed is not None:
+            return seed
+        latest = await self._get(entry)
+        if latest is None:
+            return None
+        await self._tag(entry, latest.id, (self._SEED_TAG,))
+        logging.info(
+            f"Tagged the latest version of {entry.qualified_name} as "
+            + f"'{self._SEED_TAG}'"
+        )
+        return latest
+
+    async def _owned_tags(
+        self, entry: SeedEntry, seed: PromptVersion
+    ) -> tuple[tuple[Environment, ...], str | None]:
+        """The environment tags still on the `seed` version, and the id of
+        the latest version when it already holds the text on disk.
+
+        A tag on any other version, or a tag an operator removed, is left
+        alone. The latest version holds the text on disk when an earlier
+        boot pushed it and failed before moving `seed`, which only moves
+        last: the remaining tags join it rather than getting another copy.
+        """
+        owned: list[Environment] = []
         for tag in self._TAGS:
-            try:
-                version = await self._client.prompts.get(
-                    prompt_identifier=entry.qualified_name, tag=tag
-                )
-            except ValueError:
-                continue  # tag removed by an operator
-            except httpx.HTTPError as e:
-                raise PromptSeedPushError(
-                    message=(
-                        f"Error reading '{entry.qualified_name}' tagged '{tag}': {e}"
-                    ),
-                    error_code=502,
-                ) from e
-            data = self._data(version)
-            text = self._text(data)
-            if text is None or not self._seeder_pushed(data, text):
-                continue
-            if text != entry.body:
-                stale.append(tag)
-            elif current_id is None:
-                current_id = version.id
-        return tuple(stale), current_id
+            version = await self._get(entry, tag)
+            if version is not None and version.id == seed.id:
+                owned.append(tag)
+        latest = await self._get(entry)
+        current_id = None
+        if (
+            latest is not None
+            and latest.id != seed.id
+            and self._text(self._data(latest)) == entry.body
+        ):
+            current_id = latest.id
+        return tuple(owned), current_id
 
     @staticmethod
     def _data(version: PromptVersion) -> Mapping[str, Any]:
@@ -202,18 +210,10 @@ class PromptSeeder:
         """
         return version._dumps()  # pyright: ignore[reportPrivateUsage]
 
-    @classmethod
-    def _seeder_pushed(cls, data: Mapping[str, Any], text: str) -> bool:
-        digest = _digest(text)
-        marker = cls._DIGEST_MARKER.search(data.get("description") or "")
-        if marker is not None:
-            return marker.group(1) == digest
-        return digest in RELEASED_SEED_DIGESTS
-
     @staticmethod
     def _text(data: Mapping[str, Any]) -> str | None:
         """The single text message the seeder writes, or None for any other
-        shape, which only a user could have saved."""
+        shape, which therefore never matches a seed."""
         try:
             messages = data["template"]["messages"]
             if len(messages) != 1:
@@ -231,17 +231,24 @@ class PromptSeeder:
     async def _push(
         self,
         entry: SeedEntry,
-        tags: tuple[Environment, ...],
+        tags: tuple[str, ...],
         version_id: str | None = None,
     ) -> None:
         """Tag ``tags`` onto ``version_id``, or onto a new version of the seed
         when there is none to reuse."""
         if version_id is None:
             version_id = await self._create(entry)
+        await self._tag(entry, version_id, tags)
+        logging.info(f"Pushed prompt: {entry.qualified_name} (tags={', '.join(tags)})")
 
-        # A failure leaves the remaining tags for the operator to add by hand:
-        # a new prompt's untagged environments look operator-removed to the
-        # next boot, which therefore never tags them itself.
+    async def _tag(
+        self, entry: SeedEntry, version_id: str, tags: tuple[str, ...]
+    ) -> None:
+        """Tag ``version_id`` in order, so `seed`, which callers pass last,
+        moves only once every environment tag has."""
+        # On a new prompt a failure leaves the remaining tags for the operator
+        # to add by hand: the next boot tags the latest version `seed` and
+        # leaves the untagged environments alone.
         for i, tag in enumerate(tags):
             try:
                 await self._client.prompts.tags.create(
@@ -258,10 +265,6 @@ class PromptSeeder:
                     error_code=502,
                 ) from e
 
-        logging.info(
-            f"Pushed prompt: {entry.qualified_name} (tags={', '.join(tags)})"
-        )
-
     async def _create(self, entry: SeedEntry) -> str:
         version = PromptVersion(
             [
@@ -272,9 +275,7 @@ class PromptSeeder:
             ],
             model_name=self._SEED_MODEL_NAME,
             template_format="NONE",
-            description=(
-                f"{entry.description or ''} [kumoss-seed sha256:{_digest(entry.body)}]"
-            ).strip(),
+            description=entry.description,
         )
         try:
             created = await self._client.prompts.create(
@@ -298,10 +299,6 @@ class PromptSeeder:
                 error_code=502,
             )
         return version_id
-
-
-def _digest(text: str) -> str:
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def build_default_seeder() -> PromptSeeder:

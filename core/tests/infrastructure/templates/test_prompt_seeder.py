@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: basic
-import hashlib
+import asyncio
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -33,27 +33,27 @@ def _seeder(tmp_path: Path) -> tuple[PromptSeeder, SimpleNamespace]:
     return seeder, prompts
 
 
-async def test_new_prompt_is_tagged_with_every_environment(tmp_path: Path):
+def test_new_prompt_is_tagged_with_every_environment(tmp_path: Path):
     seeder, prompts = _seeder(tmp_path)
 
-    await seeder.ensure_seeded()
+    asyncio.run(seeder.ensure_seeded())
 
     tagged = [c.kwargs["name"] for c in prompts.tags.create.await_args_list]
-    assert tagged == ["development", "staging", "production"]
+    assert tagged == ["development", "staging", "production", "seed"]
     assert all(
         c.kwargs["prompt_version_id"] == "v1"
         for c in prompts.tags.create.await_args_list
     )
 
 
-async def test_tag_failure_names_the_tags_left_to_apply(tmp_path: Path):
+def test_tag_failure_names_the_tags_left_to_apply(tmp_path: Path):
     seeder, prompts = _seeder(tmp_path)
     prompts.tags.create.side_effect = [None, httpx.ReadTimeout("boom")]
 
     with pytest.raises(PromptSeedPushError) as exc:
-        await seeder.ensure_seeded()
+        asyncio.run(seeder.ensure_seeded())
 
-    assert "tag that version by hand with: staging, production" in str(
+    assert "tag that version by hand with: staging, production, seed" in str(
         exc.value.message
     )
 
@@ -61,46 +61,43 @@ async def test_tag_failure_names_the_tags_left_to_apply(tmp_path: Path):
 BODY = "anything"
 
 
-def _version(
-    text: str, description: str | None, version_id: str = "v0"
-) -> PromptVersion:
+def _version(text: str, version_id: str) -> PromptVersion:
     """A version as the Phoenix client hydrates a GET response, so a change
     in how the client stores it breaks these tests rather than the seeder."""
-    data = {
-        "id": version_id,
-        "model_provider": "OPENAI",
-        "model_name": "kumoss-seed",
-        "template": {
-            "type": "chat",
-            "messages": [
-                {"role": "user", "content": [{"type": "text", "text": text}]}
-            ],
-        },
-        "template_type": "CHAT",
-        "template_format": "NONE",
-        "invocation_parameters": {"type": "openai", "openai": {}},
-    }
-    if description is not None:
-        data["description"] = description
-    return PromptVersion._loads(data)  # pyright: ignore[reportPrivateUsage]
-
-
-def _marked(text: str) -> str:
-    return f"Seed [kumoss-seed sha256:{hashlib.sha256(text.encode()).hexdigest()}]"
+    return PromptVersion._loads(  # pyright: ignore[reportPrivateUsage]
+        {
+            "id": version_id,
+            "model_provider": "OPENAI",
+            "model_name": "kumoss-seed",
+            "template": {
+                "type": "chat",
+                "messages": [
+                    {"role": "user", "content": [{"type": "text", "text": text}]}
+                ],
+            },
+            "template_type": "CHAT",
+            "template_format": "NONE",
+            "invocation_parameters": {"type": "openai", "openai": {}},
+        }
+    )
 
 
 def _existing(
-    tmp_path: Path, tagged: dict[str, SimpleNamespace]
+    tmp_path: Path,
+    tagged: dict[str, PromptVersion],
+    latest: PromptVersion | None = None,
 ) -> tuple[PromptSeeder, SimpleNamespace]:
     """A seeder whose prompt already exists, with ``tagged`` the version each
-    environment tag points at; a tag missing from it was removed."""
+    tag points at (a tag missing from it is absent) and ``latest`` the newest
+    version, the `seed` one by default."""
     seeder, prompts = _seeder(tmp_path)
+    newest = latest or tagged["seed"]
 
     async def get(*, prompt_identifier: str, tag: str | None = None):
         if prompt_identifier == "kumoss_seed_probe_does_not_exist":
             raise ValueError("Prompt not found")
         if tag is None:
-            return next(iter(tagged.values()), _version(BODY, None))
+            return newest
         if tag not in tagged:
             raise ValueError("Prompt not found")
         return tagged[tag]
@@ -109,152 +106,149 @@ def _existing(
     return seeder, prompts
 
 
-def _moved(prompts: SimpleNamespace) -> list[str]:
-    return [c.kwargs["name"] for c in prompts.tags.create.await_args_list]
+def _moved(prompts: SimpleNamespace) -> list[tuple[str, str]]:
+    return [
+        (c.kwargs["name"], c.kwargs["prompt_version_id"])
+        for c in prompts.tags.create.await_args_list
+    ]
 
 
-async def test_a_new_version_carries_the_digest_of_its_text(tmp_path: Path):
-    seeder, prompts = _seeder(tmp_path)
-
-    await seeder.ensure_seeded()
-
-    version = prompts.create.await_args.kwargs["version"]
-    assert _marked(BODY).removeprefix("Seed ") in version._description
-
-
-async def test_a_stale_seeded_prompt_is_updated_under_every_tag(tmp_path: Path):
-    old = _version("old body", _marked("old body"))
+def test_a_stale_seed_moves_every_tag_on_it_then_seed(tmp_path: Path):
+    old = _version("old body", "v0")
     seeder, prompts = _existing(
-        tmp_path, {"development": old, "staging": old, "production": old}
+        tmp_path,
+        {"development": old, "staging": old, "production": old, "seed": old},
     )
 
-    await seeder.ensure_seeded()
+    asyncio.run(seeder.ensure_seeded())
 
     prompts.create.assert_awaited_once()
-    assert _moved(prompts) == ["development", "staging", "production"]
+    assert _moved(prompts) == [
+        ("development", "v1"),
+        ("staging", "v1"),
+        ("production", "v1"),
+        ("seed", "v1"),
+    ]
 
 
-async def test_a_released_version_without_a_marker_is_updated(tmp_path: Path):
-    released = "released body"
-    seeder, prompts = _existing(tmp_path, {"production": _version(released, None)})
-
-    with patch(
-        "src.infrastructure.templates.prompt_seeder.RELEASED_SEED_DIGESTS",
-        frozenset({hashlib.sha256(released.encode()).hexdigest()}),
-    ):
-        await seeder.ensure_seeded()
-
-    assert _moved(prompts) == ["production"]
-
-
-async def test_a_curated_version_is_never_overwritten(tmp_path: Path):
-    # Saved by a user: no marker and not a released seed, or a copied
-    # marker that no longer matches the edited text.
+def test_a_tag_on_another_version_is_never_moved(tmp_path: Path):
+    # production points at a version an operator saved; staging was removed.
+    old = _version("old body", "v0")
     seeder, prompts = _existing(
         tmp_path,
         {
-            "development": _version("my own prompt", None),
-            "staging": _version("edited copy", _marked("old body")),
+            "development": old,
+            "production": _version("my own prompt", "v5"),
+            "seed": old,
         },
+        latest=_version("my own prompt", "v5"),
     )
 
-    await seeder.ensure_seeded()
+    asyncio.run(seeder.ensure_seeded())
+
+    assert _moved(prompts) == [("development", "v1"), ("seed", "v1")]
+
+
+def test_an_up_to_date_seed_is_left_alone(tmp_path: Path):
+    current = _version(BODY, "v0")
+    seeder, prompts = _existing(
+        tmp_path,
+        {"development": current, "production": _version("mine", "v5"), "seed": current},
+    )
+
+    asyncio.run(seeder.ensure_seeded())
 
     prompts.create.assert_not_awaited()
     prompts.tags.create.assert_not_awaited()
 
 
-async def test_only_stale_tags_move(tmp_path: Path):
-    # production is curated, staging already current, development stale;
-    # no tag is ever created for an environment an operator untagged.
+def test_without_a_seed_tag_the_latest_version_gets_it(tmp_path: Path):
+    current = _version(BODY, "v3")
     seeder, prompts = _existing(
-        tmp_path,
-        {
-            "development": _version("old body", _marked("old body")),
-            "staging": _version(BODY, _marked(BODY), version_id="v2"),
-            "production": _version("my own prompt", None),
-        },
+        tmp_path, {"development": current, "production": current}, latest=current
     )
 
-    await seeder.ensure_seeded()
-
-    assert _moved(prompts) == ["development"]
-
-
-async def test_stale_tags_join_a_current_version_instead_of_a_copy(tmp_path: Path):
-    # An earlier boot moved development, then failed tagging the rest.
-    old = _version("old body", _marked("old body"))
-    seeder, prompts = _existing(
-        tmp_path,
-        {
-            "development": _version(BODY, _marked(BODY), version_id="v2"),
-            "staging": old,
-            "production": old,
-        },
-    )
-
-    await seeder.ensure_seeded()
+    asyncio.run(seeder.ensure_seeded())
 
     prompts.create.assert_not_awaited()
-    assert _moved(prompts) == ["staging", "production"]
-    assert all(
-        c.kwargs["prompt_version_id"] == "v2"
-        for c in prompts.tags.create.await_args_list
+    assert _moved(prompts) == [("seed", "v3")]
+
+
+def test_a_stale_latest_version_without_a_seed_tag_is_updated(tmp_path: Path):
+    # An install seeded before the tag existed, on a seed changed since.
+    old = _version("old body", "v3")
+    seeder, prompts = _existing(
+        tmp_path, {"development": old, "production": old}, latest=old
     )
 
+    asyncio.run(seeder.ensure_seeded())
 
-async def test_the_seeder_recognizes_the_versions_it_writes(tmp_path: Path):
+    prompts.create.assert_awaited_once()
+    assert _moved(prompts) == [
+        ("seed", "v3"),
+        ("development", "v1"),
+        ("production", "v1"),
+        ("seed", "v1"),
+    ]
+
+
+def test_stale_tags_join_a_current_version_instead_of_a_copy(tmp_path: Path):
+    # An earlier boot pushed v2 and moved development, then failed.
+    old = _version("old body", "v0")
+    current = _version(BODY, "v2")
+    seeder, prompts = _existing(
+        tmp_path,
+        {"development": current, "staging": old, "production": old, "seed": old},
+        latest=current,
+    )
+
+    asyncio.run(seeder.ensure_seeded())
+
+    prompts.create.assert_not_awaited()
+    assert _moved(prompts) == [
+        ("staging", "v2"),
+        ("production", "v2"),
+        ("seed", "v2"),
+    ]
+
+
+def test_the_seeder_recognizes_the_versions_it_writes(tmp_path: Path):
     # Round trip through the client's own serialization: what the seeder
-    # pushes, read back as Phoenix returns it, is current and seeder-pushed.
+    # pushes, read back as Phoenix returns it, is current.
     seeder, prompts = _seeder(tmp_path)
-    await seeder.ensure_seeded()
+    asyncio.run(seeder.ensure_seeded())
     pushed: PromptVersion = prompts.create.await_args.kwargs["version"]
     stored = PromptVersion._loads(  # pyright: ignore[reportPrivateUsage]
         {**pushed._dumps(), "id": "v1"}  # pyright: ignore[reportPrivateUsage]
     )
 
-    seeder, prompts = _existing(
-        tmp_path / "again",
-        {"development": stored, "staging": stored, "production": stored},
-    )
-    await seeder.ensure_seeded()
+    seeder, prompts = _existing(tmp_path / "again", {"seed": stored})
+    asyncio.run(seeder.ensure_seeded())
 
     prompts.create.assert_not_awaited()
     prompts.tags.create.assert_not_awaited()
 
 
-async def test_a_version_of_another_shape_is_curated(tmp_path: Path):
-    # Only a user saves more than the one text message the seeder writes,
-    # even when the first message is a released seed.
-    old = "old body"
-    two_messages = _version(old, _marked(old))
+def test_a_seed_of_another_shape_is_stale(tmp_path: Path):
+    # Only the one text message the seeder writes can match a seed.
     two_messages = PromptVersion._loads(  # pyright: ignore[reportPrivateUsage]
         {
-            **two_messages._dumps(),  # pyright: ignore[reportPrivateUsage]
-            "id": "v3",
+            **_version(BODY, "v0")._dumps(),  # pyright: ignore[reportPrivateUsage]
+            "id": "v0",
             "template": {
                 "type": "chat",
                 "messages": [
-                    {"role": "user", "content": [{"type": "text", "text": old}]},
+                    {"role": "user", "content": [{"type": "text", "text": BODY}]},
                     {"role": "user", "content": [{"type": "text", "text": "more"}]},
                 ],
             },
         }
     )
-    seeder, prompts = _existing(tmp_path, {"production": two_messages})
-
-    await seeder.ensure_seeded()
-
-    prompts.create.assert_not_awaited()
-    prompts.tags.create.assert_not_awaited()
-
-
-async def test_an_up_to_date_prompt_is_left_alone(tmp_path: Path):
-    current = _version(BODY, _marked(BODY))
     seeder, prompts = _existing(
-        tmp_path, {"development": current, "staging": current, "production": current}
+        tmp_path, {"production": two_messages, "seed": two_messages}
     )
 
-    await seeder.ensure_seeded()
+    asyncio.run(seeder.ensure_seeded())
 
-    prompts.create.assert_not_awaited()
+    prompts.create.assert_awaited_once()
+    assert _moved(prompts) == [("production", "v1"), ("seed", "v1")]

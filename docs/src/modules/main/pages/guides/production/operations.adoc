@@ -149,9 +149,18 @@ Upgrading Kumoss:
   at it.
 . Rebuild or pull the images and the configuration for the new version.
 . On the next core start new prompt seed files are created in Phoenix,
-  and changed seeds replace the versions the seeder pushed. Prompts you
-  curated in Phoenix are never overwritten, so review the seed changes
-  for those and apply the ones you want as new prompt versions.
+  and changed seeds replace the versions the seeder pushed: every
+  environment tag on a prompt's `seed` version moves to the new seed
+  version. Tags you point at your own versions never move, so review the
+  seed changes for those and apply the ones you want as new prompt
+  versions.
+. Upgrading from a release before the `seed` tag: the first start tags
+  the latest version of every seeded prompt `seed` and treats it as the
+  seeder's. If you saved your own version of a prompt, it is that
+  prompt's latest version, and the environment tags on it would move to
+  the new seed. Before upgrading, add the `seed` tag in Phoenix to the
+  version the seeder created (the prompt's first version) for every
+  prompt you curated.
 . AWS deployments: the bundled iac service now checks, before every
   AWS `init`, `plan`, `apply` and `import`, that its credentials belong
   to the request's account, and refuses the command otherwise (see
