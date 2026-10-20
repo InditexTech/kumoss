@@ -1,0 +1,77 @@
+contracts/openapi/iac.v1.yaml
+  s_5949ffe8b7e0ad::t_47f800a48ae525 64-66,68-75,77-99,991,1041,1119,1162
+core/src/clients/iac/models/apply_request.py
+  s_eb3c27806165ad::t_11ecbe2b541d4f 29
+core/src/clients/iac/models/import_request.py
+  s_eb3c27806165ad::t_506749cca8b754 29
+core/src/clients/iac/models/init_request.py
+  s_eb3c27806165ad::t_7bade9784876e1 29
+core/src/clients/iac/models/plan_request.py
+  s_eb3c27806165ad::t_befb5137d75ff9 30
+core/tests/infrastructure/terraform/test_terraform.py
+  s_5949ffe8b7e0ad::t_5bbd51720bd764 404-498
+core/tests/infrastructure/terraform/test_utils.py
+  s_5949ffe8b7e0ad::t_fc1981a5b48788 279-326
+docs/src/modules/main/pages/reference/api/iac.adoc
+  s_5949ffe8b7e0ad::t_bbbffd5846db16 347,364-369,380-407
+services/iac/FULL_PROVIDERS.md
+  s_eb3c27806165ad::t_2bf8530764efed 75,121
+services/iac/PROVIDERS.md
+  s_eb3c27806165ad::t_07d30f6a0e8041 39,70,126
+services/iac/README.md
+  s_eb3c27806165ad::t_1c4615c32dc611 80-116
+services/iac/src/discovery/_aws.py
+  s_eb3c27806165ad::t_e50f08ba7dedf6 71-80,82-86,101
+services/iac/src/discovery/factory.py
+  s_eb3c27806165ad::t_3b4f7fe2b83ff1 40-51
+services/iac/src/engine.py
+  s_eb3c27806165ad::t_ab6a933098e336 17-27,63-67
+services/iac/src/main.py
+  s_eb3c27806165ad::t_f5e4a8d092c98b 235-250,278,286-291,327,335-340,376,384-389,404,412-419
+services/iac/tests/test_api.py
+  s_eb3c27806165ad::t_e45243f509f220 666-667,677-680,686-691,707-749
+services/iac/tests/test_discovery.py
+  s_eb3c27806165ad::t_961fefcdddf348 92-107
+services/iac/tests/test_discovery_aws.py
+  s_eb3c27806165ad::t_7e28f64ffcd892 207-219
+core/src/infrastructure/terraform/terraform.py
+  s_5949ffe8b7e0ad::t_83c089e9d88df1 37-42,191-196,210-217,409-447
+core/src/infrastructure/terraform/utils.py
+  s_5949ffe8b7e0ad::t_99955808cb7c29 68-95
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_835477198d1c2c::t_55fd602fd465e4 323-326
+services/iac/env.sample
+  s_835477198d1c2c::t_5f4d2bfb68af79 48-52,58-59,78-114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8afa42f0350527c9d40e05fd64e016cd96993ddf",
+  "prompts": {},
+  "sessions": {
+    "s_5949ffe8b7e0ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "83917f52-9d06-4fde-98cc-e0939be51ee2",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_835477198d1c2c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "329379c5-3da5-45f7-b41c-39491742878a",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    },
+    "s_eb3c27806165ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e8277c4e-37f2-43f3-9b02-ff3f3a1a778d",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
