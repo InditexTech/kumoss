@@ -21,8 +21,7 @@ from src.api.dtos import (
     UpdateScheduleRequest,
 )
 from src.application.services.operation_submission_service import (
-    OPERATION_MIN_ROLE,
-    schedule_request,
+    OperationSubmissionService,
 )
 from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
@@ -62,13 +61,14 @@ async def _validated_params(
     user: User, kind: OperationType, params: dict[str, Any]
 ) -> dict[str, Any]:
     """Role-check the kind and normalize params as its first-call request."""
-    if not user.operation_role.at_least(OPERATION_MIN_ROLE[kind]):
+    min_role = OperationSubmissionService.MIN_ROLE[kind]
+    if not user.operation_role.at_least(min_role):
         raise HTTPException(
             status_code=403,
-            detail=f"Requires operation role '{OPERATION_MIN_ROLE[kind].value}' or higher",
+            detail=f"Requires operation role '{min_role.value}' or higher",
         )
     try:
-        request = schedule_request(kind, params)
+        request = OperationSubmissionService.schedule_request(kind, params)
         if request.repo_uri is not None:
             await _workspace.validate_uri(request.repo_uri)
     except ExceptionHandler as e:

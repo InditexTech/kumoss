@@ -5,14 +5,15 @@
 import asyncio
 import math
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pydantic import ValidationError
-from sqlalchemy import String, func, or_, select, update
+from sqlalchemy import String, func, or_, select, text, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 
@@ -53,6 +54,7 @@ from src.infrastructure.database.models import (
     Session,
     Workspace,
     History,
+    Operation,
 )
 from src.infrastructure.redis import redis_client
 from src.infrastructure.storage import default_object_storage
@@ -60,6 +62,7 @@ from src.shared.config.system_config import system_config
 from src.shared.logger import logging
 from src.shared.constants import (
     OperationRole,
+    OperationStatus,
     OperationType,
     PanelRole,
     ReportType,
@@ -110,6 +113,9 @@ _TTL_DETAIL = 24 * 60 * 60
 # never changes again (enforced by acquire_in_flight), so anything derived
 # from it is safe to cache aggressively.
 _TERMINAL = frozenset({SessionStatus.FAILED})
+
+# Queued-operation states that hold the session's active-operation slot.
+_ACTIVE_OPERATION = (OperationStatus.PENDING, OperationStatus.RUNNING)
 
 
 def _ttl(base: int) -> int:
@@ -1233,3 +1239,289 @@ class DatabaseService:
             _k_pull_requests(session_id), prs, ttl=_ttl(_TTL_PR)
         )
         _ = await redis_client.invalidate(_k_detail(session_id))
+
+    # --- Operations -----------------------------------------------------------
+    #
+    # Every transition is one statement guarded on the current status, so a
+    # late writer can never resurrect a finished operation. Timestamps are
+    # the database's ``now()``, never the app clock, so lease math stays
+    # consistent across hosts whose clocks drift.
+
+    @staticmethod
+    async def create_operation(
+        session_id: UUID,
+        kind: OperationType,
+        params: dict[str, Any],
+        timeout_seconds: int,
+        schedule_id: int | None = None,
+    ) -> Operation:
+        """Insert a PENDING operation; 409 when the session already has an
+        active one (partial unique index)."""
+        sid = await DatabaseService.__map_session_id(session_id)
+        if sid is None:
+            raise SessionTerminal(
+                message=f"Session {session_id} not found.",
+                error_code=404,
+            )
+        try:
+            return await db.create(
+                Operation,
+                uuid=uuid4(),
+                session_id=sid,
+                schedule_id=schedule_id,
+                kind=kind,
+                params=params,
+                status=OperationStatus.PENDING,
+                scheduled_at=func.now(),
+                timeout_seconds=timeout_seconds,
+            )
+        except IntegrityError:
+            raise SessionConflict(
+                message=f"Session {session_id} already has an operation in flight.",
+                error_code=409,
+            )
+
+    @staticmethod
+    async def claim_operation(
+        worker_id: str, lease_seconds: float, allow_scheduled: bool
+    ) -> Operation | None:
+        """Mark the next due operation RUNNING for ``worker_id``, interactive
+        calls before cron fires; ``FOR UPDATE SKIP LOCKED`` keeps concurrent
+        workers from blocking each other."""
+        # Raw SQL: subquery + FOR UPDATE SKIP LOCKED + RETURNING is not
+        # expressible through the ORM.
+        sql = text("""
+            UPDATE operations
+            SET status           = :running,
+                claimed_by       = :worker_id,
+                started_at       = now(),
+                lease_expires_at = now() + :lease,
+                updated_at       = now()
+            WHERE id = (
+                SELECT id FROM operations
+                WHERE status = :pending
+                  AND scheduled_at <= now()
+                  AND (:allow_scheduled OR schedule_id IS NULL)
+                ORDER BY (schedule_id IS NOT NULL), scheduled_at, id
+                FOR UPDATE SKIP LOCKED
+                LIMIT 1
+            )
+            RETURNING id
+        """)
+        async with db.transaction() as sess:
+            result = await sess.execute(
+                sql,
+                {
+                    "running": OperationStatus.RUNNING.name,
+                    "pending": OperationStatus.PENDING.name,
+                    "worker_id": worker_id,
+                    "allow_scheduled": allow_scheduled,
+                    "lease": timedelta(seconds=lease_seconds),
+                },
+            )
+            op_id = result.scalar_one_or_none()
+        if op_id is None:
+            return None
+        return await db.get_by(Operation, id=op_id)
+
+    @staticmethod
+    async def renew_operation_lease(
+        operation_id: int, worker_id: str, lease_seconds: float
+    ) -> bool:
+        """Extend the lease; False when the worker must stop (cancel
+        requested, or the operation is no longer its own)."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.claimed_by == worker_id,
+                    Operation.status == OperationStatus.RUNNING,
+                    Operation.cancel_requested.is_(False),
+                )
+                .values(lease_expires_at=func.now() + timedelta(seconds=lease_seconds))
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def finish_operation(
+        operation_id: int,
+        status: OperationStatus,
+        error: str | None,
+        release_session: bool,
+    ) -> bool:
+        """End an active operation; True when this call made the transition.
+
+        ``release_session`` frees the session's ``in_flight`` lock in the
+        same transaction, so no call can find the active-operation slot free
+        while the lock is still held, and a crash can't leave the lock set.
+        An operation that already ended (e.g. reaped) frees nothing, so a
+        late worker can never release a successor's lock.
+        """
+        async with db.transaction() as sess:
+            session_pk = (
+                await sess.execute(
+                    update(Operation)
+                    .where(
+                        Operation.id == operation_id,
+                        Operation.status.in_(_ACTIVE_OPERATION),
+                    )
+                    .values(
+                        status=status,
+                        finished_at=func.now(),
+                        lease_expires_at=None,
+                        claimed_by=None,
+                        error=error,
+                    )
+                    .returning(Operation.session_id)
+                )
+            ).scalar_one_or_none()
+            if release_session and session_pk is not None:
+                await DatabaseService.__release_sessions(sess, [session_pk])
+        return session_pk is not None
+
+    @staticmethod
+    async def cancel_pending_operation(operation_id: int, error: str) -> bool:
+        """PENDING -> CANCELLED; False when it was no longer pending."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.status == OperationStatus.PENDING,
+                )
+                .values(
+                    status=OperationStatus.CANCELLED,
+                    finished_at=func.now(),
+                    error=error,
+                )
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def request_operation_cancel(operation_id: int) -> bool:
+        """Flag a RUNNING operation for its worker; False when it was no
+        longer running."""
+        async with db.transaction() as sess:
+            res = await sess.execute(
+                update(Operation)
+                .where(
+                    Operation.id == operation_id,
+                    Operation.status == OperationStatus.RUNNING,
+                )
+                .values(cancel_requested=True)
+            )
+        return cast(CursorResult[Any], res).rowcount == 1
+
+    @staticmethod
+    async def reap_expired_operations(error: str) -> list[UUID]:
+        """Fail RUNNING operations whose lease expired and free their
+        sessions' ``in_flight`` lock in the same transaction, so a crash
+        before the caller's status writes can't leave them locked. Returns
+        the freed session ids."""
+        async with db.transaction() as sess:
+            session_pks = list(
+                (
+                    await sess.execute(
+                        update(Operation)
+                        .where(
+                            Operation.status == OperationStatus.RUNNING,
+                            Operation.lease_expires_at < func.now(),
+                        )
+                        .values(
+                            status=OperationStatus.FAILED,
+                            finished_at=func.now(),
+                            lease_expires_at=None,
+                            claimed_by=None,
+                            error=error,
+                        )
+                        .returning(Operation.session_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+            if not session_pks:
+                return []
+            await DatabaseService.__release_sessions(sess, session_pks)
+            uuids = (
+                await sess.execute(
+                    select(Session.uuid).where(Session.id.in_(session_pks))
+                )
+            ).scalars()
+            return cast(list[UUID], list(uuids))
+
+    @staticmethod
+    async def __release_sessions(sess: AsyncSession, session_pks: list[int]) -> None:
+        _ = await sess.execute(
+            update(Session)
+            .where(Session.id.in_(session_pks))
+            .values(in_flight=False, updated_at=func.now())
+        )
+
+    @staticmethod
+    async def get_operation(operation_id: UUID) -> Operation | None:
+        return await db.get_by(Operation, uuid=operation_id)
+
+    @staticmethod
+    async def has_active_schedule_operation(schedule_pk: int) -> bool:
+        """True while an operation fired by the schedule is pending or running."""
+        async with db.session() as sess:
+            found = (
+                await sess.execute(
+                    select(Operation.id)
+                    .where(
+                        Operation.schedule_id == schedule_pk,
+                        Operation.status.in_(_ACTIVE_OPERATION),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+        return found is not None
+
+    @staticmethod
+    async def list_operations(
+        *,
+        user_pk: int,
+        session_id: UUID | None = None,
+        schedule_pk: int | None = None,
+        kind: OperationType | None = None,
+        status: OperationStatus | None = None,
+        offset: int = 0,
+        limit: int = 20,
+    ) -> tuple[list[Operation], int]:
+        """Operations on sessions owned by ``user_pk``, newest first."""
+        conditions = [Session.user_id == user_pk]
+        if session_id is not None:
+            conditions.append(Session.uuid == session_id)
+        if schedule_pk is not None:
+            conditions.append(Operation.schedule_id == schedule_pk)
+        if kind is not None:
+            conditions.append(Operation.kind == kind)
+        if status is not None:
+            conditions.append(Operation.status == status)
+
+        async with db.session() as sess:
+            total = (
+                await sess.execute(
+                    select(func.count(Operation.id))
+                    .join(Operation.session)
+                    .where(*conditions)
+                )
+            ).scalar_one()
+            items = (
+                (
+                    await sess.execute(
+                        select(Operation)
+                        .join(Operation.session)
+                        .where(*conditions)
+                        .order_by(Operation.created_at.desc(), Operation.id.desc())
+                        .offset(offset)
+                        .limit(limit)
+                    )
+                )
+                .scalars()
+                .unique()
+                .all()
+            )
+        return list(items), total

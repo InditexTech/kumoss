@@ -13,9 +13,7 @@ from uuid import uuid4
 
 from src.application.services.operation_executor import OperationExecutor
 from src.application.services.operation_submission_service import (
-    OPERATION_MIN_ROLE,
     OperationSubmissionService,
-    schedule_request,
 )
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.operation_queue_service import OperationQueueService
@@ -158,14 +156,16 @@ class OperationScheduler:
             return
         user = await DatabaseService.get_user(schedule.user_id)
         if user is None or not user.operation_role.at_least(
-            OPERATION_MIN_ROLE[schedule.kind]
+            OperationSubmissionService.MIN_ROLE[schedule.kind]
         ):
             logging.warning(
                 f"Schedule {schedule.uuid} skipped: owner lacks the role for "
                 + f"{schedule.kind.value}"
             )
             return
-        request = schedule_request(schedule.kind, schedule.params)
+        request = OperationSubmissionService.schedule_request(
+            schedule.kind, schedule.params
+        )
         ctx, op = await self._submission.submit(
             request, schedule.kind, user.id, schedule_id=schedule.id
         )

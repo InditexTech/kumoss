@@ -15,7 +15,6 @@ from sqlalchemy import update
 from src.application.services.operation_scheduler import OperationScheduler
 from src.application.services.operation_submission_service import (
     OperationSubmissionService,
-    schedule_request,
 )
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.operation_queue_service import OperationQueueService
@@ -44,7 +43,9 @@ _PARAMS = {
 
 class TestScheduleRequest(unittest.TestCase):
     def test_valid_params_normalize_to_the_first_call_request(self):
-        request = schedule_request(OperationType.DRIFT, _PARAMS)
+        request = OperationSubmissionService.schedule_request(
+            OperationType.DRIFT, _PARAMS
+        )
         self.assertEqual(request.terraform_providers, TerraformProvider.AZURE)
         self.assertFalse(request.is_partial)
 
@@ -63,7 +64,7 @@ class TestScheduleRequest(unittest.TestCase):
         }
         for name, (kind, params) in cases.items():
             with self.subTest(name), self.assertRaises(ExceptionHandler) as cm:
-                _ = schedule_request(kind, params)
+                _ = OperationSubmissionService.schedule_request(kind, params)
             self.assertEqual(cm.exception.error_code, 422)
 
 

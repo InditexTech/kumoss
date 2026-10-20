@@ -9,7 +9,7 @@ here, so every operation — interactive or scheduled — resolves its session
 the same way and runs through the same Postgres queue and executor.
 """
 
-from typing import Any, final
+from typing import Any, ClassVar, final
 
 from pydantic import ValidationError
 
@@ -32,51 +32,48 @@ from src.shared.exceptions import ExceptionHandler
 
 IacRequest = GenerateRequest | DriftRequest | ImportRequest | ApplyRequest
 
-# Minimum operation role per kind, shared by the /iac routes, schedule
-# creation and the cron materializer (which re-checks at fire time).
-OPERATION_MIN_ROLE: dict[OperationType, OperationRole] = {
-    OperationType.GENERATE: OperationRole.DEVELOPER,
-    OperationType.DRIFT: OperationRole.DEVOPS,
-    OperationType.IMPORT: OperationRole.DEVELOPER,
-    OperationType.APPLY: OperationRole.DEVELOPER,
-}
-
-# Kinds a cron schedule may fire. Generate needs a human in the loop and
-# apply needs an existing, reviewed session, so neither is schedulable.
-_SCHEDULE_REQUESTS: dict[OperationType, type[DriftRequest | ImportRequest]] = {
-    OperationType.DRIFT: DriftRequest,
-    OperationType.IMPORT: ImportRequest,
-}
-SCHEDULABLE_KINDS = frozenset(_SCHEDULE_REQUESTS)
-
-
-def schedule_request(
-    kind: OperationType, params: dict[str, Any]
-) -> DriftRequest | ImportRequest:
-    """Validate schedule params as the first-call request the cron will submit."""
-    model = _SCHEDULE_REQUESTS.get(kind)
-    if model is None:
-        raise ExceptionHandler(
-            message=f"Operation kind '{kind.value}' cannot be scheduled.",
-            error_code=422,
-        )
-    try:
-        request = model.model_validate(params)
-    except ValidationError as e:
-        raise ExceptionHandler(
-            message=f"Invalid schedule params: {e.errors(include_url=False)}",
-            error_code=422,
-        )
-    if request.session_id is not None:
-        raise ExceptionHandler(
-            message="Schedule params must describe a first call (repo_uri), not a session_id.",
-            error_code=422,
-        )
-    return request
-
 
 @final
 class OperationSubmissionService:
+    MIN_ROLE: ClassVar[dict[OperationType, OperationRole]] = {
+        OperationType.GENERATE: OperationRole.DEVELOPER,
+        OperationType.DRIFT: OperationRole.DEVOPS,
+        OperationType.IMPORT: OperationRole.DEVELOPER,
+        OperationType.APPLY: OperationRole.DEVELOPER,
+    }
+
+    _SCHEDULE_REQUESTS: ClassVar[
+        dict[OperationType, type[DriftRequest | ImportRequest]]
+    ] = {
+        OperationType.DRIFT: DriftRequest,
+        OperationType.IMPORT: ImportRequest,
+    }
+
+    @staticmethod
+    def schedule_request(
+        kind: OperationType, params: dict[str, Any]
+    ) -> DriftRequest | ImportRequest:
+        """Validate schedule params as the first-call request the cron will submit."""
+        model = OperationSubmissionService._SCHEDULE_REQUESTS.get(kind)
+        if model is None:
+            raise ExceptionHandler(
+                message=f"Operation kind '{kind.value}' cannot be scheduled.",
+                error_code=422,
+            )
+        try:
+            request = model.model_validate(params)
+        except ValidationError as e:
+            raise ExceptionHandler(
+                message=f"Invalid schedule params: {e.errors(include_url=False)}",
+                error_code=422,
+            )
+        if request.session_id is not None:
+            raise ExceptionHandler(
+                message="Schedule params must describe a first call (repo_uri), not a session_id.",
+                error_code=422,
+            )
+        return request
+
     def __init__(
         self,
         queue: OperationQueueService,

@@ -18,7 +18,6 @@ from src.application.iac_requests import (
     ImportRequest,
 )
 from src.application.services.operation_submission_service import (
-    OPERATION_MIN_ROLE,
     IacRequest,
     OperationSubmissionService,
 )
@@ -40,6 +39,10 @@ router = APIRouter(
 
 _workspace = WorkspaceService()
 _submission = OperationSubmissionService(OperationQueueService(system_config.scheduler))
+
+
+def _require_role(kind: OperationType):
+    return require_operation_role(OperationSubmissionService.MIN_ROLE[kind])
 
 
 async def _submit(
@@ -70,10 +73,7 @@ async def _submit(
 )
 async def generate_infrastructure(
     request: GenerateRequest,
-    user: Annotated[
-        User,
-        Depends(require_operation_role(OPERATION_MIN_ROLE[OperationType.GENERATE])),
-    ],
+    user: Annotated[User, Depends(_require_role(OperationType.GENERATE))],
 ) -> OperationAcceptedResponse:
     """Generates, validates, and prepares IaC based on a user query.
     Returns the session and queued operation ids for tracking.
@@ -89,9 +89,7 @@ async def generate_infrastructure(
 )
 async def drift_detection_remediation(
     request: DriftRequest,
-    user: Annotated[
-        User, Depends(require_operation_role(OPERATION_MIN_ROLE[OperationType.DRIFT]))
-    ],
+    user: Annotated[User, Depends(_require_role(OperationType.DRIFT))],
 ) -> OperationAcceptedResponse:
     """Performs Terraform drift detection and remediation.
     Returns the session and queued operation ids for tracking.
@@ -111,9 +109,7 @@ async def drift_detection_remediation(
 )
 async def apply_infrastructure(
     request: ApplyRequest,
-    user: Annotated[
-        User, Depends(require_operation_role(OPERATION_MIN_ROLE[OperationType.APPLY]))
-    ],
+    user: Annotated[User, Depends(_require_role(OperationType.APPLY))],
 ) -> OperationAcceptedResponse:
     """Applies the plan pinned by the session's last successful generate or
     drift round — exactly the reviewed changes, with no re-plan at apply time.
@@ -130,9 +126,7 @@ async def apply_infrastructure(
 )
 async def import_infrastructure(
     request: ImportRequest,
-    user: Annotated[
-        User, Depends(require_operation_role(OPERATION_MIN_ROLE[OperationType.IMPORT]))
-    ],
+    user: Annotated[User, Depends(_require_role(OperationType.IMPORT))],
 ) -> OperationAcceptedResponse:
     """Imports, validates, and prepares IaC based on a user query.
     Returns the session and queued operation ids for tracking.
