@@ -72,7 +72,7 @@ One table per cloud — a single combined table would be ~90% empty cells. Group
 | `AWS_USE_DUALSTACK_ENDPOINT` | Behaviour | IPv6 dual-stack |
 | `AWS_STS_REGIONAL_ENDPOINTS` | Behaviour | `regional` / `legacy` |
 
-No `AWS_ACCOUNT_ID` — the account is implicit in the credential.
+No `AWS_ACCOUNT_ID` — the account is implicit in the credential. The generated code instead declares an `aws_account_id` input variable for the provider's `allowed_account_ids`; this service injects it per request from `scope_id` as `TF_VAR_aws_account_id` — do not set it.
 
 ### GCP (`google`, `google-beta`)
 
@@ -118,7 +118,7 @@ Unusual quirk: this provider uses `TF_VAR_*` names as its own env-var defaults, 
 | `OCI_RESOURCE_PRINCIPAL_PRIVATE_PEM` | Resource principal | Private key |
 | `OCI_RESOURCE_PRINCIPAL_REGION` | Resource principal | Region |
 
-Compartment OCID is a *resource* argument, not an env var — commonly passed as `TF_VAR_compartment_ocid`, which is an ordinary Terraform variable rather than a provider setting.
+Compartment OCID is a *resource* argument, not a provider setting — passed as `TF_VAR_compartment_ocid`, an ordinary Terraform input variable. This service injects it per request from `scope_id` — do not set it.
 
 ### VMware vSphere (`vmware/vsphere`)
 

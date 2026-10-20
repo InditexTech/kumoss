@@ -276,6 +276,54 @@ class TestPlanToDriftReplacements(unittest.TestCase):
                     )
 
 
+class TestOciCreationsOutside(unittest.TestCase):
+    SCOPE = "ocid1.compartment.oc1..scope"
+
+    def _created(self, address: str, compartment_id) -> dict:
+        return _make_resource(
+            address, ["create"], None, {"compartment_id": compartment_id}
+        )
+
+    def test_a_creation_in_another_compartment_is_named(self):
+        plan = _make_plan(
+            [self._created("oci_core_vcn.main", "ocid1.compartment.oc1..other")]
+        )
+        self.assertEqual(
+            TerraformUtils.oci_creations_outside(plan, self.SCOPE),
+            ["oci_core_vcn.main (ocid1.compartment.oc1..other)"],
+        )
+
+    def test_creations_inside_the_scope_pass(self):
+        plan = _make_plan(
+            [
+                self._created("oci_core_vcn.main", self.SCOPE),
+                # Root compartment: dynamic groups and tenancy policies.
+                self._created("oci_identity_dynamic_group.dg", "ocid1.tenancy.oc1..t"),
+                # Unknown at plan time: a compartment the same plan creates.
+                self._created("oci_core_subnet.app", None),
+                _make_resource("oci_core_vcn.legacy", ["create"], None, {}),
+            ]
+        )
+        self.assertEqual(TerraformUtils.oci_creations_outside(plan, self.SCOPE), [])
+
+    def test_existing_resources_elsewhere_are_left_alone(self):
+        other = {"compartment_id": "ocid1.compartment.oc1..other"}
+        plan = _make_plan(
+            [
+                _make_resource("oci_core_vcn.a", ["update"], other, other),
+                _make_resource("oci_core_vcn.b", ["delete", "create"], other, other),
+                _make_resource("data.oci_core_images.i", ["read"], None, other),
+            ]
+        )
+        self.assertEqual(TerraformUtils.oci_creations_outside(plan, self.SCOPE), [])
+
+    def test_a_plan_without_changes_has_none(self):
+        self.assertEqual(
+            TerraformUtils.oci_creations_outside({"format_version": "1.2"}, self.SCOPE),
+            [],
+        )
+
+
 class TestProjectId(unittest.TestCase):
     """Tests for the state-keying identifier sent to the IaC service."""
 
