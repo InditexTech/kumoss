@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/InditexTech/kumoss/compare/v1.2.0...v1.3.0) (2026-10-21)
+
+
+### Features
+
+* **web_search:** Remove the _search_dead_end counter as is an edge_case scenario and is currently managed by re-wording the search query by the model ([5340a79](https://github.com/InditexTech/kumoss/commit/5340a7967f46555decf3a22be7009a095deaa8c6))
+
+
+### Bug Fixes
+
+* **security:** Upgrade the certifi packages ([9049307](https://github.com/InditexTech/kumoss/commit/9049307b00f5de802aed9d953c901c0be38425ae))
+
 ## [1.2.0](https://github.com/InditexTech/kumoss/compare/v1.1.0...v1.2.0) (2026-10-20)
 
 
