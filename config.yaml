@@ -164,9 +164,9 @@ llm:
 # result. Two small-model inferences stand between the pages and the agent
 # — one summary per page, then a cross-page ranking — and only the top
 # `summarize_top` summaries reach it, bounded instead by `summarize_top *
-# summarize_max_chars`. `max_query_retries` bounds how many consecutive
-# empty searches the agent may spend before the tool tells it to stop
-# retrying.
+# summarize_max_chars`. A search that finds nothing answers with the
+# reason and a nudge to rephrase; the agent loop's own
+# `orchestration.max_tool_agent_executions` budget caps a stuck agent.
 web_search:
   provider: "searxng"
   endpoint: "http://searxng:8888"

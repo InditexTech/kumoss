@@ -13,10 +13,9 @@ LLM-native fallback: an unset provider and a dead engine degrade into a
 inference.
 
 A search that simply finds nothing is treated as a query problem
-instead: the agent is asked to search again with a different query, and
-only once ``max_query_retries`` consecutive dead ends have been spent
-is it told to stop. Any search that returns something refills that
-budget.
+instead: the agent is answered with the reason and a nudge to search
+again with a different query. The retry budget is the agent loop's own
+``orchestration.max_tool_agent_executions``.
 
 A summarizer that fails drops back to the raw hits.
 """
@@ -62,7 +61,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         self,
         provider: str,
         summarize_top: int = 1,
-        max_query_retries: int = 3,
     ):
         """system_config is re-read by the handler on every call.
 
@@ -75,7 +73,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         config.web_search.provider = provider
         config.web_search.summarize_top = summarize_top
         config.web_search.summarize_max_chars = 1200
-        config.web_search.max_query_retries = max_query_retries
         with (
             patch(
                 "src.infrastructure.tools.tool_registry_static.system_config",
@@ -222,72 +219,8 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
 
         self.assertTrue(result.success, result.error_message)
         self.assertIn("returned no content", result.result["result"])
-        self.assertIn("attempt 1 of 3", result.result["result"])
         self.assertIn("different query", result.result["result"])
-        # Telling it to stop on the first miss wastes the other tries.
-        self.assertNotIn("Do NOT retry web_search", result.result["result"])
         llm.inference.assert_not_awaited()
-
-    async def test_the_last_dead_end_tells_the_agent_to_stop(self):
-        llm = MagicMock(inference=AsyncMock())
-        registry = self._registry("searxng", llm=llm)
-        with (
-            self._tool_module_patch("searxng", max_query_retries=2),
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
-            ) as client_cls,
-        ):
-            client_cls.return_value.search = AsyncMock(return_value=[])
-            first = await self._run(registry, "terraform foo")
-            last = await self._run(registry, "terraform bar")
-
-        self.assertIn("attempt 1 of 2", first.result["result"])
-        self.assertNotIn("Do NOT retry web_search", first.result["result"])
-        self.assertIn("Do NOT retry web_search", last.result["result"])
-        self.assertNotIn("different query", last.result["result"])
-
-    async def test_a_search_that_works_refills_the_retry_budget(self):
-        llm = MagicMock(inference=AsyncMock())
-        # The one successful search runs the summarizer: summary + ranking.
-        llm.inference.side_effect = [
-            SimpleNamespace(text="body"),
-            SimpleNamespace(text="SELECT: 0"),
-        ]
-        registry = self._registry("searxng", llm=llm)
-        with (
-            self._tool_module_patch("searxng", max_query_retries=2),
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
-            ) as client_cls,
-        ):
-            client_cls.return_value.search = AsyncMock(
-                side_effect=[[], _results(("T", "https://a", "body")), []]
-            )
-            await self._run(registry, "dead end")
-            await self._run(registry, "a good one")
-            after = await self._run(registry, "dead end again")
-
-        # The streak was broken, so this is attempt 1 again, not the last.
-        self.assertIn("attempt 1 of 2", after.result["result"])
-        self.assertNotIn("Do NOT retry web_search", after.result["result"])
-
-    async def test_an_engine_failure_does_not_spend_the_retry_budget(self):
-        llm = MagicMock(inference=AsyncMock())
-        registry = self._registry("searxng", llm=llm)
-        with (
-            self._tool_module_patch("searxng", max_query_retries=2),
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
-            ) as client_cls,
-        ):
-            client_cls.return_value.search = AsyncMock(
-                side_effect=[SearchEngineError("engine down", 502), []]
-            )
-            await self._run(registry, "first")
-            after = await self._run(registry, "second")
-
-        # No rephrasing fixes a dead engine, so that attempt costs nothing.
-        self.assertIn("attempt 1 of 2", after.result["result"])
 
     async def test_every_page_irrelevant_asks_for_a_different_query(self):
         llm = MagicMock(inference=AsyncMock())
@@ -312,7 +245,6 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         # agent never sees the word IRRELEVANT.
         self.assertTrue(result.success, result.error_message)
         self.assertIn("no relevant content", result.result["result"])
-        self.assertIn("attempt 1 of 3", result.result["result"])
         self.assertNotIn("IRRELEVANT", result.result["result"])
 
     async def test_summarized_search_returns_the_best_page_summary(self):

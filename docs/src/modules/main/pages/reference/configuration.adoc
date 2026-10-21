@@ -578,18 +578,6 @@ inferences' input; the agent sees only the summaries.
 |Optional
 |Per-request HTTP budget, covering the engine call and each page read.
 
-|`web_search.max_query_retries`
-|integer (1–10)
-|`3`
-|commented out
-|Optional
-|How many consecutive dead-end searches the agent may spend before the
-tool stops inviting it to try again. A dead end is an engine that
-returns nothing, or pages none of which answers the query. Any search
-that returns something refills the budget, so this caps a stuck agent,
-not a productive one; an unreachable engine or an empty `provider`
-answers immediately and spends no attempt.
-
 |`web_search.summarize_top`
 |integer (1–10)
 |`1`
@@ -631,8 +619,10 @@ summary inference fails keeps a truncated raw excerpt, a ranking that
 cannot be parsed falls back to every summary in engine order, and any
 other summariser error falls back to the raw, unfiltered results.
 Selecting *nothing* is a verdict rather than a failure — every page
-irrelevant, or a ranking that explicitly picks none — and is the dead end
-`max_query_retries` counts.
+irrelevant, or a ranking that explicitly picks none — and the tool
+answers with the reason and a nudge to rephrase the query. What caps a
+stuck agent is the agent loop's own
+`orchestration.max_tool_agent_executions` budget.
 
 Validation: an unknown provider name aborts the boot; `searxng` without
 an endpoint does too; an `endpoint` without a `provider` is rejected as

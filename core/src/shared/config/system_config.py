@@ -133,11 +133,6 @@ class SearchConfig(BaseModel):
     caps each summary; too low and dense reference pages lose detail the
     agent cannot get back. Any summarizer failure degrades to the raw
     results.
-
-    ``max_query_retries`` bounds how many consecutive dead-end searches
-    the agent may spend before ``web_search`` tells it to stop retrying.
-    Any search that returns something refills the budget, so it caps a
-    stuck agent, not a productive one.
     """
 
     provider: str = SearchProviders.SEARXNG.value
@@ -145,7 +140,6 @@ class SearchConfig(BaseModel):
     timeout: float = Field(default=30.0, gt=0)
     max_results: int = Field(default=5, ge=1, le=20)
     max_page_chars: int = Field(default=6000, ge=500, le=20000)
-    max_query_retries: int = Field(default=3, ge=1, le=10)
     summarize_top: int = Field(default=1, ge=1, le=10)
     summarize_max_chars: int = Field(default=4000, ge=500, le=20000)
 

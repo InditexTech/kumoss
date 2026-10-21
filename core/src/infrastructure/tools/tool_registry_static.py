@@ -43,7 +43,6 @@ from src.shared.logger import logging
 class ToolRegistryStatic(IToolRegistry):
     def __init__(self, llm: ILLMProvider):
         self.__llm = llm
-        self.__search_dead_ends = 0
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
@@ -425,40 +424,33 @@ class ToolRegistryStatic(IToolRegistry):
                 "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
             }
         if not results:
-            return self.__dead_end(
+            return self.__no_results(
                 query, f"Web search with query '{query}' returned no content."
             )
         summaries = await self.__summarized_search_results(query, results)
         if summaries is None:
-            return self.__dead_end(
+            return self.__no_results(
                 query,
                 f"Web search with query '{query}' returned no relevant content.",
             )
-        self.__search_dead_ends = 0
         return {"query": query, "result": summaries}
 
-    def __dead_end(self, query: str, reason: str) -> dict[str, Any]:
-        """Spend one try: ask for another query, or stop once they run out.
+    def __no_results(self, query: str, reason: str) -> dict[str, Any]:
+        """Answer a search that found nothing with a nudge to rephrase.
 
-        The budget counts *consecutive* dead ends; any search that
-        returns something resets it. Only query-shaped failures come
-        through here — a missing provider or a broken engine answers
-        immediately, since no rephrasing fixes either.
+        The retry budget is the agent loop's own
+        (``orchestration.max_tool_agent_executions``); this tool only
+        reports what happened and asks for a better query. Only
+        query-shaped failures come through here — a missing provider or a
+        broken engine answers immediately, since no rephrasing fixes
+        either.
         """
-        limit = system_config.web_search.max_query_retries
-        self.__search_dead_ends += 1
-        if self.__search_dead_ends >= limit:
-            return {
-                "query": query,
-                "result": f"{reason} Do NOT retry web_search.",
-            }
         return {
             "query": query,
             "result": (
-                f"{reason} This was attempt {self.__search_dead_ends} of {limit}: "
-                + "search again with a different query — other keywords, "
-                + "synonyms, or a broader or narrower scope. Do NOT repeat this "
-                + "query."
+                f"{reason} Search again with a different query — other "
+                + "keywords, synonyms, or a broader or narrower scope. Do "
+                + "not repeat this query."
             ),
         }
 
