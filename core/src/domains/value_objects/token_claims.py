@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass(frozen=True)
@@ -19,3 +19,14 @@ class TokenClaims:
     email: str | None
     name: str | None
     email_verified: bool = False
+    groups: list[str] = field(default_factory=list)
+
+
+DEV_CLAIMS = TokenClaims(
+    issuer="urn:kumoss:dev",
+    subject="dev",
+    email="dev@kumoss.local",
+    name="Local Developer",
+    email_verified=True,
+    groups=[],
+)

@@ -39,6 +39,7 @@ oidc:
   issuer_url: ""
   client_id: ""
   clock_skew_seconds: 60
+  groups_claim: "groups"
 
 # Bootstrap administrator. The user whose access token carries an `email`
 # claim matching this address together with `email_verified: true` is

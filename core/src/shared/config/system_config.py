@@ -71,6 +71,7 @@ class OidcConfig(BaseModel):
     audience: str = ""
     scope: str = DEFAULT_OIDC_SCOPE
     clock_skew_seconds: int = 60
+    groups_claim: str = "groups"
 
     @model_validator(mode="after")
     def _validate_and_resolve(self) -> OidcConfig:

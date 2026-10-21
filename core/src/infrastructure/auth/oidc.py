@@ -73,12 +73,15 @@ class OidcTokenValidator:
             options={"require": ["exp", "iss", "sub"]},
         )
         email = payload.get("email")
+        groups_claim = system_config.oidc.groups_claim
+        groups = payload.get(groups_claim, []) if groups_claim else []
         return TokenClaims(
             issuer=payload["iss"],
             subject=payload["sub"],
             email=email or payload.get("preferred_username"),
             name=payload.get("name"),
             email_verified=email is not None and payload.get("email_verified") is True,
+            groups=groups if isinstance(groups, list) else [],
         )
 
     async def validate(self, token: str) -> TokenClaims:

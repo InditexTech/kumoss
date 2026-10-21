@@ -144,3 +144,17 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
     async def test_garbage_token_is_rejected(self):
         with self.assertRaises(TokenValidationError):
             await self._validator().validate("not-a-jwt")
+
+    async def test_groups_claim_is_extracted(self):
+        token = self._token(groups=["team-a", "team-b"])
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.groups, ["team-a", "team-b"])
+
+    async def test_missing_groups_claim_yields_empty_list(self):
+        claims = await self._validator().validate(self._token())
+        self.assertEqual(claims.groups, [])
+
+    async def test_non_list_groups_claim_yields_empty_list(self):
+        token = self._token(groups="not-a-list")
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.groups, [])
