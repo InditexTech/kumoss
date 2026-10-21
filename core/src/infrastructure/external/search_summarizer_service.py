@@ -23,60 +23,27 @@ handler to swallow by falling back to the raw results.
 """
 
 import asyncio
-from dataclasses import dataclass
 
 from src.domains.dto import LLMResponseDTO
-from src.domains.interfaces import ILLMProvider
+from src.domains.interfaces import ILLMProvider, ITemplate
+from src.domains.value_objects import PageSummary, SearchResult
 from src.infrastructure.exceptions import (
     PageSelectionError,
     PageSummaryError,
 )
-from src.infrastructure.external.search_service import SearchResult
 from src.shared.config import system_config
 from src.shared.logger import logging
 
 _IRRELEVANT = "IRRELEVANT"
 
-_SUMMARIZE_SYSTEM = (
-    "You condense web pages for a Terraform research assistant. Your "
-    + "summary replaces the page: the assistant never sees the original, "
-    + "so losing a relevant detail loses it for good. Keep every part of "
-    + "the page that bears on the query — resource and argument names, "
-    + "versions, exact values, commands, code and configuration snippets, "
-    + "step order, limits, warnings — and quote code verbatim. Drop only "
-    + "what the query does not touch: navigation, marketing, unrelated "
-    + "sections, repetition. Do not add anything the page does not say, "
-    + "and do not pad with commentary about the page. Reply with plain "
-    + "text (code blocks allowed), no preamble. If the page holds nothing "
-    + f"useful for the query, reply exactly `{_IRRELEVANT}`."
-)
-
-_SELECT_SYSTEM = (
-    "You compare summaries of web pages against a user query and rank "
-    + "the pages that validly answer it. Prefer pages that address the "
-    + "query directly and concretely over ones that merely mention its "
-    + "terms. Reply with the id numbers of the relevant pages, most "
-    + "relevant first, on one line in the exact form "
-    + "`SELECT: <comma-separated ids>` (for example `SELECT: 2,0`), "
-    + "using only zero-based ids from the list, where the first page is "
-    + "id 0. If no page is relevant, reply exactly `SELECT: none`."
-)
-
-
-@dataclass(frozen=True)
-class PageSummary:
-    """One page's condensed content plus its position in the engine order."""
-
-    index: int  # 0-based, as the ids the selection inference returns
-    result: SearchResult
-    summary: str
-
 
 class SearchResultsSummarizer:
     """Condense search results and rank the summaries cross-page."""
 
-    def __init__(self, llm: ILLMProvider):
+    def __init__(self, llm: ILLMProvider, templates: ITemplate):
         self.__llm = llm
+        self.__summarize_system = templates.render_search_summarizer(_IRRELEVANT)
+        self.__select_system = templates.render_search_selector()
         self.cfg = system_config.web_search
 
     async def best(
@@ -140,7 +107,7 @@ class SearchResultsSummarizer:
         async def _summarize_page(index: int, result: SearchResult) -> PageSummary:
             try:
                 summary = await self.__infer(
-                    _SUMMARIZE_SYSTEM, _page_prompt(query, result)
+                    self.__summarize_system, _page_prompt(query, result)
                 )
             except Exception as e:
                 raise PageSummaryError(
@@ -186,7 +153,9 @@ class SearchResultsSummarizer:
             for s in summaries
         )
         try:
-            verdict = await self.__infer(_SELECT_SYSTEM, _select_prompt(query, listing))
+            verdict = await self.__infer(
+                self.__select_system, _select_prompt(query, listing)
+            )
         except Exception as e:
             raise PageSelectionError(
                 message=f"the cross-page selection for '{query}' failed",

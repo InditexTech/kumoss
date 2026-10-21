@@ -18,11 +18,13 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.infrastructure.external.search_service import SearchResult
+from src.domains.value_objects import SearchResult
 from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
     _parse_selection,
 )
+from src.infrastructure.templates.template_adapter import TemplateAdapter
+from src.shared.constants import TerraformProvider
 
 
 def _results() -> list[SearchResult]:
@@ -40,7 +42,9 @@ def _summarizer(llm: MagicMock, top: int = 1) -> SearchResultsSummarizer:
     ) as config:
         config.web_search.summarize_top = top
         config.web_search.summarize_max_chars = 1200
-        return SearchResultsSummarizer(llm)
+        return SearchResultsSummarizer(
+            llm, TemplateAdapter(template_provider=TerraformProvider.AWS, cwd=".")
+        )
 
 
 class TestSelectionParsing(unittest.TestCase):
@@ -279,6 +283,25 @@ class TestSearchResultsSummarizer(unittest.IsolatedAsyncioTestCase):
         self.assertIn("terraform", llm.inference.call_args_list[0].kwargs["msg"])
         self.assertIn("terraform", llm.inference.call_args_list[1].kwargs["msg"])
         self.assertIn("T1", llm.inference.call_args_list[1].kwargs["msg"])
+
+    async def test_system_prompts_are_rendered_from_the_templates(self):
+        llm = MagicMock(
+            inference=AsyncMock(
+                side_effect=[
+                    SimpleNamespace(text="s"),
+                    SimpleNamespace(text="SELECT: 0"),
+                ]
+            )
+        )
+        await _summarizer(llm).best("q", [_results()[0]])
+
+        summarize, select = (
+            c.kwargs["system_prompt"] for c in llm.inference.call_args_list
+        )
+        self.assertTrue(summarize.startswith("You condense web pages"))
+        self.assertIn("reply exactly `IRRELEVANT`.", summarize)
+        self.assertTrue(select.startswith("You compare summaries of web pages"))
+        self.assertIn("reply exactly `SELECT: none`.", select)
 
 
 if __name__ == "__main__":

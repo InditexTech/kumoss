@@ -26,11 +26,14 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.domains.dto import ToolCallDTO
-from src.infrastructure.external.search_service import (
-    SearchEngineError,
-    SearchResult,
+from src.domains.value_objects import SearchResult
+from src.infrastructure.exceptions import SearchEngineError
+from src.infrastructure.external.search_summarizer_service import (
+    SearchResultsSummarizer,
 )
+from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
+from src.shared.constants import TerraformProvider
 
 
 def _results(*tuples: tuple[str, str, str]) -> list[SearchResult]:
@@ -41,15 +44,23 @@ def _results(*tuples: tuple[str, str, str]) -> list[SearchResult]:
 
 
 class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
-    def _registry(self, provider: str, llm: MagicMock | None = None):
-        """Patch web_search.provider while the registry is constructed."""
-        config = MagicMock()
-        config.web_search.provider = provider
-        with patch(
-            "src.infrastructure.tools.tool_registry_static.system_config",
-            config,
-        ):
-            return ToolRegistryStatic(llm=llm)
+    def _registry(
+        self,
+        provider: str,
+        llm: MagicMock | None = None,
+        summarize_top: int = 1,
+    ):
+        """Build the registry and its summarizer under patched settings.
+
+        The summarizer reads ``web_search`` once, when it is built, so
+        ``summarize_top`` has to be set here rather than at call time.
+        """
+        with self._tool_module_patch(provider, summarize_top):
+            summarizer = SearchResultsSummarizer(
+                llm or MagicMock(inference=AsyncMock()),
+                TemplateAdapter(template_provider=TerraformProvider.AWS, cwd="."),
+            )
+            return ToolRegistryStatic(summarizer=summarizer)
 
     async def _run(self, registry: ToolRegistryStatic, query: str):
         return await registry.execute_tool(
@@ -65,9 +76,9 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         """system_config is re-read by the handler on every call.
 
         The summarizer reads its own module-level ``system_config`` when
-        the handler builds it, so both modules are patched with the same
-        settings — otherwise the real ``summarize_top`` would decide how
-        many summaries the tool returns.
+        it is built, so both modules are patched with the same settings —
+        otherwise the real ``summarize_top`` would decide how many
+        summaries the tool returns.
         """
         config = MagicMock()
         config.web_search.provider = provider
@@ -103,7 +114,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                     text="SELECT: " + ",".join(str(i) for i in range(len(results)))
                 ),
             ]
-        registry = self._registry("searxng", llm=llm)
+        registry = self._registry("searxng", llm=llm, summarize_top=len(results) or 1)
         with (
             self._tool_module_patch("searxng", summarize_top=len(results) or 1),
             patch(
@@ -168,7 +179,9 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                     ("Third", "https://three", "c"),
                 )
             )
-            result = await self._run(self._registry("searxng", llm=llm), "q")
+            result = await self._run(
+                self._registry("searxng", llm=llm, summarize_top=3), "q"
+            )
 
         self.assertEqual(
             result.result["result"],
@@ -297,7 +310,9 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                     ("Third", "https://three", "c"),
                 )
             )
-            result = await self._run(self._registry("searxng", llm=llm), "q")
+            result = await self._run(
+                self._registry("searxng", llm=llm, summarize_top=3), "q"
+            )
 
         # Ranking order, not engine order — and the unranked page is out.
         self.assertTrue(result.success, result.error_message)
@@ -337,25 +352,20 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         self.assertIn("First (https://one)", "".join(logs.output))
 
     async def test_summarizer_failure_falls_back_to_raw_results(self):
-        llm = MagicMock(inference=AsyncMock())
+        summarizer = MagicMock(best=AsyncMock(side_effect=RuntimeError("boom")))
         with (
             self._tool_module_patch("searxng"),
             patch(
                 "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
             ) as client_cls,
-            patch(
-                "src.infrastructure.tools.tool_registry_static.SearchResultsSummarizer"
-            ) as summarizer_cls,
         ):
             client_cls.return_value.search = AsyncMock(
                 return_value=_results(
                     ("First", "https://one", "a"), ("Second", "https://two", "b")
                 )
             )
-            summarizer_cls.return_value.best = AsyncMock(
-                side_effect=RuntimeError("boom")
-            )
-            result = await self._run(self._registry("searxng", llm=llm), "q")
+            registry = ToolRegistryStatic(summarizer=summarizer)
+            result = await self._run(registry, "q")
 
         self.assertTrue(result.success, result.error_message)
         self.assertEqual(

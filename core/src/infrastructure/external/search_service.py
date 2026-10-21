@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import asyncio
 
-from dataclasses import dataclass
 from types import TracebackType
 from typing import Any, Self
 
@@ -33,16 +32,10 @@ import trafilatura
 from playwright.async_api import async_playwright
 from playwright.async_api import Error as PlaywrightError
 
+from src.domains.value_objects import SearchResult
 from src.shared.config import system_config
 from src.shared.logger import logging
 from src.infrastructure.exceptions import SearchEngineError, PageReadError
-
-
-@dataclass(frozen=True)
-class SearchResult:
-    title: str
-    url: str
-    content: str
 
 
 def _text(hit: Any, field: str) -> str:

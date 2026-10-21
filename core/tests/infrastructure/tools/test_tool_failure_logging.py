@@ -43,7 +43,7 @@ class TestToolFailureLogging(unittest.IsolatedAsyncioTestCase):
         with patch(
             "src.infrastructure.tools.tool_registry_static.system_config", config
         ):
-            registry = ToolRegistryStatic(llm=MagicMock())
+            registry = ToolRegistryStatic(summarizer=MagicMock())
             with (
                 patch(
                     "src.infrastructure.tools.tool_registry_static.SearchServiceClient"

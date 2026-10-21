@@ -9,7 +9,7 @@ from typing import Any, Callable, override
 
 from pydantic import ValidationError
 
-from src.domains.interfaces import ILLMProvider, IToolRegistry
+from src.domains.interfaces import IToolRegistry
 from src.domains.dto import (
     ComplianceCheckReport,
     TerraformDriftReport,
@@ -21,6 +21,7 @@ from src.domains.dto import (
     TerraformImportReport,
     ReconciliationReport,
 )
+from src.domains.value_objects import SearchResult
 from src.infrastructure.exceptions import (
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
@@ -28,7 +29,6 @@ from src.infrastructure.exceptions import (
 )
 from src.infrastructure.external.search_service import (
     SearchEngineError,
-    SearchResult,
     SearchServiceClient,
 )
 from src.infrastructure.external.search_summarizer_service import (
@@ -41,8 +41,8 @@ from src.shared.logger import logging
 
 
 class ToolRegistryStatic(IToolRegistry):
-    def __init__(self, llm: ILLMProvider):
-        self.__llm = llm
+    def __init__(self, summarizer: SearchResultsSummarizer):
+        self.__summarizer = summarizer
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
@@ -464,9 +464,8 @@ class ToolRegistryStatic(IToolRegistry):
         *failure* instead degrades to the raw, unfiltered results, so
         the tool call never fails on account of the reduction.
         """
-        summarizer = SearchResultsSummarizer(self.__llm)
         try:
-            selected, discarded = await summarizer.best(query, results)
+            selected, discarded = await self.__summarizer.best(query, results)
         except Exception as e:
             logging.warning(
                 f"Search result summarization failed, returning raw results: {e!r}"
