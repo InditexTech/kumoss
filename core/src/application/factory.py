@@ -26,6 +26,9 @@ from src.domains.services import (
 
 # Infrastructure layer imports
 from src.infrastructure.storage import default_object_storage
+from src.infrastructure.external.search_summarizer_service import (
+    SearchResultsSummarizer,
+)
 from src.infrastructure.tools import ToolRegistryWorkspace, ToolRegistryStatic
 from src.infrastructure.filesystem import (
     FileSystemUtils,
@@ -119,17 +122,26 @@ class ApplicationFactory:
             tool_service=tool_service,
         )
 
+    def _get_search_summarizer(self) -> SearchResultsSummarizer:
+        return SearchResultsSummarizer(
+            llm=ApplicationFactory.get_llm_adapter(
+                model_id=system_config.llm.small_model,
+                max_tokens=system_config.llm.max_output_tokens,
+                temperature=0.5,
+            ),
+            templates=TemplateAdapter(
+                template_provider=self.__ctx.terraform_prv,
+                cwd=self.__ctx.call_dir.as_posix(),
+            ),
+        )
+
     def _get_tool_registry_workspace(
         self, file_utils: IFileSystem, git_utils: IGit
     ) -> ToolRegistryWorkspace:
         return ToolRegistryWorkspace(
             filesystem=file_utils,
             git=git_utils,
-            llm=ApplicationFactory.get_llm_adapter(
-                model_id=system_config.llm.small_model,
-                max_tokens=system_config.llm.max_output_tokens,
-                temperature=0.5,
-            ),
+            summarizer=self._get_search_summarizer(),
         )
 
     def _get_tool_service_workspace(
@@ -142,11 +154,7 @@ class ApplicationFactory:
     def _get_tool_service_static(self) -> ToolOrchestrationService:
         return ToolOrchestrationService(
             tool_registry=ToolRegistryStatic(
-                llm=ApplicationFactory.get_llm_adapter(
-                    model_id=system_config.llm.small_model,
-                    max_tokens=system_config.llm.max_output_tokens,
-                    temperature=0.5,
-                ),
+                summarizer=self._get_search_summarizer(),
             )
         )
 

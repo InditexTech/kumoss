@@ -515,7 +515,79 @@ implementation, and set the token variable in `core/.env`. The core
 refuses to boot when an enabled service has an empty `endpoint` or an
 empty token.
 
-== Cloud-provider credentials at a glance
+== SearXNG sidecar (`services/searxng/env.sample`)
+
+The bundled SearXNG metasearch sidecar backs the agents' `web_search`
+tool (routed there by `web_search.provider: "searxng"` in
+`config.yaml`). It takes no credential from the core — SearXNG itself
+accepts unauthenticated requests inside the Compose network by default.
+
+[cols="2,2,2,5,2",options="header"]
+|===
+|Variable |Requirement |Default |Meaning |Checked
+
+|`SEARXNG_SECRET`
+|Recommended
+|empty (a random key is generated per container start)
+|SearXNG instance secret key, used for cryptography (e.g. signed
+cookies). The container entrypoint substitutes it into
+`settings.yml`'s `+${SEARXNG_SECRET}+` placeholder at start. Generate one
+with `openssl rand -base64 32`. The per-boot random key is fine for a
+throwaway local stack and never for a reachable deployment.
+|At container start
+
+|`SEARXNG_PORT`
+|Optional
+|`8888`
+|Port SearXNG listens on inside the Compose network. Keep the default:
+the core's `web_search.endpoint` ships pointing at `:8888`.
+|At container start
+|===
+
+== SearXNG sidecar (`services/searxng/env.sample`)
+
+The bundled SearXNG metasearch sidecar backs the agents' `web_search`
+tool (routed there by `web_search.provider: "searxng"` in
+`config.yaml`). It takes no credential from the core — SearXNG itself
+accepts unauthenticated requests inside the Compose network by default.
+
+[cols="2,2,2,5,2",options="header"]
+|===
+|Variable |Requirement |Default |Meaning |Checked
+
+|`SEARXNG_SECRET`
+|Recommended
+|empty (a random key is generated per container start)
+|SearXNG instance secret key, used for cryptography (e.g. signed
+cookies). The container entrypoint substitutes it into
+`settings.yml`'s `+${SEARXNG_SECRET}+` placeholder at start. Generate one
+with `openssl rand -base64 32`. The per-boot random key is fine for a
+throwaway local stack and never for a reachable deployment.
+|At container start
+
+|`SEARXNG_PORT`
+|Optional
+|`8888`
+|Port SearXNG listens on inside the Compose network. Keep the default:
+the core's `web_search.endpoint` ships pointing at `:8888`.
+|At container start
+|===
+
+=== Search engines
+
+`services/searxng/settings.yml` keeps only the engines a general query
+needs (`use_default_settings.engines.keep_only`): `bing`, `duckduckgo`
+and `brave`. The stock ~70 fan out on every query, and the free upstreams
+rate-limit the shared container IP, suspending an engine for 180s — hence
+the `Too many requests` lines in `docker compose logs searxng`.
+
+Edit `keep_only` and restart the sidecar (`docker compose restart
+searxng`). Two caveats, verified against the pinned build:
+
+* `bing` ships `disabled: true`, so it must also be re-declared under the
+  top-level `engines:` key with `disabled: false`.
+* `startpage` and `mojeek` are `inactive: true` upstream, and `google`
+  answers `access denied` without a CSE key.
 
 [cols="3,3,5",options="header"]
 |===

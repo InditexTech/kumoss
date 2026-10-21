@@ -14,6 +14,7 @@ resources the import exception list withheld.
 
 import unittest
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 from src.domains.dto import TerraformDriftReport, TerraformImportReport, ToolCallDTO
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
@@ -37,7 +38,7 @@ REMEDIATED: list[dict[str, Any]] = [
 
 class TestDriftReportTool(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.registry = ToolRegistryStatic(llm=None)
+        self.registry = ToolRegistryStatic(summarizer=MagicMock())
 
     async def _report(self, **parameters: Any) -> TerraformDriftReport:
         result = await self.registry.execute_tool(
@@ -143,7 +144,7 @@ IMPORTED: list[dict[str, Any]] = [
 
 class TestImportReportTool(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.registry = ToolRegistryStatic(llm=None)
+        self.registry = ToolRegistryStatic(summarizer=MagicMock())
 
     async def _report(self, **parameters: Any) -> TerraformImportReport:
         result = await self.registry.execute_tool(

@@ -151,6 +151,29 @@ llm:
   max_output_tokens: 32000
   timeout: 600
 
+# The search backend behind the agents' `web_search` tool. The shipped
+# stack deploys a SearXNG sidecar and points the tool at it, so `provider`
+# stays "searxng" unless you bring your own backend: any name in
+# litellm.types.utils.SearchProviders works, but hosted ones (tavily,
+# brave, perplexity, ...) read credentials from their own env vars, ignore
+# `endpoint`, and need a search service the stack does not ship. An empty
+# `provider` disables the tool.
+#
+# `max_page_chars` truncates the text read from each result page, so the
+# tool's worst case is `max_results * max_page_chars` characters of tool
+# result. Two small-model inferences stand between the pages and the agent
+# — one summary per page, then a cross-page ranking — and only the top
+# `summarize_top` summaries reach it, bounded instead by `summarize_top *
+# summarize_max_chars`. A search that finds nothing answers with the
+# reason and a nudge to rephrase; the agent loop's own
+# `orchestration.max_tool_agent_executions` budget caps a stuck agent.
+web_search:
+  provider: "searxng"
+  endpoint: "http://searxng:8888"
+  timeout: 30.0
+  max_results: 8
+  max_page_chars: 10000
+
 # Filesystem paths used by the core. `upload_folder` must be writable
 # and (in the docker stack) shared with the IaC service via the
 # `workspaces` volume so both see the same cloned-repo paths.
@@ -273,5 +296,3 @@ git:
   provider: "GITHUB"
   author_name: "Kumoss"
   author_email: "kumoss@noreply.invalid"
-
-

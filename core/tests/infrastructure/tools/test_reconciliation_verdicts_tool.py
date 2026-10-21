@@ -14,6 +14,7 @@ the agent is asked again instead of losing the genuine drift.
 
 import unittest
 from typing import Any, cast
+from unittest.mock import MagicMock
 
 from src.domains.dto import ReconciliationReport, ToolCallDTO
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
@@ -26,7 +27,7 @@ def change(reverts: bool) -> dict[str, Any]:
 
 class TestReconciliationVerdictsTool(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.registry = ToolRegistryStatic(llm=None)
+        self.registry = ToolRegistryStatic(summarizer=MagicMock())
 
     async def _report(self, *verdicts: dict[str, Any]):
         return await self.registry.execute_tool(

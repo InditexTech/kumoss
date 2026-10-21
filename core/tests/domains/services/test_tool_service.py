@@ -22,6 +22,7 @@ from src.domains.interfaces.tracer_interface import ITracer
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.domains.services.tracer_service import TracerService
 from src.shared.constants import ToolContext
+from src.shared.exceptions import ExceptionHandler
 
 
 def _tool(
@@ -106,6 +107,35 @@ class TestToolLoopState(unittest.TestCase):
         call = _call("diff_history", "c1")
         state.record(call, _result(call))
         self.assertEqual(_names(state.available_tools()), ["diff_history"])
+
+
+class TestToolFailureLogging(unittest.IsolatedAsyncioTestCase):
+    """A typed failure answers the agent generically; the log gets it all."""
+
+    def setUp(self):
+        self._tracer_token = TracerService.set_current_tracer(MagicMock(spec=ITracer))
+        self.registry = MagicMock(spec=IToolRegistry)
+        self.registry.validate_tool_parameters.return_value = True
+        self.service = ToolOrchestrationService(self.registry)
+        self.state = ToolLoopState(TOOLS, TASK_COMPLETE)
+
+    def tearDown(self):
+        TracerService.reset_current_tracer(self._tracer_token)
+
+    async def test_a_typed_failure_is_logged_with_its_cause(self):
+        failure = ExceptionHandler(message="could not read the page", error_code=502)
+        failure.__cause__ = ConnectionError("certificate verify failed")
+        self.registry.execute_tool = AsyncMock(side_effect=failure)
+
+        with self.assertLogs("src.shared.logger._logger", level="ERROR") as logs:
+            results = await self.service.execute_tool_calls(
+                [_call("list_dir", "c1", relative_workspace_path=".")], self.state
+            )
+
+        logged = "".join(logs.output)
+        self.assertIn("could not read the page", logged)
+        self.assertIn("certificate verify failed", logged)
+        self.assertEqual(results[0].error_message, "could not read the page")
 
 
 class TestDuplicateToolCalls(unittest.IsolatedAsyncioTestCase):

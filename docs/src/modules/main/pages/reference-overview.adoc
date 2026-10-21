@@ -51,8 +51,8 @@ exhaustive variable reference.
 
 [card]
 .xref:main:reference/api/index.adoc[HTTP APIs]
-Every route the core exposes under `/api/v1`, and the four sidecar
-OpenAPI contracts it consumes as a client (IaC, notifications,
+Every route the core exposes under `/api/v1`, and the sidecar
+OpenAPI contracts it consumes as a client (IaC, searxng as search enginge, notifications,
 repository mapping, authorization).
 ====
 
