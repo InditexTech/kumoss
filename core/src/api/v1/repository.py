@@ -8,13 +8,15 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException
 from fastapi.responses import JSONResponse
 
-from src.api.deps import assert_session_access, require_operation_role
+from src.api.authz import authorize
+from src.api.deps import assert_session_access, get_validated_claims, require_operation_role
 from src.application.factory import ApplicationFactory
 from src.application.iac_requests import RepoUri
 from src.domains.dto import PullRequestDTO
 from src.domains.entities import SessionContext, User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
+from src.domains.value_objects.token_claims import TokenClaims
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
 from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
@@ -43,6 +45,7 @@ async def complete_pr(
         ),
     ],
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
 ) -> None:
     await assert_session_access(user, session_id, write=True)
     try:
@@ -52,6 +55,15 @@ async def complete_pr(
                 status_code=409,
                 detail=f"Session {ctx.id} is blocked; PR merge is not allowed.",
             )
+        await authorize(
+            claims,
+            "pr.merge",
+            scope_id=ctx.scope_id,
+            provider=ctx.terraform_prv.value,
+            repo_uri=ctx.repo_uri,
+            iac_path=ctx.iac_path,
+            session_id=ctx.id,
+        )
         pr = (await DatabaseService.get_pull_requests(session_id))[-1]
         await ApplicationFactory.get_git_utils(ctx.repo_uri).complete_pr(pr.number)
     except ExceptionHandler as e:
@@ -74,12 +86,23 @@ async def create_pr(
         ),
     ],
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
 ) -> PullRequestDTO:
     await assert_session_access(user, session_id, write=True)
     try:
         ctx: SessionContext = await DatabaseService.get_session_context(session_id)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
+
+    await authorize(
+        claims,
+        "pr.create",
+        scope_id=ctx.scope_id,
+        provider=ctx.terraform_prv.value,
+        repo_uri=ctx.repo_uri,
+        iac_path=ctx.iac_path,
+        session_id=ctx.id,
+    )
 
     pr_svc = ApplicationFactory(ctx).get_pull_request_service()
     tracer_token = tracer.set_current_tracer(
