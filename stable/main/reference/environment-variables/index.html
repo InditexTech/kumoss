@@ -1468,8 +1468,128 @@ empty token.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="cloud-provider-credentials-at-a-glance"><a class="anchor" href="#cloud-provider-credentials-at-a-glance"></a>Cloud-provider credentials at a glance</h2>
+<h2 id="searxng-sidecar-servicessearxngenv-sample"><a class="anchor" href="#searxng-sidecar-servicessearxngenv-sample"></a>SearXNG sidecar (<code>services/searxng/env.sample</code>)</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>The bundled SearXNG metasearch sidecar backs the agents' <code>web_search</code>
+tool (routed there by <code>web_search.provider: "searxng"</code> in
+<code>config.yaml</code>). It takes no credential from the core — SearXNG itself
+accepts unauthenticated requests inside the Compose network by default.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SEARXNG_SECRET</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (a random key is generated per container start)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SearXNG instance secret key, used for cryptography (e.g. signed
+cookies). The container entrypoint substitutes it into
+<code>settings.yml&#8217;s `${SEARXNG_SECRET}</code> placeholder at start. Generate one
+with <code>openssl rand -base64 32</code>. The per-boot random key is fine for a
+throwaway local stack and never for a reachable deployment.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At container start</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SEARXNG_PORT</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>8888</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Port SearXNG listens on inside the Compose network. Keep the default:
+the core&#8217;s <code>web_search.endpoint</code> ships pointing at <code>:8888</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At container start</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="searxng-sidecar-servicessearxngenv-sample-2"><a class="anchor" href="#searxng-sidecar-servicessearxngenv-sample-2"></a>SearXNG sidecar (<code>services/searxng/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The bundled SearXNG metasearch sidecar backs the agents' <code>web_search</code>
+tool (routed there by <code>web_search.provider: "searxng"</code> in
+<code>config.yaml</code>). It takes no credential from the core — SearXNG itself
+accepts unauthenticated requests inside the Compose network by default.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SEARXNG_SECRET</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (a random key is generated per container start)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SearXNG instance secret key, used for cryptography (e.g. signed
+cookies). The container entrypoint substitutes it into
+<code>settings.yml&#8217;s `${SEARXNG_SECRET}</code> placeholder at start. Generate one
+with <code>openssl rand -base64 32</code>. The per-boot random key is fine for a
+throwaway local stack and never for a reachable deployment.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At container start</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SEARXNG_PORT</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>8888</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Port SearXNG listens on inside the Compose network. Keep the default:
+the core&#8217;s <code>web_search.endpoint</code> ships pointing at <code>:8888</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At container start</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="sect2">
+<h3 id="search-engines"><a class="anchor" href="#search-engines"></a>Search engines</h3>
+<div class="paragraph">
+<p><code>services/searxng/settings.yml</code> keeps only the engines a general query
+needs (<code>use_default_settings.engines.keep_only</code>): <code>bing</code>, <code>duckduckgo</code>
+and <code>brave</code>. The stock ~70 fan out on every query, and the free upstreams
+rate-limit the shared container IP, suspending an engine for 180s — hence
+the <code>Too many requests</code> lines in <code>docker compose logs searxng</code>.</p>
+</div>
+<div class="paragraph">
+<p>Edit <code>keep_only</code> and restart the sidecar (<code>docker compose restart
+searxng</code>). Two caveats, verified against the pinned build:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>bing</code> ships <code>disabled: true</code>, so it must also be re-declared under the
+top-level <code>engines:</code> key with <code>disabled: false</code>.</p>
+</li>
+<li>
+<p><code>startpage</code> and <code>mojeek</code> are <code>inactive: true</code> upstream, and <code>google</code>
+answers <code>access denied</code> without a CSE key.</p>
+</li>
+</ul>
+</div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 27.2727%;">
@@ -1513,6 +1633,7 @@ on)</p></td>
 independent. A stack that generates AWS infrastructure with an Azure
 OpenAI model needs AWS credentials in <code>services/iac/.env</code> and Azure
 OpenAI credentials in <code>core/.env</code>.</p>
+</div>
 </div>
 </div>
 </div>

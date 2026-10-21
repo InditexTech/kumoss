@@ -1203,11 +1203,12 @@ internal-only via <code>expose</code>.</p>
 </li>
 <li>
 <p>Compose <code>depends_on</code> orders start-up (it does not health-check): core
-waits for core-db, Redis, object storage, and the iac and
-notifications sidecars; the
-proxy waits for core, Phoenix, and object storage. The core has no
-Compose dependency on Phoenix, which is why its prompt seeder
-retries.</p>
+waits for core-db, notifications, mapping, iac, authz, Redis, and
+object storage; the proxy waits for core, Phoenix, and object storage.
+SearXNG has no dependency ordering — the core calls it per request, so
+a missing or slow engine surfaces only as the <code>web_search</code> tool&#8217;s
+"unavailable" result. The core has no Compose dependency on Phoenix,
+which is why its prompt seeder retries.</p>
 </li>
 <li>
 <p>Four named volumes persist state: <code>core_db_data</code>, <code>phoenix_db_data</code>,

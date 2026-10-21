@@ -907,7 +907,8 @@ variable of every other enabled sidecar; the variable named by
 for <code>STORAGE_ACCOUNT</code>; a remote backend declared by every target
 repository while <code>storage.terraform_state_bucket</code> is blank — which
 only happens if a deployment explicitly sets it to <code>""</code>, since the
-shipped value enables Kumoss-managed state by default.</p></td>
+shipped value enables Kumoss-managed state by default;
+<code>web_search.endpoint</code> when <code>web_search.provider</code> is <code>searxng</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Optional with defaults</strong></p></td>
@@ -1438,7 +1439,7 @@ and models</a>.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (LiteLLM model string, or a <code>model_name</code> alias when
 <code>model_list</code> is set)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-sonnet-5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_ai/claude-sonnet-5-5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>main</code> (an <code>llm.model_list</code> alias)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (credentials mandatory)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">High-quality model used by the IaC generator, target generator, and
 report generator chains.</p></td>
@@ -1447,10 +1448,10 @@ report generator chains.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.small_model</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>anthropic/claude-haiku-4-5</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vertex_ai/gemini-3.8-flash</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>small</code> (an <code>llm.model_list</code> alias)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional (credentials mandatory)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cheaper model used by every other chain and by tool-internal LLM
-calls.</p></td>
+calls, including the <code>web_search</code> summarisation.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.temperature</code></p></td>
@@ -1483,14 +1484,17 @@ internal retries gets a fresh budget.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.model_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">list of LiteLLM Router entries</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>[]</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not set</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">2 entries</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Advanced routing: load balancing across entries that share a
 <code>model_name</code>, per-entry endpoints, and <code>os.environ/VAR</code> credential
 references. Router-level fallbacks between different models are <strong>not</strong>
 configurable today; the core passes only <code>model_list</code> to the Router.
 When non-empty, <code>model</code> and <code>small_model</code> must match a <code>model_name</code> and
-boot validation runs against the listed entries.</p></td>
+boot validation runs against the listed entries. As shipped, the
+aliases are <code>main</code> (a self-hosted OpenAI-compatible endpoint with a
+per-entry <code>api_base</code> and <code>os.environ/</code>-referenced key) and <code>small</code>
+(<code>vertex_ai/claude-sonnet-5-5</code>).</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1506,6 +1510,175 @@ guide</a>.</p>
 <p>Related environment variables: the provider&#8217;s credential variables in
 <code>core/.env</code>. Requires restart: yes, for the YAML and for a credential
 change.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="config-web-search"><a class="anchor" href="#config-web-search"></a><code>web_search</code></h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The search backend behind the agents' <code>web_search</code> tool. Requests go
+through the LiteLLM unified search API
+(<a href="https://docs.litellm.ai/docs/completion/web_search">LiteLLM search</a>), and
+the shipped <code>config.yaml</code> routes every search through the bundled SearXNG
+sidecar. Pointing it at another provider is a config change, but the
+backend has to exist: the stack only deploys SearXNG.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 18.1818%;">
+<col style="width: 18.1818%;">
+<col style="width: 9.0909%;">
+<col style="width: 9.0909%;">
+<col style="width: 9.0909%;">
+<col style="width: 36.3637%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">YAML path</th>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Code default</th>
+<th class="tableblock halign-left valign-top">Shipped <code>config.yaml</code></th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Meaning and effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.provider</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string — a LiteLLM search provider name</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>searxng</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>searxng</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Selects the search engine called by the <code>web_search</code> tool. The shipped
+stack deploys a SearXNG sidecar and leaves this at <code>searxng</code>. Any name in
+<code>litellm.types.utils.SearchProviders</code> is accepted — <code>tavily</code>, <code>brave</code>,
+<code>perplexity</code>, <code>exa_ai</code>, <code>google_pse</code> and others — but a hosted provider
+reads credentials from its own env vars, ignores <code>endpoint</code>, and needs a
+search service the stack does not ship: you have to provide that backend
+yourself. Empty disables web search altogether: there is no LLM-native
+fallback, so the tool answers "unavailable" instead of asking the model
+to search for itself. That is what lets self-hosted OpenAI-compatible
+endpoints (vLLM and the like) get live results.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.endpoint</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string (URL)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost:8888</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://searxng:8888</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of the search service, passed to LiteLLM as <code>api_base</code>.
+Required for <code>searxng</code>; hosted providers take their credentials from
+environment variables instead and usually need no endpoint.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.max_results</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (1–20)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>5</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>8</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Upper bound on results returned per query.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.max_page_chars</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (500–20000)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>6000</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>10000</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Truncates the readable text extracted from each result page. That
+product — <code>max_results × max_page_chars</code> — is the summarising
+inferences' input; the agent sees only the summaries.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.timeout</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">float (seconds, must be <code>&gt; 0</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>30.0</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>30.0</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per-request HTTP budget, covering the engine call and each page read.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.summarize_top</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (1–10)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>1</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">commented out</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">How many of the ranked summaries reach the agent, most relevant first.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>web_search.summarize_max_chars</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">integer (500–20000)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>4000</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">commented out</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Caps each summary, and each raw excerpt kept when a page&#8217;s summary
+inference fails. A summary stands in for its page, so too low a value
+loses detail the agent cannot get back.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Each search starts the same way: the engine returns ranked hits, and
+every hit&#8217;s page is rendered in headless Chromium through Playwright and
+reduced to markdown with <a href="https://trafilatura.readthedocs.io/">trafilatura</a>,
+so the agent works from the pages themselves — including
+JavaScript-rendered ones — rather than the engine&#8217;s snippets. The pages
+are read concurrently from one shared browser, and Chromium presents the
+fingerprint bot protection expects, so blogs and forums answer <code>200</code>
+where a bare HTTP client would get <code>403</code>. A page that will not render
+falls back to its snippet, so a partial failure costs detail rather than
+the whole search.</p>
+</div>
+<div class="paragraph">
+<p>Two small-model steps stand between the pages and the agent: one
+summary per page, all concurrent — an extract rather than a gist, since
+the summary replaces the page — then a single cross-page inference that
+ranks the pages answering the query. The top <code>summarize_top</code> summaries
+are what the agent reads, most relevant first, bounding a search&#8217;s
+context cost at <code>summarize_top × summarize_max_chars</code> instead of the
+<code>max_results × max_page_chars</code> product.</p>
+</div>
+<div class="paragraph">
+<p>The reduction degrades in layers and never fails a search: a page whose
+summary inference fails keeps a truncated raw excerpt, a ranking that
+cannot be parsed falls back to every summary in engine order, and any
+other summariser error falls back to the raw, unfiltered results.
+Selecting <strong>nothing</strong> is a verdict rather than a failure — every page
+irrelevant, or a ranking that explicitly picks none — and the tool
+answers with the reason and a nudge to rephrase the query. What caps a
+stuck agent is the agent loop&#8217;s own
+<code>orchestration.max_tool_agent_executions</code> budget.</p>
+</div>
+<div class="paragraph">
+<p>Validation: an unknown provider name aborts the boot; <code>searxng</code> without
+an endpoint does too; an <code>endpoint</code> without a <code>provider</code> is rejected as
+a half-configured state.</p>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+<div class="paragraph">
+<p>On a network that inspects HTTPS, page reads fail with
+<code>CERTIFICATE_VERIFY_FAILED</code> while the engine call itself keeps working,
+and every hit silently degrades to its snippet. See
+<a href="../../guides/development/#tls-inspecting-proxy" class="xref page">Behind a
+TLS-inspecting proxy</a>.</p>
+</div>
+</td>
+</tr>
+</table>
+</div>
+<div class="paragraph">
+<p>Related environment variables: the chosen provider&#8217;s credential
+variables in <code>core/.env</code> (SearXNG needs none; see the
+<a href="../environment-variables/" class="xref page">Environment variables
+and secrets</a> page). The bundled SearXNG sidecar reads its instance
+secret from <code>services/searxng/.env</code> (<code>SEARXNG_SECRET</code>) and takes no
+credential from the core. Requires rebuild: yes for the YAML.</p>
 </div>
 </div>
 </div>
@@ -2112,6 +2285,10 @@ everyone reaching port 80 is the local developer with full roles.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">llm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-sonnet-5"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  small_model</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"anthropic/claude-haiku-4-5"</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">web_search</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"searxng"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://searxng:8888"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">telemetry</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  collector_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://phoenix:6006/"</span></span>

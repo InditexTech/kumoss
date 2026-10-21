@@ -944,21 +944,23 @@ outright.</p>
 </li>
 <li>
 <p><strong>Long context.</strong> The generator receives the composed conventions, the
-repository excerpts it reads, and the plan output; models with short
-context windows truncate silently.</p>
-</li>
-<li>
-<p>Optional: native <code>web_search_options</code> support, which LiteLLM reports
-per model. Without it the web-search tool falls back to the OpenAI
-Responses API path, which only works on OpenAI-compatible endpoints.</p>
+  repository excerpts it reads, and the plan output; models with short
+  context windows truncate silently.
+Native <code>web_search_options</code> support is <strong>not</strong> among them. The web-search
+tool calls a search engine directly and reads the result pages itself,
+so live results need nothing from the provider beyond ordinary
+completions — see
+<a href="../configuration/#config-web-search" class="xref page"><code>web_search</code></a>.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>The shipped models (Claude and Gemini on Vertex AI, <code>vertex_ai/</code>, which
-the core&#8217;s test suite exercises) satisfy all of these, as do the built-in defaults (Anthropic Claude direct,
-<code>anthropic/</code>) and the same Claude models on Azure AI Foundry
-(<code>azure_ai/</code>). Kumoss has not tested every provider LiteLLM lists.</p>
+<p>The shipped models (Claude Sonnet on Vertex AI for the small role,
+<code>vertex_ai/</code>, wired through <code>llm.model_list</code>, plus an on-prem
+self-hosted model for the main role — see below) satisfy all of these,
+as do the built-in defaults (Anthropic Claude direct, <code>anthropic/</code>) and
+the same Claude models on Azure AI Foundry (<code>azure_ai/</code>). Kumoss has
+not tested every provider LiteLLM lists.</p>
 </div>
 </div>
 </div>
@@ -1091,9 +1093,10 @@ pins <code>litellm&gt;=1.93.0</code>).</p>
 variables LiteLLM reads by default, and the <code>litellm_params</code> keys you
 would use instead when writing an <code>llm.model_list</code> entry. The lists
 come from LiteLLM&#8217;s documentation. <strong>Kumoss has not tested every
-provider listed here</strong>; the checked-in <code>config.yaml</code> and the code
-defaults both target Anthropic directly (<code>anthropic/</code>), and the core&#8217;s
-test suite
+provider listed here</strong>; the code defaults target Anthropic directly
+(<code>anthropic/</code>), while the checked-in <code>config.yaml</code> routes the <code>main</code>
+alias to a self-hosted OpenAI-compatible endpoint and the <code>small</code> alias
+to Vertex AI, and the core&#8217;s test suite
 (<code>core/tests/shared/config/test_llm_config.py</code>) exercises the
 OpenAI-style and Vertex AI validation paths.</p>
 </div>

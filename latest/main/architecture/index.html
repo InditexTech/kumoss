@@ -1153,7 +1153,8 @@ and state each component owns, and the deployment topology.</p>
 </div>
 <div class="paragraph">
 <p>The diagram condenses some detail. The sidecars share one node: the
-bundled <code>iac :8082</code> and <code>notifications :8080</code>, plus the optional mapping
+bundled <code>iac :8082</code> and <code>notifications :8080</code>,
+<code>searxng :8888</code>, plus the optional mapping
 and authz contracts, whose implementations you provide yourself; the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the <code>workspaces</code> volume,
@@ -1260,8 +1261,19 @@ colour-coded Slack webhook messages.</p></td>
 request/response for the support requests the header&#8217;s chat bubble sends</p></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">searxng service</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Self-hosted SearXNG metasearch with the JSON API enabled. Answers the
+core&#8217;s <code>web_search</code> tool so agents get live web results without the LLM
+provider needing native search support. The base image is pinned to a
+datetagged SearXNG build: the project is a rolling release, so the
+pinned tag makes rebuilds reproducible and upgrades deliberate.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called synchronously by the core&#8217;s web-search facade, driven by
+<code>web_search.*</code> in <code>config.yaml</code></p></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">OpenAPI contracts (<code>contracts/openapi</code>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Source of truth for the four sidecar APIs, with Schemathesis conformance
+<td class="tableblock halign-left valign-top"><p class="tableblock">Source of truth for the four sidecar APIs (the searxng sidecar is not
+contract-based; it is plain SearXNG), with Schemathesis conformance
 suites.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Contracts → generated clients → sidecars</p></td>
 </tr>
