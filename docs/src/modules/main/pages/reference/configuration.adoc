@@ -168,6 +168,15 @@ the default and the issuer host is `login.microsoftonline.com`,
 |`60`
 |Optional
 |Leeway applied to `exp`, `iat`, and `nbf` validation.
+
+|`oidc.groups_claim`
+|string
+|`"groups"`
+|Optional
+|JWT claim name for group memberships. Extracted at token validation and
+forwarded to the authorization PDP as `subject.properties.groups`. Set
+to blank (`""`) to disable. Entra ID caveat: group claims are object IDs;
+users with >200 groups receive an overage indicator instead of the list.
 |===
 
 Related environment variables: none. The SPA is a public PKCE client
@@ -270,9 +279,7 @@ enabled: false (services.iac cannot — it is mandatory).`
 |Optional
 |Per-request HTTP budget. Every sidecar call returns promptly (long
 work runs as jobs the core polls), so this covers one round trip only.
-Honoured by the IaC and notifications clients; the mapping and
-authorization clients currently use fixed budgets of 10 and 15 seconds
-and ignore this field.
+Honoured by all sidecar clients.
 |===
 
 Fields specific to the IaC sidecar:
@@ -980,6 +987,7 @@ oidc:
   issuer_url: "https://login.example.invalid/realms/platform"
   client_id: "kumoss-web"
   clock_skew_seconds: 60
+  groups_claim: "groups"
 
 admin:
   default_root_email: "platform-admin@example.invalid"

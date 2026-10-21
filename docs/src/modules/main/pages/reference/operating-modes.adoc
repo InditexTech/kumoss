@@ -33,13 +33,12 @@ anything it is not sure of.
 
 == How a session runs
 
-*Authorization preflight.* Before the first request is sent, the wizard
-calls `POST /api/v1/auth/authorize`. With the shipped configuration
-(`services.authz.enabled: false`) no external check runs at all: the core
-answers "authorized" without contacting anything. When the sidecar is
-enabled, the core sends the cloud, the *repository URL* as the project
-name, and the *IaC path* as the environment — the scope id is never part
-of that check.
+*Authorization.* The core checks authorization on every IaC and PR write
+route via the AuthZEN PDP (`POST /access/v1/evaluation`). With the
+shipped configuration (`services.authz.enabled: false`) no external check
+runs at all: the core treats every operation as authorized. When the
+sidecar is enabled, the core sends the caller's identity, the action,
+and the target scope to the PDP before proceeding — and never fails open.
 
 *Asynchronous execution.* Every IaC route answers `202 Accepted` with a
 session id immediately and runs in the background. Progress arrives
