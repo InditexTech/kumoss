@@ -1,13 +1,10 @@
-# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
-#
-# SPDX-License-Identifier: Apache-2.0
-
 from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
+from typing_extensions import Self
 
 from ..models.health_status import HealthStatus
 
@@ -37,7 +34,7 @@ class Health:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+    def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
         status = HealthStatus(d.pop("status"))
 

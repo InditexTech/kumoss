@@ -6,29 +6,17 @@ openapi: 3.1.0
 info:
   title: Kumoss Authorization Service
   version: "1.0.0"
-  summary: User identity, role membership, and per-resource access decisions.
+  summary: OpenID AuthZEN 1.0 Access Evaluation for organizational access control.
   description: |
-    The authorization service answers two questions for the rest of Kumoss:
+    The authorization service implements the OpenID AuthZEN 1.0 Access
+    Evaluation API. The Kumoss core sends an evaluation request before
+    every IaC and PR write operation; the PDP returns a boolean decision.
 
-    1. *Who is this user, and what roles do they have?* The Kumoss core
-       does not call these endpoints today: its own operation and panel
-       roles live in the core database. They exist for implementations
-       that keep a role store of their own. Identity is asserted by the
-       caller via `X-User-Id` and optional `X-User-Email` headers — the
-       OIDC-token-validation step lives in the core, not here, so the
-       contract makes no assumption about the upstream identity provider.
-
-    2. *Is this user allowed to operate on this cloud resource?* Used by
-       the core when handling generation/drift/import requests, before
-       running terraform against a live project.
-
-    Kumoss does not bundle an implementation of this contract. While
-    `services.authz` is disabled (the default), the core never calls
-    one and treats every `/v1/check` as authorized. Organizations that
-    need real access control implement `/v1/check` with their own
-    authorization logic (Azure AD groups, internal CMDB-driven
-    policies, etc.), back the role store with whatever directory
-    service they use, and point `services.authz.endpoint` at it.
+    Kumoss does not bundle a PDP implementation. While `services.authz`
+    is disabled (the default), the core never calls the PDP and treats
+    every operation as authorized. Organizations that need access control
+    deploy their own PDP (or the included stub) and point
+    `services.authz.endpoint` at it.
   contact:
     name: Kumoss maintainers
     url: https://github.com/InditexTech/kumoss
@@ -41,24 +29,20 @@ servers:
     description: Placeholder. Kumoss calls the URL set in `services.authz.endpoint`.
 
 tags:
-  - name: check
-    description: Per-resource access decisions.
-  - name: users
-    description: User identity and role queries.
-  - name: roles
-    description: Role catalogue and admin role-management endpoints.
+  - name: evaluation
+    description: AuthZEN access evaluation.
   - name: ops
     description: Operational endpoints (liveness, readiness).
 
 paths:
-  /v1/check:
+  /access/v1/evaluation:
     post:
-      operationId: check
-      tags: [check]
-      summary: Decide whether a user may operate on a resource.
+      operationId: evaluate
+      tags: [evaluation]
+      summary: Evaluate an access request.
       description: |
-        Returns whether the identified user is permitted to operate on
-        the named cloud resource.
+        Returns whether the subject is permitted to perform the named
+        action on the given resource, per OpenID AuthZEN 1.0 §5.
       security:
         - bearerAuth: []
       requestBody:
@@ -66,19 +50,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CheckRequest"
+              $ref: "#/components/schemas/AccessEvaluationRequest"
       responses:
         "200":
-          description: Decision computed (whether or not access is granted).
+          description: Decision computed.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CheckResponse"
+                $ref: "#/components/schemas/AccessEvaluationResponse"
         "400":
-          description: |
-            Request could not be parsed at the transport layer (malformed
-            JSON, non-UTF-8 bytes). Implementations MAY return a
-            framework-default body for this case.
+          description: Malformed request (bad JSON, non-UTF-8).
           content:
             application/json:
               schema:
@@ -96,161 +77,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "502":
-          description: Downstream identity/cloud backend returned an error.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
-
-  /v1/users/me:
-    get:
-      operationId: get_current_user
-      tags: [users]
-      summary: Look up the calling user's identity and roles.
-      description: |
-        The caller asserts identity via `X-User-Id` (and optionally
-        `X-User-Email`). The service returns the corresponding user
-        record (creating an empty one if none exists) plus assigned
-        roles.
-
-        When neither header is present, implementations SHOULD return
-        an anonymous user with no roles.
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UserIdHeader"
-        - $ref: "#/components/parameters/UserEmailHeader"
-      responses:
-        "200":
-          description: User found (or implicitly created).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/User"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /v1/roles:
-    get:
-      operationId: list_roles
-      tags: [roles]
-      summary: List available roles.
-      security:
-        - bearerAuth: []
-      responses:
-        "200":
-          description: Catalogue of role names known to the service.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/RoleList"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-
-  /v1/users:
-    get:
-      operationId: list_users
-      tags: [users]
-      summary: "Admin: list all known users."
-      description: |
-        Caller must hold the `admin` role (asserted via X-User-Id +
-        verified against the role store).
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UserIdHeader"
-      responses:
-        "200":
-          description: Users known to the service.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/UserList"
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          description: Caller is not an admin.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
-
-  /v1/users/{user_id}/roles:
-    post:
-      operationId: assign_role
-      tags: [roles]
-      summary: "Admin: assign a role to a user."
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UserIdHeader"
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 1024
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/AssignRoleRequest"
-      responses:
-        "204":
-          description: Role assigned.
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          description: Caller is not an admin.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
-        "404":
-          description: Role does not exist in the catalogue.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
-        "422":
-          description: Request body failed schema validation.
-          content:
-            application/problem+json:
-              schema:
-                $ref: "#/components/schemas/Problem"
-
-  /v1/users/{user_id}/roles/{role}:
-    delete:
-      operationId: revoke_role
-      tags: [roles]
-      summary: "Admin: revoke a role from a user."
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: "#/components/parameters/UserIdHeader"
-        - name: user_id
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 1024
-        - name: role
-          in: path
-          required: true
-          schema:
-            type: string
-            minLength: 1
-            maxLength: 64
-      responses:
-        "204":
-          description: Role revoked (or was already absent).
-        "401":
-          $ref: "#/components/responses/Unauthorized"
-        "403":
-          description: Caller is not an admin.
+          description: Downstream backend error.
           content:
             application/problem+json:
               schema:
@@ -280,9 +107,7 @@ components:
       description: Missing or invalid bearer token.
       headers:
         WWW-Authenticate:
-          description: |
-            Bearer challenge. RFC 9110 11.6.1 requires a 401 to carry at
-            least one challenge, so implementations must send this.
+          description: Bearer challenge per RFC 9110 §11.6.1.
           required: true
           schema:
             type: string
@@ -292,145 +117,113 @@ components:
           schema:
             $ref: "#/components/schemas/Problem"
 
-  parameters:
-    UserIdHeader:
-      name: X-User-Id
-      in: header
-      required: false
-      description: |
-        Caller-asserted user identifier. The core sets this after
-        validating the upstream OIDC token; the authz service does not
-        validate the OIDC token itself. May be empty or omitted for
-        anonymous flows.
-
-        Implementations MAY clamp over-long values (for example,
-        truncate to 1024 chars before persisting). The contract
-        does not advertise a maxLength on the header so that boundary
-        callers don't get hard 4xx failures.
-      schema:
-        type: string
-    UserEmailHeader:
-      name: X-User-Email
-      in: header
-      required: false
-      description: |
-        Caller-asserted user email. May be empty or omitted.
-        Implementations MAY clamp over-long values (for example,
-        truncate to 256 chars before persisting).
-      schema:
-        type: string
-
   schemas:
-    CheckRequest:
+    AccessEvaluationRequest:
       type: object
-      required: [cloud, project]
+      required: [subject, action, resource]
       additionalProperties: false
       properties:
-        user_id:
-          type: [string, "null"]
-          description: User to check. May be null for anonymous flows.
-          minLength: 1
-          maxLength: 1024
-        cloud:
-          type: string
-          minLength: 1
-          maxLength: 32
-          examples: ["azure", "gcp"]
-        project:
-          type: string
-          minLength: 1
-          maxLength: 256
-        environment:
-          type: [string, "null"]
-          minLength: 1
-          maxLength: 32
-          examples: ["dev", "pro"]
+        subject:
+          $ref: "#/components/schemas/Subject"
+        action:
+          $ref: "#/components/schemas/Action"
+        resource:
+          $ref: "#/components/schemas/Resource"
+        context:
+          $ref: "#/components/schemas/RequestContext"
 
-    CheckResponse:
+    Subject:
       type: object
-      required: [authorized]
+      required: [type, id]
       additionalProperties: false
       properties:
-        authorized:
-          type: boolean
-        portal_url:
-          type: [string, "null"]
-          description: |
-            Implementation-supplied link to the cloud portal for the
-            resource (Azure Portal, GCP Console). May be null when the
-            implementation has no portal-URL convention.
-          maxLength: 2048
-        reason:
-          type: [string, "null"]
-          description: |
-            Human-readable explanation of the decision. Useful for
-            debugging and for surfacing in the UI.
-          maxLength: 1024
-
-    User:
-      type: object
-      required: [id, roles]
-      additionalProperties: false
-      properties:
+        type:
+          type: string
+          enum: [user]
         id:
           type: string
-          minLength: 1
-          maxLength: 1024
+        properties:
+          $ref: "#/components/schemas/SubjectProperties"
+
+    SubjectProperties:
+      type: object
+      additionalProperties: true
+      properties:
+        issuer:
+          type: string
         email:
-          type: [string, "null"]
-          maxLength: 256
-        name:
-          type: [string, "null"]
-          maxLength: 256
-        roles:
+          type: string
+        groups:
           type: array
           items:
             type: string
-            minLength: 1
-            maxLength: 64
 
-    UserList:
-      type: object
-      required: [users]
-      additionalProperties: false
-      properties:
-        users:
-          type: array
-          items:
-            $ref: "#/components/schemas/User"
-
-    Role:
+    Action:
       type: object
       required: [name]
       additionalProperties: false
       properties:
         name:
           type: string
-          minLength: 1
-          maxLength: 64
-        description:
-          type: [string, "null"]
-          maxLength: 512
+          enum: [generate, drift, import, apply, pr.create, pr.merge]
 
-    RoleList:
+    Resource:
       type: object
-      required: [roles]
+      required: [type, id]
       additionalProperties: false
       properties:
-        roles:
-          type: array
-          items:
-            $ref: "#/components/schemas/Role"
-
-    AssignRoleRequest:
-      type: object
-      required: [role]
-      additionalProperties: false
-      properties:
-        role:
+        type:
           type: string
-          minLength: 1
-          maxLength: 64
+          enum: [scope]
+        id:
+          type: string
+        properties:
+          $ref: "#/components/schemas/ResourceProperties"
+
+    ResourceProperties:
+      type: object
+      additionalProperties: true
+      properties:
+        provider:
+          type: string
+          enum: [azure, gcp, aws, oci, kubernetes, vmware]
+        repo_uri:
+          type: string
+        iac_path:
+          type: string
+
+    RequestContext:
+      type: object
+      additionalProperties: true
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        iteration:
+          type: boolean
+
+    AccessEvaluationResponse:
+      type: object
+      required: [decision]
+      additionalProperties: true
+      properties:
+        decision:
+          type: boolean
+        context:
+          $ref: "#/components/schemas/ResponseContext"
+
+    ResponseContext:
+      type: object
+      additionalProperties: true
+      properties:
+        reason_user:
+          type: object
+          additionalProperties:
+            type: string
+        reason_admin:
+          type: object
+          additionalProperties:
+            type: string
 
     Health:
       type: object
@@ -443,7 +236,7 @@ components:
 
     Problem:
       type: object
-      description: Problem details for HTTP APIs (RFC 7807).
+      description: Problem details for HTTP APIs (RFC 9457).
       required: [type, title, status]
       properties:
         type:

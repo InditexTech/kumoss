@@ -1,7 +1,3 @@
-# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
-#
-# SPDX-License-Identifier: Apache-2.0
-
 """Contains some shared types for properties"""
 
 from collections.abc import Mapping, MutableMapping

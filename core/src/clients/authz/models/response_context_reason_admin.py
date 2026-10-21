@@ -1,7 +1,3 @@
-# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
-#
-# SPDX-License-Identifier: Apache-2.0
-
 from __future__ import annotations
 
 from collections.abc import Mapping
@@ -9,15 +5,14 @@ from typing import Any, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
+from typing_extensions import Self
 
-T = TypeVar("T", bound="CheckResponse400")
+T = TypeVar("T", bound="ResponseContextReasonAdmin")
 
 
 @_attrs_define
-class CheckResponse400:
-    """ """
-
-    additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
+class ResponseContextReasonAdmin:
+    additional_properties: dict[str, str] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
 
@@ -27,21 +22,21 @@ class CheckResponse400:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+    def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        check_response_400 = cls()
+        response_context_reason_admin = cls()
 
-        check_response_400.additional_properties = d
-        return check_response_400
+        response_context_reason_admin.additional_properties = d
+        return response_context_reason_admin
 
     @property
     def additional_keys(self) -> list[str]:
         return list(self.additional_properties.keys())
 
-    def __getitem__(self, key: str) -> Any:
+    def __getitem__(self, key: str) -> str:
         return self.additional_properties[key]
 
-    def __setitem__(self, key: str, value: Any) -> None:
+    def __setitem__(self, key: str, value: str) -> None:
         self.additional_properties[key] = value
 
     def __delitem__(self, key: str) -> None:
