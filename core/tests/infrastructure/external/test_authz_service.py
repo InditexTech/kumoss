@@ -30,7 +30,9 @@ def _minimal_request() -> AccessEvaluationRequest:
     )
 
 
-def _mock_authz_config(enabled: bool, endpoint: str = "http://authz:8083", timeout: float = 5.0):
+def _mock_authz_config(
+    enabled: bool, endpoint: str = "http://authz:8083", timeout: float = 5.0
+):
     cfg = MagicMock()
     cfg.enabled = enabled
     cfg.endpoint = endpoint
@@ -75,9 +77,7 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
     @patch("src.infrastructure.external.authz_service.system_config")
     async def test_evaluate_connection_error_raises_502(self, mock_cfg, mock_eval):
         mock_cfg.services.authz = _mock_authz_config(enabled=True)
-        mock_eval.asyncio = AsyncMock(
-            side_effect=httpx.ConnectError("unreachable")
-        )
+        mock_eval.asyncio = AsyncMock(side_effect=httpx.ConnectError("unreachable"))
         from src.infrastructure.external.authz_service import AuthzServiceClient
 
         with self.assertRaises(ExceptionHandler) as ctx:
@@ -98,7 +98,9 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
     @patch("src.infrastructure.external.authz_service.evaluate_op")
     @patch("src.infrastructure.external.authz_service.AuthenticatedClient")
     @patch("src.infrastructure.external.authz_service.system_config")
-    async def test_evaluate_uses_config_timeout(self, mock_cfg, mock_client_cls, mock_eval):
+    async def test_evaluate_uses_config_timeout(
+        self, mock_cfg, mock_client_cls, mock_eval
+    ):
         mock_cfg.services.authz = _mock_authz_config(enabled=True, timeout=42.0)
         mock_eval.asyncio = AsyncMock(
             return_value=AccessEvaluationResponse(decision=True)

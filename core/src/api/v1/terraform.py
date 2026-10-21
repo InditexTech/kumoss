@@ -9,7 +9,11 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from src.api.authz import authorize
-from src.api.deps import assert_session_access, get_validated_claims, require_operation_role
+from src.api.deps import (
+    assert_session_access,
+    get_validated_claims,
+    require_operation_role,
+)
 from src.domains.services.tracer_service import tracer
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities import SessionContext, User
@@ -64,7 +68,9 @@ async def _resolve_or_raise(
     ``SessionContext``).
     """
     is_first_call = isinstance(request, BaseIacRequest) and request.repo_uri is not None
-    is_iteration = isinstance(request, BaseIacRequest) and request.session_id is not None
+    is_iteration = (
+        isinstance(request, BaseIacRequest) and request.session_id is not None
+    )
 
     if request.session_id is not None:
         await assert_session_access(user, request.session_id, write=True)
@@ -171,7 +177,9 @@ async def generate_infrastructure(
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, claims, OperationType.GENERATE, action="generate")
+    ctx = await _resolve_or_raise(
+        request, user, claims, OperationType.GENERATE, action="generate"
+    )
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -195,7 +203,9 @@ async def drift_detection_remediation(
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, claims, OperationType.DRIFT, action="drift")
+    ctx = await _resolve_or_raise(
+        request, user, claims, OperationType.DRIFT, action="drift"
+    )
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -252,7 +262,9 @@ async def import_infrastructure(
     """Imports, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, claims, OperationType.IMPORT, action="import")
+    ctx = await _resolve_or_raise(
+        request, user, claims, OperationType.IMPORT, action="import"
+    )
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()

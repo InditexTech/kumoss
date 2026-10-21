@@ -5,7 +5,6 @@
 import logging
 import unittest
 from unittest.mock import AsyncMock, patch
-from uuid import UUID
 
 from fastapi import HTTPException
 
@@ -19,7 +18,7 @@ from src.clients.authz.models.response_context_reason_admin import (
 from src.clients.authz.models.response_context_reason_user import (
     ResponseContextReasonUser,
 )
-from src.domains.value_objects.token_claims import DEV_CLAIMS, TokenClaims
+from src.domains.value_objects.token_claims import TokenClaims
 from src.shared.exceptions import ExceptionHandler
 
 
