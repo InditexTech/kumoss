@@ -308,8 +308,9 @@ Common rules for every *enabled* sidecar:
   time, but they remain simple reference services. Keep every sidecar on
   a private network segment reachable only by the core, and never expose
   one through the ingress.
-* The `services.<name>.timeout` field is honoured by all sidecar
-  clients, including authorization.
+* The `services.<name>.timeout` field is honoured by the IaC,
+  notifications, and authorization clients; the mapping client uses a
+  fixed budget of 10 seconds.
 * Every sidecar exposes `GET /healthz` for liveness probes.
 
 [#iac-mandatory]

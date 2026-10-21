@@ -279,7 +279,8 @@ enabled: false (services.iac cannot — it is mandatory).`
 |Optional
 |Per-request HTTP budget. Every sidecar call returns promptly (long
 work runs as jobs the core polls), so this covers one round trip only.
-Honoured by all sidecar clients.
+Honoured by the IaC, notifications, and authorization clients; the
+mapping client uses a fixed budget of 10 seconds.
 |===
 
 Fields specific to the IaC sidecar:

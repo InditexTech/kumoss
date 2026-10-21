@@ -77,7 +77,7 @@ by default and not bundled: deploy your own PDP implementing the 2-endpoint
 contract (evaluation + healthz). Disabled, the core treats every operation
 as authorized; enabled, the core consults the PDP on every write route and
 never fails open.
-|Called from the authorize route with the caller's identity
+|Called from every write route via the PEP helper with the caller's identity
 
 |iac service
 |Runs one IaC engine command per asynchronous job — `init`, `validate`,
