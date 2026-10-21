@@ -4,7 +4,6 @@
 
 import { useCallback, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useInitialInformation } from "@/hooks/use_initial_information";
 import { useTerraformActions } from "@/hooks/use_terraform_actions";
 import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
@@ -20,7 +19,7 @@ import { isMergeOnlySession } from "@/utils/session";
 import type { Session } from "@/types/ui";
 import type { TerraformProvider } from "@/types/api";
 
-const CLOUD_SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
+const SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
 export function useHomeWizard() {
   const { session, updateSession, resetNonce } = useSession();
@@ -33,31 +32,7 @@ export function useHomeWizard() {
   const mapper = useMapperResolution();
   const { handleOutcome } = useWizardTerraform();
 
-  const auth = useInitialInformation();
   const terraform = useTerraformActions();
-
-  const hasTriggeredTerraform = useRef(false);
-
-  // When authorization succeeds, kick off the terraform action
-  useEffect(() => {
-    if (auth.state.status === "success" && !hasTriggeredTerraform.current) {
-      hasTriggeredTerraform.current = true;
-
-      navigate("/home/planning");
-
-      terraform.run(
-        {
-          repoUri: navigation.data.repositoryUrl,
-          query: navigation.data.query,
-          terraformProviders: navigation.data.provider as TerraformProvider,
-          scopeId: navigation.data.cloudScope,
-          mode,
-          iacPath: navigation.data.iacPath,
-        },
-        handleOutcome,
-      );
-    }
-  }, [auth.state.status, navigation.data, mode, terraform, navigate, handleOutcome]);
 
   useEffect(() => {
     if (terraform.state.status === "error" && homeView === "planning") {
@@ -65,47 +40,34 @@ export function useHomeWizard() {
     }
   }, [terraform.state.status, homeView, navigate]);
 
-  /**
-   * Move the wizard on from whatever is now collected.
-   *
-   * Every step that fills a slot funnels through here, because the
-   * wizard no longer becomes complete at exactly one place. Once the
-   * mapper can answer the provider and the scope, resolution itself can
-   * finish it, and so can picking a path or a provider. Deciding that
-   * in one place is what keeps each of those moments authorizing.
-   *
-   * Takes the merged data rather than reading `navigation.data`: the
-   * caller has just written it in this same tick.
-   */
   const advance = useCallback(
     (data: WizardData) => {
       const patch: Partial<Session> = {};
       if (data.provider) patch.provider = data.provider;
-      if (data.cloudScope) patch.scope_id = data.cloudScope;
+      if (data.scope) patch.scope_id = data.scope;
       if (Object.keys(patch).length > 0) updateSession(patch);
 
       const next = nextStep(data);
       if (next === "complete") {
-        auth.run({
-          repositoryUrl: data.repositoryUrl,
-          query: data.query,
-          cloud: data.provider,
-          environment: data.iacPath,
-        });
+        navigate("/home/planning");
+        terraform.run(
+          {
+            repoUri: data.repositoryUrl,
+            query: data.query,
+            terraformProviders: data.provider as TerraformProvider,
+            scopeId: data.scope,
+            mode,
+            iacPath: data.iacPath,
+          },
+          handleOutcome,
+        );
         return;
       }
       navigation.setStep(next);
     },
-    [navigation, updateSession, auth],
+    [navigation, updateSession, terraform, navigate, mode, handleOutcome],
   );
 
-  // Full modes skip the query step and send a fixed query. The mode can
-  // change mid-wizard, so keep the query slot in sync with it: a full mode
-  // overrides whatever is there, and leaving one for a partial mode drops
-  // the fixed query and asks the user for theirs. The dropdown stays open
-  // while authorization runs, so that also drops an authorization in
-  // flight: it would otherwise trigger the action with the query emptied.
-  const resetAuth = auth.reset;
   useEffect(() => {
     const fixed = FIXED_MODE_QUERIES[mode];
     const { query } = navigation.data;
@@ -117,9 +79,8 @@ export function useHomeWizard() {
     } else if (isFixedModeQuery(query)) {
       navigation.applyResolution({ query: "" });
       navigation.setStep("query");
-      resetAuth();
     }
-  }, [mode, navigation, updateSession, advance, resetAuth]);
+  }, [mode, navigation, updateSession, advance]);
 
   const handleInput = useCallback(
     async (value: string) => {
@@ -127,8 +88,6 @@ export function useHomeWizard() {
         case "query": {
           if (!value.trim() || value.length > 500) return;
           updateSession({ first_query: value.trim() });
-          // The rest may already be filled when the user switched from a
-          // full mode mid-wizard, so move on from what is collected.
           advance(navigation.applyResolution({ query: value.trim() }));
           break;
         }
@@ -145,14 +104,12 @@ export function useHomeWizard() {
               break;
             }
 
-            // Anything the mapper answered fills its slot, and a filled
-            // slot is a step nobody is asked about.
             const path = result.paths.length === 1 ? result.paths[0] : "";
             const resolved = navigation.applyResolution({
               repositoryUrl: result.repoUrl,
               ...(path ? { iacPath: path } : {}),
               ...(result.provider ? { provider: result.provider } : {}),
-              ...(result.scopeId ? { cloudScope: result.scopeId } : {}),
+              ...(result.scopeId ? { scope: result.scopeId } : {}),
             });
             updateSession({
               workspace: {
@@ -168,10 +125,10 @@ export function useHomeWizard() {
           break;
         }
 
-        case "cloud_scope": {
+        case "scope": {
           const scope = value.trim().toLowerCase();
-          if (!scope || !CLOUD_SCOPE_PATTERN.test(scope)) return;
-          advance(navigation.applyResolution({ cloudScope: scope }));
+          if (!scope || !SCOPE_PATTERN.test(scope)) return;
+          advance(navigation.applyResolution({ scope }));
           break;
         }
 
@@ -227,10 +184,6 @@ export function useHomeWizard() {
 
   const applyAfterPr = useCallback(() => {
     if (!session.uuid) return;
-    // Drift is remediated by merging the PR and an import is already in
-    // state; applying afterwards would re-run work that is done.
-    // ResultsRoute already declines to call this, but the callback is
-    // reachable through the outlet context.
     if (isMergeOnlySession(session)) return;
 
     navigate("/home/planning");
@@ -241,38 +194,22 @@ export function useHomeWizard() {
   const retry = useCallback(() => {
     if (mapper.mapperError) {
       navigation.setStep("repository_url");
-      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", provider: "", cloudScope: "", iacPath: "" }));
+      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", provider: "", scope: "", iacPath: "" }));
       mapper.resetMapper();
-      hasTriggeredTerraform.current = false;
-      auth.reset();
       terraform.reset();
-    } else if (auth.state.status === "error") {
-      navigation.setStep("cloud_scope");
-      navigation.setData((prev) => ({ ...prev, cloudScope: "" }));
-      hasTriggeredTerraform.current = false;
-      auth.reset();
-      terraform.reset();
-      navigate("/home", { replace: true });
     } else if (terraform.state.status === "error") {
-      hasTriggeredTerraform.current = false;
       terraform.reset();
       navigate("/home", { replace: true });
     }
-  }, [auth, terraform, mapper, navigation, navigate]);
+  }, [terraform, mapper, navigation, navigate]);
 
   const reset = useCallback(() => {
     navigation.resetNavigation();
     mapper.resetMapper();
-    hasTriggeredTerraform.current = false;
-    auth.reset();
     terraform.reset();
     navigate("/home", { replace: true });
-  }, [navigation, mapper, auth, terraform, navigate]);
+  }, [navigation, mapper, terraform, navigate]);
 
-  // A clear requested from outside the wizard: the header logo calls
-  // `resetSession()`, which bumps `resetNonce`. The ref is seeded with the
-  // mount-time value so a fresh mount — a deep link into
-  // /home/results/:id, say — is not mistaken for a reset request.
   const seenResetNonce = useRef(resetNonce);
   useEffect(() => {
     if (seenResetNonce.current === resetNonce) return;
@@ -280,19 +217,16 @@ export function useHomeWizard() {
     reset();
   }, [resetNonce, reset]);
 
-  const promptMessage = (): string =>
-    navigation.promptMessage(auth.state.status);
+  const promptMessage = (): string => navigation.promptMessage();
 
   const placeholder = (): string => navigation.placeholder();
 
   const isLoading =
     mapper.mapperLoading ||
-    auth.state.status === "loading" ||
     terraform.state.status === "loading";
 
   const error =
     mapper.mapperError ??
-    (auth.state.status === "error" ? auth.state.message : null) ??
     (terraform.state.status === "error" ? terraform.state.message : null);
 
   return {
@@ -302,7 +236,6 @@ export function useHomeWizard() {
     scanPaths: mapper.scanPaths,
     isLoading,
     error,
-    authState: auth.state,
     terraformState: terraform.state,
     promptMessage,
     placeholder,

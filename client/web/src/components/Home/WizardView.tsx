@@ -69,7 +69,7 @@ export default function WizardView({
   );
 
   const isTextStep =
-    step === "query" || step === "repository_url" || step === "cloud_scope";
+    step === "query" || step === "repository_url" || step === "scope";
 
   const isListStep = step === "iac_path";
 
@@ -82,9 +82,7 @@ export default function WizardView({
       {isLoading && (
         <Fade in timeout={500}>
           <Typography variant="h3" className={styles.loadingMsg}>
-            {step === "repository_url"
-              ? STRINGS.wizard.loadingRepository
-              : STRINGS.wizard.loadingPermissions}
+            {STRINGS.wizard.loadingRepository}
           </Typography>
         </Fade>
       )}
@@ -114,14 +112,14 @@ export default function WizardView({
             autoFocus
             className={styles.input}
             onKeyDown={handleKeyDown}
-            maxLength={step === "cloud_scope" ? 64 : 500}
+            maxLength={step === "scope" ? 64 : 500}
             placeholder={placeholder()}
             aria-label={
               step === "query"
                 ? STRINGS.wizard.ariaQuery
                 : step === "repository_url"
                   ? STRINGS.wizard.ariaRepositoryUrl
-                  : STRINGS.wizard.ariaCloudScope
+                  : STRINGS.wizard.ariaScope
             }
           />
         </Fade>
