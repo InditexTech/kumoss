@@ -5,12 +5,23 @@
 
 ### Features
 
-* **web_search:** Remove the _search_dead_end counter as is an edge_case scenario and is currently managed by re-wording the search query by the model ([5340a79](https://github.com/InditexTech/kumoss/commit/5340a7967f46555decf3a22be7009a095deaa8c6))
+* **config:** route LLM roles through `llm.model_list` LiteLLM aliases, so a role can target a self-hosted OpenAI-compatible endpoint (e.g. `hosted_vllm/…` with its own `api_base` and key) while the other stays hosted ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([e51cfab](https://github.com/InditexTech/kumoss/commit/e51cfabb19f68c39ce22c2e83e06aa33d3a966a1))
+* **tools:** route agent web searches through a configurable search backend (new `web_search.*` config block, validated at boot) instead of LLM-native search, which self-hosted models lack; an empty provider disables the tool ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([1567082](https://github.com/InditexTech/kumoss/commit/1567082945e0ba4ea12fffc706c60af639030295), [9ae0a0f](https://github.com/InditexTech/kumoss/commit/9ae0a0f890bd056e8595a920e3dd06b77c512ce8))
+* **searxng:** add a bundled self-hosted SearXNG sidecar (`services/searxng/`, port 8888) wired into Docker Compose ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([1567082](https://github.com/InditexTech/kumoss/commit/1567082945e0ba4ea12fffc706c60af639030295))
+* **web_search:** read full result pages rendered in headless Chromium (Playwright + trafilatura) instead of engine snippets, falling back to the snippet when a page cannot be read ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([e99ed95](https://github.com/InditexTech/kumoss/commit/e99ed9567d5ec75c81fdd6036d2d48baccda4b54))
+* **web_search:** summarize each page and rank them with the small model before the agent reads them, bounding context to the top `summarize_top` summaries; summarization is on by default ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([517c819](https://github.com/InditexTech/kumoss/commit/517c819890e1959be63092b0fb906dc00961b75c), [6a67e5c](https://github.com/InditexTech/kumoss/commit/6a67e5caaee3dc324805bc27fdb4dc8e66a0b935), [5340a79](https://github.com/InditexTech/kumoss/commit/5340a7967f46555decf3a22be7009a095deaa8c6))
 
 
 ### Bug Fixes
 
-* **security:** Upgrade the certifi packages ([9049307](https://github.com/InditexTech/kumoss/commit/9049307b00f5de802aed9d953c901c0be38425ae))
+* **compose:** move corporate proxy certificate handling out of the base stack into an opt-in local override ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([ad4e9b9](https://github.com/InditexTech/kumoss/commit/ad4e9b95ae2b7b3dc2753012fca532634c61623c))
+* **searxng:** keep only the engines a general query needs (bing, duckduckgo, brave) to avoid upstream rate-limiting ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([94b9e9f](https://github.com/InditexTech/kumoss/commit/94b9e9f2fc5599cb899ad6d951ee5f37382b0cec))
+* **security:** upgrade aiohttp to 3.14.5 and certifi to address security issues ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([3d38fdb](https://github.com/InditexTech/kumoss/commit/3d38fdb22028bdec68d017183ca940ee2defccec), [9049307](https://github.com/InditexTech/kumoss/commit/9049307b00f5de802aed9d953c901c0be38425ae))
+
+
+### Documentation
+
+* document the `web_search` configuration, the SearXNG sidecar, `llm.model_list` and a tracked `docker-compose.override.example.yml` for TLS-inspecting proxies ([#345](https://github.com/InditexTech/kumoss/issues/345)) ([d0374de](https://github.com/InditexTech/kumoss/commit/d0374dedf9d16554fd9fc72551c17c315882c613), [04fbfe0](https://github.com/InditexTech/kumoss/commit/04fbfe0ad6a50ab0fdc51e84419de749cbd6a96d))
 
 ## [1.2.0](https://github.com/InditexTech/kumoss/compare/v1.1.0...v1.2.0) (2026-10-20)
 
