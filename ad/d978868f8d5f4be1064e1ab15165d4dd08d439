@@ -1,0 +1,23 @@
+core/src/domains/services/terraform_import_address_service.py
+  s_dc32208be66e72::t_5c63c06e9f0bbb 21-26,49
+core/src/infrastructure/templates/base_layouts/core/import_addresses.jinja
+  s_dc32208be66e72::t_af76752e473aab 7,22,28,36,39-40,42,44,46-69,73,77-78,84,87-98,103-104,106-107,110
+core/src/infrastructure/tools/iac_import.json
+  s_dc32208be66e72::t_7286ed7e590e95 29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "add978868f8d5f4be1064e1ab15165d4dd08d439",
+  "prompts": {},
+  "sessions": {
+    "s_dc32208be66e72": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "5d9a53d1-fbb7-4325-8cfb-711527069137",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
