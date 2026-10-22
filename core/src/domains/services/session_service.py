@@ -66,7 +66,10 @@ class SessionService:
 
     async def save(self, query: str) -> None:
         try:
-            reply = await self.__chat_reply(query, self.__ctx.history)
+            reply = await self.__chat_reply(
+                f"My request was: {query}\n",
+                self.__ctx.history,
+            )
             self.__ctx.chat_history.append_turn(query, reply)
         except ExceptionHandler:
             logging.warning(
