@@ -5,7 +5,12 @@
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.domains.dto import TerraformImportAttempt, ToolDefinitionDTO, ToolResultDTO
+from src.domains.dto import (
+    TerraformImportAttempt,
+    TerraformImportMappingDTO,
+    ToolDefinitionDTO,
+    ToolResultDTO,
+)
 from src.shared.constants import PromptsLibrary, ToolContext
 
 
@@ -23,6 +28,10 @@ class TerraformImportAddressService:
     type segment). Web search rides along with the workspace tools for
     that: the registry's "Import" section, for the provider version in
     use, is what settles the format of each resource type.
+
+    A block the agent cannot give an import id comes back in
+    ``unresolved`` with its reason, so the round never mistakes a missing
+    mapping for a complete one.
     """
 
     def __init__(
@@ -37,7 +46,7 @@ class TerraformImportAddressService:
 
     async def get_import_addresses(
         self, selected_ids: list[str]
-    ) -> set[TerraformImportAttempt]:
+    ) -> TerraformImportMappingDTO:
         tools_definition: list[ToolDefinitionDTO] = self.__tool_svc.get_available_tools(
             contexts=[
                 ToolContext.WORKSPACE_INSPECTION,
@@ -54,7 +63,24 @@ class TerraformImportAddressService:
                 PromptsLibrary.IMPORT_ADDRESSES, selected_ids=selected_ids
             ),
         )
-        return {
-            TerraformImportAttempt(entry["address"], entry["resource_id"])
-            for entry in response.result["imports"]
-        }
+        return TerraformImportMappingDTO(
+            imports={
+                TerraformImportAttempt(
+                    entry["address"],
+                    entry["resource_id"],
+                    listed_id=entry.get("listed_id", ""),
+                )
+                for entry in response.result["imports"]
+            },
+            unresolved={
+                # No import id was built, so none was attempted: the agent's
+                # `resource_id` here is the listed id it paired the block with.
+                TerraformImportAttempt(
+                    entry["address"],
+                    "",
+                    entry["reason"],
+                    listed_id=entry["resource_id"],
+                )
+                for entry in response.result.get("unresolved", [])
+            },
+        )

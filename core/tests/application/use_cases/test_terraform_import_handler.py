@@ -24,6 +24,7 @@ from src.domains.dto import (
     TerraformDriftDTO,
     TerraformImportAttempt,
     TerraformImportDTO,
+    TerraformImportMappingDTO,
     TerraformPlanDTO,
 )
 from src.domains.exceptions import ValidationLoopExceededError
@@ -85,6 +86,23 @@ def _attempts(pairs: list[tuple[str, str]]) -> set[TerraformImportAttempt]:
     }
 
 
+def _mapping(
+    pairs: list[tuple[str, str]],
+    unresolved: list[tuple[str, str, str]] | None = None,
+) -> TerraformImportMappingDTO:
+    """What the address agent reports: (address, resource_id) pairs to
+    import, and (address, listed id, reason) triples it could not map."""
+    return TerraformImportMappingDTO(
+        imports=_attempts(pairs),
+        unresolved={
+            TerraformImportAttempt(
+                address=a, resource_id="", error=reason, listed_id=rid
+            )
+            for a, rid, reason in unresolved or []
+        },
+    )
+
+
 def _import_outcome(
     imported: list[tuple[str, str]] | None = None,
     failed: list[tuple[str, str]] | None = None,
@@ -118,7 +136,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.requests_filter_svc = AsyncMock()
         self.import_svc = AsyncMock()
         self.import_address_svc = AsyncMock()
-        self.import_address_svc.get_import_addresses.return_value = set()
+        self.import_address_svc.get_import_addresses.return_value = _mapping([])
         self.target_svc = AsyncMock()
         self.drift_svc = AsyncMock()
         self.drift_svc.detect_and_resolve_drift.return_value = _drift_dto(True)
@@ -258,7 +276,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         )
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = set()
+        self.import_address_svc.get_import_addresses.return_value = _mapping([])
         self.import_svc.import_resources.return_value = _import_outcome()
 
         task = await self.handler.handle("import everything", is_partial=True)
@@ -286,7 +304,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             ["res-1", "res-2"]
         )
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -344,7 +362,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             ["res-1"], excluded=["res-9"]
         )
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = set()
+        self.import_address_svc.get_import_addresses.return_value = _mapping([])
         self.import_svc.import_resources.return_value = _import_outcome()
 
         task = await self.handler.handle("import everything", is_partial=False)
@@ -367,7 +385,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -416,7 +434,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         )
         self.task_svc.filter_imports.return_value = _filter_result(["res-1", "res-2"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [
                 ("azurerm_resource_group.main", "res-1"),
                 ("azurerm_virtual_network.vnet", "res-2"),
@@ -454,7 +472,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         )
         self.task_svc.filter_imports.return_value = _filter_result(["res-1", "res-2"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [
                 ("azurerm_resource_group.main", "res-1"),
                 ("azurerm_virtual_network.vnet", "res-2"),
@@ -476,13 +494,88 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = set()
+        self.import_address_svc.get_import_addresses.return_value = _mapping([])
         self.import_svc.import_resources.return_value = _import_outcome()
 
         task = await self.handler.handle("import res-1", is_partial=True)
         await task()
 
         self.import_svc.import_resources.assert_awaited_once_with(set())
+
+    async def test_unresolved_blocks_are_reported_as_failed_not_complete(self):
+        # The agent could not build any import id: nothing is imported, so
+        # the round must not pass as a clean, empty success.
+        reason = "aws_ecs_service needs the cluster, absent from the listed id"
+        unresolved = [("aws_ecs_service.api", "arn:aws:ecs:::service/api", reason)]
+        self.import_svc.get_unmanaged_resources.return_value = _discovery(
+            ["arn:aws:ecs:::service/api"]
+        )
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
+            [], unresolved=unresolved
+        )
+        self.import_svc.import_resources.return_value = _import_outcome()
+
+        task = await self.handler.handle("import everything", is_partial=False)
+        await task()
+
+        self.assertIn(reason, self.task_svc.split_errors.await_args.kwargs["errors"])
+        self.drift_svc.detect_and_resolve_drift.assert_not_awaited()
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertEqual(payload["import_results"]["imported"], [])
+        self.assertEqual(
+            [
+                (a["address"], a["error"])
+                for a in payload["import_results"]["failed"]
+            ],
+            [("aws_ecs_service.api", reason)],
+        )
+
+    async def test_unresolved_blocks_stay_failed_beside_imported_ones(self):
+        # A partial mapping imports what it can; the unmapped block is
+        # still handed back to the agent on the retry, not forgotten.
+        reason = "no listed id matches the block"
+        self.import_svc.get_unmanaged_resources.return_value = _discovery(
+            ["res-1", "res-2"]
+        )
+        answers = [
+            _mapping(
+                [("azurerm_resource_group.main", "res-1")],
+                unresolved=[("azurerm_virtual_network.vnet", "res-2", reason)],
+            ),
+            _mapping([("azurerm_virtual_network.vnet", "res-2")]),
+        ]
+        asked: list[list[str]] = []
+
+        # The handler passes its live `failed` set, emptied once the
+        # retry imports the block, so record what it held at each call.
+        async def answer(selected):
+            asked.append(
+                sorted(getattr(s, "address", s) for s in selected)
+            )
+            return answers[len(asked) - 1]
+
+        self.import_address_svc.get_import_addresses.side_effect = answer
+        self.import_svc.import_resources.side_effect = [
+            _import_outcome(imported=[("azurerm_resource_group.main", "res-1")]),
+            _import_outcome(imported=[("azurerm_virtual_network.vnet", "res-2")]),
+        ]
+
+        task = await self.handler.handle("import everything", is_partial=False)
+        await task()
+
+        self.assertEqual(
+            asked, [["res-1", "res-2"], ["azurerm_virtual_network.vnet"]]
+        )
+        payload = json.loads(
+            self.report_svc.generate_report.await_args.kwargs["content"]
+        )
+        self.assertEqual(
+            sorted(a["address"] for a in payload["import_results"]["imported"]),
+            ["azurerm_resource_group.main", "azurerm_virtual_network.vnet"],
+        )
+        self.assertEqual(payload["import_results"]["failed"], [])
 
     # --- Step 5: Convergence validation ---
 
@@ -491,7 +584,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -521,7 +614,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -544,7 +637,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True, plan="generation plan")
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -566,7 +659,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -584,7 +677,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -603,7 +696,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True, plan="the plan")
-        self.import_address_svc.get_import_addresses.return_value = set()
+        self.import_address_svc.get_import_addresses.return_value = _mapping([])
         self.import_svc.import_resources.return_value = _import_outcome()
 
         task = await self.handler.handle("import res-1", is_partial=True)
@@ -621,7 +714,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         )
         self.task_svc.filter_imports.return_value = _filter_result(["res-1", "res-2"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [
                 ("azurerm_resource_group.main", "res-1"),
                 ("azurerm_storage_account.sta", "res-2"),
@@ -654,6 +747,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                         "address": "azurerm_resource_group.main",
                         "resource_id": "res-1",
                         "error": "",
+                        "listed_id": "",
                     },
                 ],
                 "failed": [
@@ -661,6 +755,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                         "address": "azurerm_storage_account.sta",
                         "resource_id": "res-2",
                         "error": "import failed for azurerm_storage_account.sta",
+                        "listed_id": "",
                     },
                 ],
             },
@@ -686,14 +781,14 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             ["res-1", "res-2"]
         )
         self.import_address_svc.get_import_addresses.side_effect = [
-            _attempts(
+            _mapping(
                 [
                     ("azurerm_resource_group.main", "res-1"),
                     ("azurerm_virtual_network.vnet", "res-2"),
                 ]
             ),
-            _attempts([("azurerm_virtual_network.vnet", "res-2")]),
-            _attempts([("azurerm_virtual_network.vnet", "res-2")]),
+            _mapping([("azurerm_virtual_network.vnet", "res-2")]),
+            _mapping([("azurerm_virtual_network.vnet", "res-2")]),
         ]
         self.import_svc.import_resources.side_effect = [
             _import_outcome(
@@ -734,13 +829,13 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
             ["res-1", "res-2"]
         )
         self.import_address_svc.get_import_addresses.side_effect = [
-            _attempts(
+            _mapping(
                 [
                     ("azurerm_resource_group.main", "res-1"),
                     ("azurerm_virtual_network.vnet", "res-2"),
                 ]
             ),
-        ] + [_attempts([("azurerm_virtual_network.vnet", "res-2")]) for _ in range(10)]
+        ] + [_mapping([("azurerm_virtual_network.vnet", "res-2")]) for _ in range(10)]
         self.import_svc.import_resources.side_effect = [
             _import_outcome(
                 imported=[("azurerm_resource_group.main", "res-1")],
@@ -773,7 +868,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.terraform_svc.plan.side_effect = [_plan_dto(True)] + [
             _plan_dto(False)
         ] * 10
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.return_value = _import_outcome(
@@ -848,7 +943,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.import_svc.get_unmanaged_resources.side_effect = track_discovery
         self.task_svc.filter_imports.side_effect = track_selection
         self.validation_svc.generate_and_validate.side_effect = track_generation
-        self.import_address_svc.get_import_addresses.return_value = _attempts(
+        self.import_address_svc.get_import_addresses.return_value = _mapping(
             [("azurerm_resource_group.main", "res-1")]
         )
         self.import_svc.import_resources.side_effect = track_import

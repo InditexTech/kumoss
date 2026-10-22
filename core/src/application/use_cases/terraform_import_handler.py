@@ -182,19 +182,23 @@ class TerraformImportHandler:
                 async def import_callback(
                     local_history: History,
                 ) -> ValidationResultDTO:
-                    import_cmds: set[
-                        TerraformImportAttempt
-                    ] = await self.__import_address_svc.get_import_addresses(
+                    mapping = await self.__import_address_svc.get_import_addresses(
                         failed or unmanaged_ids
                     )
-                    import_cmds.difference_update(imported)
+                    import_cmds = mapping.imports - imported
                     outcome = await self.__import_svc.import_resources(import_cmds)
                     imported.update(outcome.imported)
-                    failed.difference_update(outcome.failed)
-                    failed.update(outcome.failed)
+                    # A block the agent could not map is not imported: it
+                    # counts as failed, with the agent's reason, so the
+                    # round is retried and reported instead of passing as
+                    # complete without it.
+                    for attempts in (outcome.failed, mapping.unresolved):
+                        failed.difference_update(attempts)
+                        failed.update(attempts)
                     failed.difference_update(imported)
                     logging.debug(
                         f"import_cmds: {[r.address for r in import_cmds]}\n"
+                        + f"unresolved: {[r.address for r in mapping.unresolved]}\n"
                         + f"imported: {[r.address for r in imported]}\n"
                         + f"failed: {[r.address for r in failed]}\n"
                     )

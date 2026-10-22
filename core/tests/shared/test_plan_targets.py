@@ -43,6 +43,22 @@ class TestPlanTargetsViolation(unittest.TestCase):
         self.assertIsNotNone(violation)
         self.assertIn(f"limit of {PLAN_TARGETS_MAX_BYTES}", violation)
 
+    def test_the_advice_consolidates_and_never_drops_targets(self):
+        # Every target is a branch change or a dependant of one: a list
+        # cut down to fit would plan an incomplete change.
+        over_count = plan_targets_violation(["module.a", "module.b"], limit=1)
+        over_bytes = plan_targets_violation(
+            ["t" * 512] * (PLAN_TARGETS_MAX_BYTES // 512 + 1), limit=4096
+        )
+        for violation in (over_count, over_bytes):
+            assert violation is not None
+            self.assertIn("module.<name>", violation)
+            self.assertIn("Never drop a target", violation)
+            self.assertNotIn("keep only", violation)
+        assert over_count is not None and over_bytes is not None
+        self.assertIn("services.iac.max_plan_targets", over_count)
+        self.assertNotIn("services.iac.max_plan_targets", over_bytes)
+
     def test_non_string_targets_are_rejected(self):
         self.assertIsNotNone(plan_targets_violation(["module.a", 3], limit=2))
 

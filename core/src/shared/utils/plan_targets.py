@@ -15,13 +15,16 @@ def plan_targets_violation(targets: Sequence[object], limit: int) -> str | None:
     caught before the sidecar would reject it. The message is written
     for the target generator model, which receives it as a tool error;
     ``targets`` is typed loosely because that model's output is
-    unchecked JSON.
+    unchecked JSON. It only ever asks for consolidation: the list must
+    keep covering every change on the branch and its dependants, so a
+    shorter list that drops some of them would plan an incomplete change.
     """
     if len(targets) > limit:
         return (
-            f"{len(targets)} targets exceed the limit of {limit}. Target "
-            + "whole modules (`module.<name>`) instead of their individual "
-            + "resources, or keep only the resources the request changes."
+            f"{len(targets)} targets exceed the limit of {limit}. "
+            + _CONSOLIDATE
+            + " If the list cannot be consolidated, "
+            + "`services.iac.max_plan_targets` must be raised."
         )
     size = 0
     for target in targets:
@@ -36,7 +39,15 @@ def plan_targets_violation(targets: Sequence[object], limit: int) -> str | None:
     if size > PLAN_TARGETS_MAX_BYTES:
         return (
             f"The targets total {size} bytes, above the limit of "
-            + f"{PLAN_TARGETS_MAX_BYTES}. Use fewer or shorter addresses, "
-            + "such as `module.<name>`."
+            + f"{PLAN_TARGETS_MAX_BYTES}. "
+            + _CONSOLIDATE
         )
     return None
+
+
+_CONSOLIDATE = (
+    "Replace the individual resources of a module with the module itself "
+    + "(`module.<name>`), which still covers every one of them. Never drop "
+    + "a target to fit: each one is a required change or dependant, and "
+    + "leaving it out plans an incomplete change."
+)

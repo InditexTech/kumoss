@@ -24,12 +24,33 @@ All file paths are relative to this directory.
 </context>
 
 {% if selected_ids %}
+{% set attempts = selected_ids | reject("string") | list %}
 <selected_resource_ids>
-This round was asked to import exactly these cloud resources. The list is authoritative for WHICH resource each block maps to, and it is the only source of the values (names, ids, account, region, project, subscription) an import ID may contain. An entry may also carry the error of a previous import attempt: that attempt was rejected, so its id was wrong for the provider and must not be reported again unchanged.
+This round was asked to import exactly these cloud resources. The list is authoritative for WHICH resource each block maps to, and its listed ids are the only source of the values (names, ids, account, region, project, subscription) an import ID may contain.{% if attempts %} Each entry is a previous import attempt that did not succeed: its listed id, the import it ran, and its error (see `<previous_attempts>`).{% endif %}
+
 {% for id in selected_ids %}
+{% if id is string %}
 - {{ id }}
+{% else %}
+- listed id: {{ id.listed_id or id.resource_id }}
+  address: {{ id.address }}
+  previous import ID: {{ id.resource_id or "(none, the block was not mapped)" }}
+  error: {{ id.error | indent(4) }}
+{% endif %}
 {% endfor %}
 </selected_resource_ids>
+{% if attempts %}
+
+<previous_attempts>
+A failed import does not by itself mean its id was wrong. Between attempts the Terraform code is repaired, so decide from the error of each entry:
+
+- The error is about the id: the remote object does not exist (`Cannot import non-existent remote object`), the provider rejects the id's format (`unexpected format of ID`, `invalid … ID`, a parse error naming the id), or the error shows the id names a different resource. The id was wrong: rebuild it from the entry's listed id in the documented format, and report a different id, never the same string again.
+- The error is about anything else: the configuration of the block (an unsupported or missing argument, a missing import target), the provider configuration, credentials or permissions, throttling, a timeout or another transient failure. The id was not shown to be wrong: report the previous import ID again unchanged.
+- The entry was not mapped before (its error names a value the listed id lacks, or no matching listed id): try again from the listed id, and report it in `unresolved` again if the value is still missing.
+
+Whatever you decide, report the entry's listed id unchanged as `listed_id`.
+</previous_attempts>
+{% endif %}
 {% endif %}
 
 <objective>
@@ -63,7 +84,7 @@ Building the import ID:
 
 - Take the format from the documentation, and fill it ONLY with values present in the listed id: a name, a short id, an OCID, a path, the account, subscription, project, compartment or tenancy, the region, a parent such as a cluster, resource group, namespace, folder or datacenter. Documented literal text around those values (separators, a fixed URL host pattern, a `/`, `,` or space between parts, JSON keys) is part of the format and is written as documented. For example, for `aws_vpc` the listed id `arn:aws:ec2:eu-west-1:111122223333:vpc/vpc-0123` becomes the import ID `vpc-0123`.
 - Copy every value byte for byte. Never re-case, translate, shorten or "fix" a name, id, account, region or GUID: changing one imports the wrong resource, or nothing.
-- Never invent a value. If the documented format needs a value the listed id does not contain (an attribute only the cloud API knows), omit the entry and explain in `summary` which value is missing.
+- Never invent a value. If the documented format needs a value the listed id does not contain (an attribute only the cloud API knows), do not report it in `imports`: report it in `unresolved` with its listed id and, as `reason`, the value that is missing.
 - When the documentation offers several forms (for example an `import` block with `identity` and an `import` block with `id`, or a CLI example), report the string form used with `id` or with `terraform import`.
 
 Spelling of structural segments: some ids carry a fixed provider vocabulary (resource type paths, namespaces) that the inventory API may spell in a different case from the provider. Azure ARM ids are the common example: the listed id
@@ -95,7 +116,7 @@ Structural segments (`resourceGroups`, `Microsoft.Authorization/roleAssignments`
    - Do this even when you believe you already know the format: formats vary between resource types and provider versions, and the documentation is the authority, not memory.
    - If `web_search` reports that it is unavailable or returns no content, do not retry it: build the id from your own knowledge of the documented format, and name in `summary` every resource type whose format could not be verified.
 7. Build each import ID from its listed id following `<import_id_format>`.
-8. Final reporting: call `import_addresses` with `status`, a `summary` of what you found (for each resource type: the documented import format you applied and the provider version it came from), and the `imports` list.
+8. Final reporting: call `import_addresses` with `status`, a `summary` of what you found (for each resource type: the documented import format you applied and the provider version it came from), the `imports` list (each entry with the `listed_id` its import ID was built from), and the `unresolved` list. Every block collected in step 2 goes in exactly one of the two lists; a block with no matching listed id goes in `unresolved` with an empty `resource_id`.
 </instructions>
 
 <constraints>
@@ -104,8 +125,11 @@ Structural segments (`resourceGroups`, `Microsoft.Authorization/roleAssignments`
 - The diff is authoritative for which blocks exist, even when conversation context suggests otherwise. `<selected_resource_ids>` is authoritative for which cloud resource each block maps to and for the values its import ID contains; the documentation is authoritative for the format those values are written in.
 - An address MUST NOT be reported unless its resource block is present in the diff.
 - Every value in an import ID MUST come from the listed id, copied byte for byte. A search result settles formats and structural spelling only; no name, id, account or region may come out of it.
-- Never report an id that a previous attempt in `<selected_resource_ids>` already shows was rejected, unchanged.
-- Report `status` as `false` when the diff contains no added resource block, with an empty `imports` list.
+{% if attempts %}
+- Report a previous attempt's id again unchanged unless its error is about the id itself, as `<previous_attempts>` describes; when it is, the id you report MUST differ from it.
+{% endif %}
+- Never drop a block silently: every resource block added in the diff appears in `imports` or in `unresolved`.
+- Report `status` as `false` when the diff contains no added resource block, with empty `imports` and `unresolved` lists.
 - Do NOT modify Terraform files, run Terraform, or apply infrastructure changes.
 - Maximum of 10 workspace inspection tool calls (`diff_history`, `read_file`, `list_dir`, `bulk_grep_search`) before reporting. `web_search` calls do not count toward this limit; they are bounded by one per distinct resource type.
 - Your final and only concluding action MUST be a single call to `import_addresses`.

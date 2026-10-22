@@ -253,11 +253,36 @@ class TerraformImportResourceDTO:
 
 @dataclass(frozen=True)
 class TerraformImportAttempt:
-    """One resource an import round tried to bring under Terraform management"""
+    """One resource an import round tried to bring under Terraform management.
+
+    ``resource_id`` is the import id handed to ``terraform import``, in the
+    provider's documented format; ``listed_id`` is the id the cloud's
+    inventory listed it under, which that import id was built from. They
+    often differ (a bucket name taken from an ARN), and a retry that must
+    rebuild a rejected import id can only do it from the listed one.
+    """
 
     address: str
     resource_id: str = field(compare=False)
     error: str = field(compare=False, default="")
+    listed_id: str = field(compare=False, default="")
+
+
+@dataclass
+class TerraformImportMappingDTO:
+    """What the import address agent reported for an import round.
+
+    ``imports`` are ready for ``terraform import``. ``unresolved`` are the
+    blocks the agent could not give an import id, each with an empty
+    ``resource_id``, the listed id it was paired with as ``listed_id`` and,
+    as ``error``, the reason: a value the documented format needs that the
+    listed id lacks, or no listed id matching the block. They are not
+    imported, so the caller must count them as failed rather than treat
+    the round as complete without them.
+    """
+
+    imports: set[TerraformImportAttempt]
+    unresolved: set[TerraformImportAttempt]
 
 
 @dataclass

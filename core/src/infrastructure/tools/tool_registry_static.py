@@ -410,12 +410,18 @@ class ToolRegistryStatic(IToolRegistry):
         status = parameters["status"]
         summary = parameters["summary"]
         imports = parameters["imports"]
-        if not isinstance(imports, list):
+        unresolved = parameters.get("unresolved", [])
+        if not isinstance(imports, list) or not isinstance(unresolved, list):
             raise ToolInferenceParamsError(
-                message=f"IAC import inference hasn't returned the expected structure. got={imports}",
+                message=f"IAC import inference hasn't returned the expected structure. got={imports} unresolved={unresolved}",
                 error_code=500,
             )
-        return {"status": status, "summary": summary, "imports": imports}
+        return {
+            "status": status,
+            "summary": summary,
+            "imports": imports,
+            "unresolved": unresolved,
+        }
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
