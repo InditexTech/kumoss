@@ -31,6 +31,7 @@ from litellm.router import Router
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
+    PLAN_TARGETS_CEILING,
     Environment,
     GitProviderName,
     ObjectStorageProvider,
@@ -221,12 +222,19 @@ class IacServiceConfig(ServiceEndpointConfig):
     subprocess budget (2700s in the reference deployment). A validation
     run submits several jobs in sequence (init, validate, plan, and
     show when drift is requested), each with its own ``job_timeout``.
+
+    ``max_plan_targets`` caps how many ``-target`` addresses one plan
+    may carry. The target generator is told to consolidate (for example
+    to ``module.<name>`` addresses) when it returns more. It is bounded
+    by the iac contract's ceiling (``PLAN_TARGETS_CEILING``), so a value
+    the sidecar would reject fails boot instead of a session.
     """
 
     endpoint: str = "http://iac:8082"
     token_env: str = "KUMOSS_IAC_TOKEN"
     job_poll_interval: float = 5.0
     job_timeout: float = 3600.0
+    max_plan_targets: int = Field(default=1024, ge=1, le=PLAN_TARGETS_CEILING)
 
     @model_validator(mode="after")
     def _assert_endpoint(self) -> IacServiceConfig:

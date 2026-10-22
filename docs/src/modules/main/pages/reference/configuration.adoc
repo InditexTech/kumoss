@@ -298,6 +298,18 @@ and the command itself. The bundled sidecar imposes no timeout of its
 own on the engine process, so this value is the only bound. A
 validation run submits several jobs in sequence (init, validate, plan,
 and show when drift is requested), each with its own `job_timeout`.
+
+|`services.iac.max_plan_targets`
+|integer
+|`1024`
+|Optional, 1 to 4096
+|Maximum number of `-target` addresses one plan may carry. When the
+target generator returns more, the list is sent back to it with the
+limit, and it consolidates, for example into `module.<name>` targets.
+The upper bound is the iac contract's ceiling, so a value above 4096
+fails boot. Each target is one entry in the generator's tool call
+(roughly 20 tokens), so a value above about 2500 also needs a larger
+`llm.max_output_tokens`.
 |===
 
 *The IaC sidecar is mandatory.* Every operating mode runs engine

@@ -115,8 +115,10 @@ cannot escape the workspace. `plan` writes it; `show` and `apply` read
 the one a previous `plan` wrote.
 
 |`targets`
-|`plan` only. Up to 256 `-target=` filters. Omitted or empty plans the
-whole configuration.
+|`plan` only. Up to 4096 `-target=` filters of at most 1024 characters
+each, and at most 1 MiB in total (a larger list is a `422`). Omitted or
+empty plans the whole configuration. The core sends at most
+`services.iac.max_plan_targets` (1024 by default).
 
 |`address`
 |`import` only. The Terraform resource address to import into, for

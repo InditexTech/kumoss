@@ -5,7 +5,7 @@
 import json
 import inspect
 from pathlib import Path
-from typing import Any, Callable, override
+from typing import Any, Callable, cast, override
 
 from pydantic import ValidationError
 
@@ -28,9 +28,11 @@ from src.infrastructure.exceptions import (
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
 )
+from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
+from src.shared.utils.plan_targets import plan_targets_violation
 
 
 class ToolRegistryStatic(IToolRegistry):
@@ -207,6 +209,13 @@ class ToolRegistryStatic(IToolRegistry):
                 message=f"Target generation inference hasn't returned the expected structure. got={targets}",
                 error_code=400,
             )
+        # Raised here, the violation goes back to the target generator as
+        # the tool's error, so the model consolidates its own list.
+        violation = plan_targets_violation(
+            cast(list[object], targets), system_config.services.iac.max_plan_targets
+        )
+        if violation is not None:
+            raise ToolInferenceParamsError(message=violation, error_code=400)
         return {
             "targets": targets,
             "explanation": explanation,

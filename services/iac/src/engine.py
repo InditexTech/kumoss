@@ -51,6 +51,9 @@ class IacEngine:
     # Failure diagnostics are passed through verbatim in the job result;
     # the console log only carries a tail, to stay readable.
     _STDERR_LOG_LIMIT: ClassVar[int] = 500
+    # A plan can carry thousands of `-target` arguments; the console log
+    # keeps only the head of the command line.
+    _ARGS_LOG_LIMIT: ClassVar[int] = 1000
 
     _SCOPE_ENV_VARS: ClassVar[dict[str, str]] = {
         "azure": "ARM_SUBSCRIPTION_ID",
@@ -126,10 +129,16 @@ class IacEngine:
     async def _run(
         self, args: list[str], cwd: Path, env: dict[str, str] | None = None
     ) -> CommandResult:
+        command = " ".join(args)
+        if len(command) > self._ARGS_LOG_LIMIT:
+            command = (
+                f"{command[: self._ARGS_LOG_LIMIT]}... "
+                + f"({len(args)} args, {len(command)} chars)"
+            )
         logger.info(
             "run: %s %s (cwd=%s, scope=%s)",
             self._binary,
-            " ".join(args),
+            command,
             cwd,
             env or {},
         )

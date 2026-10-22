@@ -10,8 +10,15 @@ from datetime import datetime
 from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+
+# Protocol ceilings on `PlanRequest.targets` (contracts/openapi/iac.v1.yaml).
+# Each target becomes a `-target <addr>` argv pair, so the byte cap is what
+# keeps the engine command line under the kernel's ARG_MAX (2 MiB on a
+# default 8 MiB stack) whatever the count.
+PLAN_TARGETS_CEILING = 4096
+PLAN_TARGETS_MAX_BYTES = 1024 * 1024
 
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
 # Single path segment only: `plan_file` is passed to `-out`, `show`,
@@ -60,8 +67,21 @@ class ValidateRequest(WorkspaceRequest):
 class PlanRequest(ScopedRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    targets: list[TargetStr] = Field(default_factory=list, max_length=256)
+    targets: list[TargetStr] = Field(
+        default_factory=list, max_length=PLAN_TARGETS_CEILING
+    )
     plan_file: PlanFileStr
+
+    @field_validator("targets")
+    @classmethod
+    def _targets_fit_the_command_line(cls, targets: list[str]) -> list[str]:
+        size = sum(len(t.encode()) for t in targets)
+        if size > PLAN_TARGETS_MAX_BYTES:
+            raise ValueError(
+                f"targets total {size} bytes, above the {PLAN_TARGETS_MAX_BYTES}"
+                + "-byte limit"
+            )
+        return targets
 
 
 class ShowRequest(WorkspaceRequest):

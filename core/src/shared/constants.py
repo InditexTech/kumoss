@@ -165,3 +165,12 @@ class TargetGenerationMode(Enum):
 
     SESSION = "session"
     DRIFT = "drift"
+
+
+# Protocol limits on the iac contract's `PlanRequest.targets`
+# (contracts/openapi/iac.v1.yaml). `services.iac.max_plan_targets` is
+# bounded by the ceiling; the byte cap keeps the engine's `-target`
+# command line under the kernel's argument-size limit.
+PLAN_TARGETS_CEILING = 4096
+PLAN_TARGET_MAX_LENGTH = 1024
+PLAN_TARGETS_MAX_BYTES = 1024 * 1024

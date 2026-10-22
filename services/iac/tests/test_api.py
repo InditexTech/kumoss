@@ -208,6 +208,23 @@ def test_plan_rejects_empty_target_string() -> None:
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
+def test_plan_rejects_targets_over_the_byte_cap() -> None:
+    """2048 targets of 1024 characters are under the count ceiling but
+    2 MiB in total, which would not fit the engine's command line."""
+    with client_with() as client:
+        response = client.post(
+            "/v1/plan",
+            json={
+                "workspace_path": "/tmp",
+                "targets": ["t" * 1024] * 2048,
+                "plan_file": "x.plan",
+                **SCOPE,
+            },
+        )
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
 @pytest.mark.parametrize("endpoint", ["/v1/plan", "/v1/show", "/v1/apply"])
 def test_plan_file_traversal_rejected(endpoint: str) -> None:
     """`plan_file` lands in `-out` / `show` / `apply` argv: anything

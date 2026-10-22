@@ -401,6 +401,19 @@ class TestTerraformPlan(_TerraformTestCase):
         self.assertEqual(ctx.exception.error_code, 502)
 
 
+    async def test_targets_over_the_limit_fail_before_any_job(self):
+        self._use_config(max_plan_targets=2)
+        submits, _ = self._patch_ops()
+        self.terraform = self._make_terraform()
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await self.terraform.plan(targets=["a.x", "b.y", "c.z"])
+        self.assertEqual(ctx.exception.error_code, 422)
+        self.assertIn("limit of 2", ctx.exception.message)
+        for mock in submits.values():
+            mock.assert_not_called()
+
+
 class TestTerraformDrift(_TerraformTestCase):
     async def test_drift_reads_the_rounds_plan_without_planning_again(self):
         self._use_config()

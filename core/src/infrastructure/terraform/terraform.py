@@ -103,6 +103,7 @@ from src.shared.config.system_config import IacServiceConfig
 from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
+from src.shared.utils.plan_targets import plan_targets_violation
 
 
 OperationRequest = (
@@ -139,6 +140,12 @@ class Terraform(ITerraform):
     @override
     async def plan(self, targets: list[str]) -> TerraformPlanDTO:
         cfg = system_config.services.iac
+        # The target generator tool already enforces this; a list that
+        # still breaks it (a stored plan re-planned after the limit was
+        # lowered) fails here with the reason instead of as a sidecar 422.
+        violation = plan_targets_violation(targets, cfg.max_plan_targets)
+        if violation is not None:
+            raise ExceptionHandler(f"Cannot plan these targets: {violation}", 422)
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,

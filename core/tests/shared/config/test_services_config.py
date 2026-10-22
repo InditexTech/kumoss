@@ -15,6 +15,7 @@ from src.shared.config.system_config import (
     ServiceConfig,
     SystemConfig,
 )
+from src.shared.constants import PLAN_TARGETS_CEILING
 
 # Minimum env for SystemConfig to validate: the database URL, the LLM
 # credentials and the mandatory iac bearer token.
@@ -64,6 +65,27 @@ class TestIacServiceIsMandatory(unittest.TestCase):
         with patch.dict(os.environ, BOOT_ENV, clear=True):
             cfg = SystemConfig(llm=LLM)
             self.assertEqual(cfg.services.iac.token, "dummy-iac-token")
+
+
+class TestMaxPlanTargets(unittest.TestCase):
+    def test_defaults_to_1024(self):
+        self.assertEqual(IacServiceConfig().max_plan_targets, 1024)
+
+    def test_accepts_the_contract_ceiling(self):
+        self.assertEqual(
+            IacServiceConfig(max_plan_targets=PLAN_TARGETS_CEILING).max_plan_targets,
+            PLAN_TARGETS_CEILING,
+        )
+
+    def test_above_the_contract_ceiling_refuses_boot(self):
+        with self.assertRaises(ValidationError):
+            _system_config(
+                services={"iac": {"max_plan_targets": PLAN_TARGETS_CEILING + 1}}
+            )
+
+    def test_below_one_refuses_boot(self):
+        with self.assertRaises(ValidationError):
+            IacServiceConfig(max_plan_targets=0)
 
 
 class TestOptionalServices(unittest.TestCase):

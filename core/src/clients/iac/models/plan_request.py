@@ -41,6 +41,14 @@ class PlanRequest:
             escape the workspace.
         targets (list[str] | Unset): Optional `terraform plan -target=` filters. When omitted or
             empty, the entire configuration is planned.
+
+            Each target is passed to the engine as a command-line
+            argument, so besides the per-item and item-count limits the
+            UTF-8 byte lengths of all targets together must not exceed
+            1048576 (1 MiB); a larger list is rejected with `422`. The
+            cap keeps the engine's command line under the kernel's
+            argument-size limit whatever the count. Callers that want a
+            lower count enforce it themselves.
     """
 
     workspace_path: str

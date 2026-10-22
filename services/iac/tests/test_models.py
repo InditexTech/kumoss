@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shape of the import request models against the contract."""
+"""Shape of the import and plan request models against the contract."""
 
 from __future__ import annotations
 
@@ -12,8 +12,11 @@ import pytest
 from pydantic import ValidationError
 
 from src.models import (
+    PLAN_TARGETS_CEILING,
+    PLAN_TARGETS_MAX_BYTES,
     ImportRequest,
     JobKind,
+    PlanRequest,
     ScopeResourceIdsRequest,
     StateResourceIdsRequest,
 )
@@ -84,3 +87,30 @@ def test_job_kind_includes_the_import_kinds() -> None:
     assert {"import", "state_resource_ids", "scope_resource_ids"} <= set(
         get_args(JobKind)
     )
+
+
+PLAN: dict[str, Any] = {"workspace_path": "/ws", "plan_file": "x.plan", **SCOPE}
+
+
+def test_plan_request_accepts_the_target_ceiling() -> None:
+    targets = [f"module.m{i}" for i in range(PLAN_TARGETS_CEILING)]
+    assert PlanRequest(targets=targets, **PLAN).targets == targets
+
+
+def test_plan_request_rejects_targets_over_the_ceiling() -> None:
+    with pytest.raises(ValidationError):
+        PlanRequest(
+            targets=[f"module.m{i}" for i in range(PLAN_TARGETS_CEILING + 1)],
+            **PLAN,
+        )
+
+
+def test_plan_request_accepts_targets_at_the_byte_cap() -> None:
+    targets = ["t" * 1024] * (PLAN_TARGETS_MAX_BYTES // 1024)
+    assert len(PlanRequest(targets=targets, **PLAN).targets) == len(targets)
+
+
+def test_plan_request_rejects_targets_over_the_byte_cap() -> None:
+    targets = ["t" * 1024] * (PLAN_TARGETS_MAX_BYTES // 1024) + ["t"]
+    with pytest.raises(ValidationError, match="byte limit"):
+        PlanRequest(targets=targets, **PLAN)
