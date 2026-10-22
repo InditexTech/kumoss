@@ -17,7 +17,6 @@ import ExpandLessIcon from "@mui/icons-material/ExpandLess";
 import type {
   ArtifactRef,
   CodeChangeRef,
-  HistoryEntry,
   RoundDetail,
   SessionDetail,
   TerraformPlanRef,
@@ -26,7 +25,6 @@ import { TERMINAL_STATUSES } from "@/types/api";
 import { STRINGS } from "@/constants/strings";
 import { providerLabel } from "@/constants/providers";
 import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
-import ChatMessage from "@/components/Home/ChatHistory/ChatMessage";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
 import { usePlanTypes } from "./usePlanTypes";
@@ -51,7 +49,6 @@ interface SessionDataProps {
   session: SessionDetail;
   onReload?: () => void;
   onToggleLock?: () => void;
-  conversationHistory?: HistoryEntry[];
 }
 
 interface SelectedArtifact {
@@ -77,7 +74,6 @@ export default function SessionData({
   session,
   onReload,
   onToggleLock,
-  conversationHistory,
 }: SessionDataProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const artifactParam = searchParams.get("artifact");
@@ -462,7 +458,10 @@ export default function SessionData({
                                       tabIndex={0}
                                       aria-label={`${STRINGS.sessions.artifactOpen} ${label}`}
                                       onKeyDown={(e) => {
-                                        if (e.key === "Enter" || e.key === " ") {
+                                        if (
+                                          e.key === "Enter" ||
+                                          e.key === " "
+                                        ) {
                                           e.preventDefault();
                                           setArtifactParam({ kind, artifact });
                                         }
@@ -480,7 +479,9 @@ export default function SessionData({
                                       </Typography>
                                       {targets.length > 0 && (
                                         <span
-                                          className={styles.timelineOpTargetChip}
+                                          className={
+                                            styles.timelineOpTargetChip
+                                          }
                                         >
                                           {targetCountLabel(targets.length)}
                                         </span>
@@ -606,50 +607,33 @@ export default function SessionData({
         </div>
       </div>
 
-      {/* ── Conversation History ── */}
-      {conversationHistory && conversationHistory.length > 0 && (
-        <div className={styles.fieldRow}>
-          <Typography
-            variant="overline"
-            component="span"
-            className={styles.fieldLabel}
-          >
-            History
-          </Typography>
-          <div className={styles.historyList}>
-            {conversationHistory.map((entry, i) => (
-              <ChatMessage key={i} role={entry.role} content={entry.content} />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* ── Action Buttons ── */}
       <div className={styles.actions}>
-        {onToggleLock ? (
-          <button
-            type="button"
-            className={
-              session.is_blocked
-                ? styles.btnApplyInteractive
-                : styles.btnApplyOpenInteractive
-            }
-            title={session.is_blocked ? "Unlock apply" : "Lock apply"}
-            onClick={onToggleLock}
-          >
-            {lockIcon}
-            {lockLabel}
-          </button>
-        ) : (
-          <span
-            className={
-              session.is_blocked ? styles.btnApply : styles.btnApplyOpen
-            }
-          >
-            {lockIcon}
-            {lockLabel}
-          </span>
-        )}
+        {onReload &&
+          (onToggleLock ? (
+            <button
+              type="button"
+              className={
+                session.is_blocked
+                  ? styles.btnApplyInteractive
+                  : styles.btnApplyOpenInteractive
+              }
+              title={session.is_blocked ? "Unlock apply" : "Lock apply"}
+              onClick={onToggleLock}
+            >
+              {lockIcon}
+              {lockLabel}
+            </button>
+          ) : (
+            <span
+              className={
+                session.is_blocked ? styles.btnApply : styles.btnApplyOpen
+              }
+            >
+              {lockIcon}
+              {lockLabel}
+            </span>
+          ))}
         {onReload && (
           <button type="button" className={styles.btnReload} onClick={onReload}>
             <ReplayIcon className={styles.btnIcon} />

@@ -54,8 +54,9 @@ class TerraformApplyHandler:
 
         async def background_task():
             try:
+                round_query = "Terraform apply."
                 q = "Apply the IaC session changes"
-                await self.__session_svc.next_round("Terraform apply.")
+                await self.__session_svc.next_round(round_query)
                 _ = await self.__session_svc.update_status(
                     msg=q,
                     prompt=await self.__template_svc.render(
@@ -86,6 +87,6 @@ class TerraformApplyHandler:
                     )
             finally:
                 self.__workspace_svc.discard_pinned(ctx.id)
-                await self.__session_svc.save()
+                await self.__session_svc.save(round_query)
 
         return background_task

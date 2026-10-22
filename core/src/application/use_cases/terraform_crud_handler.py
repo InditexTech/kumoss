@@ -3,11 +3,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Coroutine
-from typing import Callable, Any, cast
+from typing import Any, Callable, cast
 
 from src.application.exceptions import SetLockError, TerraformValidationFailedError
-from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.report_service import ReportService
+from src.application.services.requests_filter_service import RequestsFilterService
 from src.application.services.terraform_drift_service import TerraformDriftService
 from src.domains.dto import TerraformPlanDTO, TerraformPlanReport
 from src.domains.entities import History
@@ -17,8 +17,8 @@ from src.domains.services import (
     ComplianceCheckService,
     SessionService,
     TemplateOrchestrationService,
-    TerraformValidationService,
     TerraformTargetService,
+    TerraformValidationService,
 )
 from src.domains.services.database_service import DatabaseService
 from src.infrastructure.external.notification_service import NotificationServiceClient
@@ -72,16 +72,7 @@ class TerraformCRUDHandler:
                     status=SessionStatus.FILTERING,
                     history=ctx.history,
                 )
-                ok, rationale = await self.__requests_filter_svc.filter(
-                    q, ctx.history, ctx.operation
-                )
-                if not ok:
-                    ctx.history.append_turn(q, rationale)
-                    _ = await self.__session_svc.update_status(
-                        msg=rationale,
-                        status=SessionStatus.UNCOMPLETED,
-                    )
-                    return
+                await self.__requests_filter_svc.filter(q, ctx.history, ctx.operation)
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
@@ -157,6 +148,6 @@ class TerraformCRUDHandler:
                     )
                 self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:
-                await self.__session_svc.save()
+                await self.__session_svc.save(q)
 
         return background_task

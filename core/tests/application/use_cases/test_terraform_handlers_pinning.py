@@ -77,7 +77,7 @@ class _HandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.validation_svc = AsyncMock()
         self.template_svc = AsyncMock()
         self.filter_svc = AsyncMock()
-        self.filter_svc.filter.return_value = (True, "")
+        self.filter_svc.filter.return_value = True
         self.report_svc = AsyncMock()
         self.target_svc = AsyncMock()
         self.drift_svc = AsyncMock()
@@ -149,7 +149,7 @@ class TestCrudHandlerPinning(_CrudHandlerTestCase):
         self.drift_svc.detect_and_resolve_drift.assert_not_awaited()
 
     async def test_rejected_request_does_not_pin(self):
-        self.filter_svc.filter.return_value = (False, "out of scope")
+        self.filter_svc.filter.return_value = False
 
         task = await self._handler().handle("make me a sandwich")
         await task()
@@ -292,13 +292,13 @@ class TestDriftHandlerFlow(_HandlerTestCase):
         )
 
     async def test_rejected_partial_request_skips_drift_resolution(self):
-        self.filter_svc.filter.return_value = (False, "out of scope")
+        self.filter_svc.filter.return_value = False
 
         task = await self._handler().handle("make me a sandwich", is_partial=True)
         await task()
 
         self.drift_svc.detect_and_resolve_drift.assert_not_awaited()
-        self.session_svc.save.assert_awaited_once()
+        self.session_svc.save.assert_not_awaited()
 
 
 if __name__ == "__main__":

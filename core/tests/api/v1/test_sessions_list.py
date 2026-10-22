@@ -126,8 +126,10 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         # The timeline is the rounds' statuses concatenated in round
         # order; the payload no longer ships a second, flat copy.
         self.assertNotIn("statuses", body)
-        # History is opt-in via ?include_history=true; null by default.
-        self.assertIsNone(body["history"])
+        # The conversation is opt-in via ?include_chat_history=true; null
+        # by default. The internal record is admin-only and never here.
+        self.assertIsNone(body["chat_history"])
+        self.assertNotIn("history", body)
 
         self.assertEqual(len(body["rounds"]), 2)
         first = body["rounds"][0]
@@ -159,24 +161,45 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_detail_include_history(self):
+    async def test_detail_include_chat_history(self):
         ctx = await DatabaseService.get_session_context(self.sid)
-        ctx.history.append_turn("create a resource group", "done: rg-main")
+        ctx.history.append_turn("create a resource group", "<raw llm summary>")
+        ctx.chat_history.append_turn(
+            "create a resource group", "Done: the plan adds rg-main."
+        )
         await DatabaseService.update_history(ctx)
 
+        resp = await self.client.get(
+            "/v1/sessions", params={"id": str(self.sid), "include_chat_history": "true"}
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertEqual(
+            body["chat_history"],
+            [
+                {
+                    "user": "create a resource group",
+                    "assistant": "Done: the plan adds rg-main.",
+                }
+            ],
+        )
+        # The internal record is not part of this contract at all, even
+        # when the session has one.
+        self.assertNotIn("history", body)
+
+        # Default stays conversation-less.
+        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertIsNone(resp.json()["chat_history"])
+
+    async def test_detail_rejects_the_internal_history_flag(self):
+        # ``include_history`` is admin-only: on this route it is an
+        # unknown query parameter, never a way in to the internal record.
         resp = await self.client.get(
             "/v1/sessions", params={"id": str(self.sid), "include_history": "true"}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
-        self.assertEqual(
-            resp.json()["history"],
-            [{"user": "create a resource group", "assistant": "done: rg-main"}],
-        )
-
-        # Default stays history-less.
-        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
-        self.assertEqual(resp.status_code, 200, resp.text)
-        self.assertIsNone(resp.json()["history"])
+        self.assertNotIn("history", resp.json())
 
     async def test_detail_unknown_session_is_404(self):
         resp = await self.client.get("/v1/sessions", params={"id": str(uuid4())})

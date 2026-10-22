@@ -91,6 +91,10 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    def render_chat_reply(self) -> str:
+        pass
+
+    @abstractmethod
     def render_search_summarizer(self, irrelevant_marker: str) -> str:
         pass
 

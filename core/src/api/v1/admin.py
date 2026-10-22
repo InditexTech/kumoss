@@ -15,7 +15,7 @@ from src.api.dtos import (
     SessionLockResponse,
     UpdateUserRolesRequest,
 )
-from src.domains.dto import PaginatedSessionSummary, SessionDetail
+from src.domains.dto import AdminSessionDetail, PaginatedSessionSummary
 from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
@@ -80,14 +80,28 @@ async def admin_sessions_list(
 )
 async def admin_session_detail(
     session_id: Annotated[UUID, Query(alias="id")],
+    include_chat_history: Annotated[
+        bool,
+        Query(description="Include the session's user-facing conversation."),
+    ] = False,
     include_history: Annotated[
         bool,
-        Query(description="Include the session's serialized conversation history."),
+        Query(description="Include the internal inference history (debugging only)."),
     ] = False,
-) -> SessionDetail:
+) -> AdminSessionDetail:
+    """The session aggregate, with both conversation records available.
+
+    ``chat_history`` is the same user-facing conversation the session
+    endpoint serves. ``history`` is the internal record fed to the LLM:
+    it carries no contract and its shape follows whatever the prompting
+    strategy needs, so treat it as debugging material only. Either flag
+    reads fresh from the database.
+    """
     try:
         return await DatabaseService.get_session_detail(
-            session_id, include_history=include_history
+            session_id,
+            include_chat_history=include_chat_history,
+            include_history=include_history,
         )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
