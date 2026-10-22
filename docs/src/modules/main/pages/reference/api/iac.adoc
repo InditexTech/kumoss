@@ -346,7 +346,7 @@ run against, and only those carry `scope_id` and
 |===
 
 Generated provider blocks do not name a scope. So where a cloud
-exposes a provider-level environment variable that names one, the
+has an environment variable that names one, the
 implementation injects `scope_id` into the engine's environment for
 that command only, picking the variable from `terraform_provider`:
 
@@ -362,13 +362,13 @@ that command only, picking the variable from `terraform_provider`:
 |`GOOGLE_PROJECT`
 |project
 
-|`aws`
-|none
-|—
-
 |`oci`
-|none
-|—
+|`TF_VAR_compartment_ocid`
+|compartment
+
+|`aws`
+|`TF_VAR_aws_account_id`
+|account
 
 |`kubernetes`
 |none
@@ -379,17 +379,34 @@ that command only, picking the variable from `terraform_provider`:
 |—
 |===
 
-Only Azure and GCP have such a variable. An AWS account is implicit in
-the credentials the provider resolves, and an OCI compartment, a
-Kubernetes namespace, or a vSphere datacenter is a resource or
-data-source argument rather than a provider setting, so no environment
-variable redirects a command to one. For those four the bundled
-implementation injects nothing: the command runs against whatever
-scope the deployment's ambient credentials and configuration select,
-and making those agree with `scope_id` is the
-deployment's responsibility. The pair stays required on the wire so
-the intended scope is always stated, and so an implementation that can
-enforce it has what it needs.
+Azure and GCP read theirs as provider settings. The OCI and AWS
+variables are Terraform input variables instead, which the engine
+ignores when the generated code declares none. An OCI compartment is a
+resource argument: the variable fills the `compartment_ocid` variable
+the generated code passes to its resources. An AWS account is implicit
+in the credentials the provider resolves, so nothing redirects a
+command to one: the variable fills the `aws_account_id` variable the
+generated code passes to the provider's `allowed_account_ids`, which
+makes the provider refuse to run in any other account.
+
+The bundled implementation also checks AWS before the engine starts:
+before `init`, `plan`, `apply`, and `import` it asks STS which account
+its own credentials belong to and, when that is not `scope_id`, ends
+the command with exit code 1 and the reason on stderr. That check needs
+`AWS_REGION` (or `AWS_DEFAULT_REGION`) and a 12-digit `scope_id`, so a
+LocalStack deployment uses its account id `000000000000`. It compares
+the service's own credentials, not a role the generated code might
+assume, so one deployment serves exactly the AWS account its
+credentials belong to; generated provider blocks never assume a role.
+
+A Kubernetes namespace or a vSphere datacenter is a resource or
+data-source argument the generated code names itself, so for those two
+the bundled implementation injects nothing. Their commands run against
+whatever scope the deployment's ambient credentials and configuration
+select, and making those agree with `scope_id` is the deployment's
+responsibility. The pair stays required on the wire so the intended
+scope is always stated, and so an implementation that can enforce it
+has what it needs.
 
 An implementation may scope a command by another mechanism instead —
 an AWS AssumeRole into the account, a provider alias, a credential

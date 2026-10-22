@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS ECR repository default configuration (immutable tags, scanning, encryption, lifecycle policy).
+body: |
+  # AWS ECR Repository
+
+  For an ECR repository, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `<application>/<component>` (lowercase), tag
+    `Name = ecr-<application>-<component>`. `name` forces
+    replacement.
+  - `image_tag_mutability = "IMMUTABLE"`; deploy images by
+    immutable tag or digest, never `latest`.
+  - `image_scanning_configuration { scan_on_push = true }`. Enhanced
+    scanning (Amazon Inspector) is a registry-wide setting; enable
+    it only on request.
+  - `encryption_configuration` with `encryption_type = "KMS"` and a
+    customer-managed key when requested; otherwise the default
+    AES256. Encryption settings force replacement, so decide them at
+    creation.
+  - `force_delete = false`, so a repository that still holds images
+    cannot be destroyed.
+  - An `aws_ecr_lifecycle_policy` that expires untagged images after
+    14 days and keeps the last 20-30 tagged images, to control
+    storage cost.
+  - Repository policy (`aws_ecr_repository_policy`) only for
+    cross-account pulls on request, limited to `ecr:BatchGetImage`,
+    `ecr:GetDownloadUrlForLayer`, and
+    `ecr:BatchCheckLayerAvailability` for named accounts or the
+    organization.
+  - Private workloads pull through the `ecr.api` and `ecr.dkr`
+    interface endpoints plus the S3 gateway endpoint (see
+    `vpc_endpoint`).

@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS EC2 Auto Scaling group default configuration (multi-AZ, launch template, instance refresh, health checks, scaling).
+body: |
+  # AWS Auto Scaling Group
+
+  For an EC2 Auto Scaling group, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Group
+  - Naming convention: `asg-<application>-<role>-<environment>`.
+    `name` forces replacement; use `name_prefix` when the group may
+    need to be recreated.
+  - `vpc_zone_identifier` with private subnets in at least two AZs
+    (up to three in production, when the region has them), placed
+    on the AZs read from `data "aws_availability_zones"
+    "available"`; never hardcode AZ names.
+  - A `launch_template` block with `id` set to the template's ID and
+    `version = aws_launch_template.<name>.latest_version`, never
+    `"$Latest"`, so Terraform sees template changes (see
+    `launch_template`).
+  - `health_check_type = "ELB"` when attached to a load balancer
+    (`target_group_arns`), with `health_check_grace_period = 300`.
+  - Production: `min_size` 2 or more; non-production: `min_size`
+    0 or 1. Set `desired_capacity` only at creation and add
+    `ignore_changes = [desired_capacity]`, because scaling policies
+    own it.
+  - `instance_refresh` with `strategy = "Rolling"` and
+    `preferences { min_healthy_percentage = 90 }`. A launch template
+    change replaces every instance on apply; state it in the summary.
+  - Enable group metrics (`enabled_metrics`).
+  - Provider `default_tags` reach neither the group nor the
+    instances it launches. Launched instances and volumes get their
+    tags, `Name` included, only from the launch template's
+    `tag_specifications` (see `launch_template`). Tag the group
+    itself with a `dynamic "tag"` over `local.standard_tags`
+    (`key`, `value`, `propagate_at_launch = false`); do not add a
+    `Name` tag block here.
+
+  ## Scaling
+  - `aws_autoscaling_policy` with `policy_type =
+    "TargetTrackingScaling"` on `ASGAverageCPUUtilization` (target
+    50-60) or `ALBRequestCountPerTarget`.
+  - Non-production: two `aws_autoscaling_schedule` actions,
+    `<asg-name>-scale-in` (e.g. `recurrence = "0 20 * * 1-5"`) with
+    `min_size = 0`, `max_size = 0`, `desired_capacity = 0`, and
+    `<asg-name>-scale-out` (e.g. `recurrence = "0 7 * * 1-5"`)
+    restoring the working-hours sizes, both with `time_zone` set to
+    the team's time zone (an IANA name such as `Europe/Madrid`).
+    Scheduled actions take no tags.
+  - Spot capacity (`mixed_instances_policy` with several instance
+    types and `capacity_rebalance = true`) only for fault-tolerant
+    workloads on request.

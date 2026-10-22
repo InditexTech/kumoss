@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure user-assigned managed identity default configuration (naming, federation, role assignments).
+body: |
+  # Azure User-Assigned Managed Identity
+
+  For a user-assigned managed identity, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `id-<application>-<purpose>-<environment>`.
+  - `azurerm_user_assigned_identity` with
+    `location = azurerm_resource_group.<x>.location`, in the
+    workload's resource group.
+  - Use a user-assigned identity when several resources share the
+    same permissions, when the identity must exist before the
+    resource (e.g. Key Vault access for an Application Gateway
+    certificate), or for AKS workload identity. Otherwise prefer a
+    system-assigned identity on the resource.
+  - One identity per workload and purpose; never reuse one identity
+    across environments.
+  - Grant access with `role_assignment` resources on the
+    `principal_id`, using the least-privileged role at the narrowest
+    scope.
+  - For external or Kubernetes workloads, add an
+    `azurerm_federated_identity_credential`
+    (`user_assigned_identity_id`, issuer, subject, and audience
+    `api://AzureADTokenExchange`) instead of any client secret.
+  - Outputs: `id`, `principal_id`, and `client_id` are not secret.
+  - Changing the name or resource group forces replacement: the
+    identity gets a new `principal_id`, so every role assignment and
+    federated credential is recreated and consumers lose access
+    until then — call it out as high impact.
+  - Federated identity credentials do not support tags.

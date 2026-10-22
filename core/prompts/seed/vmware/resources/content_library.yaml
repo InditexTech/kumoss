@@ -16,10 +16,15 @@ body: |
     `data "vsphere_datastore"`.
   - Do not publish the library unless requested. When it is
     published, set `authentication_method = "BASIC"` with a password
-    from a sensitive variable.
+    from `random_password` (the value lands in the state; expose it
+    only through a `sensitive = true` output).
   - Subscribed libraries set `on_demand = true` to download items
     only when used.
   - `vsphere_content_library_item` sources (`file_url`) must point at
-    the organization's approved artifact repository over HTTPS.
+    the organization's approved artifact repository over HTTPS (see
+    the `content_library_item` template).
+  - Changing `storage_backing` replaces the library and every item
+    in it; never change it on an existing library unless the user
+    asked for the replacement, and call it out.
   - Add `lifecycle { prevent_destroy = true }` for libraries that
     hold production templates.

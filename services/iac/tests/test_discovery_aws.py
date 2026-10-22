@@ -204,6 +204,19 @@ def test_credentials_for_another_account_are_refused() -> None:
         _ = list_ids(session_for([{"Resources": []}], account="999"))
 
 
+def test_verify_account_accepts_the_credentials_own_account() -> None:
+    session = session_for([])
+    lister = AwsScopeLister(REGION, lambda: session)
+    asyncio.run(lister.verify_account(ACCOUNT))
+    assert session.regions == ["eu-west-1"]  # STS only, no Resource Explorer
+
+
+def test_verify_account_refuses_another_account() -> None:
+    lister = AwsScopeLister(REGION, lambda: session_for([], account="999"))
+    with pytest.raises(DiscoveryError, match="belong to account 999, not 123456789012"):
+        asyncio.run(lister.verify_account(ACCOUNT))
+
+
 def test_an_sts_client_error_names_the_code_and_message() -> None:
     error = ClientError(
         {"Error": {"Code": "AccessDenied", "Message": "not allowed"}},

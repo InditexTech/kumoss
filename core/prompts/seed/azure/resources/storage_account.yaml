@@ -9,21 +9,38 @@ body: |
   For a Storage Account, unless explicitly requested otherwise, use
   the following default configuration:
 
-  - Account tier set to Standard.
+  - `account_kind = "StorageV2"` and `account_tier = "Standard"`.
+    Changing `account_tier`, `is_hns_enabled`, or `account_kind`
+    (other than upgrading to StorageV2) forces replacement of the
+    account and its data; never retrofit them without a request.
   - Replication type set to LRS (Locally Redundant Storage). Use GRS
     or ZRS only when the user explicitly requests higher durability.
-  - Minimum TLS version set to 1.2.
-  - Public network access must be disabled.
-  - Nested items (blobs) must not be allowed to be public.
-  - Blob versioning must be enabled.
-  - Blob soft-delete retention set to 7 days.
-  - Container soft-delete retention set to 7 days.
+  - `min_tls_version = "TLS1_2"` and
+    `https_traffic_only_enabled = true`.
+  - Networking: set `public_network_access_enabled = false` only
+    together with a private endpoint in `snet-pe`; a private-only
+    account without one is unreachable. Otherwise keep public access
+    enabled behind `network_rules { default_action = "Deny", bypass
+    = ["AzureServices"] }` with `ip_rules` and/or
+    `virtual_network_subnet_ids` for the known consumers.
+  - Containers, blobs, and queues managed by Terraform are
+    data-plane writes from the Kumoss engine, which runs outside the
+    VNet: go private-only only when the request or workspace states
+    the engine runs inside the VNet; otherwise add the engine egress
+    CIDRs the request or workspace provides to `ip_rules`. State the
+    access path in the summary.
+  - `allow_nested_items_to_be_public = false` (no public blobs).
+  - In `blob_properties`: `versioning_enabled = true`, and
+    `delete_retention_policy` and `container_delete_retention_policy`
+    with `days = 7`.
+  - Static websites and queue properties are separate resources in
+    provider 5.x (`azurerm_storage_account_static_website`,
+    `azurerm_storage_account_queue_properties`); create them only
+    on request.
   - Add a lifecycle block with prevent_destroy to guard against
     accidental deletion.
   - Naming convention: `st<application><environment>` — storage
     account names are 3-24 characters, lowercase alphanumeric only,
     and globally unique. Add a short suffix if collisions are likely.
-  - Pair with a private endpoint when consumers live inside a VNet.
-  - Apply standard tags: environment and managed_by.
   - For access logging, enable diagnostic settings or use a dedicated
     logging storage account.

@@ -35,7 +35,9 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
         (self.root / "modules" / "vars.tf").write_text("\n")
         (self.tmp / "repo" / "outside.tf").write_text("secret\n")
         self.registry = ToolRegistryWorkspace(
-            filesystem=FileSystemUtils(self.root), git=MagicMock(), llm=MagicMock()
+            filesystem=FileSystemUtils(self.root),
+            git=MagicMock(),
+            summarizer=MagicMock(),
         )
 
     def tearDown(self):
@@ -172,7 +174,7 @@ class TestWorkspaceTools(unittest.IsolatedAsyncioTestCase):
         git.show_diff = AsyncMock(return_value="")
         git.get_untracked_files = AsyncMock(return_value=["leak.tf", "new.tf"])
         registry = ToolRegistryWorkspace(
-            filesystem=FileSystemUtils(self.root), git=git, llm=MagicMock()
+            filesystem=FileSystemUtils(self.root), git=git, summarizer=MagicMock()
         )
 
         result = await registry.execute_tool(

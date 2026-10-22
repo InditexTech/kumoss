@@ -6,22 +6,27 @@ description: Resource-name abbreviations the prompt compositor offers to the LLM
 body: |
   # Kubernetes Resource Name Abbreviations
 
-  Standard short prefixes used in resource names. The LLM may pick
-  from this list when generating Terraform.
+  Standard short suffixes used in resource names. Names follow
+  `<app>-<component>-<suffix>`, where `<component>` is the
+  component, purpose or task the object serves (see the Resource
+  Creation guidelines). Namespaces carry no suffix: they are named
+  `<app>-<environment>`.
 
-  | Resource                       | Prefix  |
+  | Resource                       | Suffix  |
   |--------------------------------|---------|
-  | Namespace                      | ns      |
   | Deployment                     | deploy  |
   | StatefulSet                    | sts     |
   | DaemonSet                      | ds      |
+  | Job                            | job     |
+  | CronJob                        | cj      |
   | Service                        | svc     |
   | Ingress                        | ing     |
   | ConfigMap                      | cm      |
-  | Secret                         | sec     |
+  | Secret                         | secret  |
   | PersistentVolumeClaim          | pvc     |
   | PersistentVolume               | pv      |
   | StorageClass                   | sc      |
+  | PriorityClass                  | pc      |
   | ServiceAccount                 | sa      |
   | ClusterRole                    | cr      |
   | ClusterRoleBinding             | crb     |
@@ -30,9 +35,7 @@ body: |
   | NetworkPolicy                  | netpol  |
   | HorizontalPodAutoscaler        | hpa     |
   | PodDisruptionBudget            | pdb     |
-  | CronJob                        | cj      |
-  | Job                            | job     |
   | ResourceQuota                  | quota   |
-  | LimitRange                     | lr      |
+  | LimitRange                     | limits  |
 
   Replace this list with your organization's naming standard.

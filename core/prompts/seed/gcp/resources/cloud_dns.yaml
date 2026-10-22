@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud DNS default configuration (private and public zones, DNSSEC, record sets, logging).
+body: |
+  # GCP Cloud DNS
+
+  For Cloud DNS resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## Managed zone
+  - Naming convention: `dns-<domain-with-hyphens>-<environment>`;
+    `dns_name` always ends with a trailing dot.
+  - `visibility = "private"` by default, with
+    `private_visibility_config` listing the VPC networks that
+    resolve the zone. Create public zones only on request.
+  - Public zones: `dnssec_config { state = "on" }` and
+    `cloud_logging_config { enable_logging = true }`.
+  - For private access to Google APIs, create private zones for
+    `googleapis.com` pointing at `private.googleapis.com` (or
+    `restricted.googleapis.com` with VPC Service Controls) on
+    request.
+  - Keep `force_destroy = false`.
+
+  ## Record sets
+  - One `google_dns_record_set` per name and type, with TTL 300
+    unless the user specifies otherwise.
+  - Never manage the zone's apex NS and SOA records; Cloud DNS owns
+    them.
+  - Never manage the same record set from two places (another
+    module, or `google_dns_record_set` and an external controller).

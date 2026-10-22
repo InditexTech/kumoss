@@ -12,7 +12,6 @@ body: |
   | Resource                          | Prefix |
   |-----------------------------------|--------|
   | Virtual Machine                   | vm     |
-  | VM Template                       | tpl    |
   | Virtual Disk                      | vdisk  |
   | VM Folder                         | fld    |
   | Resource Pool                     | rp     |
@@ -22,13 +21,25 @@ body: |
   | Content Library                   | cl     |
   | Distributed Virtual Switch        | vds    |
   | Distributed Port Group            | pg     |
-  | Tag Category                      | tc     |
-  | Tag                               | tag    |
   | Role                              | role   |
   | VM Anti-Affinity Rule             | aar    |
   | VM Affinity Rule                  | afr    |
+  | Cluster VM Group                  | vmg    |
+  | Cluster Host Group                | hg     |
+  | VM-Host Rule                      | vhr    |
 
   vSphere object names are case-sensitive and unique per parent
   folder. Use lowercase letters, digits and hyphens only.
+
+  Exceptions:
+  - Folder `path` values contain slashes by design: each segment
+    follows the naming rule (`fld-<application>`, then the
+    environment name as the child folder).
+  - Tag categories and tags take no prefix: categories are plain
+    classification names (`environment`, `owner`, `managed_by`) and
+    tags are plain values (`prod`, `team-billing`).
+  - Content library items are named after the image and its version
+    (`<os>-<version>-<yyyymmdd>`), without a prefix.
+  - HA and DRS VM overrides have no name.
 
   Replace this list with your organization's naming standard.

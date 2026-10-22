@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure RBAC role assignment default configuration (least privilege, resource scope, principal type).
+body: |
+  # Azure Role Assignment
+
+  For a role assignment, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - `azurerm_role_assignment` with `scope` set to the specific
+    resource the principal needs (a Key Vault, a storage account, a
+    registry), not the resource group or subscription. Use
+    resource-group scope only when the principal needs every
+    resource in it.
+  - Pick the least-privileged built-in data-plane role by name with
+    `role_definition_name` (e.g. `Key Vault Secrets User`, `Storage
+    Blob Data Reader`, `AcrPull`, `Azure Service Bus Data Receiver`).
+    Use a custom role only when no built-in role fits.
+  - Never assign `Owner`, `User Access Administrator`, or `Role
+    Based Access Control Administrator` without an explicit request;
+    when requested, prefer a `condition` (with `condition_version =
+    "2.0"`) that limits which roles can be delegated. `Owner` is
+    only ever assigned at resource-group scope or narrower, never at
+    subscription or management-group scope; `Contributor` is never
+    assigned at subscription scope.
+  - Set `principal_id` from a managed identity or group, and always
+    set `principal_type` (`ServicePrincipal`, `Group`, or `User`) to
+    avoid failures from directory replication delay. Prefer groups
+    over individual users.
+  - Set a `description` explaining why the access is needed.
+  - Every argument forces replacement: changing scope, role, or
+    principal removes the old assignment and creates a new one,
+    briefly revoking access — call it out.
+  - Role assignments do not support tags.

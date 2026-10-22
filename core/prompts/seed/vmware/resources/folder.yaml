@@ -2,19 +2,26 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: VMware vSphere VM folder default configuration (hierarchy, tags, access boundary).
+description: VMware vSphere VM folder default configuration (hierarchy, access boundary).
 body: |
   # VMware vSphere Folder
 
   For a `vsphere_folder`, unless explicitly requested otherwise,
   use the following default configuration:
 
-  - Naming convention: `<application>/<environment>`, nested under the
-    team's top-level folder (for example `platform/billing/prod`).
+  - Naming convention: one folder per application named
+    `fld-<application>`, with one child folder per environment named
+    after the environment (`dev`, `staging`, `prod`), nested under
+    the team's top-level folder.
+  - `path` is the full path relative to the datacenter's VM root and
+    contains slashes by design (for example
+    `platform/fld-billing/prod`); each path segment follows the
+    naming rule. Create the child with `path` built from the parent
+    resource's `path` so Terraform orders them.
   - `type = "vm"` for workload folders; other types (`host`,
     `datastore`, `network`) are platform-owned.
   - Set `datacenter_id` from `data "vsphere_datacenter"`.
+  - Changing `path` moves (renames) the folder; changing `type` or
+    `datacenter_id` replaces it, which fails while it holds VMs.
   - The folder is the access boundary: grant permissions on it with
     `vsphere_entity_permissions` instead of on the datacenter.
-  - Apply tags from the `environment`, `owner` and `managed-by`
-    categories.

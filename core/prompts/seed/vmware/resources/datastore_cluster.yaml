@@ -10,7 +10,13 @@ body: |
   otherwise, use the following default configuration:
 
   - Naming convention: `dsc-<site>-<tier>-<nn>`.
-  - Datastores are platform-owned; the cluster groups existing ones.
+  - `vsphere_datastore_cluster` has no member argument: it creates an
+    empty cluster. Membership is set from the datastore side
+    (`datastore_cluster_id` on `vsphere_vmfs_datastore` or
+    `vsphere_nas_datastore`), and those are host-level resources
+    owned by the platform team. Never create or modify datastores;
+    state in the response that the platform team must move the
+    datastores into the new cluster.
   - Storage DRS: `sdrs_enabled = true`,
     `sdrs_automation_level = "automated"` (`manual` for production
     unless requested otherwise), `sdrs_io_load_balance_enabled = true`.
@@ -19,6 +25,5 @@ body: |
     together.
   - Group only datastores with the same performance tier and
     replication characteristics.
-  - Apply tags from the `environment`, `owner` and `managed-by`
-    categories.
-  - Add `lifecycle { prevent_destroy = true }`.
+  - Add `lifecycle { prevent_destroy = true }` for production
+    datastore clusters.

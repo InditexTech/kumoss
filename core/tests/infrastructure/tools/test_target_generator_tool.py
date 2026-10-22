@@ -12,7 +12,7 @@ consolidates its own list instead of the session failing at plan time.
 import unittest
 from types import SimpleNamespace
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from src.domains.dto import ToolCallDTO, ToolResultDTO
 from src.infrastructure.tools import tool_registry_static
@@ -21,7 +21,7 @@ from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
 
 class TestTargetGeneratorLimit(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.registry = ToolRegistryStatic(llm=None)
+        self.registry = ToolRegistryStatic(summarizer=MagicMock())
         patcher = patch.object(
             tool_registry_static,
             "system_config",

@@ -400,7 +400,6 @@ class TestTerraformPlan(_TerraformTestCase):
             await self.terraform.plan(targets=[])
         self.assertEqual(ctx.exception.error_code, 502)
 
-
     async def test_targets_over_the_limit_fail_before_any_job(self):
         self._use_config(max_plan_targets=2)
         submits, _ = self._patch_ops()
@@ -412,6 +411,101 @@ class TestTerraformPlan(_TerraformTestCase):
         self.assertIn("limit of 2", ctx.exception.message)
         for mock in submits.values():
             mock.assert_not_called()
+
+
+OCI_SCOPE_ID = "ocid1.compartment.oc1..scope"
+
+
+def _oci_plan_json(compartment_id: str) -> str:
+    return json.dumps(
+        {
+            "format_version": "1.2",
+            "resource_changes": [
+                {
+                    "address": "oci_core_vcn.main",
+                    "change": {
+                        "actions": ["create"],
+                        "before": None,
+                        "after": {"compartment_id": compartment_id},
+                    },
+                }
+            ],
+        }
+    )
+
+
+class TestTerraformOciScope(_TerraformTestCase):
+    def _make_terraform(self) -> tv.Terraform:
+        return tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scope_id=OCI_SCOPE_ID,
+            terraform_provider=TerraformProvider.OCI,
+            backend=self.backend,
+        )
+
+    async def test_a_plan_inside_the_compartment_passes(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(
+            init=_ok(),
+            validate=_ok(),
+            plan=_ok(stdout="plan output"),
+            show=_ok(stdout=_oci_plan_json(OCI_SCOPE_ID)),
+        )
+
+        dto = await self.terraform.plan(targets=[])
+
+        self.assertTrue(dto.ok)
+        self.assertIsNotNone(dto.plan)
+        show_body = submit_mocks["show"].await_args.kwargs["body"]
+        self.assertEqual(show_body.plan_file, SESSION_PLAN_FILENAME)
+
+    async def test_a_creation_in_another_compartment_fails_validation(self):
+        self._use_config()
+        self._patch_ops(
+            init=_ok(),
+            validate=_ok(),
+            plan=_ok(stdout="plan output"),
+            show=_ok(stdout=_oci_plan_json("ocid1.compartment.oc1..other")),
+        )
+
+        dto = await self.terraform.plan(targets=[])
+
+        # Feedback for the generator, which retries with the fix.
+        self.assertFalse(dto.ok)
+        self.assertIsNone(dto.plan)
+        self.assertEqual(dto.stdout, "plan output")
+        self.assertIn("oci_core_vcn.main (ocid1.compartment.oc1..other)", dto.feedback)
+        self.assertIn("var.compartment_ocid", dto.feedback)
+
+    async def test_a_failed_plan_is_not_shown(self):
+        self._use_config()
+        self._patch_ops(
+            init=_ok(),
+            validate=_ok(),
+            plan=_failed_cmd("Error: bad plan"),
+        )
+
+        dto = await self.terraform.plan(targets=[])
+
+        self.assertFalse(dto.ok)
+        self.assertEqual(dto.feedback, "Error: bad plan")
+
+    async def test_other_providers_are_not_shown(self):
+        # No show op is patched in, so a submitted show fails the test.
+        self._use_config()
+        terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scope_id="123456789012",
+            terraform_provider=TerraformProvider.AWS,
+            backend=self.backend,
+        )
+        self._patch_ops(init=_ok(), validate=_ok(), plan=_ok(stdout="plan output"))
+
+        dto = await terraform.plan(targets=[])
+
+        self.assertTrue(dto.ok)
 
 
 class TestTerraformDrift(_TerraformTestCase):

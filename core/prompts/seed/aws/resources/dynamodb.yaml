@@ -10,6 +10,9 @@ body: |
   the following default configuration:
 
   - Naming convention: `ddb-<application>-<table>-<environment>`.
+  - The table name, `hash_key`, `range_key`, and local secondary
+    indexes apply at creation; on an existing table changing them
+    forces replacement and loses the data.
   - Billing mode set to PAY_PER_REQUEST (on-demand), which scales
     automatically with no capacity planning. Switch to PROVISIONED
     only when the user provides explicit read/write capacity values
@@ -19,10 +22,13 @@ body: |
     non-key attributes.
   - Point-in-time recovery must be enabled for continuous backups
     with 35-day recovery capability.
-  - Server-side encryption must be enabled with KMS. Specify a
-    customer-managed key when provided; otherwise the AWS-owned
-    key is acceptable.
-  - Deletion protection must be enabled — the table cannot be
+  - Tables are always encrypted at rest. Set
+    `server_side_encryption { enabled = true }`, which uses the AWS
+    managed key `aws/dynamodb`, and add `kms_key_arn` when a
+    customer-managed key is provided. Omitting the block (or
+    `enabled = false`) falls back to an AWS-owned key, which is
+    acceptable only when the user asks for the lowest-cost option.
+  - `deletion_protection_enabled = true` — the table cannot be
     deleted via the API until deletion protection is explicitly
     disabled.
   - Add a lifecycle block with prevent_destroy.
@@ -32,4 +38,3 @@ body: |
   - For Global Secondary Indexes, add the index definition and
     corresponding attribute definitions. Each GSI has its own
     throughput and should be sized independently.
-  - Apply standard tags: Name.

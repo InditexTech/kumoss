@@ -2,32 +2,59 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP IAM conventions.
+description: GCP IAM conventions (least privilege, additive bindings, service accounts, workload identity, secrets).
 body: |
   # GCP Permissions Guidelines
 
   ## IAM principles
   - Grant the least-privileged predefined role that satisfies the
     use case before considering a custom role.
-  - Bind roles at the resource or project level, not at the
-    organization level, unless explicitly required.
-  - Never grant `roles/owner` to service accounts.
+  - Bind roles on the resource itself (bucket, dataset, secret,
+    topic, service account, crypto key) when it supports IAM; fall
+    back to the project only when it does not. Bind at organization
+    or folder level only when explicitly required.
+  - Never grant basic roles (`roles/owner`, `roles/editor`,
+    `roles/viewer`) to service accounts.
+  - Grant roles to Google groups rather than individual users.
+  - Use IAM conditions (`condition` block) to scope temporary
+    access or access to a subset of resources.
+
+  ## Terraform IAM resources
+  - Use the additive `google_<resource>_iam_member` resources, one
+    per role and principal.
+  - Never use the authoritative `google_<resource>_iam_policy`
+    resources, and do not use `google_<resource>_iam_binding` for a
+    role other principals may hold; both remove bindings Terraform
+    does not manage.
+  - Never mix `_iam_member` with `_iam_binding` or `_iam_policy`
+    for the same role on the same resource.
 
   ## Service accounts
   - One service account per workload.
   - Name format: `sa-<workload>@<project>.iam.gserviceaccount.com`.
-  - Prefer workload identity federation over service-account keys.
-  - If a key is unavoidable, rotate it at least every 90 days.
+  - Never attach the Compute Engine or App Engine default service
+    accounts to workloads.
+  - Grant `roles/iam.serviceAccountUser` and
+    `roles/iam.serviceAccountTokenCreator` on the individual service
+    account, never project-wide.
+  - Never create service account keys (see the forbidden actions).
+    Use attached service accounts, Workload Identity Federation, or
+    service account impersonation instead.
 
   ## Workload identity
-  - For GKE workloads, use Workload Identity (KSA ↔ GSA binding).
-  - For Cloud Run / Cloud Functions, assign a runtime service account
-    rather than embedding credentials.
+  - GKE: use Workload Identity Federation for GKE. Grant roles
+    directly to the Kubernetes service account principal, or bind
+    it to a Google service account with
+    `roles/iam.workloadIdentityUser`.
+  - Compute Engine, Cloud Run and Cloud Run functions: attach a
+    dedicated runtime service account.
+  - External CI/CD: use a Workload Identity Federation pool with an
+    `attribute_condition` that restricts the repository and branch.
 
   ## Secrets
-  - Store secrets in Secret Manager, not in Terraform variables or
-    resource metadata.
-  - Grant `roles/secretmanager.secretAccessor` per-secret, not
+  - Store secrets in Secret Manager, not in Terraform variables,
+    tfvars files, outputs, or resource metadata.
+  - Grant `roles/secretmanager.secretAccessor` per secret, not
     project-wide.
 
   Replace this body with your organization's authoritative IAM standards.

@@ -1,0 +1,41 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Bastion default configuration (SKU choice, AzureBastionSubnet, public IP, NSG rules).
+body: |
+  # Azure Bastion
+
+  For Azure Bastion, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `bas-<application>-<environment>`.
+  - `azurerm_bastion_host` with
+    `location = azurerm_resource_group.<x>.location`, one per VNet
+    (or one in the hub for hub-and-spoke).
+  - SKU: Basic for simple portal-based RDP/SSH. Standard when the
+    user needs native client access, IP connect, shareable links,
+    or more scale units; enable only the features requested. Use
+    the Developer SKU (free, no subnet or public IP) only for
+    non-production on request, where the provider and region
+    support it. Upgrading the SKU is in place;
+    downgrading forces replacement.
+  - Subnet: a standalone `azurerm_subnet` named exactly
+    `AzureBastionSubnet` with a /26 or larger prefix, hosting
+    nothing else and with no delegation.
+  - Public IP: a Standard, static, zone-redundant `public_ip`
+    (`pip-bas-<application>-<environment>`).
+  - If an NSG is attached to `AzureBastionSubnet`, it must allow
+    inbound TCP 443 from `Internet`, `GatewayManager`, and
+    `AzureLoadBalancer`; inbound 8080 and 5701 from
+    `VirtualNetwork` to `VirtualNetwork` (data plane); outbound 22
+    and 3389 to `VirtualNetwork`; outbound 8080 and 5701 from
+    `VirtualNetwork` to `VirtualNetwork` (data plane); outbound 443
+    to `AzureCloud`; and outbound 80 to `Internet`.
+    This is the only accepted exception for `Internet` inbound on
+    443 besides web front ends.
+  - Target VMs keep no public IP and allow SSH/RDP only from the
+    Bastion subnet range.
+  - Bastion bills hourly; state the cost in the summary.
+  - Enable diagnostic settings (audit logs) to a Log Analytics
+    workspace.

@@ -82,7 +82,8 @@ variable of every other enabled sidecar; the variable named by
 for `STORAGE_ACCOUNT`; a remote backend declared by every target
 repository while `storage.terraform_state_bucket` is blank — which
 only happens if a deployment explicitly sets it to `""`, since the
-shipped value enables Kumoss-managed state by default.
+shipped value enables Kumoss-managed state by default;
+`web_search.endpoint` when `web_search.provider` is `searxng`.
 
 |*Optional with defaults*
 |Everything else.
@@ -474,7 +475,7 @@ report generator chains.
 |`vertex_ai/gemini-3.8-flash`
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
-calls.
+calls, including the `web_search` summarisation.
 
 |`llm.temperature`
 |float
@@ -523,6 +524,134 @@ guide].
 Related environment variables: the provider's credential variables in
 `core/.env`. Requires restart: yes, for the YAML and for a credential
 change.
+
+[#config-web-search]
+== `web_search`
+
+The search backend behind the agents' `web_search` tool. Requests go
+through the LiteLLM unified search API
+(https://docs.litellm.ai/docs/completion/web_search[LiteLLM search]), and
+the shipped `config.yaml` routes every search through the bundled SearXNG
+sidecar. Pointing it at another provider is a config change, but the
+backend has to exist: the stack only deploys SearXNG.
+
+[cols="2,2,1,1,1,4",options="header"]
+|===
+|YAML path |Type |Code default |Shipped `config.yaml` |Requirement |Meaning and effect
+
+|`web_search.provider`
+|string — a LiteLLM search provider name
+|`searxng`
+|`searxng`
+|Optional
+|Selects the search engine called by the `web_search` tool. The shipped
+stack deploys a SearXNG sidecar and leaves this at `searxng`. Any name in
+`litellm.types.utils.SearchProviders` is accepted — `tavily`, `brave`,
+`perplexity`, `exa_ai`, `google_pse` and others — but a hosted provider
+reads credentials from its own env vars, ignores `endpoint`, and needs a
+search service the stack does not ship: you have to provide that backend
+yourself. Empty disables web search altogether: there is no LLM-native
+fallback, so the tool answers "unavailable" instead of asking the model
+to search for itself. That is what lets self-hosted OpenAI-compatible
+endpoints (vLLM and the like) get live results.
+
+|`web_search.endpoint`
+|string (URL)
+|`\http://localhost:8888`
+|`\http://searxng:8888`
+|Conditional
+|Base URL of the search service, passed to LiteLLM as `api_base`.
+Required for `searxng`; hosted providers take their credentials from
+environment variables instead and usually need no endpoint.
+
+|`web_search.max_results`
+|integer (1–20)
+|`5`
+|`8`
+|Optional
+|Upper bound on results returned per query.
+
+|`web_search.max_page_chars`
+|integer (500–20000)
+|`6000`
+|`10000`
+|Optional
+|Truncates the readable text extracted from each result page. That
+product — `max_results × max_page_chars` — is the summarising
+inferences' input; the agent sees only the summaries.
+
+|`web_search.timeout`
+|float (seconds, must be `> 0`)
+|`30.0`
+|`30.0`
+|Optional
+|Per-request HTTP budget, covering the engine call and each page read.
+
+|`web_search.summarize_top`
+|integer (1–10)
+|`1`
+|commented out
+|Optional
+|How many of the ranked summaries reach the agent, most relevant first.
+
+|`web_search.summarize_max_chars`
+|integer (500–20000)
+|`4000`
+|commented out
+|Optional
+|Caps each summary, and each raw excerpt kept when a page's summary
+inference fails. A summary stands in for its page, so too low a value
+loses detail the agent cannot get back.
+|===
+
+Each search starts the same way: the engine returns ranked hits, and
+every hit's page is rendered in headless Chromium through Playwright and
+reduced to markdown with https://trafilatura.readthedocs.io/[trafilatura],
+so the agent works from the pages themselves — including
+JavaScript-rendered ones — rather than the engine's snippets. The pages
+are read concurrently from one shared browser, and Chromium presents the
+fingerprint bot protection expects, so blogs and forums answer `200`
+where a bare HTTP client would get `403`. A page that will not render
+falls back to its snippet, so a partial failure costs detail rather than
+the whole search.
+
+Two small-model steps stand between the pages and the agent: one
+summary per page, all concurrent — an extract rather than a gist, since
+the summary replaces the page — then a single cross-page inference that
+ranks the pages answering the query. The top `summarize_top` summaries
+are what the agent reads, most relevant first, bounding a search's
+context cost at `summarize_top × summarize_max_chars` instead of the
+`max_results × max_page_chars` product.
+
+The reduction degrades in layers and never fails a search: a page whose
+summary inference fails keeps a truncated raw excerpt, a ranking that
+cannot be parsed falls back to every summary in engine order, and any
+other summariser error falls back to the raw, unfiltered results.
+Selecting *nothing* is a verdict rather than a failure — every page
+irrelevant, or a ranking that explicitly picks none — and the tool
+answers with the reason and a nudge to rephrase the query. What caps a
+stuck agent is the agent loop's own
+`orchestration.max_tool_agent_executions` budget.
+
+Validation: an unknown provider name aborts the boot; `searxng` without
+an endpoint does too; an `endpoint` without a `provider` is rejected as
+a half-configured state.
+
+[NOTE]
+====
+On a network that inspects HTTPS, page reads fail with
+`CERTIFICATE_VERIFY_FAILED` while the engine call itself keeps working,
+and every hit silently degrades to its snippet. See
+xref:main:guides/development.adoc#tls-inspecting-proxy[Behind a
+TLS-inspecting proxy].
+====
+
+Related environment variables: the chosen provider's credential
+variables in `core/.env` (SearXNG needs none; see the
+xref:main:reference/environment-variables.adoc[Environment variables
+and secrets] page). The bundled SearXNG sidecar reads its instance
+secret from `services/searxng/.env` (`SEARXNG_SECRET`) and takes no
+credential from the core. Requires rebuild: yes for the YAML.
 
 [#config-paths]
 == `paths`
@@ -957,6 +1086,10 @@ orchestration:
 llm:
   model: "anthropic/claude-sonnet-5"
   small_model: "anthropic/claude-haiku-4-5"
+
+web_search:
+  provider: "searxng"
+  endpoint: "http://searxng:8888"
 
 telemetry:
   collector_url: "http://phoenix:6006/"

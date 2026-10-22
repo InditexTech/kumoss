@@ -7,17 +7,22 @@ body: |
   # AWS Permissions Guidelines
 
   ## IAM principles
-  - Grant the least-privileged AWS managed policy that satisfies the
-    use case before considering an inline or customer-managed policy.
-  - Scope policies to specific resources using ARN conditions, not
-    `Resource: "*"`, unless the API genuinely requires it (e.g.
-    `sts:GetCallerIdentity`).
+  - AWS managed policies: use them for service roles when a narrow,
+    purpose-built one exists (e.g. `AWSLambdaBasicExecutionRole`,
+    `AmazonSSMManagedInstanceCore`,
+    `AmazonECSTaskExecutionRolePolicy`).
+  - Customer-managed or inline policies: use them for access to the
+    workload's own resources (buckets, tables, queues, secrets,
+    keys), scoped to those resources' ARNs. Never attach a broad
+    managed policy (e.g. `AmazonS3FullAccess`) to reach one bucket.
+  - Avoid `Resource: "*"` unless the API genuinely requires it (e.g.
+    `sts:GetCallerIdentity`, `xray:PutTraceSegments`).
   - Never attach policies directly to IAM users; use IAM roles with
     trust policies instead.
 
   ## IAM roles
   - One IAM role per workload.
-  - Name format: `<application>-<workload>-role`.
+  - Name format: `role-<application>-<workload>-<environment>`.
   - Prefer `aws_iam_role` with an `assume_role_policy` document over
     legacy `aws_iam_policy_attachment` (which is authoritative and
     removes other attachments).
@@ -31,6 +36,12 @@ body: |
   ## Secrets
   - Store secrets in AWS Secrets Manager or SSM Parameter Store
     (SecureString), not in Terraform variables or resource metadata.
+  - Any secret value written through Terraform (e.g. `secret_string`
+    on `aws_secretsmanager_secret_version`, or `value` on an SSM
+    SecureString) is stored in plain text in the Terraform state.
+    Create only the secret container in Terraform and set the value
+    out of band, or use a service-managed secret (e.g. RDS
+    `manage_master_user_password`).
   - Grant access per-secret via resource-based policies or scoped
     IAM policies.
   - Enable automatic rotation where supported.

@@ -22,4 +22,3 @@ body: |
     VCN limits.
   - For static outbound IP requirements, the NAT Gateway provides
     a consistent public IP address.
-  - Apply freeform tags: Name.

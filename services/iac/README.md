@@ -77,27 +77,43 @@ unknown properties, so sending one is also a `422`.
 Generated provider blocks name no scope, so for `init`, `plan`,
 `apply` and `import` the service injects `scope_id` into the engine
 subprocess's environment for that command only — where the cloud has a
-provider-level variable that names a scope:
+variable that names a scope:
 
-| `terraform_provider` | Environment variable  | Scope it sets |
-|----------------------|-----------------------|---------------|
-| `azure`              | `ARM_SUBSCRIPTION_ID` | subscription  |
-| `gcp`                | `GOOGLE_PROJECT`      | project       |
-| `aws`                | none                  | —             |
-| `oci`                | none                  | —             |
-| `kubernetes`         | none                  | —             |
-| `vmware`             | none                  | —             |
+| `terraform_provider` | Environment variable      | Scope it sets |
+|----------------------|---------------------------|---------------|
+| `azure`              | `ARM_SUBSCRIPTION_ID`     | subscription  |
+| `gcp`                | `GOOGLE_PROJECT`          | project       |
+| `oci`                | `TF_VAR_compartment_ocid` | compartment   |
+| `aws`                | `TF_VAR_aws_account_id`   | account       |
+| `kubernetes`         | none                      | —             |
+| `vmware`             | none                      | —             |
 
-Only Azure and GCP have one. An AWS account is implicit in the
-credentials the provider resolves, and an OCI compartment, a
-Kubernetes namespace or a vSphere datacenter is a resource or
-data-source argument rather than a provider setting — no environment
-variable redirects a command to one. For those four the service injects nothing and the command runs against whatever
-scope its ambient credentials select, so a deployment that serves them
-is responsible for making those credentials agree with `scope_id`; it
-can also scope by another mechanism (an AWS AssumeRole into the
-account, a provider alias, a credential broker), which the contract
-explicitly allows.
+Azure and GCP read theirs as provider settings. The OCI and AWS
+variables are Terraform input variables instead, which the engine
+ignores when the generated code declares none. An OCI compartment is a
+resource argument: the variable fills the `compartment_ocid` variable
+the generated code passes to its resources. An AWS account is implicit
+in the credentials the provider resolves, so the variable fills the
+`aws_account_id` variable the generated code passes to the provider's
+`allowed_account_ids`, which refuses any other account.
+
+AWS is also checked before the engine starts: before `init`, `plan`,
+`apply` and `import` the service calls STS `GetCallerIdentity` and,
+when its own credentials belong to an account other than `scope_id`,
+ends the command with exit code 1 and the reason on stderr — the same
+check import discovery makes. It needs `AWS_REGION` (or
+`AWS_DEFAULT_REGION`) and a 12-digit `scope_id` (`000000000000` for
+LocalStack). One deployment therefore serves the one AWS account its
+credentials belong to; a hub deployment whose generated code assumes a
+role into each target account is refused by this check.
+
+A Kubernetes namespace or a vSphere datacenter is a resource or
+data-source argument the generated code names itself, so for those two
+the service injects nothing. Their commands run against whatever scope
+the ambient credentials select, so a deployment that serves them is
+responsible for making those credentials agree with `scope_id`. The
+contract also allows a deployment to scope by another mechanism (a
+provider alias, a credential broker).
 
 Where an overlay is applied it goes on top of the service's own
 environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the

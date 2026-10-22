@@ -16,7 +16,11 @@ body: |
     125 MiB/s at no extra cost over gp2.
   - Storage encryption must be enabled with KMS. Specify a
     customer-managed key when provided; otherwise the AWS-managed
-    aws/rds key is acceptable.
+    aws/rds key is acceptable. `storage_encrypted` and `kms_key_id`
+    apply at creation; on an existing instance they force
+    replacement (encrypt by restoring from an encrypted snapshot
+    copy, on request only), as do `identifier`, `engine`, and
+    `availability_zone`.
   - Enable auto-scaling for storage by setting a maximum allocated
     storage value.
   - Use managed master user password (Secrets Manager integration)
@@ -30,13 +34,18 @@ body: |
     overlap.
   - Copy tags to snapshots must be enabled.
   - Do not delete automated backups on instance deletion.
-  - A final snapshot must be taken before deletion — skip final
-    snapshot must be false.
-  - Deletion protection must be enabled.
+  - `skip_final_snapshot = false` with a `final_snapshot_identifier`
+    (e.g. `rds-<application>-<environment>-final`).
+  - `deletion_protection = true`.
   - Add a lifecycle block with prevent_destroy.
   - Auto minor version upgrade must be enabled.
-  - Performance Insights must be enabled with at least 7-day
-    retention (free tier).
+  - Enable Performance Insights with 7-day retention (free tier)
+    only on instance classes that support it; it is not available
+    on db.t4g.micro or db.t4g.small for MySQL and MariaDB. AWS is
+    moving Performance Insights to CloudWatch Database Insights;
+    when the provider version and region support Database Insights,
+    prefer its standard mode, and enable the advanced (paid) mode
+    only on request.
   - Enhanced Monitoring must be enabled with a 60-second interval.
     This requires an IAM role with the
     AmazonRDSEnhancedMonitoringRole managed policy.
@@ -45,4 +54,15 @@ body: |
     slowquery for MySQL).
   - Prefer Graviton-based instance classes (db.t4g, db.r7g) for
     better price-performance.
-  - Apply standard tags: Name.
+  - Non-production instances get an EventBridge Scheduler stop/start
+    schedule, as in the `ec2` template, with the targets
+    `arn:aws:scheduler:::aws-sdk:rds:stopDBInstance` and
+    `arn:aws:scheduler:::aws-sdk:rds:startDBInstance`, `input =
+    jsonencode({ DbInstanceIdentifier = aws_db_instance.<name>.identifier
+    })`, and a scheduler role allowed `rds:StopDBInstance` and
+    `rds:StartDBInstance` on the instance ARN. RDS starts a stopped
+    instance again automatically after seven days; the daily stop
+    schedule stops it again. Instances with read replicas, read
+    replicas themselves, and some Multi-AZ SQL Server
+    configurations cannot be stopped; say so in the summary instead
+    of adding a schedule.

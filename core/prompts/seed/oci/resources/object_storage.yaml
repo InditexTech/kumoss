@@ -11,6 +11,10 @@ body: |
 
   - Naming convention: `bkt-<application>-<environment>`.
   - Bucket names must be unique within the namespace (tenancy).
+    Read the namespace from `data "oci_objectstorage_namespace"`.
+    `name` and `storage_tier` are immutable: changing either
+    replaces the bucket, which fails or loses data when it holds
+    objects.
   - Storage tier set to Standard. Use Archive tier only when the
     user explicitly requests it for infrequently accessed data.
   - Access type set to NoPublicAccess. Never set to
@@ -18,13 +22,22 @@ body: |
     requests public access.
   - Versioning must be enabled for production buckets.
   - Encryption uses Oracle-managed keys by default. Use a
-    customer-managed key (OCI Vault) when explicitly requested.
+    customer-managed key (`kms_key_id`, OCI Vault) when explicitly
+    requested, with the service policy (home region):
+    `Allow service objectstorage-<region> to use keys in
+    compartment <cmp> where target.key.id = '<key_ocid>'`
+    (e.g. `objectstorage-eu-frankfurt-1`).
   - Enable object lifecycle rules to transition or delete objects
     after a defined retention period if the user specifies one.
+    Lifecycle policies only run once Object Storage is allowed to
+    act on the objects: `Allow service objectstorage-<region> to
+    manage object-family in compartment <cmp>`.
   - Auto-tiering should be enabled for buckets with mixed access
     patterns to optimize cost.
   - Emit object events must be enabled for production buckets to
     support audit logging via OCI Events and Streaming.
+  - Pre-authenticated requests only on explicit request, scoped to
+    a single object or prefix, read-only where possible, with a
+    short expiry.
   - Add a lifecycle block with prevent_destroy for production
     buckets.
-  - Apply freeform tags: Name.

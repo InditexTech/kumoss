@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: OCI OKE cluster default configuration (networking, node pools, encryption).
+description: OCI OKE cluster default configuration (networking, node pools, autoscaling, encryption).
 body: |
   # OCI OKE (Kubernetes) Cluster
 
@@ -11,30 +11,48 @@ body: |
 
   ## Cluster
   - Naming convention: `oke-<application>-<environment>`.
-  - Use the Enhanced cluster type for production (includes virtual
-    node pools, cluster add-on management, and workload identity).
-    Use Basic only for non-production cost optimization.
-  - Kubernetes version: use the latest supported version unless the
-    user specifies otherwise.
-  - Kubernetes API endpoint: private endpoint in a private subnet.
-    Public endpoint only for non-production or if explicitly
+  - Use the Enhanced cluster type (`type = "ENHANCED_CLUSTER"`) for
+    production (virtual node pools, add-on management, workload
+    identity). Use Basic only for non-production cost optimization.
+  - Kubernetes version: the latest supported version from
+    `data "oci_containerengine_cluster_option"` unless the user
+    specifies otherwise.
+  - Kubernetes API endpoint: private endpoint in a private subnet
+    (`endpoint_config` with `is_public_ip_enabled = false` and an
+    NSG). Public endpoint only for non-production or if explicitly
     requested.
-  - Enable Kubernetes dashboard only if explicitly requested.
-  - Pod networking: use OCI VCN-Native Pod Networking (VCN-IP) for
-    production. Use flannel overlay only for non-production or when
-    IP address space is constrained.
+  - Never enable the Kubernetes dashboard add-on; it is deprecated.
+    Leave `is_kubernetes_dashboard_enabled = false`.
+  - Pod networking: OCI VCN-Native Pod Networking
+    (`OCI_VCN_IP_NATIVE`) for production. Use flannel overlay only
+    for non-production or when IP address space is constrained.
 
   ## Node Pools
   - Naming convention: `np-<purpose>-<environment>`.
   - Use flexible shapes (VM.Standard.E5.Flex) with configurable
     OCPUs and memory.
   - Place worker nodes in private subnets.
-  - Boot volume encryption must be enabled.
-  - Node count: 3 nodes across availability domains for production
-    high availability. 1-2 nodes for non-production.
-  - Enable auto-scaling for production node pools (min 3, max
-    based on capacity planning).
-  - Use Oracle Linux 8 as the node image.
+  - Node image: the latest OKE Oracle Linux image for the cluster's
+    Kubernetes version and the shape's architecture, selected from
+    `data "oci_containerengine_node_pool_option"` sources — never a
+    hardcoded image OCID or a generic (non-OKE) image.
+  - Boot volume in-transit encryption enabled
+    (`is_pv_encryption_in_transit_enabled = true`).
+  - Placement: read availability domains from
+    `data "oci_identity_availability_domains"` and add one
+    `placement_configs` per AD (a `dynamic` block over the list),
+    each listing the AD's fault domains from
+    `data "oci_identity_fault_domains"` in `fault_domains`. In
+    single-AD regions, the one placement spreads nodes across the
+    three fault domains instead. Never hardcode AD or fault domain
+    names.
+  - Node count: 3 nodes for production (one per AD, or per fault
+    domain in single-AD regions); 1-2 nodes for non-production.
+  - Autoscaling for production node pools (min 3, max from
+    capacity planning) via the Cluster Autoscaler add-on
+    (`oci_containerengine_addon`). The autoscaler changes the pool
+    size, so add
+    `lifecycle { ignore_changes = [node_config_details[0].size] }`.
 
   ## Networking
   - API endpoint subnet, worker node subnet, and service load
@@ -42,9 +60,19 @@ body: |
   - Service load balancer subnet must be public for external-facing
     services.
   - Worker node subnet must be private with NAT Gateway for
-    outbound access.
+    outbound access and a Service Gateway for Oracle services.
 
   ## Security
-  - Use OCI Vault for secrets encryption.
+  - Kubernetes secrets encryption with an OCI Vault key
+    (`kms_key_id`) needs `Allow service oke to use keys in
+    compartment <cmp> where target.key.id = '<key_ocid>'`. Node boot
+    volume CMEK also needs the `blockstorage` service policy. Adding
+    `kms_key_id` to an existing cluster may force replacement of the
+    cluster — call it out and do not do it without an explicit
+    request.
+  - Use workload identity for pods that call OCI APIs instead of
+    node-level instance principals.
   - Enable image verification policies for production clusters.
-  - Apply freeform tags: Name.
+  - Node pools also set the standard freeform tags in
+    `node_config_details.freeform_tags`, so the worker nodes carry
+    them.

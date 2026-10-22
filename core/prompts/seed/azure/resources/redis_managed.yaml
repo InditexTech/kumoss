@@ -2,39 +2,44 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure Cache for Redis default configuration (networking, TLS, persistence, diagnostics).
+description: Azure Managed Redis default configuration (SKU, Entra authentication, private endpoint, high availability).
 body: |
-  # Azure Cache for Redis (Managed)
+  # Azure Managed Redis
 
-  For an Azure Cache for Redis, unless explicitly requested
-  otherwise, use the following default configuration:
+  For a Redis cache, unless explicitly requested otherwise, use
+  Azure Managed Redis (`azurerm_managed_redis`) with the following
+  default configuration. Azure Cache for Redis (`azurerm_redis_cache`)
+  is being retired; use it only when the user explicitly asks for it.
 
-  - Naming convention: `redis-<application>-<environment>`.
-  - SKU family and capacity should match the workload. Use Basic
-    C0/C1 for non-production and Standard C1+ or Premium P1+ for
-    production.
-  - Premium tier is required for VNet integration, clustering,
-    data persistence, and geo-replication. Use Standard tier only
-    when these features are not needed.
-  - Minimum TLS version set to 1.2.
-  - Non-SSL port must be disabled (enable_non_ssl_port = false).
-    All connections must use TLS.
-  - Public network access must be disabled for production. Use
-    private endpoints for network-isolated access.
-  - For Premium tier with VNet injection, deploy into a dedicated
-    subnet.
-  - Enable data persistence (RDB or AOF) for Premium tier in
-    production to survive restarts.
-  - Redis authentication (access keys) should be used alongside
-    Azure AD authentication where supported. Store the access key
-    in Key Vault.
-  - Maxmemory policy set to allkeys-lru unless the user specifies
-    a different eviction strategy.
-  - Define a maintenance window (patch schedule) to control when
-    updates occur.
-  - Enable diagnostic settings to send Redis server metrics and
-    logs to a Log Analytics workspace.
-  - For high availability in production, use Standard tier
-    (includes replication) or Premium tier with clustering and
-    zone redundancy.
-  - Apply standard tags: environment and managed_by.
+  - Naming convention: `amr-<application>-<environment>`.
+  - SKU: choose the family by workload — Balanced (`Balanced_B*`) by
+    default, Memory Optimized (`MemoryOptimized_M*`) for large,
+    memory-heavy datasets, Compute Optimized (`ComputeOptimized_X*`)
+    for high-throughput workloads. Use the smallest Balanced size
+    (e.g. `Balanced_B0` or `Balanced_B1`) for non-production and
+    size production to the dataset. Flash Optimized only on request.
+  - High availability (replication) must be enabled for production.
+    It may be disabled for non-production to halve cost; state the
+    trade-off in the summary.
+  - Authentication: Microsoft Entra ID only, with access-key
+    authentication disabled. Grant clients access through an access
+    policy assignment for their managed identity. If access keys are
+    explicitly required, never output them unless marked
+    `sensitive = true`, and store them in Key Vault.
+  - All connections use TLS (clients connect on the encrypted
+    port); never enable a plaintext port.
+  - Public network access must be disabled. Use a private endpoint
+    in the dedicated `snet-pe` subnet with a
+    `private_dns_zone_group` to `privatelink.redis.azure.net`.
+  - Keep the service's default clustering policy unless the client
+    library requires a specific one. Changing the clustering policy
+    of an existing cache may force replacement of its database (data
+    loss) — call it out as high impact.
+  - Eviction policy `AllKeysLRU` unless the user specifies a
+    different strategy.
+  - Data persistence (RDB or AOF) only when the user needs the data
+    to survive a full outage; it adds cost.
+  - Enable diagnostic settings to send metrics and logs to a Log
+    Analytics workspace.
+  - Add a lifecycle block with prevent_destroy for production
+    caches.

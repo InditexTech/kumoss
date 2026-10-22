@@ -14,12 +14,17 @@ locking, custom backends, policy as code) should subclass this or
 substitute their own.
 
 `init`, `plan`, `apply` and `import` may access external services, so they
-run with the request's `scope_id` injected into their environment where the cloud
-exposes a provider-level variable that names a scope — Azure and GCP only
-(see ``IacEngine.scope_env``). The other providers have no such variable,
-so nothing is injected and the command runs on the service's ambient
-credentials. `validate`, `show` and `state pull` take no scope at all:
-they run on the service's own environment, unmodified.
+run with the request's `scope_id` injected into their environment where the
+cloud has a variable that names a scope (see ``IacEngine.scope_env``): the
+provider-level ``ARM_SUBSCRIPTION_ID`` and ``GOOGLE_PROJECT`` for Azure and
+GCP, and an input variable the generated code declares for OCI
+(``TF_VAR_compartment_ocid``) and AWS (``TF_VAR_aws_account_id``, which the
+code passes to the provider's ``allowed_account_ids``). For AWS the service
+also first checks the ambient credentials belong to account ``scope_id``
+(see ``ScopeDiscovery.verify_scope``). Kubernetes and vSphere have no such
+variable, so nothing is injected and the command runs on the service's
+ambient credentials. `validate`, `show` and `state pull` take no scope at
+all: they run on the service's own environment, unmodified.
 The contract's "Scope injection" section is normative.
 """
 
@@ -58,6 +63,11 @@ class IacEngine:
     _SCOPE_ENV_VARS: ClassVar[dict[str, str]] = {
         "azure": "ARM_SUBSCRIPTION_ID",
         "gcp": "GOOGLE_PROJECT",
+        # Not provider settings: they fill input variables the generated
+        # code declares (AWS passes it to `allowed_account_ids`), and are
+        # ignored when the code declares none.
+        "oci": "TF_VAR_compartment_ocid",
+        "aws": "TF_VAR_aws_account_id",
     }
 
     def __init__(self, binary: str, backend_config: str | None = None) -> None:
