@@ -4,6 +4,7 @@
 
 from typing import cast
 
+from src.application.exceptions import RequestFilterException
 from src.domains.dto import ToolResultDTO
 from src.domains.entities.history import History
 from src.domains.services import SessionService
@@ -12,7 +13,6 @@ from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
 from src.shared.constants import (
     OperationType,
-    SessionStatus,
     ToolContext,
     PromptsLibrary,
 )
@@ -36,7 +36,7 @@ class RequestsFilterService:
         q: str,
         history: History,
         operation_type: OperationType,
-    ) -> bool:
+    ) -> None:
         response: ToolResultDTO = await self.__llm_svc.generate(
             query=q,
             tools=self.__tool_svc.get_available_tools(
@@ -53,13 +53,9 @@ class RequestsFilterService:
         )
         rationale: str = cast(str, response.result["explanation"])
         ok: bool = response.result["status"]
-
         if not ok:
             history.append_turn(q, rationale)
-            await self.__session_svc.save(q)
-            await self.__session_svc.update_status(
-                msg=rationale,
-                status=SessionStatus.UNCOMPLETED,
+            raise RequestFilterException(
+                message=rationale,
+                error_code=400,
             )
-
-        return ok

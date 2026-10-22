@@ -62,7 +62,6 @@ class TerraformCRUDHandler:
         ctx = self.__ctx
 
         async def background_task():
-            query_accepted = False
             try:
                 await self.__session_svc.next_round(q)
                 _ = await self.__session_svc.update_status(
@@ -73,11 +72,7 @@ class TerraformCRUDHandler:
                     status=SessionStatus.FILTERING,
                     history=ctx.history,
                 )
-                query_accepted = await self.__requests_filter_svc.filter(
-                    q, ctx.history, ctx.operation
-                )
-                if not query_accepted:
-                    return
+                await self.__requests_filter_svc.filter(q, ctx.history, ctx.operation)
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
@@ -153,7 +148,6 @@ class TerraformCRUDHandler:
                     )
                 self.__workspace_svc.pin_workspace(ctx.id, ctx.call_dir)
             finally:
-                if query_accepted:
-                    await self.__session_svc.save(q)
+                await self.__session_svc.save(q)
 
         return background_task

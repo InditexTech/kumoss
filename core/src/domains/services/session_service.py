@@ -3,13 +3,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: reportAttributeAccessIssue=false
-from typing import cast
 
 from src.domains.dto import PromptTemplateDTO
 from src.domains.entities import History, SessionContext
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
+from src.shared.exceptions import ExceptionHandler
 from src.shared.constants import PromptsLibrary, SessionStatus
 from src.shared.logger import logging
 
@@ -55,7 +55,7 @@ class SessionService:
         await DatabaseService.mark_session_status(
             session_id=self.__ctx.id,
             status=status,
-            msg=cast(str, msg),
+            msg=msg,
             round_id=self.__ctx.round_id,
         )
         return msg
@@ -66,19 +66,19 @@ class SessionService:
 
     async def save(self, query: str) -> None:
         try:
-            reply = await self.__chat_reply(query)
+            reply = await self.__chat_reply(query, self.__ctx.history)
             self.__ctx.chat_history.append_turn(query, reply)
-        except Exception:
+        except ExceptionHandler:
             logging.warning(
                 f"chat_reply failed for session {str(self.__ctx.id)[:4]}; "
-                "saving history without a chat turn"
+                + "saving history without a chat turn"
             )
         await DatabaseService.update_history(self.__ctx)
 
-    async def __chat_reply(self, query: str) -> str:
+    async def __chat_reply(self, query: str, history: History) -> str:
         """Infer the user-facing reply from the internal history alone."""
         return await self.__llm_service.generate_text(
             query=query,
             prompt=await self.__template_svc.render(PromptsLibrary.CHAT_REPLY),
-            history=self.__ctx.history,
+            history=history,
         )

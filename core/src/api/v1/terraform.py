@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from src.api.deps import assert_session_access, require_operation_role
+from src.application.exceptions import RequestFilterException
 from src.domains.services.tracer_service import tracer
 from src.domains.services.database_service import DatabaseService
 from src.domains.entities import SessionContext, User
@@ -110,6 +111,10 @@ def _make_runner(
             last = await DatabaseService.get_last_status(ctx.id)
             if last.status is not SessionStatus.UNCOMPLETED:
                 await DatabaseService.mark_completed(ctx.id, ctx.operation.name)
+        except RequestFilterException:
+            await DatabaseService.mark_uncompleted(
+                ctx.id, ctx.chat_history.get_last_turn().assistant
+            )
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")
