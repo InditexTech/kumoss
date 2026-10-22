@@ -1,0 +1,25 @@
+core/src/infrastructure/tools/tool_registry_static.py
+  s_df10294d160b15::t_461946b17bbda2 12,24,30-36,45-46,171-175,422,425,427-429,432,434-455,458-462,465-500
+core/tests/infrastructure/terraform/test_terraform.py
+  s_df10294d160b15::t_5b939e4f33627b 416-510
+core/tests/infrastructure/tools/test_target_generator_tool.py
+  s_df10294d160b15::t_0cbaa15c2cef07 15,24
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_df10294d160b15::t_06562a5252023e 85-86,478,528-655,1090-1093
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d263665aed703d3afbd75994fc4bd81bc3fdecbe",
+  "prompts": {},
+  "sessions": {
+    "s_df10294d160b15": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1d516a4-8f13-4e2a-82db-d387b4fdb6c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
