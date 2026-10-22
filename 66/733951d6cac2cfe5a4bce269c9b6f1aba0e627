@@ -1,0 +1,45 @@
+core/src/application/services/terraform_import_service.py
+  s_a4a7ebe8cde913::t_67121b9b7b2cb2 138
+core/src/infrastructure/tools/tool_registry_static.py
+  s_a4a7ebe8cde913::t_fc39106a3b99e7 413-414,416,419-424
+core/tests/application/use_cases/test_terraform_import_handler.py
+  s_a4a7ebe8cde913::t_c714172e45c9d1 27,89-105,139,279,307,365,388,437,475,497,505-579,587,617,640,662,680,699,717,750,758,784,790-791,832,838,871,946
+core/tests/domains/services/test_terraform_import_address_service.py
+  s_a4a7ebe8cde913::t_f2f80f4f2026c1 40-44,49-53,59,68,88,91-143
+core/src/infrastructure/tools/iac_import.json
+  s_a4a7ebe8cde913::t_5b1c4dfe309f30 16,30-33,36,39-60,63
+core/src/domains/services/terraform_import_address_service.py
+  s_a4a7ebe8cde913::t_e3ab6200a4548a 8-13,31-34,49,66-86
+core/tests/application/services/test_terraform_import_service.py
+  s_a4a7ebe8cde913::t_48d72cdc40b7b1 23,362-385
+core/src/domains/dto.py
+  s_a4a7ebe8cde913::t_b54719c997b763 256-263,268-285
+core/tests/infrastructure/templates/test_template_adapter.py
+  s_a4a7ebe8cde913::t_04a56969659221 9,239-281
+core/src/shared/utils/plan_targets.py
+  s_a4a7ebe8cde913::t_8c617d42a87f56 18-20,24-27,42-43,46-53
+core/src/infrastructure/templates/base_layouts/core/report_generator.jinja
+  s_a4a7ebe8cde913::t_c9e2d70e30da0f 68-73
+core/src/infrastructure/templates/base_layouts/core/import_addresses.jinja
+  s_a4a7ebe8cde913::t_1245f89eb7fc8c 27,29-30,32,34-39,42-53,87,119,128-132
+core/tests/shared/test_plan_targets.py
+  s_a4a7ebe8cde913::t_c9bde7fbbea814 46-61
+core/src/application/use_cases/terraform_import_handler.py
+  s_a4a7ebe8cde913::t_978df8630a9719 185,188,191-197,201
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66733951d6cac2cfe5a4bce269c9b6f1aba0e627",
+  "prompts": {},
+  "sessions": {
+    "s_a4a7ebe8cde913": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9dd8ab1a-3433-4410-bd83-8a20a943ba9e",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
