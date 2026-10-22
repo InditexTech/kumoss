@@ -26,6 +26,8 @@ path = [
     "**/*.ico",
     "**/*.webmanifest",
     "**/mockServiceWorker.js",
+    "**/go.mod",
+    "**/go.sum",
 ]
 SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
 SPDX-License-Identifier = "Apache-2.0"
