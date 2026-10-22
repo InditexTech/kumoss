@@ -1,0 +1,25 @@
+config.yaml
+  s_df10294d160b15::t_3a6ae1696f0b41 151
+core/src/shared/config/system_config.py
+  s_df10294d160b15::t_c8e83396c2bb23 136
+docs/src/modules/main/pages/reference/configuration.adoc
+  s_df10294d160b15::t_d44aec49d324d2 461,478
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_df10294d160b15::t_67dd79917e784d 613-618
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ca57df81d9e7f0b51ee4fd76d9d1ceb98e91eaf1",
+  "prompts": {},
+  "sessions": {
+    "s_df10294d160b15": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1d516a4-8f13-4e2a-82db-d387b4fdb6c7",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
