@@ -133,7 +133,7 @@ class LlmConfig(BaseModel):
     """
 
     model: str = "anthropic/claude-sonnet-5"
-    small_model: str = "anthropic/claude-haiku-4-5"
+    small_model: str = "vertex_ai/gemini-3.8-flash"
     temperature: float = 0.1
     max_output_tokens: int = 32000
     timeout: float = Field(default=600.0, gt=0)

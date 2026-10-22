@@ -148,7 +148,7 @@ llm:
   small_model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
   temperature: 0.1
-  max_output_tokens: 32000
+  max_output_tokens: 64000
   timeout: 600
 
 # Filesystem paths used by the core. `upload_folder` must be writable

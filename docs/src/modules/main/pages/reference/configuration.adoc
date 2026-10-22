@@ -458,7 +458,7 @@ report generator chains.
 
 |`llm.small_model`
 |string
-|`anthropic/claude-haiku-4-5`
+|`vertex_ai/gemini-3.8-flash`
 |`vertex_ai/gemini-3.8-flash`
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
@@ -475,7 +475,7 @@ thinking).
 |`llm.max_output_tokens`
 |integer
 |`32000`
-|`32000`
+|`64000`
 |Optional
 |Completion cap sent on every call.
 
