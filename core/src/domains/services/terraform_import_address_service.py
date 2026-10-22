@@ -18,10 +18,12 @@ class TerraformImportAddressService:
     cloud resource id it must be imported from.
 
     The pair goes straight to ``terraform import``, so the id has to be
-    spelled the way the provider parses it — a cloud listing API and a
-    Terraform provider do not always agree on the case of a resource type
-    segment. Web search rides along with the workspace tools for that:
-    the registry's import example is what settles the canonical spelling.
+    written in the format the provider documents for that resource type —
+    a cloud listing id is not always the import id (an AWS ARN where the
+    provider wants a bucket name or a ``vpc-…`` id, a lower-cased Azure
+    type segment). Web search rides along with the workspace tools for
+    that: the registry's "Import" section, for the provider version in
+    use, is what settles the format of each resource type.
     """
 
     def __init__(
@@ -44,7 +46,7 @@ class TerraformImportAddressService:
             ]
         )
         response: ToolResultDTO = await self.__llm_svc.generate(
-            query="Map the generated Terraform blocks to their cloud resource ids.",
+            query="Map the generated Terraform blocks to their import ids, in the format the provider documents for each resource type.",
             tools=tools_definition,
             sentinel_tool=self.__tool_svc.get_sentinel_tool(
                 ToolContext.IMPORT_ADDRESSES
