@@ -15,12 +15,20 @@ body: |
   - Default to private subnets. Only create public subnets for load
     balancers, bastion hosts, or resources that explicitly need
     direct internet access.
+  - Private subnets set `prohibit_public_ip_on_vnic = true`. It is
+    immutable: changing it replaces the subnet, which fails or
+    disrupts everything attached to it.
   - CIDR block should be carved from the parent VCN CIDR with room
     for growth. Typical sizes: /24 for general workloads, /28 for
     small utility subnets.
-  - Set a DNS label for the subnet.
-  - Associate with a custom route table — do not use the VCN
-    default route table.
+  - Set `dns_label`: at most 15 alphanumeric characters, starting
+    with a letter, no hyphens, unique within the VCN. It is
+    immutable — changing it replaces the subnet.
+  - `vcn_id` and `availability_domain` (regional versus
+    AD-specific) also force replacement — never change them on an
+    existing subnet without an explicit request.
+  - Associate with a custom route table (see `route_table`) — do not
+    use the VCN default route table.
   - Associate with a custom security list or Network Security Group
     — do not rely on the default security list.
   - For private subnets, the route table should include a NAT
@@ -28,4 +36,3 @@ body: |
     rule for Oracle services.
   - For public subnets, the route table should include an Internet
     Gateway rule.
-  - Apply freeform tags: Name.

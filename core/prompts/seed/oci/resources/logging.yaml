@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Logging default configuration (log group and service logs for VCN flow logs, load balancers, Object Storage).
+body: |
+  # OCI Logging
+
+  For logging resources, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Log group
+  - Naming convention: `lg-<application>-<environment>`.
+  - One `oci_logging_log_group` per application and environment in
+    the application compartment.
+
+  ## Service logs
+  - Naming convention: `log-<source>-<application>-<environment>`.
+  - One `oci_logging_log` per source with `log_type = "SERVICE"`,
+    `is_enabled = true`, and a `configuration.source` block
+    (`source_type = "OCISERVICE"`, `service`, `category`,
+    `resource`):
+    - VCN flow logs: `service = "flowlogs"`, `category = "all"`,
+      `resource` = the subnet OCID — one log per subnet.
+    - Load balancer: `service = "loadbalancer"`, categories
+      `access` and `error`, `resource` = the load balancer OCID.
+    - Object Storage: `service = "objectstorage"`, categories
+      `write` (and `read` for sensitive buckets), `resource` = the
+      bucket name.
+  - `retention_duration` (days, in 30-day steps): 30 for
+    non-production, 90 or more for production. For longer
+    retention, ship logs to an Object Storage bucket with a Service
+    Connector Hub on request.
+  - Changing a log's source creates a new log; disabling or
+    removing a production log loses audit data — high impact.
+  - Cost: log ingestion and storage are billed beyond the free
+    allowance; flow logs on busy subnets are the largest source.
+  - The Audit service is always on and needs no resource.

@@ -10,13 +10,25 @@ body: |
   use the following default configuration:
 
   ## Hosted Zone
-  - Naming convention for tags: `r53-<application>-<environment>`.
+  - Naming convention (`Name` tag): `r53-<application>-<environment>`.
   - For private hosted zones, associate the zone with the target
     VPC so records resolve only within that VPC.
   - Route 53 is a global service — hosted zones are not
     region-scoped.
-  - Enable DNSSEC signing for public hosted zones when the domain
-    registrar supports DS record delegation.
+  - DNSSEC signing for public hosted zones only on request, and only
+    when the domain registrar supports DS record delegation (the KMS
+    key and the signing add cost). It needs an asymmetric
+    KMS key (`customer_master_key_spec = "ECC_NIST_P256"`,
+    `key_usage = "SIGN_VERIFY"`) created in us-east-1 through a
+    provider alias, whose key policy allows the
+    `dnssec-route53.amazonaws.com` service principal
+    `kms:DescribeKey`, `kms:GetPublicKey`, `kms:Sign`, and
+    `kms:CreateGrant` (with `kms:GrantIsForAWSResource = true`),
+    conditioned on `aws:SourceAccount`. Then add
+    `aws_route53_key_signing_key` and `aws_route53_hosted_zone_dnssec`,
+    and publish the DS record at the registrar or parent zone.
+    Disabling DNSSEC before removing the DS record breaks resolution
+    of the whole domain — high impact, state it in the summary.
 
   ## Records
   - Prefer alias records over CNAME for zone apex (e.g.

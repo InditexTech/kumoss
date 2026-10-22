@@ -8,6 +8,8 @@ from .provider_facts import ProviderFacts
 from .conventions import Conventions
 from .plan_ref import PlanRef
 from .token_claims import TokenClaims
+from .search_result import SearchResult
+from .page_summary import PageSummary
 
 __all__ = [
     "Status",
@@ -16,4 +18,6 @@ __all__ = [
     "Conventions",
     "PlanRef",
     "TokenClaims",
+    "SearchResult",
+    "PageSummary",
 ]

@@ -28,6 +28,7 @@ from urllib.parse import urlparse
 
 import litellm
 from litellm.router import Router
+from litellm.types.utils import SearchProviders
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.shared.constants import (
@@ -102,6 +103,67 @@ class AdminConfig(BaseModel):
     """
 
     default_root_email: str = ""
+
+
+class SearchConfig(BaseModel):
+    """Web search backend used by the core's ``web_search`` tool.
+
+    ``provider`` selects the LiteLLM search provider used for every
+    ``web_search`` tool call (see ``litellm.types.utils.SearchProviders``:
+    searxng, tavily, brave, perplexity, ...). It must be set: the tool has
+    no LLM-native search fallback, so an empty provider disables web
+    search entirely.
+
+    ``endpoint`` is the base URL of the search service (``api_base``).
+    Required for ``searxng``; optional (or unused) for hosted providers
+    that read credentials from their standard env vars. ``timeout`` is the
+    per-request HTTP budget in seconds — it covers both the search call
+    and each individual page read — and ``max_results`` caps the number of
+    results returned per query.
+
+    ``max_page_chars`` truncates the readable text extracted from each
+    result page. The tool's worst-case payload is ``max_results *
+    max_page_chars`` characters of tool result, so raise it for richer
+    source material at the cost of the calling agent's context.
+
+    Two small-model inferences always stand between the pages and the
+    agent — one summary per page, then a cross-page ranking — and only the
+    top ``summarize_top`` summaries reach it, bounding a search's context
+    cost at ``summarize_top * summarize_max_chars``. ``summarize_max_chars``
+    caps each summary; too low and dense reference pages lose detail the
+    agent cannot get back. Any summarizer failure degrades to the raw
+    results.
+    """
+
+    provider: str = SearchProviders.SEARXNG.value
+    endpoint: str = "http://localhost:8888"
+    timeout: float = Field(default=30.0, gt=0)
+    max_results: int = Field(default=5, ge=1, le=20)
+    max_page_chars: int = Field(default=6000, ge=500, le=20000)
+    summarize_top: int = Field(default=1, ge=1, le=10)
+    summarize_max_chars: int = Field(default=4000, ge=500, le=20000)
+
+    @model_validator(mode="after")
+    def _assert_provider(self) -> "SearchConfig":
+        if not self.provider:
+            if self.endpoint:
+                raise ConfigError(
+                    "web_search.endpoint is set but web_search.provider is "
+                    "empty; set web_search.provider (e.g. searxng) or clear "
+                    "the endpoint to disable web search."
+                )
+            return self
+        if self.provider not in {item.value for item in SearchProviders}:
+            raise ConfigError(
+                f"web_search.provider '{self.provider}' is not a LiteLLM "
+                + "search provider; see litellm.types.utils.SearchProviders."
+            )
+        if self.provider == "searxng" and not self.endpoint:
+            raise ConfigError(
+                "web_search.provider 'searxng' requires web_search.endpoint "
+                + "(the base URL of the SearXNG instance)."
+            )
+        return self
 
 
 class LlmConfig(BaseModel):
@@ -511,6 +573,7 @@ class SystemConfig(BaseModel, frozen=True):
     oidc: OidcConfig = Field(default_factory=OidcConfig)
     admin: AdminConfig = Field(default_factory=AdminConfig)
     llm: LlmConfig = Field(default_factory=LlmConfig)
+    web_search: SearchConfig = Field(default_factory=SearchConfig)
     services: ServicesConfig = Field(default_factory=ServicesConfig)
     orchestration: OrchestrationConfig = Field(default_factory=OrchestrationConfig)
     paths: PathsConfig = Field(default_factory=PathsConfig)

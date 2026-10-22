@@ -1,0 +1,40 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Private Endpoint default configuration (dedicated subnet, service connection, DNS zone group).
+body: |
+  # Azure Private Endpoint
+
+  For a Private Endpoint, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `pep-<target-resource-name>-<subresource>`
+    (e.g. `pep-kv-shop-prod-vault`).
+  - `azurerm_private_endpoint` with
+    `location = azurerm_resource_group.<x>.location` (the VNet's
+    region) and `subnet_id` pointing at the dedicated `snet-pe`
+    subnet. Never place it in a delegated subnet.
+  - One `private_service_connection` with
+    `private_connection_resource_id` set to the target resource,
+    `is_manual_connection = false`, and `subresource_names` set to
+    the target sub-resource, for example `blob` or `file` (storage),
+    `vault` (Key Vault), `registry` (Container Registry),
+    `namespace` (Service Bus), `account` (Azure OpenAI),
+    `postgresqlServer` (PostgreSQL Flexible Server), `Sql` (Cosmos
+    DB NoSQL).
+  - Always add a `private_dns_zone_group` (name `default`) with
+    `private_dns_zone_ids` pointing at the matching `privatelink.*`
+    zone from the `private_dns_zone` template, so the A record is
+    managed automatically. Never create A records by hand.
+  - Set `custom_network_interface_name = "nic-<endpoint-name>"` for
+    predictable NIC names.
+  - Changing the subnet, target resource, or sub-resource forces
+    replacement and briefly breaks private connectivity — high
+    impact.
+  - Disable public network access only when all data-plane clients,
+    including the Kumoss engine, can reach the private endpoint.
+    For Terraform-managed storage or Key Vault data-plane objects,
+    preserve firewall-restricted public access for the engine egress
+    CIDRs unless the engine can use the private path, as those
+    resource templates describe.

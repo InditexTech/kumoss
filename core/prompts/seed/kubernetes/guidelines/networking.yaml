@@ -7,8 +7,11 @@ body: |
   # Kubernetes Networking Guidelines
 
   ## Network Policies
-  - Apply a default-deny ingress AND egress NetworkPolicy in every
-    production namespace, then explicitly allow required flows.
+  - When creating a new production namespace, or when requested,
+    apply a default-deny ingress AND egress NetworkPolicy, then
+    explicitly allow required flows. Never add a default-deny to an
+    existing namespace unprompted — it cuts traffic for running
+    pods (high impact).
   - Always allow DNS egress (port 53 TCP/UDP to `kube-system`) in
     every deny-all egress policy — without it, pods cannot resolve
     service names.
@@ -19,8 +22,8 @@ body: |
   - NetworkPolicies are additive: the union of all policies applies.
     A deny-all policy does not override a later allow policy.
   - NetworkPolicies require a CNI plugin that supports them (Calico,
-    Cilium, Weave Net). Policies are silently ignored by CNIs that
-    do not implement them (e.g., default Flannel).
+    Cilium). Policies are silently ignored by CNIs that do not
+    implement them (e.g., plain Flannel).
 
   ## Services
   - Use `ClusterIP` (default) for internal communication between
@@ -35,28 +38,40 @@ body: |
   - Set `external_traffic_policy = "Local"` on LoadBalancer/NodePort
     services when client source IP preservation is needed. Be aware
     this can cause uneven traffic distribution.
-  - Use `internal_traffic_policy = "Local"` (K8s 1.26+) for
-    topology-aware routing to prefer node-local endpoints.
+  - Leave `internal_traffic_policy` at its default (`Cluster`).
+    `"Local"` drops traffic from nodes that have no local endpoint.
+  - Only when requested, enable topology-aware routing to prefer
+    same-zone endpoints: the `service.kubernetes.io/topology-mode:
+    Auto` annotation, or on newer clusters the Service traffic
+    distribution setting `PreferClose` (check that the cluster
+    and provider version support it).
 
   ## Ingress and Gateway API
   - Ingress is suitable for simple HTTP/HTTPS routing. For advanced
     use cases (TCP/UDP routing, traffic splitting, header matching),
-    prefer the Gateway API (`gateway.networking.k8s.io` resources).
-  - Always specify `ingress_class_name` to target the correct
-    controller.
+    consider the Gateway API (`gateway.networking.k8s.io`) — only
+    if its CRDs and a Gateway controller are already installed in
+    the cluster; its objects need `kubernetes_manifest`.
+  - Always specify `ingress_class_name`, set to an IngressClass that
+    already exists in the cluster.
   - Enable TLS termination at the Ingress level — reference TLS
     secrets, do not embed certificates inline.
-  - Use cert-manager for automatic TLS certificate provisioning and
-    renewal from Let's Encrypt or internal CAs.
+  - If cert-manager is already installed in the cluster, use it for
+    automatic TLS certificate provisioning and renewal; otherwise
+    reference an existing TLS Secret.
   - Use path-based or host-based routing to multiplex services
     behind a single external IP.
 
   ## Pod Topology
-  - Use `topology_spread_constraints` to distribute pods evenly
-    across failure domains (zones, nodes):
+  - Use a `topology_spread_constraint` block in the pod spec to
+    distribute replicas across zones:
     - `max_skew = 1`, `topology_key = "topology.kubernetes.io/zone"`.
-    - `when_unsatisfiable = "DoNotSchedule"` for strict distribution
-      or `"ScheduleAnyway"` for best-effort.
+    - `when_unsatisfiable = "ScheduleAnyway"` by default, so pods
+      still schedule on single-zone clusters. Use `"DoNotSchedule"`
+      only when strict zone distribution is requested and the
+      cluster spans enough zones.
+    - `label_selector { match_labels }` with the workload's selector
+      labels (`app.kubernetes.io/name`, `app.kubernetes.io/instance`).
   - Pair with `pod_anti_affinity` to prevent co-location of replicas
     on the same node.
 
@@ -65,8 +80,8 @@ body: |
     `<service>.<namespace>.svc.cluster.local`.
   - Use `<pod-name>.<headless-service>.<namespace>.svc.cluster.local`
     for StatefulSet pod DNS.
-  - Use ExternalDNS for automatic DNS record management when
-    exposing services externally.
+  - If ExternalDNS is already installed in the cluster, rely on it
+    for DNS records of externally exposed services.
   - Set `dns_policy = "ClusterFirst"` (default). Use
     `"ClusterFirstWithHostNet"` only when `host_network = true`.
 

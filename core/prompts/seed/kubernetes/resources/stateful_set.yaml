@@ -2,17 +2,29 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes StatefulSet default configuration (stable identity, persistent storage, ordered operations).
+description: Kubernetes StatefulSet default configuration (stable identity, persistent storage, ordered operations, immutable fields).
 body: |
   # Kubernetes StatefulSet
 
   For a StatefulSet, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<component>-<environment>`.
+  - Resource type: `kubernetes_stateful_set_v1`.
+  - Naming convention: `<app>-<component>-sts`, at most 52
+    characters.
   - Use StatefulSet when workloads need stable network identities,
     stable persistent storage, or ordered deployment and scaling.
     Do NOT use StatefulSet when a Deployment with PVCs would suffice.
+  - Immutable fields: `selector`, `service_name`,
+    `volume_claim_template` and `pod_management_policy`. Changing
+    any of them makes Terraform replace the StatefulSet (+/-),
+    restarting every pod — a high-impact change made only when the
+    user explicitly asked for the replacement, and stated in the
+    summary. Grow storage by expanding the existing PVCs, not by
+    editing the template.
+  - Selector: `match_labels` with only `app.kubernetes.io/name` and
+    `app.kubernetes.io/instance`; `app.kubernetes.io/version` only
+    in metadata and pod template labels.
   - Set `replicas` based on the application quorum requirements.
   - Set `revision_history_limit = 5` to control ControllerRevision
     history.
@@ -24,9 +36,13 @@ body: |
     for full rollouts. Increase partition for canary deployments.
   - Set `persistent_volume_claim_retention_policy`:
     - `when_deleted = "Retain"` — keep PVCs when the StatefulSet
-      is deleted (safeguards data).
+      is deleted or replaced (safeguards data).
     - `when_scaled = "Retain"` — keep PVCs when scaling down.
-    Change to `"Delete"` only for ephemeral data.
+    Use `"Delete"` only for new StatefulSets holding ephemeral
+    data; never switch an existing `"Retain"` to `"Delete"` without
+    an explicit request.
+  - Add `lifecycle { prevent_destroy = true }` when the StatefulSet
+    holds production data.
   - Define `volume_claim_template` for each pod's persistent storage:
     - Set appropriate `storage_class_name`.
     - Size the `resources.requests.storage` for the workload.
@@ -34,8 +50,15 @@ body: |
   - Pair with a headless Service (`cluster_ip = "None"`) to provide
     stable DNS entries per pod (`<pod>.<service>.<ns>.svc.cluster.local`).
   - Apply the same security context, probes (including startup probe),
-    topology spread, and resource limits guidelines as Deployments.
+    and resource requests and limits guidelines as Deployments.
+  - Spread replicas with a `topology_spread_constraint` on
+    `topology.kubernetes.io/zone`, `max_skew = 1`,
+    `when_unsatisfiable = "ScheduleAnyway"` (so single-zone
+    clusters still schedule), and a `label_selector` with the
+    selector labels.
   - Set `automount_service_account_token = false` unless API access
     is required.
   - When an HPA manages replicas, add
     `lifecycle { ignore_changes = [spec[0].replicas] }`.
+  - Pod template labels carry the recommended `app.kubernetes.io/*`
+    labels but not the standard tags.

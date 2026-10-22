@@ -9,7 +9,9 @@ body: |
   For a CronJob, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<task>-cj`.
+  - Resource type: `kubernetes_cron_job_v1`.
+  - Naming convention: `<app>-<task>-cj`, at most 52 characters
+    (the controller appends a suffix to each Job name).
   - Set `schedule` using standard cron syntax (5-field format).
   - Set `timezone` (K8s 1.27+, stable) to an explicit IANA timezone
     (e.g., `"Europe/Madrid"`, `"UTC"`) when the schedule must align
@@ -32,11 +34,12 @@ body: |
     - Set `backoff_limit` to control retry attempts on failure.
     - Set `active_deadline_seconds` to prevent jobs from running
       indefinitely.
-    - Set `ttl_seconds_after_finished` (K8s 1.23+) to automatically
-      clean up finished Jobs (e.g., `3600` for 1 hour).
+    - Set `ttl_seconds_after_finished` to automatically clean up
+      finished Jobs (e.g., `3600` for 1 hour).
     - Set `restart_policy = "OnFailure"` or `"Never"`.
     - For parallel jobs, set `completions` and `parallelism`
       to control how many pods run concurrently.
   - Apply the same security context, resource limits, and image
     pinning guidelines as Deployments.
-  - Apply standard labels for identification.
+  - Pod template labels carry the recommended `app.kubernetes.io/*`
+    labels but not the standard tags.

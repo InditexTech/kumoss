@@ -15,8 +15,13 @@ body: |
     for VPC-to-VPC traffic without internet access.
   - Deploy the NAT Gateway in a public subnet (one that has a route
     to an Internet Gateway).
-  - Allocate a dedicated Elastic IP (EIP) for each NAT Gateway.
-    Name the EIP `eip-natgw-<application>-<environment>-<az>`.
+  - Allocate a dedicated Elastic IP (`aws_eip` with `domain =
+    "vpc"`; the `vpc = true` argument was removed in provider v6)
+    for each NAT Gateway. Name the EIP
+    `eip-natgw-<application>-<environment>-<az>`.
+  - Derive the `<az>` suffix from the AZ names read from
+    `data "aws_availability_zones" "available"`; never hardcode AZ
+    letters.
   - For production, deploy one NAT Gateway per availability zone
     for high availability — if the AZ hosting the NAT Gateway goes
     down, resources in other AZs lose outbound access unless they
@@ -31,4 +36,3 @@ body: |
   - NAT Gateways are billed per hour and per GB processed — monitor
     costs via CloudWatch metrics (BytesOutToDestination,
     PacketsDropCount).
-  - Apply standard tags: Name.

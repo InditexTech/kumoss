@@ -95,6 +95,14 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
+    def render_search_summarizer(self, irrelevant_marker: str) -> str:
+        pass
+
+    @abstractmethod
+    def render_search_selector(self) -> str:
+        pass
+
+    @abstractmethod
     async def render_compliance_checker(
         self,
         resources: list[str],

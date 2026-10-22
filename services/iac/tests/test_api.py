@@ -663,8 +663,8 @@ def test_unscoped_endpoints_run_unscoped(
     [
         ("azure", {"ARM_SUBSCRIPTION_ID": "scope-1"}),
         ("gcp", {"GOOGLE_PROJECT": "scope-1"}),
-        ("aws", {}),
-        ("oci", {}),
+        ("aws", {"TF_VAR_aws_account_id": "scope-1"}),
+        ("oci", {"TF_VAR_compartment_ocid": "scope-1"}),
         ("kubernetes", {}),
         ("vmware", {}),
     ],
@@ -674,16 +674,21 @@ def test_scope_is_injected_per_provider(
 ) -> None:
     """scope_id reaches the engine as the environment overlay the
     request's terraform_provider selects, and only where that cloud has
-    a provider-level variable naming a scope. aws, oci, kubernetes and
-    vmware have none, so the engine is called with no overlay at all."""
+    a variable naming a scope: a provider-level one for azure and gcp,
+    an input variable the generated code declares for oci
+    (compartment_ocid) and aws (aws_account_id). kubernetes and vmware
+    have none, so the engine is called with no overlay at all."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
 
     ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
     with client_with() as client:
-        with patch(
-            "src.engine.IacEngine.plan", new_callable=AsyncMock, return_value=ok
-        ) as plan_mock:
+        with (
+            patch.object(ScopeDiscovery, "verify_scope", new_callable=AsyncMock),
+            patch(
+                "src.engine.IacEngine.plan", new_callable=AsyncMock, return_value=ok
+            ) as plan_mock,
+        ):
             response = client.post(
                 "/v1/plan",
                 json={
@@ -697,6 +702,49 @@ def test_scope_is_injected_per_provider(
             accepted: dict[str, str] = response.json()
             _ = poll_until_terminal(client, accepted["job_id"])
     plan_mock.assert_awaited_once_with(workspace, [], "x.plan", expected)
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "engine_target", "extra"),
+    [op for op in OPERATIONS if "scope_id" in op[2]],
+)
+def test_a_scope_the_credentials_cannot_serve_never_reaches_the_engine(
+    endpoint: str, engine_target: str, extra: dict[str, str], tmp_path: Path
+) -> None:
+    """No variable points an AWS command at an account, so init, plan,
+    apply and import first check the credentials belong to scope_id. A
+    mismatch ends the command with exit code 1 and the reason, and the
+    engine is never started."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    body = {
+        "workspace_path": str(workspace),
+        **extra,
+        "scope_id": "123456789012",
+        "terraform_provider": "aws",
+    }
+    refused = DiscoveryError("AWS credentials belong to account 999, not 123456789012")
+
+    with client_with() as client:
+        with (
+            patch.object(
+                ScopeDiscovery,
+                "verify_scope",
+                new_callable=AsyncMock,
+                side_effect=refused,
+            ) as verify_mock,
+            patch(engine_target, new_callable=AsyncMock) as engine_mock,
+        ):
+            response = client.post(endpoint, json=body)
+            assert response.status_code == 202
+            accepted: dict[str, str] = response.json()
+            job = poll_until_terminal(client, accepted["job_id"])
+
+    verify_mock.assert_awaited_once_with("aws", "123456789012")
+    engine_mock.assert_not_awaited()
+    assert job["status"] == "succeeded"
+    assert job["result"]["exit_code"] == 1
+    assert "belong to account 999" in job["result"]["stderr"]
 
 
 STATE_DOCUMENT: str = json.dumps(

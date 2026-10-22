@@ -36,4 +36,3 @@ body: |
     compartment and resource type.
   - Write a policy granting the dynamic group the minimum
     permissions required (e.g. read secrets, use object storage).
-  - Apply freeform tags: Name.

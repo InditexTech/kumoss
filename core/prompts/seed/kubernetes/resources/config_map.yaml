@@ -9,21 +9,25 @@ body: |
   For a ConfigMap, unless explicitly requested otherwise, use the
   following default configuration:
 
+  - Resource type: `kubernetes_config_map_v1`.
   - Naming convention: `<app>-<purpose>-cm`.
   - Use `data` for UTF-8 key-value pairs; use `binary_data` for
-    binary content (base64-encoded).
+    binary content (already base64-encoded).
   - Never store sensitive data (passwords, tokens, keys) in a
-    ConfigMap — use a `kubernetes_secret` instead.
-  - Set `immutable = true` for configuration that should not change
-    after creation. Immutable ConfigMaps improve cluster performance
-    by reducing API server watch load.
+    ConfigMap — use a `kubernetes_secret_v1` instead.
+  - Set `immutable = true` only for configuration that must not
+    change after creation: any later change to `data` then makes
+    Terraform replace the ConfigMap (+/-). Immutable ConfigMaps
+    reduce API server watch load.
   - Mount as a volume when the application reads config files,
     or use `env` / `env_from` when individual keys map to
     environment variables.
-  - To trigger a Deployment rollout when a ConfigMap changes, add
-    a checksum annotation to the pod template:
-    `config-hash = sha256(configmap-data)`. This forces a new
-    rollout because the pod template annotation changes.
+  - Pods do not pick up changed environment variables on their
+    own. When a rollout on change is wanted, add a checksum
+    annotation to the workload's pod template, for example
+    `"checksum/config" = sha256(jsonencode(kubernetes_config_map_v1.<name>.data))`.
+    Every change to the data then changes the pod template and
+    restarts all the workload's pods (rolling update) — call this
+    out as a restart in the plan.
   - Keep ConfigMaps small — the 1 MiB size limit is a hard
     Kubernetes constraint.
-  - Apply standard labels for identification.

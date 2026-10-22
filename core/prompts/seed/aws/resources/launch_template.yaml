@@ -1,0 +1,52 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS EC2 launch template default configuration (IMDSv2, encrypted gp3, no public IP, instance profile, user_data).
+body: |
+  # AWS Launch Template
+
+  For an EC2 launch template, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `lt-<application>-<role>-<environment>`.
+  - `update_default_version = true`; every change creates a new
+    template version. Running instances are not touched until the
+    Auto Scaling group refreshes them.
+  - `image_id` from an AMI lookup with an `architecture` filter that
+    matches the instance type (`arm64` for Graviton types such as
+    `t4g`, `m7g`, `c7g`; `x86_64` otherwise), or the matching public
+    SSM parameter for Amazon Linux 2023 through `aws_ssm_parameter`.
+    An `aws_ami` lookup with `most_recent = true` must set `owners`
+    (e.g. `["amazon"]`) in provider v6.
+  - `metadata_options`: `http_endpoint = "enabled"`,
+    `http_tokens = "required"` (IMDSv2), and
+    `http_put_response_hop_limit = 1` (2 only for container hosts
+    that need IMDS from containers).
+  - Root volume in `block_device_mappings` (device name from the
+    AMI, e.g. `/dev/xvda` for Amazon Linux): `volume_type = "gp3"`,
+    `encrypted = true`, a customer-managed `kms_key_id` when
+    provided, `delete_on_termination = true`.
+  - `network_interfaces` with `associate_public_ip_address = false`
+    and the workload's security groups; do not set subnets here
+    (the Auto Scaling group places instances).
+  - `iam_instance_profile` for a role with
+    AmazonSSMManagedInstanceCore plus the workload's scoped
+    permissions; never access keys. No `key_name`: use SSM Session
+    Manager instead of SSH.
+  - `monitoring { enabled = true }` (detailed monitoring) in
+    production only; omit it in non-production unless requested.
+  - Boolean arguments take `true` or `false`, never `0` or `1`
+    (provider v6 validation), and never set the removed
+    `elastic_gpu_specifications` or `elastic_inference_accelerator`
+    blocks.
+  - Guest configuration only through `user_data`
+    (`base64encode(...)` of a script or cloud-init document); never
+    provisioners and never secrets in it. Read secrets from Secrets
+    Manager or SSM Parameter Store at boot.
+  - `tag_specifications` for `instance` and `volume` with the
+    standard tags plus a `Name` (`tags = merge(local.standard_tags,
+    { Name = ... })`): provider `default_tags` do not reach instances
+    launched by an Auto Scaling group. This is the only source of
+    tags for launched instances and volumes; the Auto Scaling group
+    does not propagate tags at launch.

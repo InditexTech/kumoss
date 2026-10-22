@@ -2,13 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes PersistentVolumeClaim default configuration (storage class, access modes, size, lifecycle).
+description: Kubernetes PersistentVolumeClaim default configuration (storage class, access modes, size, immutability, lifecycle).
 body: |
   # Kubernetes PersistentVolumeClaim
 
   For a PersistentVolumeClaim, unless explicitly requested otherwise,
   use the following default configuration:
 
+  - Resource type: `kubernetes_persistent_volume_claim_v1`.
   - Naming convention: `<app>-<purpose>-pvc`.
   - Set `storage_class_name` explicitly — do not rely on the cluster
     default unless it is well-documented.
@@ -18,9 +19,16 @@ body: |
     Use `ReadWriteOncePod` (K8s 1.29+) when only a single pod
     should have write access — stricter than `ReadWriteOnce` which
     allows multiple pods on the same node.
-  - Size `resources.requests.storage` appropriately — PVCs cannot
-    be shrunk after creation (only expanded if the storage class
-    supports `allowVolumeExpansion`).
+  - Immutable fields: `storage_class_name`, `access_modes` and
+    `volume_mode` cannot change after creation. Changing them makes
+    Terraform replace the PVC (+/-), which can destroy the volume
+    and its data. Never change them unless the user explicitly
+    asked for the replacement, and state the data loss in the
+    summary.
+  - Size `resources.requests.storage` appropriately. It can only
+    grow, never shrink (a smaller value forces replacement), and
+    only grows in place when the StorageClass has
+    `allow_volume_expansion = true`; never reduce it.
   - Set `volume_mode = "Filesystem"` (default). Use `Block` only
     for applications that manage raw block devices.
   - For StatefulSets, define PVCs via `volume_claim_template` on
@@ -29,5 +37,4 @@ body: |
     the PVC is bound. Set to `false` for `WaitForFirstConsumer`
     storage classes where binding happens on pod scheduling.
   - Add a `lifecycle` block with `prevent_destroy = true` for
-    production data volumes to guard against accidental deletion.
-  - Apply standard labels for identification.
+    production data volumes, and never remove an existing one.

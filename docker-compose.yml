@@ -14,7 +14,7 @@ name: kumoss
 
 services:
   proxy:
-    image: ghcr.io/inditextech/kumoss-proxy:1.1.0 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-proxy:1.3.0 # x-release-please-version
     restart: on-failure
     build:
       context: .
@@ -34,10 +34,16 @@ services:
       - bridge-network
 
   core:
-    image: ghcr.io/inditextech/kumoss-core:1.1.0 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-core:1.3.0 # x-release-please-version
     build:
       context: .
       dockerfile: ./core/Dockerfile
+      # Extra CA roots the Dockerfile copies in as the "host-certs" build
+      # context. Empty by default so the image builds on a normal network;
+      # behind a TLS-inspecting proxy, docker-compose.override.yml points
+      # this at the host's corporate roots (see the override template).
+      additional_contexts:
+        host-certs: ./docker/certs
     expose:
       - 8000
     env_file:
@@ -69,7 +75,7 @@ services:
       - bridge-network
 
   notifications:
-    image: ghcr.io/inditextech/kumoss-notifications:1.1.0 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-notifications:1.3.0 # x-release-please-version
     build:
       context: .
       dockerfile: ./services/notifications/Dockerfile
@@ -82,7 +88,7 @@ services:
       - bridge-network
 
   iac:
-    image: ghcr.io/inditextech/kumoss-iac:1.1.0 # x-release-please-version
+    image: ghcr.io/inditextech/kumoss-iac:1.3.0 # x-release-please-version
     build:
       context: .
       dockerfile: ./services/iac/Dockerfile
@@ -93,6 +99,32 @@ services:
       - workspaces:/workspaces
     expose:
       - 8082
+    networks:
+      - bridge-network
+
+  searxng:
+    image: kumoss-searxng:latest
+    build:
+      context: ./services/searxng
+      dockerfile: Dockerfile
+      # Extra CA roots the Dockerfile copies in as the "host-certs" build
+      # context. Empty by default; the override points it at the host's
+      # corporate roots behind a TLS-inspecting proxy.
+      additional_contexts:
+        host-certs: ./docker/certs
+    container_name: searxng
+    env_file:
+      - path: ./services/searxng/.env
+        required: false
+    # SEARXNG_SECRET (from the .env above) is substituted into the
+    # settings.yml secret_key placeholder by the container entrypoint.
+    environment:
+      - SEARXNG_PORT=8888
+      - SEARXNG_BASE_URL=http://searxng:8888
+    volumes:
+      - ./services/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    expose:
+      - 8888
     networks:
       - bridge-network
 

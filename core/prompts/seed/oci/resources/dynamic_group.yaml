@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI dynamic group default configuration (matching rules, root compartment, home region).
+body: |
+  # OCI Dynamic Group
+
+  For a dynamic group, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `dg-<purpose>-<application>-<environment>`.
+    Names are unique across the tenancy.
+  - Create `oci_identity_dynamic_group` in the root compartment
+    (`compartment_id = var.tenancy_ocid`) through the home-region
+    provider alias; dynamic groups always live there.
+  - Matching rules as narrow as the workload allows, always scoped
+    to the application compartment:
+    - Instances: `ALL {instance.compartment.id = '<cmp_ocid>'}`, or
+      add a defined-tag condition to select one role.
+    - Functions: `ALL {resource.type = 'fnfunc',
+      resource.compartment.id = '<cmp_ocid>'}`.
+    - Other resource principals use their own `resource.type`
+      (e.g. `autonomousdatabase`) with the compartment condition.
+  - Build the rule from compartment OCIDs passed as variables or
+    resource references, never hardcoded strings.
+  - Never write rules that match every instance or resource in the
+    tenancy.
+  - Grant access in a separate `iam_policy` (`Allow dynamic-group
+    <name> to ...`), scoped to compartments with the narrowest
+    verb.
+  - For OKE pods, prefer workload identity on enhanced clusters
+    instead of a dynamic group of worker nodes.
+  - In tenancies with identity domains, this resource manages
+    dynamic groups in the Default domain; other domains use the
+    identity-domains resources, and policies reference them as
+    `'<domain>'/'<dynamic-group>'`.
+  - Editing `matching_rule` changes who holds the granted access
+    immediately — high impact.

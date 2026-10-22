@@ -11,26 +11,40 @@ body: |
 
   - Naming convention: `psql-<application>-<environment>`.
   - Use the latest stable PostgreSQL major version unless the user
-    specifies otherwise.
+    specifies otherwise. A major version upgrade restarts the
+    server — high impact.
   - SKU tier set to Burstable (B-series) for non-production and
-    General Purpose (D-series) or Memory Optimized (E-series) for
-    production. Do not provision premium SKUs without explicit
-    request.
+    General Purpose (D-series) for production. Use Memory Optimized
+    (E-series) or larger sizes only on explicit request.
   - Storage size should match the workload. Enable auto-grow so the
     server scales storage automatically when nearing capacity.
+    Storage can only grow, never shrink.
   - High availability must be enabled for production with
-    zone-redundant mode (standby in a different AZ). Use
-    same-zone HA only when zone-redundant is not available in the
-    region.
+    zone-redundant mode (standby in a different AZ) in regions that
+    support availability zones; use same-zone HA only when
+    zone-redundant is not available in the region, and state the
+    assumption. Azure moves `zone` and the standby zone on failover,
+    so add them to `lifecycle { ignore_changes }` instead of letting
+    Terraform fail back.
   - Public network access must be disabled. Use VNet integration
-    (delegated subnet) for network-isolated access. The delegated
-    subnet must be dedicated to the Flexible Server.
+    (a subnet delegated to
+    `Microsoft.DBforPostgreSQL/flexibleServers`, dedicated to the
+    server) or, on request, a private endpoint in `snet-pe`.
+    Changing the networking mode (`delegated_subnet_id`,
+    `private_dns_zone_id`) forces replacement, as does
+    `administrator_login`.
   - Private DNS zone must be linked to the VNet for name resolution.
-  - Authentication should use Azure AD (Entra ID) authentication
-    where possible. When password authentication is needed, store
-    the password in Key Vault — never hardcode it.
+  - Authentication: prefer Microsoft Entra ID only, with password
+    authentication disabled and an Entra administrator set. When
+    password authentication is required, generate the administrator
+    password with `random_password`, store it as a Key Vault secret,
+    and mark any variable or output carrying it `sensitive = true`.
+    Never put the password in a variable default, tfvars, or plain
+    output.
   - Backup retention set to 7 days minimum. Geo-redundant backup
-    should be enabled for production.
+    should be enabled for production (`geo_redundant_backup_enabled`
+    can only be set at creation; changing it on an existing server
+    forces replacement, so never retrofit it without a request).
   - Define a maintenance window (day, hour) to control when
     maintenance occurs.
   - Enable diagnostic settings to send PostgreSQL logs and metrics
@@ -38,4 +52,4 @@ body: |
   - Add a lifecycle block with prevent_destroy.
   - Server parameters should be configured via a separate
     configuration resource for auditability.
-  - Apply standard tags: environment and managed_by.
+  - Server configurations and databases do not support tags.
