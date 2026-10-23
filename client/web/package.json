@@ -20,7 +20,7 @@
     "@mui/icons-material": "^9.5.0",
     "@mui/material": "^9.5.0",
     "classnames": "^2.5.1",
-    "dompurify": "^3.4.16",
+    "dompurify": "^3.4.17",
     "lottie-react": "^3.1.2",
     "monaco-editor": "^0.57.0",
     "oidc-client-ts": "^3.5.0",
