@@ -4,7 +4,7 @@
 
 [project]
 name = "kumoss-authz-conformance"
-version = "1.0.0"
+version = "1.0.1"
 description = "Schemathesis-driven conformance suite for contracts/openapi/authz.v1.yaml."
 requires-python = ">=3.13"
 dependencies = [
