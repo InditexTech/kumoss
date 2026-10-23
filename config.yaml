@@ -90,6 +90,12 @@ services:
     timeout: 30.0
     job_poll_interval: 5.0
     job_timeout: 3600.0
+    # Most `-target` addresses one plan may carry (1 to 4096, the iac
+    # contract's ceiling). Above it, the target generator is told to
+    # consolidate, for example into `module.<name>` targets. Every
+    # target is one generated tool-call entry (~20 tokens), so values
+    # past ~2500 also need a larger `llm.max_output_tokens`.
+    max_plan_targets: 1024
 
 # Iteration limits and behaviour switches for the core's orchestration
 # loops. Raise the limits carefully — they bound runaway-loop costs.
@@ -148,7 +154,7 @@ llm:
   small_model: "vertex_ai/gemini-3.8-flash"
   # Applied to both models
   temperature: 0.1
-  max_output_tokens: 32000
+  max_output_tokens: 64000
   timeout: 600
 
 # The search backend behind the agents' `web_search` tool. The shipped

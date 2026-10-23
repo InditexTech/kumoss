@@ -20,6 +20,7 @@ from src.application.services.terraform_import_service import TerraformImportSer
 from src.domains.dto import (
     PromptTemplateDTO,
     TerraformDiscoveryDTO,
+    TerraformImportAttempt,
     TerraformImportResourceDTO,
 )
 from src.shared.constants import PromptsLibrary, TerraformProvider
@@ -357,6 +358,30 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
             [("azurerm_storage_account.sta", "res-2", "resource already managed")],
         )
         self.assertEqual(outcome.addresses, ["azurerm_resource_group.main"])
+
+    async def test_import_attempts_keep_their_listed_id(self):
+        # The import id ran is often a fragment of the listed id; the
+        # outcome keeps both, so a retry can rebuild a rejected import id.
+        arn = "arn:aws:ec2:eu-west-1:111122223333:vpc/vpc-0123"
+        self.import_prv.import_resource.return_value = _import_result(
+            False, "Cannot import non-existent remote object"
+        )
+
+        outcome = await self.service.import_resources(
+            [
+                TerraformImportAttempt(
+                    address="aws_vpc.main", resource_id="vpc-0123", listed_id=arn
+                )
+            ]
+        )
+
+        self.import_prv.import_resource.assert_awaited_once_with(
+            address="aws_vpc.main", resource_id="vpc-0123"
+        )
+        self.assertEqual(
+            [(a.address, a.resource_id, a.listed_id) for a in outcome.failed],
+            [("aws_vpc.main", "vpc-0123", arn)],
+        )
 
     async def test_import_resources_with_nothing_to_import(self):
         outcome = await self.service.import_resources([])

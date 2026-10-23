@@ -299,6 +299,18 @@ and the command itself. The bundled sidecar imposes no timeout of its
 own on the engine process, so this value is the only bound. A
 validation run submits several jobs in sequence (init, validate, plan,
 and show when drift is requested), each with its own `job_timeout`.
+
+|`services.iac.max_plan_targets`
+|integer
+|`1024`
+|Optional, 1 to 4096
+|Maximum number of `-target` addresses one plan may carry. When the
+target generator returns more, the list is sent back to it with the
+limit, and it consolidates, for example into `module.<name>` targets.
+The upper bound is the iac contract's ceiling, so a value above 4096
+fails boot. Each target is one entry in the generator's tool call
+(roughly 20 tokens), so a value above about 2500 also needs a larger
+`llm.max_output_tokens`.
 |===
 
 *The IaC sidecar is mandatory.* Every operating mode runs engine
@@ -452,15 +464,15 @@ and models].
 |string (LiteLLM model string, or a `model_name` alias when
 `model_list` is set)
 |`anthropic/claude-sonnet-5`
-|`main` (an `llm.model_list` alias)
+|`vertex_ai/claude-sonnet-5-5`
 |Optional (credentials mandatory)
 |High-quality model used by the IaC generator, target generator, and
 report generator chains.
 
 |`llm.small_model`
 |string
-|`anthropic/claude-haiku-4-5`
-|`small` (an `llm.model_list` alias)
+|`vertex_ai/gemini-3.8-flash`
+|`vertex_ai/gemini-3.8-flash`
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
 calls, including the `web_search` summarisation.
@@ -476,7 +488,7 @@ thinking).
 |`llm.max_output_tokens`
 |integer
 |`32000`
-|`32000`
+|`64000`
 |Optional
 |Completion cap sent on every call.
 
@@ -492,17 +504,14 @@ internal retries gets a fresh budget.
 |`llm.model_list`
 |list of LiteLLM Router entries
 |`[]`
-|2 entries
+|not set
 |Optional
 |Advanced routing: load balancing across entries that share a
 `model_name`, per-entry endpoints, and `os.environ/VAR` credential
 references. Router-level fallbacks between different models are *not*
 configurable today; the core passes only `model_list` to the Router.
 When non-empty, `model` and `small_model` must match a `model_name` and
-boot validation runs against the listed entries. As shipped, the
-aliases are `main` (a self-hosted OpenAI-compatible endpoint with a
-per-entry `api_base` and `os.environ/`-referenced key) and `small`
-(`vertex_ai/claude-sonnet-5-5`).
+boot validation runs against the listed entries.
 |===
 
 Validation: at boot the core asks LiteLLM which environment variables

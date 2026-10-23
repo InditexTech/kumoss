@@ -412,7 +412,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Problem"
         "422":
-          description: Request body failed schema validation.
+          description: |
+            Request body failed schema validation, or `targets` exceeds
+            its 1 MiB total size cap.
           content:
             application/problem+json:
               schema:
@@ -1054,11 +1056,19 @@ components:
           description: |
             Optional `terraform plan -target=` filters. When omitted or
             empty, the entire configuration is planned.
+
+            Each target is passed to the engine as a command-line
+            argument, so besides the per-item and item-count limits the
+            UTF-8 byte lengths of all targets together must not exceed
+            1048576 (1 MiB); a larger list is rejected with `422`. The
+            cap keeps the engine's command line under the kernel's
+            argument-size limit whatever the count. Callers that want a
+            lower count enforce it themselves.
           items:
             type: string
             minLength: 1
             maxLength: 1024
-          maxItems: 256
+          maxItems: 4096
         plan_file:
           type: string
           description: |

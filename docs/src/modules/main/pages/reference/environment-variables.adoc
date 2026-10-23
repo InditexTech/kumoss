@@ -683,9 +683,12 @@ All values below are fictitious. Replace every token and URL.
 
 === Core plus IaC sidecar only (Anthropic models)
 
-Only the IaC sidecar is enabled, and the model strings are the shipped
-ones — `anthropic/*` is both what the checked-in `config.yaml` selects
-and what the core falls back to when no `config.yaml` is loaded at all.
+Only the IaC sidecar is enabled, and both roles use Anthropic models.
+This is not the shipped selection: the checked-in `config.yaml` selects
+Vertex AI models (`vertex_ai/claude-sonnet-5-5` and
+`vertex_ai/gemini-3.8-flash`), and with no `config.yaml` loaded at all
+the core falls back to `anthropic/claude-sonnet-5` and
+`vertex_ai/gemini-3.8-flash`, which needs both providers' credentials.
 The Vertex AI set is shown in the next example.
 
 `config.yaml` excerpt for this example:

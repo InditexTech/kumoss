@@ -6,6 +6,7 @@
 import unittest
 
 from unittest.mock import patch, AsyncMock
+from src.domains.dto import TerraformImportAttempt
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
 
@@ -234,6 +235,49 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn(marker, prompt)
         self.assertNotIn("{{", prompt)
         self.assertNotIn("OperationType", prompt)
+
+    def test_render_import_addresses_first_round(self):
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AWS, cwd="/test/project"
+        )
+        arn = "arn:aws:ec2:eu-west-1:111122223333:vpc/vpc-0123"
+
+        prompt = adapter.render_import_addresses(selected_ids=[arn])
+
+        self.assertIn(f"- {arn}", prompt)
+        self.assertNotIn("<previous_attempts>", prompt)
+        self.assertNotIn("{{", prompt)
+
+    def test_render_import_addresses_retry_shows_listed_and_import_ids(self):
+        # A retry rebuilds a rejected import id from the listed id, so both
+        # reach the prompt, not just the fragment that was tried.
+        adapter = TemplateAdapter(
+            template_provider=TerraformProvider.AWS, cwd="/test/project"
+        )
+        arn = "arn:aws:ec2:eu-west-1:111122223333:vpc/vpc-0123"
+        attempts = [
+            TerraformImportAttempt(
+                address="aws_vpc.main",
+                resource_id="vpc-0123",
+                error="Error: Cannot import non-existent remote object\nmore",
+                listed_id=arn,
+            ),
+            TerraformImportAttempt(
+                address="aws_ecs_service.api",
+                resource_id="",
+                error="needs the cluster name",
+                listed_id="arn:aws:ecs:eu-west-1:1:service/api",
+            ),
+        ]
+
+        prompt = adapter.render_import_addresses(selected_ids=attempts)
+
+        self.assertIn("<previous_attempts>", prompt)
+        self.assertIn(f"listed id: {arn}", prompt)
+        self.assertIn("previous import ID: vpc-0123", prompt)
+        self.assertIn("    more", prompt)
+        self.assertIn("previous import ID: (none, the block was not mapped)", prompt)
+        self.assertNotIn("TerraformImportAttempt(", prompt)
 
     def test_render_pr_generator_generate(self):
         self._run_pr_generator_test(OperationType.GENERATE)
