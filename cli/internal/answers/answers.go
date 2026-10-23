@@ -1,108 +1,137 @@
 // SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
 //
 // SPDX-License-Identifier: Apache-2.0
+
 package answers
 
 type Answers struct {
-	SchemaVersion int           `yaml:"schema_version" json:"schema_version"`
-	LLM           LLM           `yaml:"llm"           json:"llm"`
-	Git           Git           `yaml:"git"           json:"git"`
-	Cloud         Cloud         `yaml:"cloud"         json:"cloud"`
-	Engine        Engine        `yaml:"engine"        json:"engine"`
-	State         State         `yaml:"state"         json:"state"`
-	Notifications Notifications `yaml:"notifications" json:"notifications"`
-	Secrets       Secrets       `yaml:"-"             json:"-"` // never serialised
+	SchemaVersion int     `yaml:"schema_version" json:"schema_version"`
+	LLM           LLM     `yaml:"llm"            json:"llm"`
+	Git           Git     `yaml:"git"            json:"git"`
+	Cloud         Cloud   `yaml:"-"              json:"-"`
+	Engine        Engine  `yaml:"-"              json:"-"`
+	Storage       Storage `yaml:"storage"        json:"storage"`
+	// Notifications Notifications `yaml:"notifications"  json:"notifications"`
+	Secrets Secrets `yaml:"-"              json:"-"`
 }
 
 type LLM struct {
-	Provider    string            `yaml:"provider"`    // "openai", "anthropic", …, "other"
-	Model       string            `yaml:"model"`       // → config.yaml llm.model
-	SmallModel  string            `yaml:"small_model"` // → config.yaml llm.small_model
-	Credentials map[string]string `yaml:"-" json:"-"`  // e.g. OPENAI_API_KEY → value; never serialised, goes to .env
+	Provider string `yaml:"-" json:"-"` // Wizard-only: which provider row was picked. Used to derive the model-id prefix and the credential variable names. Re-derived from llm.model on load, never persisted.
+
+	Model      string `yaml:"model" json:"model"`             // → config.yaml llm.model
+	SmallModel string `yaml:"small_model" json:"small_model"` // → config.yaml llm.small_model
+
+	Temperature     float64 `yaml:"temperature,omitempty" json:"temperature,omitempty"`             // → llm.temperature
+	MaxOutputTokens int     `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"` // → llm.max_output_tokens
+	Timeout         float64 `yaml:"timeout,omitempty" json:"timeout,omitempty"`                     // → llm.timeout
+
+	// → core/.env: provider credential vars keyed by ENV-VAR NAME (e.g.
+	Credentials map[string]string `yaml:"-" json:"-"`
 }
 
 type Git struct {
-	Provider    string `yaml:"provider"`     // GITHUB | GITLAB | AZURE_DEVOPS
-	User        string `yaml:"user"`         // → GIT_USER
-	Token       string `yaml:"token"`        // → GIT_TOKEN  (secret)
-	AuthorName  string `yaml:"author_name"`  // optional
-	AuthorEmail string `yaml:"author_email"` // optional
+	Provider    string `yaml:"provider" json:"provider"`         // → config.yaml git.provider (GITHUB | AZURE_DEVOPS | GITLAB)
+	AuthorName  string `yaml:"author_name" json:"author_name"`   // → config.yaml git.author_name
+	AuthorEmail string `yaml:"author_email" json:"author_email"` // → config.yaml git.author_email
+
+	// → core/.env: GIT_USER and GIT_TOKEN. The token is a secret.
+	User  string `yaml:"-" json:"-"`
+	Token string `yaml:"-" json:"-"`
 }
 
+// Exists only to feed the renderer.
 type Cloud struct {
-	AWS        *AWSAuth        `yaml:"aws,omitempty"`
-	Azure      *AzureAuth      `yaml:"azure,omitempty"`
-	GCP        *GCPAuth        `yaml:"gcp,omitempty"`
-	OCI        *OCIAuth        `yaml:"oci,omitempty"`
-	Kubernetes *KubernetesAuth `yaml:"kubernetes,omitempty"`
+	AWS        *AWSAuth        `yaml:"-" json:"-"`
+	Azure      *AzureAuth      `yaml:"-" json:"-"`
+	GCP        *GCPAuth        `yaml:"-" json:"-"`
+	OCI        *OCIAuth        `yaml:"-" json:"-"`
+	Kubernetes *KubernetesAuth `yaml:"-" json:"-"`
 }
 
+// AWSAuth → services/iac/.env AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION
+// (or AWS_PROFILE, which mounts ~/.aws read-only).
 type AWSAuth struct {
-	Method    string `yaml:"method"`     // "static" | "profile"
-	AccessKey string `yaml:"access_key"` // secret, method=static
-	SecretKey string `yaml:"secret_key"` // secret, method=static
-	Region    string `yaml:"region"`
-	Profile   string `yaml:"profile"` // method=profile; mounts ~/.aws read-only
+	Method    string `yaml:"-" json:"-"` // "static" | "profile"
+	AccessKey string `yaml:"-" json:"-"` // → AWS_ACCESS_KEY_ID (secret)
+	SecretKey string `yaml:"-" json:"-"` // → AWS_SECRET_ACCESS_KEY (secret)
+	Region    string `yaml:"-" json:"-"` // → AWS_REGION
+	Profile   string `yaml:"-" json:"-"` // → AWS_PROFILE
 }
 
+// AzureAuth → services/iac/.env ARM_TENANT_ID / ARM_CLIENT_ID / ARM_CLIENT_SECRET.
+// (ARM_SUBSCRIPTION_ID is injected per request from the scope, never set here.)
 type AzureAuth struct {
-	TenantID       string `yaml:"tenant_id"`
-	ClientID       string `yaml:"client_id"`
-	ClientSecret   string `yaml:"client_secret"` // secret
-	SubscriptionID string `yaml:"subscription_id"`
+	TenantID       string `yaml:"-" json:"-"` // → ARM_TENANT_ID
+	ClientID       string `yaml:"-" json:"-"` // → ARM_CLIENT_ID
+	ClientSecret   string `yaml:"-" json:"-"` // → ARM_CLIENT_SECRET (secret)
+	SubscriptionID string `yaml:"-" json:"-"` // → ARM_SUBSCRIPTION_ID
 }
 
+// GCPAuth → services/iac/.env GOOGLE_APPLICATION_CREDENTIALS (key-file path mounted
+// read-only into the iac container).
 type GCPAuth struct {
-	KeyFile string `yaml:"key_file"` // path on host; contents → GOOGLE_CREDENTIALS
+	KeyFile string `yaml:"-" json:"-"` // host path → GOOGLE_APPLICATION_CREDENTIALS
 }
 
+// OCIAuth → services/iac/.env OCI_CONFIG_FILE (host path, mounted read-only).
 type OCIAuth struct {
-	ConfigPath string `yaml:"config_path"` // host path, mounted read-only
+	ConfigPath string `yaml:"-" json:"-"`
 }
 
+// KubernetesAuth → services/iac/.env KUBE_CONFIG_PATH (host path, mounted read-only).
 type KubernetesAuth struct {
-	KubeconfigPath string `yaml:"kubeconfig_path"` // → KUBE_CONFIG_PATH, mounted
+	KubeconfigPath string `yaml:"-" json:"-"`
 }
 
+// IAC_BINARY env var in services/iac/.env (tofu | terraform).
 type Engine struct {
-	Binary           string `yaml:"binary"`            // "tofu" (default) | "terraform"
-	BUSLAcknowledged bool   `yaml:"busl_acknowledged"` // required when binary == terraform
+	Binary string `yaml:"-" json:"-"` // → services/iac/.env IAC_BINARY
+
+	// Wizard-only consent gate for Terraform's BUSL-1.1 license. Not persisted anywhere.
+	BUSLAcknowledged bool `yaml:"-" json:"-"`
 }
 
-type State struct {
-	Model string `yaml:"model"` // "bundled" | "external_s3" | "external_azure" | "repository"
+// Storage fields map to config.yaml's `storage:` block; credentials are
+// env vars in core/.env (RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY / STORAGE_ACCOUNT_KEY) and
+// services/iac/.env (repository-declared backend creds).
+type Storage struct {
+	// CLI discriminator (not a config key): "bundled" | "external_s3" | "external_azure" |
+	// "repository". Drives Provider and the empty/non-empty TerraformStateBucket.
+	Model string `yaml:"-" json:"-"`
 
-	// external_s3
-	S3Bucket          string `yaml:"s3_bucket,omitempty"`
-	S3ArtifactsBucket string `yaml:"s3_artifacts_bucket,omitempty"`
-	S3Region          string `yaml:"s3_region,omitempty"`
-	S3AccessKey       string `yaml:"s3_access_key,omitempty"` // empty = default credential chain
-	S3SecretKey       string `yaml:"s3_secret_key,omitempty"` // secret
+	Provider             string `yaml:"provider,omitempty" json:"provider,omitempty"`                             // → storage.provider: RUSTFS | S3 | STORAGE_ACCOUNT
+	Bucket               string `yaml:"bucket,omitempty" json:"bucket,omitempty"`                                 // → storage.bucket (artifacts)
+	TerraformStateBucket string `yaml:"terraform_state_bucket,omitempty" json:"terraform_state_bucket,omitempty"` // → storage.terraform_state_bucket ("" = repository-declared)
+	Region               string `yaml:"region,omitempty" json:"region,omitempty"`                                 // → storage.region (ignored by STORAGE_ACCOUNT)
+	EndpointURL          string `yaml:"endpoint_url,omitempty" json:"endpoint_url,omitempty"`                     // → storage.endpoint_url (in-cluster)
+	PublicEndpointURL    string `yaml:"public_endpoint_url,omitempty" json:"public_endpoint_url,omitempty"`       // → storage.public_endpoint_url (browser-facing)
 
-	// external_azure
-	StorageAccount         string `yaml:"storage_account,omitempty"`
-	StorageAccountEndpoint string `yaml:"storage_account_endpoint,omitempty"`
-	StateContainer         string `yaml:"state_container,omitempty"`
-	ArtifactsContainer     string `yaml:"artifacts_container,omitempty"`
-	StorageAccountKey      string `yaml:"storage_account_key,omitempty"` // secret
+	// → core/.env: RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY / STORAGE_ACCOUNT_KEY, keyed by
+	// ENV-VAR NAME. Blank for provider S3 (a static key would defeat boto3's chain).
+	Credentials map[string]string `yaml:"-" json:"-"`
 
-	// repository: backend credentials the sidecar needs, as raw env vars
-	BackendCredentials map[string]string `yaml:"backend_credentials,omitempty"`
+	// → services/iac/.env: backend credential variables for the repository-declared model.
+	BackendCredentials map[string]string `yaml:"-" json:"-"`
 }
 
-type Notifications struct {
-	Enabled         bool   `yaml:"enabled"`
-	SlackWebhookURL string `yaml:"slack_webhook_url,omitempty"` // secret
-}
+// type Notifications struct {
+// 	Enabled bool `yaml:"enabled" json:"enabled"` // → config.yaml services.notifications.enabled
 
+// 	// → services/notifications/.env SLACK_WEBHOOK_URL (secret).
+// 	SlackWebhookURL string `yaml:"-" json:"-"`
+// }
+
+// Generated, never user-supplied, never serialised. Every value
+// is an env var in core/.env or a sidecar .env.
 type Secrets struct {
-	IACToken           string
-	NotificationsToken string
-	MappingToken       string
-	AuthzToken         string
+	// → core/.env and the matching sidecar .env (must be byte-identical).
+	IACToken           string // KUMOSS_IAC_TOKEN
+	NotificationsToken string // KUMOSS_NOTIFICATIONS_TOKEN
+	MappingToken       string // KUMOSS_MAPPING_TOKEN
+	AuthzToken         string // KUMOSS_AUTHZ_TOKEN
 
-	// Only generated on a fresh install; reused when the volumes already exist.
-	CoreDBPassword  string
-	RustFSAccessKey string
-	RustFSSecretKey string
+	// → core/.env, only generated on a fresh install; reused when the volumes exist.
+	CoreDBPassword  string // embedded in KUMOSS_SQL_DATABASE_URL
+	RustFSAccessKey string // RUSTFS_ACCESS_KEY
+	RustFSSecretKey string // RUSTFS_SECRET_KEY
 }
