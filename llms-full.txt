@@ -4095,117 +4095,6 @@ If a directory is missing from the offered list, check that its `.tf` files are 
 
 ---
 
-# Roles and permissions
-
-Source: /prerelease/main/reference/roles-and-permissions/
-
-Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
-
-Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
-
-## Two independent role groups
-
-The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
-
-### Operation roles
-
-Operation roles are hierarchical, and every user has one.
-
-| Operation role | Grants |
-| --- | --- |
-| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
-| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
-
-### Admin-panel roles
-
-Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
-
-| Panel role | Grants |
-| --- | --- |
-| none | Own sessions only. |
-| `viewer` | Read-only view of every user’s sessions in the admin panel. |
-| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
-| `admin` | `editor`, plus user and role management. |
-
-### Session access rules
-
-The API enforces these rules regardless of role:
-
-- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
-- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
-- Everyone else receives `403 Not the session owner`.
-
-## Roles at a glance
-
-| Route | Minimum operation role | Extra condition |
-| --- | --- | --- |
-| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
-| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
-| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
-| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
-| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
-
-The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
-
-## Permission matrix
-
-The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
-
-| Capability | No panel role | `viewer` | `editor` | `admin` |
-| --- | --- | --- | --- | --- |
-| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
-| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
-| Open the admin panel | no | yes | yes | yes |
-| List sessions across all users, paginated | no | yes | yes | yes |
-| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
-| Open any user’s session detail, including conversation history | no | yes | yes | yes |
-| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
-| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
-| Receive support requests sent from the web application’s header | no | no | yes | yes |
-| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
-| List and search users | no | no | no | yes |
-| Assign operation roles | no | no | no | yes |
-| Assign or remove panel roles | no | no | no | yes |
-| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
-| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
-| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
-
-Backend routes behind the matrix:
-
-| Route | Who |
-| --- | --- |
-| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
-| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
-| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
-| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
-| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
-
-Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
-
-## Who gets which roles
-
-**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
-
-**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
-
-- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
-- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
-
-After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and restart the core first if a real demotion is needed.
-
-With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
-
-Do not confuse this with the authorization sidecar. An authorization service you implement may keep users and roles of its own, but the core never reads them; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
-
-## Next steps
-
-- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
-- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
-
----
-
 # Terraform providers
 
 Source: /prerelease/main/reference/terraform-providers/
@@ -4678,6 +4567,117 @@ terraform init -backend-config=env/prod.s3.tfbackend
 
 ---
 
+# Roles and permissions
+
+Source: /prerelease/main/reference/roles-and-permissions/
+
+Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
+
+Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
+
+## Two independent role groups
+
+The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
+
+### Operation roles
+
+Operation roles are hierarchical, and every user has one.
+
+| Operation role | Grants |
+| --- | --- |
+| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
+| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
+
+### Admin-panel roles
+
+Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
+
+| Panel role | Grants |
+| --- | --- |
+| none | Own sessions only. |
+| `viewer` | Read-only view of every user’s sessions in the admin panel. |
+| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
+| `admin` | `editor`, plus user and role management. |
+
+### Session access rules
+
+The API enforces these rules regardless of role:
+
+- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
+- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
+- Everyone else receives `403 Not the session owner`.
+
+## Roles at a glance
+
+| Route | Minimum operation role | Extra condition |
+| --- | --- | --- |
+| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
+| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
+| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
+| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
+| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
+
+The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
+
+## Permission matrix
+
+The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
+
+| Capability | No panel role | `viewer` | `editor` | `admin` |
+| --- | --- | --- | --- | --- |
+| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
+| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
+| Open the admin panel | no | yes | yes | yes |
+| List sessions across all users, paginated | no | yes | yes | yes |
+| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
+| Open any user’s session detail, including conversation history | no | yes | yes | yes |
+| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
+| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
+| Receive support requests sent from the web application’s header | no | no | yes | yes |
+| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
+| List and search users | no | no | no | yes |
+| Assign operation roles | no | no | no | yes |
+| Assign or remove panel roles | no | no | no | yes |
+| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
+| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
+| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
+
+Backend routes behind the matrix:
+
+| Route | Who |
+| --- | --- |
+| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
+| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
+| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
+| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
+| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
+
+Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
+
+## Who gets which roles
+
+**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
+
+**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
+
+- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
+- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
+
+After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and restart the core first if a real demotion is needed.
+
+With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
+
+Do not confuse this with the authorization sidecar. An authorization service you implement may keep users and roles of its own, but the core never reads them; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
+
+## Next steps
+
+- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
+- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
+
+---
+
 # Configuration
 
 Source: /prerelease/main/reference/configuration/
@@ -5062,89 +5062,6 @@ plans; and every TOKEN, `STORAGE_ACCOUNT_KEY`,
 `KUMOSS_SQL_DATABASE_URL`, `GIT_TOKEN`, and the `AZURE_API`
 credentials must come from a secret store. See
 [Environment variables and secrets](../environment-variables/).
-
----
-
-# Make a request
-
-Source: /prerelease/main/guides/make-a-request/
-
-This guide walks through opening a session in the Kumoss web application: choosing a mode, pointing Kumoss at a repository, and phrasing the request so the filter accepts it as a change.
-
-## Prerequisites
-
-- **An account.** Your administrator gives you access through your organization’s identity provider. On first login you have the `developer` role, which lets you generate infrastructure, open and merge pull requests, and apply your own sessions. Drift remediation needs the `devops` role; ask your administrator (see [Administer users and locks](../administer-users-and-locks/)).
-- **A repository URL** that holds Terraform-compatible code and that Kumoss’s service account can clone and push to. Enter the plain `https://` URL; SSH, `file://` and other non-HTTPS URLs, and URLs with a password or token embedded, are rejected.
-- **The cloud scope** your change targets. The wizard asks for it in the provider’s own terms: "What is the Azure subscription ID?", "What is the GCP project ID?", "What is the AWS account ID?", "What is the OCI compartment name?", "Which Kubernetes namespace?", or "Which vSphere datacenter?". For OCI the wizard wants the compartment **name** (placeholder `my-compartment`), not its OCID: the value is lowercased and limited to letters, digits, and hyphens, which an OCID never passes. Kubernetes has no cloud scope of its own — the API asks for "any stable identifier", so use whatever your team agreed on (a namespace name works). For VMware vSphere the scope is the datacenter name (placeholder `dc-01`).
-
-Kumoss never asks you for cloud or Git credentials. It uses the identity your platform team configured.
-
-## Steps
-
-1. **Choose the mode** in the header drop-down. Most work uses **Generate Infrastructure**. The drift and import modes are shown greyed out with the hint "Requires the devops operation role." if you do not hold that role.
-2. **"What do you need?"** Type your request (up to 500 characters) and press Enter. The rotating hints under the field show the expected level of detail, for example "Deploy a PostgreSQL database on Azure" or "Create a virtual network with three subnets".
-3. **"What is the repository URL?"** Paste the repository URL. Kumoss resolves it, clones only its metadata, and looks for Terraform roots among the files committed on the default branch: directories that hold `.tf` files, skipping `modules`, `examples`, and `.terraform` folders, and keeping those with a `main.tf`-style marker or a `.tfvars` file (the exact rules and examples are in [Repository layout](../../reference/repository-layout/#terraform-roots)). This is the step that takes a few seconds ("Resolving repository…​").
-4. **"Which IaC path?"** If the repository has more than one Terraform root, pick the directory to work in. With exactly one root this step is skipped. If none is found you see "No IaC paths found in this repository. Please check the repository and try again." — usually because the `.tf` files are not committed on the default branch or live under a `modules` or `examples` directory. Top-level `.tf` files are offered as the path `.`.
-5. **"Which cloud provider?"** Pick Microsoft Azure, Google Cloud, Amazon Web Services, Oracle Cloud Infrastructure, Kubernetes, or VMware vSphere. This question and the next are skipped when the deployment’s mapping service already knows the answer for that repository; with mapping disabled, as shipped, the core’s passthrough knows nothing, so both are always asked.
-6. **Cloud scope.** The question depends on the provider you picked: "What is the Azure subscription ID?", "What is the GCP project ID?", "What is the AWS account ID?", "What is the OCI compartment name?", "Which Kubernetes namespace?", or "Which vSphere datacenter?". The value is trimmed and lowercased, and only letters, digits, and hyphens are accepted (up to 64 characters); the field does not advance until the value is valid. For OCI this means the compartment **name**, not its OCID — an OCID contains dots and is never accepted here. The API’s own description of `scope_id` still says "compartment OCID", so an OCID can only be sent by calling the API directly.
-7. **Permissions check.** Kumoss asks your organization’s authorization service whether you may work there, sending the cloud, the repository URL, and the IaC path — not the scope you just typed ("Checking permissions on …​"). If the answer is no, the reason is shown with two buttons: **Try again** (back to the scope) and **Start over**. In a deployment that has not connected such a service, which is the shipped default, the answer is always yes and the step passes straight through.
-
-The session then starts and you are taken to the progress screen.
-
-**Errors at this stage.** The wizard always shows the fixed message "Could not resolve repository. Please try again." when the reachability check fails, whatever the underlying cause. It runs before the session is created — Kumoss answers an error and nothing is started. The API response’s `detail` is just as generic — "Repository is not reachable or access was denied." for a missing repository, a refused credential, an unknown host or a timeout alike — so a request cannot be used to probe what sits behind a URL; the Git client’s own text is written only to the core log, where an operator can read it. Check that the URL is reachable and that Kumoss’s service account has access. A repository that becomes unreachable later, when the session clones it for real, is a different failure: the round ends with the same generic message and the session is failed and cannot be resumed.
-
-## Writing a request that gets accepted
-
-Every request is first read by a filter that decides whether it is an infrastructure change Kumoss can make. The rules are set by your organization in the prompt registry; the defaults are these.
-
-**Accepted: change requests.** Creating, modifying, or deleting cloud infrastructure managed with Terraform, and questions that resolve directly into such a change. Missing parameters never block a request: naming conventions supply names, resource templates supply settings, and the existing workspace supplies placement (resource group, region, environment). "Create a new storage account", with nothing else, is accepted, and the response states the defaults and assumptions applied.
-
-**Answered, not executed: informational questions.** "Which resources exist in this repository?", "How could this be improved?", "What is the impact of changing X?". Kumoss answers in the chat and the round ends without changes. You can follow up with a change request in the same session.
-
-**Declined**, with the reason shown to you:
-
-Reason
-Example
-How to fix it
-
-Out of scope
-
-"Restart the web server", "What’s the difference between blob and file storage?"
-
-Ask for a Terraform-managed change, or accept that it is a question.
-
-Prohibited
-
-Opening a security group to the world on port 22, granting  on ``,
-disabling encryption, deleting a database without protection
-
-Your organization’s forbidden-actions list applies regardless of how the request is phrased. Ask for the compliant alternative.
-
-Ambiguous target
-
-"Rename the subnet" when the workspace has five subnets
-
-Name the resource: "rename subnet `app-subnet-01` to `app-subnet-web`".
-
-Missing referent
-
-"Add a rule to the web firewall" when no firewall exists in the workspace
-
-Create it first, or point at the right repository or path.
-
-Practical rules:
-
-- **One intent per request.** "Add a private storage account for application logs" is better than a list of six unrelated changes. Use follow-ups for the next step.
-- **Name existing resources exactly** when you modify or delete them.
-- **Say what matters to you, not how to write HCL.** Size, tier, region, exposure, retention, and naming intent are useful. Kumoss applies your organization’s conventions for the rest.
-- **Do not paste secrets.** Request text, the files the agent reads, and the plan are sent to the configured language model and stored in the tracing system. Reference secrets by name or vault path.
-- **Prefer additive changes.** Standalone deletions are flagged by the default compliance rules and lock the session, see [If the session is locked](../merge-and-apply/#session-locked).
-
-Examples that work well: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." "Open port 443 from the load balancer subnet to the web security group." "Upgrade the PostgreSQL flexible server in `envs/dev` to 16."
-
-## Next steps
-
-- [Follow a session](../follow-a-session/) once the session starts.
 
 ---
 
@@ -7150,6 +7067,89 @@ Status rows are appended to PostgreSQL with a Redis write-through; there is no m
 
 ---
 
+# Make a request
+
+Source: /prerelease/main/guides/make-a-request/
+
+This guide walks through opening a session in the Kumoss web application: choosing a mode, pointing Kumoss at a repository, and phrasing the request so the filter accepts it as a change.
+
+## Prerequisites
+
+- **An account.** Your administrator gives you access through your organization’s identity provider. On first login you have the `developer` role, which lets you generate infrastructure, open and merge pull requests, and apply your own sessions. Drift remediation needs the `devops` role; ask your administrator (see [Administer users and locks](../administer-users-and-locks/)).
+- **A repository URL** that holds Terraform-compatible code and that Kumoss’s service account can clone and push to. Enter the plain `https://` URL; SSH, `file://` and other non-HTTPS URLs, and URLs with a password or token embedded, are rejected.
+- **The cloud scope** your change targets. The wizard asks for it in the provider’s own terms: "What is the Azure subscription ID?", "What is the GCP project ID?", "What is the AWS account ID?", "What is the OCI compartment name?", "Which Kubernetes namespace?", or "Which vSphere datacenter?". For OCI the wizard wants the compartment **name** (placeholder `my-compartment`), not its OCID: the value is lowercased and limited to letters, digits, and hyphens, which an OCID never passes. Kubernetes has no cloud scope of its own — the API asks for "any stable identifier", so use whatever your team agreed on (a namespace name works). For VMware vSphere the scope is the datacenter name (placeholder `dc-01`).
+
+Kumoss never asks you for cloud or Git credentials. It uses the identity your platform team configured.
+
+## Steps
+
+1. **Choose the mode** in the header drop-down. Most work uses **Generate Infrastructure**. The drift and import modes are shown greyed out with the hint "Requires the devops operation role." if you do not hold that role.
+2. **"What do you need?"** Type your request (up to 500 characters) and press Enter. The rotating hints under the field show the expected level of detail, for example "Deploy a PostgreSQL database on Azure" or "Create a virtual network with three subnets".
+3. **"What is the repository URL?"** Paste the repository URL. Kumoss resolves it, clones only its metadata, and looks for Terraform roots among the files committed on the default branch: directories that hold `.tf` files, skipping `modules`, `examples`, and `.terraform` folders, and keeping those with a `main.tf`-style marker or a `.tfvars` file (the exact rules and examples are in [Repository layout](../../reference/repository-layout/#terraform-roots)). This is the step that takes a few seconds ("Resolving repository…​").
+4. **"Which IaC path?"** If the repository has more than one Terraform root, pick the directory to work in. With exactly one root this step is skipped. If none is found you see "No IaC paths found in this repository. Please check the repository and try again." — usually because the `.tf` files are not committed on the default branch or live under a `modules` or `examples` directory. Top-level `.tf` files are offered as the path `.`.
+5. **"Which cloud provider?"** Pick Microsoft Azure, Google Cloud, Amazon Web Services, Oracle Cloud Infrastructure, Kubernetes, or VMware vSphere. This question and the next are skipped when the deployment’s mapping service already knows the answer for that repository; with mapping disabled, as shipped, the core’s passthrough knows nothing, so both are always asked.
+6. **Cloud scope.** The question depends on the provider you picked: "What is the Azure subscription ID?", "What is the GCP project ID?", "What is the AWS account ID?", "What is the OCI compartment name?", "Which Kubernetes namespace?", or "Which vSphere datacenter?". The value is trimmed and lowercased, and only letters, digits, and hyphens are accepted (up to 64 characters); the field does not advance until the value is valid. For OCI this means the compartment **name**, not its OCID — an OCID contains dots and is never accepted here. The API’s own description of `scope_id` still says "compartment OCID", so an OCID can only be sent by calling the API directly.
+7. **Permissions check.** Kumoss asks your organization’s authorization service whether you may work there, sending the cloud, the repository URL, and the IaC path — not the scope you just typed ("Checking permissions on …​"). If the answer is no, the reason is shown with two buttons: **Try again** (back to the scope) and **Start over**. In a deployment that has not connected such a service, which is the shipped default, the answer is always yes and the step passes straight through.
+
+The session then starts and you are taken to the progress screen.
+
+**Errors at this stage.** The wizard always shows the fixed message "Could not resolve repository. Please try again." when the reachability check fails, whatever the underlying cause. It runs before the session is created — Kumoss answers an error and nothing is started. The API response’s `detail` is just as generic — "Repository is not reachable or access was denied." for a missing repository, a refused credential, an unknown host or a timeout alike — so a request cannot be used to probe what sits behind a URL; the Git client’s own text is written only to the core log, where an operator can read it. Check that the URL is reachable and that Kumoss’s service account has access. A repository that becomes unreachable later, when the session clones it for real, is a different failure: the round ends with the same generic message and the session is failed and cannot be resumed.
+
+## Writing a request that gets accepted
+
+Every request is first read by a filter that decides whether it is an infrastructure change Kumoss can make. The rules are set by your organization in the prompt registry; the defaults are these.
+
+**Accepted: change requests.** Creating, modifying, or deleting cloud infrastructure managed with Terraform, and questions that resolve directly into such a change. Missing parameters never block a request: naming conventions supply names, resource templates supply settings, and the existing workspace supplies placement (resource group, region, environment). "Create a new storage account", with nothing else, is accepted, and the response states the defaults and assumptions applied.
+
+**Answered, not executed: informational questions.** "Which resources exist in this repository?", "How could this be improved?", "What is the impact of changing X?". Kumoss answers in the chat and the round ends without changes. You can follow up with a change request in the same session.
+
+**Declined**, with the reason shown to you:
+
+Reason
+Example
+How to fix it
+
+Out of scope
+
+"Restart the web server", "What’s the difference between blob and file storage?"
+
+Ask for a Terraform-managed change, or accept that it is a question.
+
+Prohibited
+
+Opening a security group to the world on port 22, granting  on ``,
+disabling encryption, deleting a database without protection
+
+Your organization’s forbidden-actions list applies regardless of how the request is phrased. Ask for the compliant alternative.
+
+Ambiguous target
+
+"Rename the subnet" when the workspace has five subnets
+
+Name the resource: "rename subnet `app-subnet-01` to `app-subnet-web`".
+
+Missing referent
+
+"Add a rule to the web firewall" when no firewall exists in the workspace
+
+Create it first, or point at the right repository or path.
+
+Practical rules:
+
+- **One intent per request.** "Add a private storage account for application logs" is better than a list of six unrelated changes. Use follow-ups for the next step.
+- **Name existing resources exactly** when you modify or delete them.
+- **Say what matters to you, not how to write HCL.** Size, tier, region, exposure, retention, and naming intent are useful. Kumoss applies your organization’s conventions for the rest.
+- **Do not paste secrets.** Request text, the files the agent reads, and the plan are sent to the configured language model and stored in the tracing system. Reference secrets by name or vault path.
+- **Prefer additive changes.** Standalone deletions are flagged by the default compliance rules and lock the session, see [If the session is locked](../merge-and-apply/#session-locked).
+
+Examples that work well: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." "Open port 443 from the load balancer subnet to the web security group." "Upgrade the PostgreSQL flexible server in `envs/dev` to 16."
+
+## Next steps
+
+- [Follow a session](../follow-a-session/) once the session starts.
+
+---
+
 # Operations
 
 Source: /prerelease/main/guides/production/operations/
@@ -7274,55 +7274,6 @@ To check all three layers in a deployed environment, see [Find the active state]
 
 - [Environment variables and secrets](../../../reference/environment-variables/): the `IAC_BACKEND_CONFIG` entry and the other sidecar variables.
 - [Backend minimums](../../../reference/terraform-providers/#backend-minimums): the credentials the sidecar needs per backend.
-
----
-
-# Operating modes
-
-Source: /prerelease/main/reference/operating-modes/
-
-Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
-
-> **Note**
-> The import modes are supported on Azure, GCP and AWS only. On
-> OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
-> import round ends with a report that says so and imports nothing.
-
-## Session inputs
-
-The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`), a scope identifier (for example a subscription, project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
-
-## How a session runs
-
-**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
-
-**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
-
-**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
-
-**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
-
-**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
-
-**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
-
-## Comparing the operating modes
-
-|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
-| --- | --- | --- | --- | --- | --- |
-| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
-| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
-| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
-| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
-| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
-| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
-| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
-| Compliance check | yes, when enabled | no | no | no | no |
-| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
-| Report type | `generate` | `drift` | `drift` | `import` | `import` |
-| Pins a plan | yes | no | no | no | no |
-| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
-| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
 
 ---
 
@@ -7623,6 +7574,55 @@ OPENAI_API_KEY=placeholder-for-boot-validation
 ## Running outside Docker
 
 `litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE` is set to `PRODUCTION`. Running the core, or `pytest`, on your workstation (rather than inside the container) therefore silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Kumoss’s own code does this. The working directory does not matter: python-dotenv searches upwards from the directory of the **calling package**, so with the virtual environment at `core/.venv` the file `core/.env` is found from any directory. Variables already present in the environment are not overwritten by the file. To reproduce a clean-environment boot, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`; otherwise a variable you think is unset may actually be coming from `core/.env`.
+
+---
+
+# Operating modes
+
+Source: /prerelease/main/reference/operating-modes/
+
+Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
+
+> **Note**
+> The import modes are supported on Azure, GCP and AWS only. On
+> OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+> import round ends with a report that says so and imports nothing.
+
+## Session inputs
+
+The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`), a scope identifier (for example a subscription, project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
+
+## How a session runs
+
+**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
+
+**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
+
+**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
+
+**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
+
+**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
+
+**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
+
+## Comparing the operating modes
+
+|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
+| --- | --- | --- | --- | --- | --- |
+| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
+| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
+| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
+| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
+| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
+| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
+| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
+| Compliance check | yes, when enabled | no | no | no | no |
+| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
+| Report type | `generate` | `drift` | `drift` | `import` | `import` |
+| Pins a plan | yes | no | no | no | no |
+| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
+| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
 
 ---
 
@@ -9486,20 +9486,6 @@ Unlike the pipeline’s own best-effort notifications, this route tells the call
 
 ---
 
-# Events
-
-Source: /stable/main/events/
-
-Talks and meetups where the team has presented Kumoss.
-
-## Kernel Panic
-
-| Event | [kernelpanic.helmcode.com](https://kernelpanic.helmcode.com/) |
-| --- | --- |
-| Slides | [Kernel Panic · Kumoss](../_attachments/events/kernel-panic/index.html) |
-
----
-
 # Contributing
 
 Source: /stable/main/contributing/
@@ -9534,6 +9520,20 @@ Fill in the pull-request template ([.github/PULL_REQUEST_TEMPLATE.md](https://gi
 Keep the commit history clean and organized: divide your changes into logical, descriptive commits. Commit subjects must follow the [Conventional Commits Specification](https://www.conventionalcommits.org/en/v1.0.0/) (for example `fix(core): release session lock`); CI rejects other subjects. Sign your commits (`git commit -S`) — signing is required by policy and checked in review, not enforced by any CI workflow.
 
 Every new file starts with an SPDX header following the [REUSE Specification](https://reuse.software/spec-3.3/#licensing-information) (`SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)` and `SPDX-License-Identifier: Apache-2.0`). CI runs the REUSE check on every pull request, alongside Repolinter and the Conventional Commits check above.
+
+---
+
+# Events
+
+Source: /stable/main/events/
+
+Talks and meetups where the team has presented Kumoss.
+
+## Kernel Panic
+
+| Event | [kernelpanic.helmcode.com](https://kernelpanic.helmcode.com/) |
+| --- | --- |
+| Slides | [Kernel Panic · Kumoss](../_attachments/events/kernel-panic/index.html) |
 
 ---
 
@@ -11578,6 +11578,111 @@ Changing any of these means rebuilding the core image (or updating the mounted f
 
 ---
 
+# Enable authentication
+
+Source: /stable/main/guides/enable-authentication/
+
+Kumoss authenticates against any OIDC-compliant identity provider. The minimal configuration is two fields in `config.yaml`:
+
+```
+oidc:
+  issuer_url: "https://your-idp.example.com"
+  client_id: "your-client-id"
+```
+
+Leaving `issuer_url` blank disables authentication entirely, the checked-in default: every request resolves to a fixed dev identity and acts as a local developer with top roles. The core reads `config.yaml` only at startup, so enabling authentication requires `docker compose restart core`; to load a different file, point the `KUMOSS_CONFIG` env var at its path.
+
+## Prerequisites
+
+- A spec-faithful OIDC provider that supports the authorization code flow with PKCE for public SPA clients, publishes a discovery document with a JWKS endpoint, and issues JWT access tokens (RS*/ES*/PS* signed) carrying `iss`, `sub`, `aud`, and `exp`.
+- The ability to update the core’s `config.yaml` and restart the core, since `config.yaml` changes take effect only at startup.
+
+## Steps
+
+### 1. Check that your provider is supported
+
+| Provider | Support | Config |
+| --- | --- | --- |
+| Microsoft Entra ID | Supported | `issuer_url` + `client_id` (scope auto-derived) |
+| Keycloak | Supported | `issuer_url` + `client_id` (audience mapper in the realm) |
+| Auth0 | Supported | `issuer_url` + `client_id` + `audience` (API identifier) |
+| Okta | Supported | `issuer_url` + `client_id` + `audience` (the custom authorization server’s audience, e.g. `api://default`) |
+| AWS Cognito | Not supported out of the box | see the known limitation below |
+| Google Identity | Not supported | access tokens are opaque strings, not JWTs — nothing to validate against JWKS |
+
+Auth0 and Okta list `audience` because they issue access tokens for a registered API resource whose identifier is an arbitrary string chosen when you set it up at the IdP (an Auth0 API identifier, an Okta authorization server audience) — it cannot be derived from `client_id`, so copy it into `audience`. Entra ID and Keycloak issue tokens whose `aud` is the client id itself, which the core already accepts when `audience` is blank.
+
+**Known limitation: AWS Cognito.** Cognito access tokens are JWTs but carry no `aud` claim (a `client_id` claim instead) and no `email` claim, so the core rejects them and user provisioning / `admin.default_root_email` matching would have no email to work with. Cognito’s ID tokens would pass validation unchanged, so support would need an opt-in "send the ID token as bearer" toggle (plus real-world testing of Cognito’s nonstandard Hosted UI logout). This is not implemented today.
+
+### 2. Register the app at your identity provider
+
+For every provider:
+
+- Register a public SPA client using the authorization code flow with PKCE. No client secret is used anywhere.
+- Redirect URI: `<origin>/auth/callback` (e.g. `http://localhost/auth/callback` for the docker-compose stack).
+- Post-logout redirect URI: `<origin>`.
+
+### 3. Configure your identity provider
+
+The IdP-specific steps share the same shape: register the app, complete the one extra step that IdP needs, then set `config.yaml`.
+
+- Entra ID
+- Keycloak
+- Auth0
+- Okta
+
+1. **App registrations → New registration.** Add a Single-page application platform with redirect URI `<origin>/auth/callback`.
+2. **Expose an API → Add a scope.** Accept the default Application ID URI (`api://<client-id>`) and name the scope anything (e.g. `access_as_user`). This step is required: without it Entra has no scope to grant for the app itself.
+3. Configure: ``` oidc: issuer_url: "https://login.microsoftonline.com/<tenant-id>/v2.0" client_id: "<application-client-id>" ``` That is all: for `login.microsoftonline.com` issuers the core automatically appends `api://{client_id}/.default` to the login scopes, which requests the exposed scope(s) without needing their names. Leave `audience` blank — both the bare client id and `api://<client-id>` are accepted as the token audience, covering both Entra access-token versions.
+
+**Gotchas.** The auto-scope only triggers when `scope` is left at its default value (`openid profile email`); set it explicitly to request specific scopes (`scope: "openid profile email api://{client_id}/access_as_user"` — `{client_id}` is expanded automatically). Sovereign clouds (`login.microsoftonline.us`, …) are not auto-detected: set `scope` explicitly there too. Without any `api://…` scope in the request, Entra issues the access token for Microsoft Graph and the core rejects it with a 401 audience mismatch. Entra access tokens omit the `email` claim unless you add it (**Token configuration → Add optional claim → Access → `email`**); without it the panel shows `preferred_username` instead. Entra never emits `email_verified`, so `admin.default_root_email` cannot elevate an Entra user — see [Grant the first administrator access](#bootstrap-admin).
+
+1. Create a public client (Standard flow on, Direct access grants off) with valid redirect URI `<origin>/auth/callback`.
+2. Keycloak does not put the client_id in `aud` by default: add an Audience mapper (client scopes → dedicated scope → add mapper → Audience) targeting your client.
+3. Configure: ``` oidc: issuer_url: "https://<keycloak-host>/realms/<realm>" client_id: "<client-id>" ``` The default scope (`openid profile email`) suffices; leave `audience` blank. Keycloak emits both `email` and `email_verified` in access tokens, so `admin.default_root_email` works once the user’s email is marked verified in Keycloak.
+
+1. Create a Single Page Application with callback URL `<origin>/auth/callback` and logout URL `<origin>`.
+2. Create an API (its identifier becomes the token audience) — Auth0 only issues JWT access tokens when an audience is requested.
+3. Configure: ``` oidc: issuer_url: "https://<tenant>.auth0.com" client_id: "<client-id>" audience: "<api-identifier>" ``` The frontend forwards `audience` on the authorize request — Auth0 requires it there to issue a JWT access token. Auth0 emits `iss` with a trailing slash; the core accepts the issuer with or without it, so the `issuer_url` above works as written.
+
+Auth0 access tokens for a custom API carry neither `email` nor `email_verified`, and Auth0 does not allow adding standard OIDC claims to them: users show without an email and `admin.default_root_email` cannot elevate anyone — see [Grant the first administrator access](#bootstrap-admin).
+
+1. **Applications → Create App Integration → OIDC, Single-Page Application**, with sign-in redirect URI `<origin>/auth/callback` and sign-out redirect URI `<origin>`. Assign the app to your users/groups.
+2. Access tokens come from an authorization server (**Security → API → Authorization Servers**): copy its Issuer URI and Audience. The default custom server uses issuer `https://<okta-domain>/oauth2/default` and audience `api://default`.
+3. Configure: ``` oidc: issuer_url: "https://<okta-domain>/oauth2/default" client_id: "<client-id>" audience: "api://default" ``` `audience` must match the authorization server’s audience setting verbatim (it is not derived from the client). The default scope suffices. Okta access tokens carry no `email` claim by default; add one on that authorization server (**Security → API → Authorization Servers → Claims**, value `user.email`) so the panel shows emails. Okta emits no `email_verified`, so `admin.default_root_email` cannot elevate an Okta user — see [Grant the first administrator access](#bootstrap-admin).
+
+### 4. Grant the first administrator access
+
+`admin.default_root_email` elevates a user to the top role of both role groups only when the access token carries a matching `email` claim and `email_verified: true`. A `preferred_username` fallback or a missing `email_verified` never elevates. Of the providers above only Keycloak emits both claims in access tokens.
+
+The elevation is re-applied on every authenticated request, not only at login: demoting that user in the admin panel reverts on their next request. To demote them, clear `admin.default_root_email` and restart the core.
+
+For every other IdP, grant the first admin’s roles directly in the database after their first login (role labels are the enum names):
+
+```
+UPDATE users SET operation_role = 'DEVOPS', panel_role = 'ADMIN'
+WHERE email = '<email>';
+-- or, when the token carries no email claim:
+-- WHERE issuer = '<issuer_url>' AND subject = '<sub>';
+```
+
+Everyone else is then managed from the admin panel’s Users tab.
+
+## Verify
+
+1. Check what the core serves to the SPA: ``` curl http://localhost/api/v1/auth/config ``` The response carries your `issuer_url` and `client_id` (and `scope` with `{client_id}` already expanded) — the exact values the frontend receives. An empty `issuer_url` means the running image predates the change.
+2. Open the web application at `<origin>`. It redirects to your identity provider and back to `<origin>/auth/callback`; after signing in you land in the wizard.
+3. `GET /api/v1/users/me` — which the SPA calls on load, with the bearer token it obtained — returns your `operation_role` and `panel_role`: `devops` and `admin` for the bootstrap administrator, `developer` and `null` for anyone else.
+
+## Troubleshooting
+
+- **401 "Token validation failed … audience".** The access token’s `aud` does not match `audience`/`client_id`. Entra: the app does not expose an API scope, or a sovereign-cloud issuer skipped the auto-scope (set `scope` explicitly). Keycloak: missing audience mapper. Auth0: `audience` not set in `config.yaml`. Okta: `audience` does not match the authorization server’s audience setting.
+- **Login redirect rejected by the IdP.** The redirect URI `<origin>/auth/callback` is not registered exactly (scheme, host, port).
+- **Config changes have no effect.** Restart the core (`docker compose restart core`); the file is read only at startup.
+- **A `core_db_data` volume predates authentication.** A volume created before OIDC support was added keyed sessions by `username` instead of the current `users` table; migrate it by hand or drop it before pointing a current core at it.
+
+---
+
 # Follow a session
 
 Source: /stable/main/guides/follow-a-session/
@@ -11699,111 +11804,6 @@ Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, sco
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) once you have reviewed the report.
-
----
-
-# Enable authentication
-
-Source: /stable/main/guides/enable-authentication/
-
-Kumoss authenticates against any OIDC-compliant identity provider. The minimal configuration is two fields in `config.yaml`:
-
-```
-oidc:
-  issuer_url: "https://your-idp.example.com"
-  client_id: "your-client-id"
-```
-
-Leaving `issuer_url` blank disables authentication entirely, the checked-in default: every request resolves to a fixed dev identity and acts as a local developer with top roles. The core reads `config.yaml` only at startup, so enabling authentication requires `docker compose restart core`; to load a different file, point the `KUMOSS_CONFIG` env var at its path.
-
-## Prerequisites
-
-- A spec-faithful OIDC provider that supports the authorization code flow with PKCE for public SPA clients, publishes a discovery document with a JWKS endpoint, and issues JWT access tokens (RS*/ES*/PS* signed) carrying `iss`, `sub`, `aud`, and `exp`.
-- The ability to update the core’s `config.yaml` and restart the core, since `config.yaml` changes take effect only at startup.
-
-## Steps
-
-### 1. Check that your provider is supported
-
-| Provider | Support | Config |
-| --- | --- | --- |
-| Microsoft Entra ID | Supported | `issuer_url` + `client_id` (scope auto-derived) |
-| Keycloak | Supported | `issuer_url` + `client_id` (audience mapper in the realm) |
-| Auth0 | Supported | `issuer_url` + `client_id` + `audience` (API identifier) |
-| Okta | Supported | `issuer_url` + `client_id` + `audience` (the custom authorization server’s audience, e.g. `api://default`) |
-| AWS Cognito | Not supported out of the box | see the known limitation below |
-| Google Identity | Not supported | access tokens are opaque strings, not JWTs — nothing to validate against JWKS |
-
-Auth0 and Okta list `audience` because they issue access tokens for a registered API resource whose identifier is an arbitrary string chosen when you set it up at the IdP (an Auth0 API identifier, an Okta authorization server audience) — it cannot be derived from `client_id`, so copy it into `audience`. Entra ID and Keycloak issue tokens whose `aud` is the client id itself, which the core already accepts when `audience` is blank.
-
-**Known limitation: AWS Cognito.** Cognito access tokens are JWTs but carry no `aud` claim (a `client_id` claim instead) and no `email` claim, so the core rejects them and user provisioning / `admin.default_root_email` matching would have no email to work with. Cognito’s ID tokens would pass validation unchanged, so support would need an opt-in "send the ID token as bearer" toggle (plus real-world testing of Cognito’s nonstandard Hosted UI logout). This is not implemented today.
-
-### 2. Register the app at your identity provider
-
-For every provider:
-
-- Register a public SPA client using the authorization code flow with PKCE. No client secret is used anywhere.
-- Redirect URI: `<origin>/auth/callback` (e.g. `http://localhost/auth/callback` for the docker-compose stack).
-- Post-logout redirect URI: `<origin>`.
-
-### 3. Configure your identity provider
-
-The IdP-specific steps share the same shape: register the app, complete the one extra step that IdP needs, then set `config.yaml`.
-
-- Entra ID
-- Keycloak
-- Auth0
-- Okta
-
-1. **App registrations → New registration.** Add a Single-page application platform with redirect URI `<origin>/auth/callback`.
-2. **Expose an API → Add a scope.** Accept the default Application ID URI (`api://<client-id>`) and name the scope anything (e.g. `access_as_user`). This step is required: without it Entra has no scope to grant for the app itself.
-3. Configure: ``` oidc: issuer_url: "https://login.microsoftonline.com/<tenant-id>/v2.0" client_id: "<application-client-id>" ``` That is all: for `login.microsoftonline.com` issuers the core automatically appends `api://{client_id}/.default` to the login scopes, which requests the exposed scope(s) without needing their names. Leave `audience` blank — both the bare client id and `api://<client-id>` are accepted as the token audience, covering both Entra access-token versions.
-
-**Gotchas.** The auto-scope only triggers when `scope` is left at its default value (`openid profile email`); set it explicitly to request specific scopes (`scope: "openid profile email api://{client_id}/access_as_user"` — `{client_id}` is expanded automatically). Sovereign clouds (`login.microsoftonline.us`, …) are not auto-detected: set `scope` explicitly there too. Without any `api://…` scope in the request, Entra issues the access token for Microsoft Graph and the core rejects it with a 401 audience mismatch. Entra access tokens omit the `email` claim unless you add it (**Token configuration → Add optional claim → Access → `email`**); without it the panel shows `preferred_username` instead. Entra never emits `email_verified`, so `admin.default_root_email` cannot elevate an Entra user — see [Grant the first administrator access](#bootstrap-admin).
-
-1. Create a public client (Standard flow on, Direct access grants off) with valid redirect URI `<origin>/auth/callback`.
-2. Keycloak does not put the client_id in `aud` by default: add an Audience mapper (client scopes → dedicated scope → add mapper → Audience) targeting your client.
-3. Configure: ``` oidc: issuer_url: "https://<keycloak-host>/realms/<realm>" client_id: "<client-id>" ``` The default scope (`openid profile email`) suffices; leave `audience` blank. Keycloak emits both `email` and `email_verified` in access tokens, so `admin.default_root_email` works once the user’s email is marked verified in Keycloak.
-
-1. Create a Single Page Application with callback URL `<origin>/auth/callback` and logout URL `<origin>`.
-2. Create an API (its identifier becomes the token audience) — Auth0 only issues JWT access tokens when an audience is requested.
-3. Configure: ``` oidc: issuer_url: "https://<tenant>.auth0.com" client_id: "<client-id>" audience: "<api-identifier>" ``` The frontend forwards `audience` on the authorize request — Auth0 requires it there to issue a JWT access token. Auth0 emits `iss` with a trailing slash; the core accepts the issuer with or without it, so the `issuer_url` above works as written.
-
-Auth0 access tokens for a custom API carry neither `email` nor `email_verified`, and Auth0 does not allow adding standard OIDC claims to them: users show without an email and `admin.default_root_email` cannot elevate anyone — see [Grant the first administrator access](#bootstrap-admin).
-
-1. **Applications → Create App Integration → OIDC, Single-Page Application**, with sign-in redirect URI `<origin>/auth/callback` and sign-out redirect URI `<origin>`. Assign the app to your users/groups.
-2. Access tokens come from an authorization server (**Security → API → Authorization Servers**): copy its Issuer URI and Audience. The default custom server uses issuer `https://<okta-domain>/oauth2/default` and audience `api://default`.
-3. Configure: ``` oidc: issuer_url: "https://<okta-domain>/oauth2/default" client_id: "<client-id>" audience: "api://default" ``` `audience` must match the authorization server’s audience setting verbatim (it is not derived from the client). The default scope suffices. Okta access tokens carry no `email` claim by default; add one on that authorization server (**Security → API → Authorization Servers → Claims**, value `user.email`) so the panel shows emails. Okta emits no `email_verified`, so `admin.default_root_email` cannot elevate an Okta user — see [Grant the first administrator access](#bootstrap-admin).
-
-### 4. Grant the first administrator access
-
-`admin.default_root_email` elevates a user to the top role of both role groups only when the access token carries a matching `email` claim and `email_verified: true`. A `preferred_username` fallback or a missing `email_verified` never elevates. Of the providers above only Keycloak emits both claims in access tokens.
-
-The elevation is re-applied on every authenticated request, not only at login: demoting that user in the admin panel reverts on their next request. To demote them, clear `admin.default_root_email` and restart the core.
-
-For every other IdP, grant the first admin’s roles directly in the database after their first login (role labels are the enum names):
-
-```
-UPDATE users SET operation_role = 'DEVOPS', panel_role = 'ADMIN'
-WHERE email = '<email>';
--- or, when the token carries no email claim:
--- WHERE issuer = '<issuer_url>' AND subject = '<sub>';
-```
-
-Everyone else is then managed from the admin panel’s Users tab.
-
-## Verify
-
-1. Check what the core serves to the SPA: ``` curl http://localhost/api/v1/auth/config ``` The response carries your `issuer_url` and `client_id` (and `scope` with `{client_id}` already expanded) — the exact values the frontend receives. An empty `issuer_url` means the running image predates the change.
-2. Open the web application at `<origin>`. It redirects to your identity provider and back to `<origin>/auth/callback`; after signing in you land in the wizard.
-3. `GET /api/v1/users/me` — which the SPA calls on load, with the bearer token it obtained — returns your `operation_role` and `panel_role`: `devops` and `admin` for the bootstrap administrator, `developer` and `null` for anyone else.
-
-## Troubleshooting
-
-- **401 "Token validation failed … audience".** The access token’s `aud` does not match `audience`/`client_id`. Entra: the app does not expose an API scope, or a sovereign-cloud issuer skipped the auto-scope (set `scope` explicitly). Keycloak: missing audience mapper. Auth0: `audience` not set in `config.yaml`. Okta: `audience` does not match the authorization server’s audience setting.
-- **Login redirect rejected by the IdP.** The redirect URI `<origin>/auth/callback` is not registered exactly (scheme, host, port).
-- **Config changes have no effect.** Restart the core (`docker compose restart core`); the file is read only at startup.
-- **A `core_db_data` volume predates authentication.** A volume created before OIDC support was added keyed sessions by `username` instead of the current `users` table; migrate it by hand or drop it before pointing a current core at it.
 
 ---
 
@@ -12289,6 +12289,62 @@ For the other stores — Phoenix, Redis, object storage, and the workspaces volu
 
 ---
 
+# Data and state
+
+Source: /stable/main/architecture/data-and-state/
+
+This page describes what each of Kumoss’s data stores holds: core-db, phoenix-db, Redis, object storage, and the `workspaces` volume on the filesystem shared between the core and the iac sidecar.
+
+## core-db
+
+**core-db (PostgreSQL 17)** is the system of record for the application domain. Thirteen tables: `users` (unique on `(issuer, subject)`, with `email`, `display_name`, `operation_role`, nullable `panel_role`), `sessions` (owned by a `user_id`, including the `in_flight` concurrency flag and the `is_blocked` compliance lock that gates apply), `workspaces`, `terraform_providers`, `pull_requests`, `histories`, `statuses`, `rounds`, and the artifact-metadata tables `artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the audit verdict plus its stored findings), and `code_changes`. Roles are managed from the admin panel or, for the first administrator on IdPs that emit no `email_verified` claim, by a one-off SQL update (see [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin)). There is no migration tooling: the schema is created with SQLAlchemy `create_all`, so a `core_db_data` volume from a pre-auth stack (sessions keyed by a `username` column, no `users` table) must be migrated by hand or recreated.
+
+For the table-by-table breakdown, the enumerated columns, and how deletion cascades, see [Database schema](../../reference/database-schema/).
+
+## phoenix-db
+
+**phoenix-db (PostgreSQL 17)** belongs exclusively to Phoenix and stores traces and prompt versions — operational/LLM telemetry, fully separate from Kumoss’s domain data.
+
+## Redis
+
+**Redis 8** is a cache, not a store: read-through/write-through for session facts, last statuses, and finished-session aggregates, with 2-second timeouts so a slow Redis fails open to PostgreSQL. It holds no locks and no pub/sub channels.
+
+## Object storage
+
+### Artifacts
+
+Object storage holds generated artifacts under `sessions/<session id>/rounds/<round primary key>/`, as `reports/<report type>-<token>.json`, `compliance/check-<token>.json`, `plans/{plan|drift}-<token>.txt`, or `changes/<token>-<sanitized file name>`. RustFS is the **default and bundled** implementation: the Compose stack starts it as the `object-storage` container, and because it is open source (Apache-2.0) the default stack needs no proprietary or source-available storage component. It is not the only option. `storage.provider` selects one of three adapters, never more than one at a time:
+
+| `storage.provider` | Backend | Notes |
+| --- | --- | --- |
+| `RUSTFS` (default) | The bundled RustFS, or **any S3-compatible object store** reached through a custom `endpoint_url` (path-style addressing, static access and secret keys) | Presigned URLs are signed against `public_endpoint_url`, the address browsers reach |
+| `S3` | **AWS S3** on its regional endpoint | Credentials from static keys or the AWS SDK default chain (instance role, workload identity) |
+| `STORAGE_ACCOUNT` | **Azure Blob Storage** in a storage account | Shared-key authentication, SAS-token presigning; the account name is derived from `endpoint_url` and the container from `bucket` |
+
+There is no dedicated Google Cloud Storage adapter; a GCS bucket could only be reached through its S3-compatible interoperability endpoint with the `RUSTFS` provider, which the repository does not test. For **state**, a first-class `gcs` backend remains available by letting the repository declare it — see [below](#terraform-state). Presign expiry is 48 hours by default, floored at 30 hours so links outlive cached session aggregates.
+
+### Terraform and OpenTofu state
+
+Object storage for Terraform/OpenTofu state is on by default as
+shipped. A remote backend, however, is not optional regardless of that
+setting: workspaces are ephemeral and the `.gitignore` the core seeds
+excludes **.tfstate, so local state would be lost after the run. Because `storage.terraform_state_bucket` ships set to `kumoss-terraform-state`, the default is that *Kumoss manages state itself**, in a second bucket in the same store kept separate from the
+artifacts bucket. A deployment can instead set the value to `""` so
+that **each repository declares its own remote backend** — `azurerm`,
+`s3`, `gcs`, or anything else the engine supports — authenticated with
+the cloud credentials given to the IaC sidecar, or hand the sidecar a
+backend configuration file through `IAC_BACKEND_CONFIG` instead.
+
+As shipped, the core creates that second bucket at boot and renders its backend into a `backend_override.tf` in the workspace before every `init` — so a repository’s own backend block is overridden without editing its committed HCL, and the iac sidecar is the container that must reach the store. Setting the value to `""` turns all of that off: no bucket is created, no override is written, and the workspace falls back to whatever backend the repository’s own Terraform files declare. A bare `terraform_state_bucket:` key with no value is **not** the same as `""` — it parses as YAML null and fails boot with a Pydantic validation error — and **deleting** the key entirely also leaves managed state on, since the configuration default is the same `kumoss-terraform-state` value.
+
+See [Configure state backends](../../guides/configure-state-backends/) for the full decision between the three ownership models and how core and sidecar configuration interact.
+
+## Workspaces volume
+
+The `workspaces` volume is per-run: each run clones the repository into a unique directory shared with the iac container, and the runner removes it in a `finally` block. A **successful generate round** is the exception — it renames its directory to `/workspaces/<session>/pinned` before the cleanup runs, so that directory survives on the volume until apply’s `discard_pinned` or the next generate round replaces it. That pinned directory keeps the initialized backend and the plan file, which is why apply executes the reviewed plan without re-running `init`. Durable outputs otherwise leave via git pushes and artifact uploads, not the volume.
+
+---
+
 # Configure state backends
 
 Source: /stable/main/guides/configure-state-backends/
@@ -12530,62 +12586,6 @@ A repository without a `.gitignore` is not the cause: the seeded file is honored
 - [Backend minimums](../../reference/terraform-providers/#backend-minimums): per-cloud backend credentials.
 - [IaC sidecar API — State backend](../../reference/api/iac/#state-backend): the contract-level view.
 - [Architecture — Data and state](../../architecture/data-and-state/#terraform-state): where state sits among Kumoss’s stores.
-
----
-
-# Data and state
-
-Source: /stable/main/architecture/data-and-state/
-
-This page describes what each of Kumoss’s data stores holds: core-db, phoenix-db, Redis, object storage, and the `workspaces` volume on the filesystem shared between the core and the iac sidecar.
-
-## core-db
-
-**core-db (PostgreSQL 17)** is the system of record for the application domain. Thirteen tables: `users` (unique on `(issuer, subject)`, with `email`, `display_name`, `operation_role`, nullable `panel_role`), `sessions` (owned by a `user_id`, including the `in_flight` concurrency flag and the `is_blocked` compliance lock that gates apply), `workspaces`, `terraform_providers`, `pull_requests`, `histories`, `statuses`, `rounds`, and the artifact-metadata tables `artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the audit verdict plus its stored findings), and `code_changes`. Roles are managed from the admin panel or, for the first administrator on IdPs that emit no `email_verified` claim, by a one-off SQL update (see [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin)). There is no migration tooling: the schema is created with SQLAlchemy `create_all`, so a `core_db_data` volume from a pre-auth stack (sessions keyed by a `username` column, no `users` table) must be migrated by hand or recreated.
-
-For the table-by-table breakdown, the enumerated columns, and how deletion cascades, see [Database schema](../../reference/database-schema/).
-
-## phoenix-db
-
-**phoenix-db (PostgreSQL 17)** belongs exclusively to Phoenix and stores traces and prompt versions — operational/LLM telemetry, fully separate from Kumoss’s domain data.
-
-## Redis
-
-**Redis 8** is a cache, not a store: read-through/write-through for session facts, last statuses, and finished-session aggregates, with 2-second timeouts so a slow Redis fails open to PostgreSQL. It holds no locks and no pub/sub channels.
-
-## Object storage
-
-### Artifacts
-
-Object storage holds generated artifacts under `sessions/<session id>/rounds/<round primary key>/`, as `reports/<report type>-<token>.json`, `compliance/check-<token>.json`, `plans/{plan|drift}-<token>.txt`, or `changes/<token>-<sanitized file name>`. RustFS is the **default and bundled** implementation: the Compose stack starts it as the `object-storage` container, and because it is open source (Apache-2.0) the default stack needs no proprietary or source-available storage component. It is not the only option. `storage.provider` selects one of three adapters, never more than one at a time:
-
-| `storage.provider` | Backend | Notes |
-| --- | --- | --- |
-| `RUSTFS` (default) | The bundled RustFS, or **any S3-compatible object store** reached through a custom `endpoint_url` (path-style addressing, static access and secret keys) | Presigned URLs are signed against `public_endpoint_url`, the address browsers reach |
-| `S3` | **AWS S3** on its regional endpoint | Credentials from static keys or the AWS SDK default chain (instance role, workload identity) |
-| `STORAGE_ACCOUNT` | **Azure Blob Storage** in a storage account | Shared-key authentication, SAS-token presigning; the account name is derived from `endpoint_url` and the container from `bucket` |
-
-There is no dedicated Google Cloud Storage adapter; a GCS bucket could only be reached through its S3-compatible interoperability endpoint with the `RUSTFS` provider, which the repository does not test. For **state**, a first-class `gcs` backend remains available by letting the repository declare it — see [below](#terraform-state). Presign expiry is 48 hours by default, floored at 30 hours so links outlive cached session aggregates.
-
-### Terraform and OpenTofu state
-
-Object storage for Terraform/OpenTofu state is on by default as
-shipped. A remote backend, however, is not optional regardless of that
-setting: workspaces are ephemeral and the `.gitignore` the core seeds
-excludes **.tfstate, so local state would be lost after the run. Because `storage.terraform_state_bucket` ships set to `kumoss-terraform-state`, the default is that *Kumoss manages state itself**, in a second bucket in the same store kept separate from the
-artifacts bucket. A deployment can instead set the value to `""` so
-that **each repository declares its own remote backend** — `azurerm`,
-`s3`, `gcs`, or anything else the engine supports — authenticated with
-the cloud credentials given to the IaC sidecar, or hand the sidecar a
-backend configuration file through `IAC_BACKEND_CONFIG` instead.
-
-As shipped, the core creates that second bucket at boot and renders its backend into a `backend_override.tf` in the workspace before every `init` — so a repository’s own backend block is overridden without editing its committed HCL, and the iac sidecar is the container that must reach the store. Setting the value to `""` turns all of that off: no bucket is created, no override is written, and the workspace falls back to whatever backend the repository’s own Terraform files declare. A bare `terraform_state_bucket:` key with no value is **not** the same as `""` — it parses as YAML null and fails boot with a Pydantic validation error — and **deleting** the key entirely also leaves managed state on, since the configuration default is the same `kumoss-terraform-state` value.
-
-See [Configure state backends](../../guides/configure-state-backends/) for the full decision between the three ownership models and how core and sidecar configuration interact.
-
-## Workspaces volume
-
-The `workspaces` volume is per-run: each run clones the repository into a unique directory shared with the iac container, and the runner removes it in a `finally` block. A **successful generate round** is the exception — it renames its directory to `/workspaces/<session>/pinned` before the cleanup runs, so that directory survives on the volume until apply’s `discard_pinned` or the next generate round replaces it. That pinned directory keeps the initialized backend and the plan file, which is why apply executes the reviewed plan without re-running `init`. Durable outputs otherwise leave via git pushes and artifact uploads, not the volume.
 
 ---
 
@@ -13583,117 +13583,6 @@ If a directory is missing from the offered list, check that its `.tf` files are 
 
 ---
 
-# Roles and permissions
-
-Source: /stable/main/reference/roles-and-permissions/
-
-Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
-
-Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
-
-## Two independent role groups
-
-The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
-
-### Operation roles
-
-Operation roles are hierarchical, and every user has one.
-
-| Operation role | Grants |
-| --- | --- |
-| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
-| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
-
-### Admin-panel roles
-
-Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
-
-| Panel role | Grants |
-| --- | --- |
-| none | Own sessions only. |
-| `viewer` | Read-only view of every user’s sessions in the admin panel. |
-| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
-| `admin` | `editor`, plus user and role management. |
-
-### Session access rules
-
-The API enforces these rules regardless of role:
-
-- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
-- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
-- Everyone else receives `403 Not the session owner`.
-
-## Roles at a glance
-
-| Route | Minimum operation role | Extra condition |
-| --- | --- | --- |
-| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
-| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
-| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
-| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
-| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
-
-The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
-
-## Permission matrix
-
-The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
-
-| Capability | No panel role | `viewer` | `editor` | `admin` |
-| --- | --- | --- | --- | --- |
-| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
-| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
-| Open the admin panel | no | yes | yes | yes |
-| List sessions across all users, paginated | no | yes | yes | yes |
-| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
-| Open any user’s session detail, including conversation history | no | yes | yes | yes |
-| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
-| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
-| Receive support requests sent from the web application’s header | no | no | yes | yes |
-| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
-| List and search users | no | no | no | yes |
-| Assign operation roles | no | no | no | yes |
-| Assign or remove panel roles | no | no | no | yes |
-| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
-| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
-| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
-
-Backend routes behind the matrix:
-
-| Route | Who |
-| --- | --- |
-| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
-| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
-| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
-| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
-| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
-
-Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
-
-## Who gets which roles
-
-**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
-
-**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
-
-- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
-- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
-
-After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and restart the core first if a real demotion is needed.
-
-With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
-
-Do not confuse this with the authorization sidecar. An authorization service you implement may keep users and roles of its own, but the core never reads them; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
-
-## Next steps
-
-- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
-- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
-
----
-
 # Terraform providers
 
 Source: /stable/main/reference/terraform-providers/
@@ -14163,6 +14052,117 @@ terraform init -backend-config=env/prod.s3.tfbackend
 
 - [Configure state backends](../../guides/configure-state-backends/) for how these credentials fit into the backend model Kumoss chooses.
 - [Environment variables and secrets](../environment-variables/) for every other variable the stack reads.
+
+---
+
+# Roles and permissions
+
+Source: /stable/main/reference/roles-and-permissions/
+
+Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
+
+Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
+
+## Two independent role groups
+
+The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
+
+### Operation roles
+
+Operation roles are hierarchical, and every user has one.
+
+| Operation role | Grants |
+| --- | --- |
+| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
+| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
+
+### Admin-panel roles
+
+Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
+
+| Panel role | Grants |
+| --- | --- |
+| none | Own sessions only. |
+| `viewer` | Read-only view of every user’s sessions in the admin panel. |
+| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
+| `admin` | `editor`, plus user and role management. |
+
+### Session access rules
+
+The API enforces these rules regardless of role:
+
+- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
+- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
+- Everyone else receives `403 Not the session owner`.
+
+## Roles at a glance
+
+| Route | Minimum operation role | Extra condition |
+| --- | --- | --- |
+| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
+| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
+| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
+| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
+| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
+
+The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
+
+## Permission matrix
+
+The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
+
+| Capability | No panel role | `viewer` | `editor` | `admin` |
+| --- | --- | --- | --- | --- |
+| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
+| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
+| Open the admin panel | no | yes | yes | yes |
+| List sessions across all users, paginated | no | yes | yes | yes |
+| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
+| Open any user’s session detail, including conversation history | no | yes | yes | yes |
+| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
+| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
+| Receive support requests sent from the web application’s header | no | no | yes | yes |
+| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
+| List and search users | no | no | no | yes |
+| Assign operation roles | no | no | no | yes |
+| Assign or remove panel roles | no | no | no | yes |
+| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
+| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
+| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
+
+Backend routes behind the matrix:
+
+| Route | Who |
+| --- | --- |
+| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
+| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
+| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
+| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
+| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
+
+Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
+
+## Who gets which roles
+
+**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
+
+**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
+
+- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
+- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
+
+After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and restart the core first if a real demotion is needed.
+
+With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
+
+Do not confuse this with the authorization sidecar. An authorization service you implement may keep users and roles of its own, but the core never reads them; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
+
+## Next steps
+
+- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
+- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
 
 ---
 
@@ -16765,55 +16765,6 @@ To check all three layers in a deployed environment, see [Find the active state]
 
 ---
 
-# Operating modes
-
-Source: /stable/main/reference/operating-modes/
-
-Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
-
-> **Note**
-> The import modes are supported on Azure, GCP and AWS only. On
-> OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
-> import round ends with a report that says so and imports nothing.
-
-## Session inputs
-
-The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`), a scope identifier (for example a subscription, project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
-
-## How a session runs
-
-**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
-
-**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
-
-**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
-
-**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
-
-**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
-
-**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
-
-## Comparing the operating modes
-
-|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
-| --- | --- | --- | --- | --- | --- |
-| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
-| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
-| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
-| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
-| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
-| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
-| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
-| Compliance check | yes, when enabled | no | no | no | no |
-| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
-| Report type | `generate` | `drift` | `drift` | `import` | `import` |
-| Pins a plan | yes | no | no | no | no |
-| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
-| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
-
----
-
 # LLM providers and models
 
 Source: /stable/main/reference/llm-providers/
@@ -17111,6 +17062,55 @@ OPENAI_API_KEY=placeholder-for-boot-validation
 ## Running outside Docker
 
 `litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE` is set to `PRODUCTION`. Running the core, or `pytest`, on your workstation (rather than inside the container) therefore silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Kumoss’s own code does this. The working directory does not matter: python-dotenv searches upwards from the directory of the **calling package**, so with the virtual environment at `core/.venv` the file `core/.env` is found from any directory. Variables already present in the environment are not overwritten by the file. To reproduce a clean-environment boot, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`; otherwise a variable you think is unset may actually be coming from `core/.env`.
+
+---
+
+# Operating modes
+
+Source: /stable/main/reference/operating-modes/
+
+Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
+
+> **Note**
+> The import modes are supported on Azure, GCP and AWS only. On
+> OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+> import round ends with a report that says so and imports nothing.
+
+## Session inputs
+
+The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`), a scope identifier (for example a subscription, project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
+
+## How a session runs
+
+**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
+
+**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
+
+**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
+
+**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
+
+**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
+
+**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
+
+## Comparing the operating modes
+
+|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
+| --- | --- | --- | --- | --- | --- |
+| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
+| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
+| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
+| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
+| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
+| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
+| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
+| Compliance check | yes, when enabled | no | no | no | no |
+| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
+| Report type | `generate` | `drift` | `drift` | `import` | `import` |
+| Pins a plan | yes | no | no | no | no |
+| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
+| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
 
 ---
 
