@@ -399,7 +399,6 @@ class ToolRegistryStatic(IToolRegistry):
         return report
 
     def __handle_import_addresses(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        status = parameters["status"]
         summary = parameters["summary"]
         imports = parameters["imports"]
         if not isinstance(imports, list):
@@ -407,7 +406,7 @@ class ToolRegistryStatic(IToolRegistry):
                 message=f"IAC import inference hasn't returned the expected structure. got={imports}",
                 error_code=500,
             )
-        return {"status": status, "summary": summary, "imports": imports}
+        return {"summary": summary, "imports": imports}
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
