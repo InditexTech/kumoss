@@ -6,7 +6,7 @@
 # install method the OpenTofu project documents for custom images).
 FROM ghcr.io/opentofu/opentofu:1.12.8-minimal@sha256:30aa20a0f9a05fa17e1b82687260677de0a26bcf493a1ee8f55c07eda748f353 AS tofu
 
-FROM ghcr.io/astral-sh/uv:0.13.1@sha256:4a1f3666816dafadd20ceb71eac9a7d56d7ef30279f7d64048519ab901ada336 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
 
 FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS base
 
