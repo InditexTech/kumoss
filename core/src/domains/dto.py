@@ -257,6 +257,7 @@ class TerraformImportAttempt:
 
     address: str
     resource_id: str = field(compare=False)
+    listed_id: str = field(compare=False)
     error: str = field(compare=False, default="")
 
 

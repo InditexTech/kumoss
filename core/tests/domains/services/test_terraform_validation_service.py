@@ -36,9 +36,15 @@ def _plan(ok: bool, feedback: str = "") -> TerraformPlanDTO:
 
 def _imports(failed: list[str], plan: TerraformPlanDTO) -> TerraformImportDTO:
     return TerraformImportDTO(
-        imported=[TerraformImportAttempt(address="a.ok", resource_id="id-ok")],
+        imported=[
+            TerraformImportAttempt(
+                address="a.ok", resource_id="id-ok", listed_id="id-ok"
+            )
+        ],
         failed=[
-            TerraformImportAttempt(address=a, resource_id=f"id-{a}", error="boom")
+            TerraformImportAttempt(
+                address=a, resource_id=f"id-{a}", listed_id=f"id-{a}", error="boom"
+            )
             for a in failed
         ],
         plan_result=plan,

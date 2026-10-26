@@ -115,7 +115,7 @@ cannot escape the workspace. `plan` writes it; `show` and `apply` read
 the one a previous `plan` wrote.
 
 |`targets`
-|`plan` only. Up to 256 `-target=` filters. Omitted or empty plans the
+|`plan` only. Up to 4096 `-target=` filters. Omitted or empty plans the
 whole configuration.
 
 |`address`

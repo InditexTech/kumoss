@@ -60,7 +60,7 @@ class ValidateRequest(WorkspaceRequest):
 class PlanRequest(ScopedRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
-    targets: list[TargetStr] = Field(default_factory=list, max_length=256)
+    targets: list[TargetStr] = Field(default_factory=list, max_length=4096)
     plan_file: PlanFileStr
 
 
