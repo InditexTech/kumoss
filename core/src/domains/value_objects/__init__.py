@@ -10,6 +10,7 @@ from .plan_ref import PlanRef
 from .token_claims import TokenClaims
 from .search_result import SearchResult
 from .page_summary import PageSummary
+from .terraform_doc import TerraformDoc
 
 __all__ = [
     "Status",
@@ -20,4 +21,5 @@ __all__ = [
     "TokenClaims",
     "SearchResult",
     "PageSummary",
+    "TerraformDoc",
 ]

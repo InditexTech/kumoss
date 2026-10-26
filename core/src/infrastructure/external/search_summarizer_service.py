@@ -138,6 +138,17 @@ class SearchResultsSummarizer:
                 summaries.append(outcome)
         return summaries
 
+    async def condense(self, query: str, result: SearchResult) -> str | None:
+        """One page reduced to what bears on ``query``, with no ranking.
+
+        For a page the caller already knows is the right one, such as a
+        registry documentation page. ``None`` means the page holds nothing
+        for the query; a failed inference keeps a raw excerpt, as in
+        ``summarize``.
+        """
+        summary = (await self.summarize(query, [result]))[0]
+        return None if _is_irrelevant(summary.summary) else summary.summary
+
     async def __select(
         self, query: str, summaries: list[PageSummary], total: int
     ) -> list[int] | None:
