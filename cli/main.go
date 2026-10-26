@@ -10,6 +10,5 @@ import (
 
 func main() {
 	rootCmd := cmd.NewRootCmd()
-	cmd.AddChildCommands(rootCmd)
 	cmd.Execute(rootCmd)
 }
