@@ -5,15 +5,21 @@
 package cmd
 
 import (
+	"os"
+
+	cmd "github.com/InditexTech/kumoss/cli/cmd/kumoss"
 	"github.com/InditexTech/kumoss/cli/internal/buildinfo"
 	"github.com/spf13/cobra"
 )
 
-func Execute() error {
-	return newRootCmd().Execute()
+func Execute(command *cobra.Command) {
+	err := command.Execute()
+	if err != nil {
+		os.Exit(1)
+	}
 }
 
-func newRootCmd() *cobra.Command {
+func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "kumoss",
 		Short:         "Kumoss CLI",
@@ -27,12 +33,14 @@ func newRootCmd() *cobra.Command {
 	root.PersistentFlags().Bool("json", false, "machine-readable output")
 	root.PersistentFlags().Bool("yes", false, "assume yes for confirmations")
 
-	root.AddCommand(newVersionCmd())
-	root.AddCommand(newInitCmd())
-	root.AddCommand(newStatusCmd())
-	root.AddCommand(newLogsCmd())
-	root.AddCommand(newConfigCmd())
-	root.AddCommand(newDoctorCmd())
-
 	return root
+}
+
+func AddChildCommands(rootCmd *cobra.Command) {
+	cmd.NewVersionCmd(rootCmd)
+	cmd.NewInitCmd(rootCmd)
+	cmd.NewStatusCmd(rootCmd)
+	cmd.NewLogsCmd(rootCmd)
+	cmd.NewConfigCmd(rootCmd)
+	cmd.NewDoctorCmd(rootCmd)
 }

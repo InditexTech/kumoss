@@ -8,12 +8,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newLogsCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "logs",
-		Short: "Show the logs of the Kumoss CLI environment",
+func NewInitCmd(root *cobra.Command) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "init",
+		Short: "Initialize the Kumoss CLI environment",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return nil
 		},
 	}
+	root.AddCommand(cmd)
+	return cmd
 }
