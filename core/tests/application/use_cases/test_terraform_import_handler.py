@@ -80,7 +80,9 @@ def _drift_dto(in_sync: bool, plan: str = "plan output") -> TerraformDriftDTO:
 def _attempts(pairs: list[tuple[str, str]]) -> set[TerraformImportAttempt]:
     """Build import attempts from (address, resource_id) pairs."""
     return {
-        TerraformImportAttempt(address=address, resource_id=resource_id)
+        TerraformImportAttempt(
+            address=address, resource_id=resource_id, listed_id=resource_id
+        )
         for address, resource_id in pairs
     }
 
@@ -96,6 +98,7 @@ def _import_outcome(
             TerraformImportAttempt(
                 address=address,
                 resource_id=resource_id,
+                listed_id=resource_id,
                 error=f"import failed for {address}",
             )
             for address, resource_id in failed or []
@@ -653,6 +656,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                     {
                         "address": "azurerm_resource_group.main",
                         "resource_id": "res-1",
+                        "listed_id": "res-1",
                         "error": "",
                     },
                 ],
@@ -660,6 +664,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                     {
                         "address": "azurerm_storage_account.sta",
                         "resource_id": "res-2",
+                        "listed_id": "res-2",
                         "error": "import failed for azurerm_storage_account.sta",
                     },
                 ],

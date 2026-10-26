@@ -53,6 +53,10 @@ class TerraformImportAddressService:
             ),
         )
         return {
-            TerraformImportAttempt(entry["address"], entry["resource_id"])
+            TerraformImportAttempt(
+                address=entry["address"],
+                resource_id=entry["resource_id"],
+                listed_id=entry["listed_id"],
+            )
             for entry in response.result["imports"]
         }
