@@ -4,7 +4,7 @@
 
 # IaC engine: OpenTofu, taken from the official minimal image (the
 # install method the OpenTofu project documents for custom images).
-FROM ghcr.io/opentofu/opentofu:1.12.8-minimal@sha256:30aa20a0f9a05fa17e1b82687260677de0a26bcf493a1ee8f55c07eda748f353 AS tofu
+FROM ghcr.io/opentofu/opentofu:1.13.2-minimal@sha256:622dc6bb98b105c18f53cf419ab64a4f3b88bd9f8c16cc978cf89e4202f4613f AS tofu
 
 FROM ghcr.io/astral-sh/uv:0.13.1@sha256:4a1f3666816dafadd20ceb71eac9a7d56d7ef30279f7d64048519ab901ada336 AS uv
 
