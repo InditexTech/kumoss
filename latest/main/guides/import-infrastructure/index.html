@@ -897,8 +897,11 @@ and pushes them to the session branch;</p>
 </li>
 <li>
 <p>has an agent read the branch diff and pair each generated block&#8217;s
-Terraform address with the cloud resource ID it must be imported
-from, in the spelling the provider expects;</p>
+Terraform address with its listed cloud resource ID, then build the
+import ID in the format the "Import" section of the provider&#8217;s
+documentation gives for that resource type and provider version
+(the full ID, a name, a short ID or a composite, depending on the
+type), looked up with <code>web_search</code> once per resource type;</p>
 </li>
 <li>
 <p>runs <code>terraform import</code> for each pair, one address at a time, through
@@ -980,11 +983,11 @@ compliance audit and never set the lock.</p>
 <code>kv-app-dev</code>." Kumoss finds both among the unmanaged resources in the
 subscription, writes an <code>azurerm_storage_account</code> and an
 <code>azurerm_key_vault</code> block, and imports them. The storage account
-imports; the key vault is rejected because the ID was paired in a
-spelling the provider does not parse. The engine&#8217;s error goes back to
+imports; the key vault is rejected because its import ID was built in a
+form the provider does not parse. The engine&#8217;s error goes back to
 the generator, which leaves the storage account&#8217;s block untouched, the
-address agent pairs the key vault again with the corrected ID, and the
-next attempt imports only the key vault.
+address agent rebuilds the key vault&#8217;s import ID from its listed ID, and
+the next attempt imports only the key vault.
 The report shows both resources imported and <code>Succeeded</code>.</p>
 </div>
 </div>
