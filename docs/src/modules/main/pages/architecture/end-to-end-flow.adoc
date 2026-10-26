@@ -422,7 +422,8 @@ prompts fetched from Phoenix, given a fixed tool set, and ended by a
 |Infrastructure Generation Agent
 |main
 |`write_to_file`, `replace_in_file`, `delete_file`, `read_file`,
-`list_dir`, `bulk_grep_search`, `diff_history`, `web_search`
+`list_dir`, `bulk_grep_search`, `diff_history`, `web_search`,
+`terraform_docs`
 |`task_complete`
 |Phase 5; re-entered by drift batches in Phase 6 and by dedicated drift
 sessions
@@ -443,7 +444,7 @@ sessions
 
 |Report Generator
 |main
-|Plan and apply reports: `web_search`. Drift report: `read_file`,
+|Plan and apply reports: `web_search`, `terraform_docs`. Drift report: `read_file`,
 `list_dir`, `bulk_grep_search`, `diff_history` (it *must* call
 `diff_history`) and no web search
 |`generate_terraform_plan_report`, `generate_terraform_drift_report`
@@ -471,7 +472,7 @@ or `generate_terraform_apply_report`
 |Drift Task Splitter
 |main
 |`read_file`, `list_dir`, `bulk_grep_search`, `diff_history`,
-`web_search`
+`web_search`, `terraform_docs`
 |`report_decomposed_task_operations`
 |Phase 6 and dedicated drift sessions
 
@@ -956,7 +957,7 @@ generate round pins a plan.
 *How the DRIFT report is written.* The drift report is the one report the
 generator does not receive as a text to summarise: it reads the branch for
 itself. The report service gives the drift report the workspace-inspection
-tool set instead of `web_search`, and the drift branch of the report
+tool set instead of `web_search` and `terraform_docs`, and the drift branch of the report
 layout makes `diff_history` a required first call and the sole source of
 truth for the remediation. That works because every reconciliation group
 commits and pushes inside the validation loop before the report runs, so

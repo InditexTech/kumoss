@@ -95,6 +95,18 @@ class SearchEngineError(ExceptionHandler):
     pass
 
 
+class TerraformRegistryError(ExceptionHandler):
+    """Raised when the Terraform Registry cannot be reached or answers badly"""
+
+    pass
+
+
+class TerraformDocsNotFoundError(ExceptionHandler):
+    """Raised when the registry has no documentation for a provider, version or type"""
+
+    pass
+
+
 class PageReadError(ExceptionHandler):
     """Raised when a page could not be read or parsed"""
 

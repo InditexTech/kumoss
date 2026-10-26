@@ -306,3 +306,27 @@ class TestSearchResultsSummarizer(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestCondense(unittest.IsolatedAsyncioTestCase):
+    """One known page, summarized against the query and never ranked."""
+
+    async def test_the_page_summary_is_returned_without_a_selection(self):
+        llm = MagicMock(inference=AsyncMock(return_value=SimpleNamespace(text="s")))
+        summary = await _summarizer(llm).condense("q", _results()[0])
+
+        self.assertEqual(summary, "s")
+        self.assertEqual(llm.inference.await_count, 1)
+
+    async def test_an_irrelevant_page_is_none(self):
+        llm = MagicMock(
+            inference=AsyncMock(return_value=SimpleNamespace(text=" irrelevant "))
+        )
+        self.assertIsNone(await _summarizer(llm).condense("q", _results()[0]))
+
+    async def test_a_failed_inference_keeps_a_raw_excerpt(self):
+        llm = MagicMock(inference=AsyncMock(side_effect=RuntimeError("boom")))
+        page = SearchResult(title="T", url="https://t", content="x" * 5000)
+        summary = await _summarizer(llm).condense("q", page)
+
+        self.assertEqual(summary, "x" * 1200)
