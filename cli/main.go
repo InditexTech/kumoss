@@ -5,16 +5,11 @@
 package main
 
 import (
-	"fmt"
-	"os"
-
-	"github.com/InditexTech/kumoss/cli/internal/cmd"
+	"github.com/InditexTech/kumoss/cli/cmd"
 )
 
 func main() {
-	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, "error:", err)
-		os.Exit(1)
-	}
-
+	rootCmd := cmd.NewRootCmd()
+	cmd.AddChildCommands(rootCmd)
+	cmd.Execute(rootCmd)
 }

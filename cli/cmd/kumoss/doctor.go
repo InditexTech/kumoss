@@ -8,12 +8,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func newStatusCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "status",
-		Short: "Show the status of the Kumoss CLI environment",
+func NewDoctorCmd(root *cobra.Command) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "doctor",
+		Short: "Show the health status of the Kumoss CLI environment",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return nil
 		},
 	}
+	root.AddCommand(cmd)
+	return cmd
 }
