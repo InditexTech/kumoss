@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.0.2](https://github.com/InditexTech/kumoss/compare/v1.0.1...v1.0.2) (2026-10-26)
+
+
+### Bug Fixes
+
+* **iac:** increase iac plan target max limit to 4096 ([9ce8752](https://github.com/InditexTech/kumoss/commit/9ce8752e0777e753a9d0db1c932c8b6f1732eca7))
+* **import:** build import IDs in the provider's documented format ([769eafd](https://github.com/InditexTech/kumoss/commit/769eafd5b07bc96f8d521f75e59272e80f4a9b1c))
+* **import:** remove unused `status` tool field - steer the model to use web_search - listed_id always present ([54ad0a5](https://github.com/InditexTech/kumoss/commit/54ad0a52b21b1c0b23ad718d2110b2df4df7caf8))
+* **tests:** update import tests ([5f34aa3](https://github.com/InditexTech/kumoss/commit/5f34aa324e607821b0fb0d5bea1e6a5b0527cb52))
+
 ## [1.0.1](https://github.com/InditexTech/kumoss/compare/v1.0.0...v1.0.1) (2026-10-23)
 
 
