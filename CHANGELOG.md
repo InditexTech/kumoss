@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-27)
+
+
+### Documentation
+
+* add real-run demo video to README and docs site ([7518163](https://github.com/InditexTech/kumoss/commit/75181630d8bb25d00f8aa9c58411349f754433f9))
+* add real-run demo video to README and docs site ([56f1e6d](https://github.com/InditexTech/kumoss/commit/56f1e6d7f90bb01e86b4bff0b87b61d3f95e3349))
+
 ## [1.0.2](https://github.com/InditexTech/kumoss/compare/v1.0.1...v1.0.2) (2026-10-26)
 
 
