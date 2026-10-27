@@ -52,12 +52,10 @@
 - [HTTP APIs](/prerelease/main/reference/api/): The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client (IaC, notifications, repository mapping, authorization).
 - [Mapping sidecar API](/prerelease/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.
 - [Notifications sidecar API](/prerelease/main/reference/api/notifications/): The channel-agnostic notification contract — one endpoint, an event description and an audience, with routing left to the implementation. The bundled implementation posts to a Slack incoming webhook.
-- [About Kumoss](/stable/main/about/): What Kumoss is, who it is for, and why it exists.
 - [Contributing](/stable/main/contributing/): Sign the Contributor License Agreement, follow the code of conduct, and submit a pull request that passes Kumoss's checks.
 - [Events](/stable/main/events/)
 - [Glossary](/stable/main/glossary/): Terms and abbreviations used across the Kumoss documentation.
 - [Guides](/stable/main/guides-overview/): Task guides for using, operating, and developing Kumoss, grouped by what you want to do.
-- [Quickstart](/stable/main/quickstart/): Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [See Kumoss in action](/stable/main/see-it-in-action/): Watch a real, unscripted Kumoss session: a plain-language request becomes an applied pull request, and a risky delete is blocked until an administrator reviews it.
 - [Prerequisites](/stable/main/prerequisites/): What the local Docker Compose deployment is for and what you need before following the quickstart.
 - [Additional information](/stable/main/additional-information/): Kumoss's licensing, support channels, and how to report a security vulnerability.
@@ -79,6 +77,7 @@
 - [Merge and apply](/stable/main/guides/merge-and-apply/): Handle a locked session, then open, merge, and apply a Kumoss pull request.
 - [Monitor with Phoenix](/stable/main/guides/monitor-with-phoenix/): Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.
 - [Remediate drift](/stable/main/guides/remediate-drift/): Detect and reconcile infrastructure drift, for a specific set of resources or across a whole Terraform root.
+- [Quickstart](/stable/main/quickstart/): Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [Environment variables and secrets](/stable/main/reference/environment-variables/): Every environment variable Kumoss reads: the core, the bundled IaC and notifications sidecars, the IaC engine, and the LLM providers.
 - [Repository layout](/stable/main/reference/repository-layout/): How Kumoss finds Terraform roots in a repository — the detection rules, the wizard's zero/one/many behavior, and troubleshooting.
 - [Roles and permissions](/stable/main/reference/roles-and-permissions/): The two independent role groups that gate Kumoss — operation roles for IaC actions and admin-panel roles for the admin panel — with the complete permission matrix and default role assignment.
@@ -89,8 +88,8 @@
 - [Make a request](/stable/main/guides/make-a-request/): Open a Kumoss session and phrase a request that the filter accepts.
 - [Operations](/stable/main/guides/production/operations/): Data services and persistence, backups and upgrades, the post-deployment verification checklist, and troubleshooting for a production deployment.
 - [Sidecar-supplied backend](/stable/main/guides/state-backends/sidecar-supplied/): Hand the IaC sidecar a mounted backend configuration file so the deployment owns the backend decision centrally.
-- [Operating modes](/stable/main/reference/operating-modes/): What each Kumoss operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
 - [LLM providers and models](/stable/main/reference/llm-providers/): How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.
+- [Operating modes](/stable/main/reference/operating-modes/): What each Kumoss operating mode does today, the inputs every session takes, how a session runs regardless of mode, and a side-by-side comparison.
 - [Hardening](/stable/main/guides/production/hardening/): Runtime and scaling properties inherent to the current implementation, and the hardening checklist a production platform must apply on top of the checked-in Compose file.
 - [Repository-declared backend](/stable/main/guides/state-backends/repository-declared/): Blank the state bucket and let each repository's own Terraform or OpenTofu backend block own state.
 - [Networking and TLS](/stable/main/guides/production/networking-and-tls/): Reproduce the ingress routing rules the reference nginx configuration implements, plus image and configuration delivery for a production deployment.
@@ -102,3 +101,4 @@
 - [Mapping sidecar API](/stable/main/reference/api/mapping/): The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.
 - [IaC sidecar API](/stable/main/reference/api/iac/): The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
 - [Core API](/stable/main/reference/api/core/): Every route the Kumoss core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
+- [About Kumoss](/stable/main/about/): What Kumoss is, who it is for, and why it exists.
