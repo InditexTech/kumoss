@@ -48,13 +48,22 @@ func Resolve(flagHome string) (Home, Source) {
 	}
 }
 
-// expand resolves a leading ~ so a quoted `--home '~/x'` is stored and reported
-// as a real path, matching the shell's own expansion.
+// expand makes a path absolute and resolves a leading ~, so a quoted
+// `--home '~/x'` or a relative `--home x` is stored and reported as a real
+// path that does not depend on the caller's working directory.
 func expand(path string) string {
-	if path == "~" || strings.HasPrefix(path, "~/") {
+	switch {
+	case path == "~":
 		if dir, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(dir, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+			path = dir
 		}
+	case strings.HasPrefix(path, "~/"):
+		if dir, err := os.UserHomeDir(); err == nil {
+			path = filepath.Join(dir, path[2:])
+		}
+	}
+	if abs, err := filepath.Abs(path); err == nil {
+		return abs
 	}
 	return filepath.Clean(path)
 }
@@ -85,15 +94,24 @@ func (h Home) ComposeOverride() string { return filepath.Join(h.Root, "compose.o
 // CoreEnv is src/core/.env.
 func (h Home) CoreEnv() string { return filepath.Join(h.SrcDir(), "core", ".env") }
 
+// ServicesDir is src/services/ — one subdir per sidecar.
+func (h Home) ServicesDir() string { return filepath.Join(h.SrcDir(), "services") }
+
 // ServiceEnv is src/services/<name>/.env.
 func (h Home) ServiceEnv(name string) string {
-	return filepath.Join(h.SrcDir(), "services", name, ".env")
+	return filepath.Join(h.ServicesDir(), name, ".env")
 }
+
+// Services needing a generated .env. Hardcoded because the CLI ships without
+// the repo, so there is no src/services/ or env.sample to read: these are the
+// bundled sidecars plus the search backend. mapping and authz are
+// contracts-only and take no .env. Keep in sync when the stack gains a service.
+var Services = []string{"iac", "notifications", "searxng"}
 
 // Ensure creates the empty skeleton directories. File contents are written by
 // their producers (stack.Clone for src/, render + Write for the rest).
 func (h Home) Ensure() error {
-	for _, dir := range []string{h.Root, h.SrcDir(), h.ConfigDir()} {
+	for _, dir := range []string{h.Root, h.SrcDir(), h.ServicesDir(), h.ConfigDir()} {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}

@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	cmd "github.com/InditexTech/kumoss/client/cli/cmd/kumoss"
@@ -17,17 +18,15 @@ import (
 func Execute(command *cobra.Command) {
 	err := command.Execute()
 	if err != nil {
+		// SilenceErrors is set so cobra does not also print usage; report the
+		// error itself, or a parse failure exits 1 with no explanation.
+		fmt.Fprintln(os.Stderr, "kumoss:", err)
 		os.Exit(1)
 	}
 }
 
 func NewRootCmd() *cobra.Command {
-	var (
-		flagHome string
-		flagJSON bool
-		flagYes  bool
-		envFlags cli.Flags
-	)
+	var envFlags cli.Flags
 
 	root := &cobra.Command{
 		Use:           "kumoss",
@@ -37,14 +36,12 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			envFlags = cli.Flags{Home: home.FromFlag(flagHome), JSON: flagJSON, Yes: flagYes, HomeFlag: flagHome}
+			// HomeFlag is bound by whichever command registered --home (empty
+			// elsewhere); resolve it here, once parsing is done.
+			envFlags.Home = home.FromFlag(envFlags.HomeFlag)
 			return nil
 		},
 	}
-
-	root.PersistentFlags().StringVar(&flagHome, "home", "", "managed home directory (default ~/.kumoss)")
-	root.PersistentFlags().BoolVarP(&flagJSON, "json", "j", false, "machine-readable output")
-	root.PersistentFlags().BoolVarP(&flagYes, "yes", "y", false, "assume yes for confirmations")
 
 	AddChildCommands(root, &envFlags)
 

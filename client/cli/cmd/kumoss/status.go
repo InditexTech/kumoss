@@ -12,7 +12,9 @@ import (
 func NewStatusCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Show the status of the Kumoss CLI environment",
+		Short: "Show the status of the Kumoss CLI environment (not implemented)",
+		Long: "Show the status of the Kumoss CLI environment.\n\n" +
+			"Not implemented yet: the command currently does nothing.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return nil
 		},
