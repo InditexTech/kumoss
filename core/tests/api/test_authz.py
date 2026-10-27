@@ -19,6 +19,7 @@ from src.clients.authz.models.response_context_reason_user import (
     ResponseContextReasonUser,
 )
 from src.domains.value_objects.token_claims import TokenClaims
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -47,7 +48,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             _claims(),
             "generate",
             scope_id="scope-1",
-            provider="azure",
+            provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
         )
 
@@ -63,7 +64,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
                 _claims(),
                 "generate",
                 scope_id="scope-1",
-                provider="azure",
+                provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",
             )
         self.assertEqual(ctx.exception.status_code, 403)
@@ -84,7 +85,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
                 _claims(),
                 "generate",
                 scope_id="scope-1",
-                provider="azure",
+                provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",
             )
         self.assertIn("You lack permission", ctx.exception.detail)
@@ -106,7 +107,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
                     _claims(),
                     "generate",
                     scope_id="scope-1",
-                    provider="azure",
+                    provider=TerraformProvider.AZURE,
                     repo_uri="https://dev.azure.com/org/project/_git/repo",
                 )
         self.assertTrue(any("OPA-42" in line for line in cm.output))
@@ -122,7 +123,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             _claims(),
             "generate",
             scope_id="scope-1",
-            provider="azure",
+            provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
         )
         call_args = mock_cls.return_value.evaluate.call_args
@@ -144,7 +145,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             _claims(email_verified=False),
             "generate",
             scope_id="scope-1",
-            provider="azure",
+            provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
         )
         request = mock_cls.return_value.evaluate.call_args.args[0]
@@ -162,7 +163,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             _claims(groups=[]),
             "generate",
             scope_id="scope-1",
-            provider="azure",
+            provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
         )
         request = mock_cls.return_value.evaluate.call_args.args[0]
@@ -180,7 +181,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             _claims(),
             "generate",
             scope_id="scope-1",
-            provider="azure",
+            provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
             iac_path=None,
         )
@@ -199,7 +200,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
                 _claims(),
                 "generate",
                 scope_id="scope-1",
-                provider="azure",
+                provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",
             )
         self.assertEqual(ctx.exception.status_code, 502)

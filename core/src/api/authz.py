@@ -24,15 +24,13 @@ from src.clients.authz.models.action_name import ActionName
 from src.clients.authz.models.request_context import RequestContext
 from src.clients.authz.models.resource import Resource
 from src.clients.authz.models.resource_properties import ResourceProperties
-from src.clients.authz.models.resource_properties_provider import (
-    ResourcePropertiesProvider,
-)
 from src.clients.authz.models.resource_type import ResourceType
 from src.clients.authz.models.subject import Subject
 from src.clients.authz.models.subject_properties import SubjectProperties
 from src.clients.authz.models.subject_type import SubjectType
 from src.clients.authz.types import UNSET, Unset
 from src.domains.value_objects.token_claims import TokenClaims
+from src.shared.constants import TerraformProvider
 from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.exceptions import ExceptionHandler
 
@@ -44,7 +42,7 @@ async def authorize(
     action: str,
     *,
     scope_id: str,
-    provider: str,
+    provider: TerraformProvider,
     repo_uri: str,
     iac_path: str | None = None,
     session_id: UUID | None = None,
@@ -57,7 +55,7 @@ async def authorize(
     )
 
     resource_props = ResourceProperties(
-        provider=ResourcePropertiesProvider(provider),
+        provider=provider,
         repo_uri=repo_uri,
         iac_path=iac_path if iac_path else UNSET,
     )

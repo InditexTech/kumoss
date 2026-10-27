@@ -11,7 +11,6 @@ from .problem import Problem
 from .request_context import RequestContext
 from .resource import Resource
 from .resource_properties import ResourceProperties
-from .resource_properties_provider import ResourcePropertiesProvider
 from .resource_type import ResourceType
 from .response_context import ResponseContext
 from .response_context_reason_admin import ResponseContextReasonAdmin
@@ -32,7 +31,6 @@ __all__ = (
     "RequestContext",
     "Resource",
     "ResourceProperties",
-    "ResourcePropertiesProvider",
     "ResourceType",
     "ResponseContext",
     "ResponseContextReasonAdmin",

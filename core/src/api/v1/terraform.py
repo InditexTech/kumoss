@@ -81,7 +81,7 @@ async def _resolve_or_raise(
                 claims,
                 action,
                 scope_id=request.scope_id,
-                provider=request.terraform_providers.value,
+                provider=request.terraform_providers,
                 repo_uri=request.repo_uri,
                 iac_path=request.iac_path,
             )
@@ -93,7 +93,7 @@ async def _resolve_or_raise(
                 claims,
                 ctx.operation.value.lower() if is_iteration else action,
                 scope_id=ctx.scope_id,
-                provider=ctx.terraform_prv.value,
+                provider=ctx.terraform_prv,
                 repo_uri=ctx.repo_uri,
                 iac_path=ctx.iac_path,
                 session_id=ctx.id,
