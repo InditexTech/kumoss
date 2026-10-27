@@ -1,0 +1,31 @@
+README.md
+  s_4557ee4a49ec4c::t_0373f49e9bb9ad 17-31,80
+docs/src/modules/ROOT/pages/index.adoc
+  s_4557ee4a49ec4c::t_b76168ef39d038 22-25
+docs/src/modules/main/nav.adoc
+  s_4557ee4a49ec4c::t_313e4dfced9045 3
+docs/src/modules/main/pages/about.adoc
+  s_4557ee4a49ec4c::t_0ec194c940508f 22-24
+docs/src/modules/main/pages/guides-overview.adoc
+  s_4557ee4a49ec4c::t_5c728f5fdfa6bd 7-9
+docs/src/modules/main/pages/quickstart.adoc
+  s_4557ee4a49ec4c::t_4bacde99eb00bb 6-7
+docs/src/modules/main/pages/see-it-in-action.adoc
+  s_4557ee4a49ec4c::t_3c2505122be9f1 1-120
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "3f6c65250b946f45c38de9335f5f09c97e91f27c",
+  "prompts": {},
+  "sessions": {
+    "s_4557ee4a49ec4c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7fe5fb3f-669b-45b1-92df-04cbcbc843ca",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
