@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-package answers
+package state
 
-type Answers struct {
+type State struct {
 	SchemaVersion int     `yaml:"schema_version" json:"schema_version"`
 	LLM           LLM     `yaml:"llm"            json:"llm"`
 	Git           Git     `yaml:"git"            json:"git"`
