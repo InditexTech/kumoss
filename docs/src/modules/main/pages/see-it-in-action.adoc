@@ -1,0 +1,120 @@
+= See Kumoss in action
+:description: Watch a real, unscripted Kumoss session: a plain-language request becomes an applied pull request, and a risky delete is blocked until an administrator reviews it.
+:page-tags: demo, video, walkthrough
+
+This page shows Kumoss working on a real cloud environment, from a
+developer's first request to an applied change, and then a destructive
+request that Kumoss holds for review. Watch the four-minute video, then use
+the walkthrough below to jump to the guide behind each moment.
+
+video::kumoss-real-run.webm[poster=kumoss-real-run-poster.png,width=1280,height=720]
+
+== About this recording
+
+* **One unscripted session.** The run was recorded against a real cloud
+subscription with the default Kumoss stack. Waiting times are shortened;
+the generated code, plans, reports, and applied results are not edited.
+* **Captions and step cards are added in editing.** They explain what
+happens on screen while the agent works.
+* **Sensitive data is blurred.** Subscription identifiers, accounts, and
+user names are masked. The request was typed in Spanish and is shown in
+English; Kumoss accepts requests in the language your team uses.
+* **The notification cards are a recreation.** They follow the messages
+Kumoss sends when it locks a session; in the recording, those messages
+went to a chat channel off screen.
+
+== What you see
+
+[cols="1,5,3",nowrap-cols="1"]
+|===
+|Time |Moment |Learn more
+
+|0:04
+|**The starting point.** An existing cloud environment with an app
+runtime, secrets, storage, and networking, all managed as code in a
+repository.
+|xref:main:about.adoc[About Kumoss]
+
+|0:10
+|**The request.** A developer writes _My app needs to store images and
+use a fixed outbound IP_ and picks the repository. No tickets, no
+infrastructure code.
+|xref:main:guides/make-a-request.adoc[Make a request]
+
+|0:23
+|**Context first.** Kumoss reads the repository, the infrastructure
+deployed in the cloud, and the organization's guidelines for that cloud.
+|xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+
+|0:38
+|**Standards built in.** The generated code follows the organization's
+conventions: private networking, secrets in a vault, least-privilege
+roles, and deletion locks.
+|xref:main:guides/customize-prompts.adoc[Customize prompts]
+
+|0:54
+|**Drift fixed on the way.** Kumoss finds network rules that were
+changed outside the code and updates the code to match, in the same pull
+request.
+|xref:main:guides/remediate-drift.adoc[Remediate drift]
+
+|1:10
+|**A plan that passes.** Kumoss runs a real OpenTofu or Terraform plan,
+feeds any errors back to the agent, and audits the result for
+compliance.
+|xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+
+|1:25
+|**A report anyone can read.** The summary, the impact, and the
+estimated monthly cost, followed by the explanation of the drift fix and
+the generated code.
+|xref:main:guides/follow-a-session.adoc[Follow a session]
+
+|2:00
+|**Pull request and apply.** The developer opens the pull request,
+approves it, and confirms the apply. Kumoss applies exactly the plan that
+was reviewed.
+|xref:main:guides/merge-and-apply.adoc[Merge and apply]
+
+|2:15
+|**Live in the cloud.** The new resources appear in the cloud console,
+and every agent step is recorded as a trace.
+|xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
+
+|2:34
+|**Rules defined once.** The platform team keeps its security and
+architecture rules as versioned prompts that apply to every request.
+|xref:main:guides/customize-prompts.adoc[Customize prompts]
+
+|2:46
+|**A destructive request.** The same developer asks to delete the
+storage account. Kumoss flags the change as high impact.
+|xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+
+|3:08
+|**Deployment blocked.** The deletion breaks policy, so the session is
+locked and apply is refused, whoever asks. The platform team is
+notified.
+|xref:main:guides/merge-and-apply.adoc#session-locked[If the session is locked]
+
+|3:27
+|**Humans approve.** An administrator with the editor role reviews the
+locked session in the admin panel and removes the lock.
+|xref:main:guides/administer-users-and-locks.adoc#session-locks[Session locks]
+
+|3:44
+|**Reviewed, applied, recorded.** The developer applies the reviewed
+plan, and the resources are removed with a full audit trail.
+|xref:main:guides/merge-and-apply.adoc[Merge and apply]
+|===
+
+== Try it yourself
+
+[cta]
+====
+Run the same flow on your own machine with Docker Compose, then point
+Kumoss at one of your repositories.
+
+[.primary]
+xref:main:quickstart.adoc[Start the quickstart]
+====

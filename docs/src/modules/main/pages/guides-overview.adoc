@@ -4,7 +4,9 @@
 These guides show how to accomplish specific tasks with Kumoss. Pick the
 group that matches your role, then the guide that states your goal. For
 what each operating mode does today, side by side, see
-xref:main:reference/operating-modes.adoc[Operating modes].
+xref:main:reference/operating-modes.adoc[Operating modes]. To watch the
+main guides play out in one real session, see
+xref:main:see-it-in-action.adoc[See Kumoss in action].
 
 == Use Kumoss
 
