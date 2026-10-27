@@ -71,7 +71,9 @@ empty text.
    import ID in the format the "Import" section of the provider's
    documentation gives for that resource type and provider version
    (the full ID, a name, a short ID or a composite, depending on the
-   type), looked up with `web_search` once per resource type;
+   type), read once per resource type from the Terraform Registry with
+   `terraform_docs`, falling back to `web_search` when the registry
+   cannot answer;
 .. runs `terraform import` for each pair, one address at a time, through
    the IaC sidecar's `/v1/import`.
 +
