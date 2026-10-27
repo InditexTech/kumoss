@@ -31,13 +31,13 @@ from src.infrastructure.external.search_service import (
     SearchEngineError,
     SearchServiceClient,
 )
+from src.infrastructure.external.search_summarizer_service import (
+    SearchResultsSummarizer,
+)
 from src.infrastructure.external.terraform_registry_service import (
     TerraformDocsNotFoundError,
     TerraformRegistryClient,
     TerraformRegistryError,
-)
-from src.infrastructure.external.search_summarizer_service import (
-    SearchResultsSummarizer,
 )
 from src.shared.config import system_config
 from src.shared.constants import ToolContext

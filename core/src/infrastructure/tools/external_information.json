@@ -37,7 +37,7 @@
           "type": "string"
         },
         "version": {
-          "description": "The provider version in use: the exact version locked in `.terraform.lock.hcl` (e.g. '5.82.0') when there is one, otherwise the `required_providers` constraint (e.g. '~> 5.0'). Omit it only when neither exists, to read the latest version.",
+          "description": "The exact provider version locked in `.terraform.lock.hcl` (e.g. '5.82.0', '6.0.0-beta1'). Omit it when no version is locked, to read the latest version. Never pass a constraint such as '~> 5.0': the registry does not resolve it and the documentation is not found.",
           "type": "string"
         },
         "section": {

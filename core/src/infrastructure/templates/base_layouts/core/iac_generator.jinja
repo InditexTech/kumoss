@@ -60,7 +60,7 @@ Create a bare Terraform resource block for each cloud resource id in the user's 
 
 <provider_documentation>
 - When you are not certain of the arguments, nested blocks or allowed values of a resource or data source type in the provider version in use, call `terraform_docs` with section `full` and a specific `focus` before writing it. Pass `kind` `data_source` for a `data` block type.
-- Take the provider source and version from the root `.terraform.lock.hcl` (the exact locked version), else from the `required_providers` constraint.
+- Take the provider source from `required_providers` and the exact version from the root `.terraform.lock.hcl`. Pass only an exact version: when none is locked, omit `version` so the latest documentation is read; never pass a constraint such as `~> 5.0`.
 - Never repeat a `terraform_docs` call with the same type and focus. Use `web_search` only for what the registry documentation does not answer, or when `terraform_docs` reports that it is unavailable.
 </provider_documentation>
 

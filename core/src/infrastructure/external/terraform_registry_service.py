@@ -5,9 +5,8 @@
 """Terraform Registry client used by the core's ``terraform_docs`` tool.
 
 A resource page is two calls away. ``/v1/providers/<ns>/<name>[/<version>]``
-pins the provider version (the bare provider answers with its latest one
-and the full list of published versions) and lists every documentation
-page of that version with its registry id; ``/v2/provider-docs/<id>`` then
+pins the provider version (the bare provider answers with its latest one)
+and lists every documentation page of that version with its registry id; ``/v2/provider-docs/<id>`` then
 returns the page, already as markdown. The page index of an aws release
 is over a megabyte, so the index of every version read is kept
 in-process: the import agent asks once per resource type, usually all
@@ -46,12 +45,6 @@ class TerraformRegistryClient:
     __DEFAULT_HOST: ClassVar[str] = "registry.terraform.io"
     __DEFAULT_NAMESPACE: ClassVar[str] = "hashicorp"
     __INDEX_CACHE_SIZE: ClassVar[int] = 16
-    __EXACT_VERSION: ClassVar[re.Pattern[str]] = re.compile(
-        r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$"
-    )
-    __CONSTRAINT: ClassVar[re.Pattern[str]] = re.compile(
-        r"^(~>|>=|<=|!=|=|>|<)?\s*v?(\d+(?:\.\d+){0,2})$"
-    )
     __IMPORT_HEADING: ClassVar[re.Pattern[str]] = re.compile(
         r"^##\s+Import\b.*$", re.MULTILINE | re.IGNORECASE
     )
@@ -71,9 +64,10 @@ class TerraformRegistryClient:
     ) -> TerraformDoc:
         """The page of ``resource_type`` in ``provider`` at ``version``.
 
-        ``version`` is an exact version, a Terraform version constraint
-        (``~> 5.0``, ``>= 4.2, < 6``) resolved to the newest published
-        version satisfying it, or empty for the latest one.
+        ``version`` is an exact published version, pre-releases included,
+        or empty for the latest one. It goes to the registry as given, so
+        anything else (a constraint such as ``~> 5.0``) is answered by the
+        registry's 404 as not found.
         """
         namespace, name = self.split_source(provider)
         resource_type = resource_type.strip()
@@ -140,43 +134,6 @@ class TerraformRegistryClient:
             )
         return parts[0], parts[1]
 
-    @classmethod
-    def resolve_constraint(cls, constraint: str, versions: list[str]) -> str | None:
-        """Newest release in ``versions`` satisfying a Terraform version constraint."""
-        clauses: list[tuple[str, tuple[int, ...]]] = []
-        for clause in constraint.split(","):
-            match = cls.__CONSTRAINT.match(clause.strip())
-            if match is None:
-                return None
-            bound = cls.__parse_version(match.group(2)) or ()
-            clauses.append((match.group(1) or "=", bound))
-
-        def satisfies(v: tuple[int, ...]) -> bool:
-            for op, bound in clauses:
-                padded = bound + (0,) * (3 - len(bound))
-                if op == "~>":
-                    # Only the rightmost given segment may grow.
-                    prefix = bound[:-1] if len(bound) > 1 else bound
-                    ok = v >= padded and v[: len(prefix)] == prefix
-                else:
-                    ok = {
-                        "=": v == padded,
-                        "!=": v != padded,
-                        ">": v > padded,
-                        ">=": v >= padded,
-                        "<": v < padded,
-                        "<=": v <= padded,
-                    }[op]
-                if not ok:
-                    return False
-            return True
-
-        releases = [
-            (p, v) for v in versions if (p := cls.__parse_version(v)) is not None
-        ]
-        matching = [(p, v) for p, v in releases if satisfies(p + (0,) * (3 - len(p)))]
-        return max(matching)[1] if matching else None
-
     async def __doc_index(
         self,
         client: httpx.AsyncClient,
@@ -189,7 +146,7 @@ class TerraformRegistryClient:
         if version.lower() == "latest":
             version = ""
         cache = TerraformRegistryClient._doc_indexes
-        if version and self.__EXACT_VERSION.match(version):
+        if version:
             cached = cache.get((namespace, name, version))
             if cached is not None:
                 cache.move_to_end((namespace, name, version))
@@ -199,16 +156,6 @@ class TerraformRegistryClient:
             )
         else:
             body = await self.__get_json(client, f"/v1/providers/{namespace}/{name}")
-            if version:
-                resolved = self.resolve_constraint(version, body.get("versions") or [])
-                if resolved is None:
-                    raise TerraformDocsNotFoundError(
-                        message=f"No published version of {namespace}/{name} "
-                        + f"satisfies '{version}'.",
-                        error_code=404,
-                    )
-                if resolved != body.get("version"):
-                    return await self.__doc_index(client, namespace, name, resolved)
         exact = str(body.get("version") or version)
         index: list[dict[str, Any]] = body.get("docs") or []
         cache[(namespace, name, exact)] = index
@@ -249,13 +196,6 @@ class TerraformRegistryClient:
             if end >= 0:
                 return content[end + len("\n---") :].lstrip()
         return content
-
-    @staticmethod
-    def __parse_version(version: str) -> tuple[int, ...] | None:
-        """Numeric release segments; ``None`` for a pre-release or a malformed version."""
-        if not re.fullmatch(r"\d+(?:\.\d+)*", version):
-            return None
-        return tuple(int(p) for p in version.split("."))
 
     @staticmethod
     async def __get_json(client: httpx.AsyncClient, path: str) -> dict[str, Any]:

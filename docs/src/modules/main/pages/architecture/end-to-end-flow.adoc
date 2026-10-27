@@ -444,7 +444,7 @@ sessions
 
 |Report Generator
 |main
-|Plan and apply reports: `web_search`, `terraform_docs`. Drift report: `read_file`,
+|Plan and apply reports: `web_search`. Drift report: `read_file`,
 `list_dir`, `bulk_grep_search`, `diff_history` (it *must* call
 `diff_history`) and no web search
 |`generate_terraform_plan_report`, `generate_terraform_drift_report`

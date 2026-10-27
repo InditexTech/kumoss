@@ -12,7 +12,8 @@ that cannot be reached is a ``TerraformRegistryError`` it cannot.
 """
 
 import unittest
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 from unittest.mock import patch
 
 import httpx
@@ -134,19 +135,16 @@ class TestTerraformRegistryClient(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(doc.version, "6.70.0")
         self.assertEqual(self.paths[0], "/v1/providers/hashicorp/aws")
 
-    async def test_a_constraint_resolves_to_the_newest_matching_version(self):
+    async def test_a_prerelease_version_is_read_as_published(self):
         handler = self._routes(
             {
-                "/v1/providers/hashicorp/aws": _provider(
-                    "6.1.0", ["4.67.0", "5.0.0", "5.82.0", "6.1.0"]
-                ),
-                "/v1/providers/hashicorp/aws/5.82.0": _provider("5.82.0"),
+                "/v1/providers/hashicorp/aws/1.0.0-rc1": _provider("1.0.0-rc1"),
                 "/v2/provider-docs/3": _page("3"),
             }
         )
-        doc = await self._fetch(handler, "hashicorp/aws", "aws_s3_bucket", "~> 5.0")
+        doc = await self._fetch(handler, "hashicorp/aws", "aws_s3_bucket", "1.0.0-rc1")
 
-        self.assertEqual(doc.version, "5.82.0")
+        self.assertEqual(doc.version, "1.0.0-rc1")
 
     async def test_a_data_source_reads_the_data_sources_page(self):
         handler = self._routes(
@@ -193,12 +191,11 @@ class TestTerraformRegistryClient(unittest.IsolatedAsyncioTestCase):
                 self._routes({}), "hashicorp/aws", "aws_s3_bucket", "9.9.9"
             )
 
-    async def test_an_unsatisfiable_constraint_is_not_found(self):
-        handler = self._routes(
-            {"/v1/providers/hashicorp/aws": _provider("6.1.0", ["6.1.0"])}
-        )
+    async def test_a_constraint_goes_to_the_registry_and_is_not_found(self):
+        handler = self._routes({"/v1/providers/hashicorp/aws": _provider("6.1.0")})
         with self.assertRaises(TerraformDocsNotFoundError):
             await self._fetch(handler, "hashicorp/aws", "aws_s3_bucket", "~> 5.0")
+        self.assertNotIn("/v1/providers/hashicorp/aws", self.paths)
 
     async def test_a_server_error_is_a_registry_error(self):
         handler = self._routes(
@@ -239,7 +236,7 @@ class TestImportSection(unittest.TestCase):
         )
 
 
-class TestSourceAndVersion(unittest.TestCase):
+class TestProviderSource(unittest.TestCase):
     def test_source_forms(self):
         self.assertEqual(
             TerraformRegistryClient.split_source("aws"), ("hashicorp", "aws")
@@ -257,29 +254,3 @@ class TestSourceAndVersion(unittest.TestCase):
     def test_another_host_is_rejected(self):
         with self.assertRaises(TerraformDocsNotFoundError):
             TerraformRegistryClient.split_source("example.com/acme/thing")
-
-    def test_constraints(self):
-        versions = ["4.67.0", "5.0.0", "5.1.2", "5.82.0", "6.0.0-beta1", "6.1.0"]
-
-        self.assertEqual(
-            TerraformRegistryClient.resolve_constraint("~> 5.0", versions), "5.82.0"
-        )
-        self.assertEqual(
-            TerraformRegistryClient.resolve_constraint("~> 5.1.0", versions), "5.1.2"
-        )
-        self.assertEqual(
-            TerraformRegistryClient.resolve_constraint(">= 4.0, < 6.0", versions),
-            "5.82.0",
-        )
-        self.assertEqual(
-            TerraformRegistryClient.resolve_constraint(">= 6.0", versions), "6.1.0"
-        )
-        self.assertEqual(
-            TerraformRegistryClient.resolve_constraint("= 5.0.0", versions), "5.0.0"
-        )
-        self.assertIsNone(
-            TerraformRegistryClient.resolve_constraint("~> 7.0", versions)
-        )
-        self.assertIsNone(
-            TerraformRegistryClient.resolve_constraint("not a constraint", versions)
-        )
