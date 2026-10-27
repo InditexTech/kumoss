@@ -1,6 +1,6 @@
 module github.com/InditexTech/kumoss/cli
 
-go 1.26.8
+go 1.27.3
 
 require (
 	github.com/atotto/clipboard v0.1.4 // indirect
