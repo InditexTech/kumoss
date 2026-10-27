@@ -62,7 +62,7 @@ Each integration point is a sidecar service behind an [OpenAPI contract](contrac
 
 Watch a real, unscripted cloud session, condensed for viewing with explanatory overlays and recreated notification cards: a developer asks for infrastructure in plain language, Kumoss delivers a compliant pull request and applies it, and then a risky delete is stopped until an administrator says yes.
 
-https://github.com/user-attachments/assets/3183b9e5-5414-4352-93f1-8254c58affba
+https://github.com/user-attachments/assets/094aabaf-f78d-495e-b9df-3d196f0ac054
 
 In four minutes, you see Kumoss:
 
