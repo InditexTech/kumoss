@@ -45,3 +45,16 @@ func SetPointer(root string) error {
 	}
 	return os.WriteFile(p, []byte(root+"\n"), 0o600)
 }
+
+// ClearPointer forgets the persisted home so resolution falls back to
+// KUMOSS_HOME, then ~/.kumoss. A missing pointer is not an error.
+func ClearPointer() error {
+	p := pointerPath()
+	if p == "" {
+		return nil
+	}
+	if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
+}

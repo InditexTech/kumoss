@@ -7,6 +7,7 @@ package home
 import (
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // Home is the resolved root of the managed directory. It is the only place
@@ -25,26 +26,37 @@ const (
 	SourceDefault
 )
 
-// New resolves the home directory. Precedence: --home flag, then KUMOSS_HOME,
-// then the pointer file written by `kumoss init`, then ~/.kumoss. This is the
-// only reader of KUMOSS_HOME.
-func New(flagHome string) Home {
+// FromFlag resolves the home directory. Precedence: --home flag, then
+// KUMOSS_HOME, then the pointer file written by `kumoss init`, then ~/.kumoss.
+// This is the only reader of KUMOSS_HOME.
+func FromFlag(flagHome string) Home {
 	h, _ := Resolve(flagHome)
 	return h
 }
 
-// Resolve is New plus the Source, for `kumoss home` to explain itself.
+// Resolve is FromFlag plus the Source, for `kumoss home` to explain itself.
 func Resolve(flagHome string) (Home, Source) {
 	switch {
 	case flagHome != "":
-		return Home{Root: flagHome}, SourceFlag
+		return Home{Root: expand(flagHome)}, SourceFlag
 	case os.Getenv("KUMOSS_HOME") != "":
-		return Home{Root: os.Getenv("KUMOSS_HOME")}, SourceEnv
+		return Home{Root: expand(os.Getenv("KUMOSS_HOME"))}, SourceEnv
 	case readPointer() != "":
-		return Home{Root: readPointer()}, SourcePointer
+		return Home{Root: expand(readPointer())}, SourcePointer
 	default:
 		return Home{Root: defaultRoot()}, SourceDefault
 	}
+}
+
+// expand resolves a leading ~ so a quoted `--home '~/x'` is stored and reported
+// as a real path, matching the shell's own expansion.
+func expand(path string) string {
+	if path == "~" || strings.HasPrefix(path, "~/") {
+		if dir, err := os.UserHomeDir(); err == nil {
+			return filepath.Join(dir, strings.TrimPrefix(strings.TrimPrefix(path, "~"), "/"))
+		}
+	}
+	return filepath.Clean(path)
 }
 
 func defaultRoot() string {
