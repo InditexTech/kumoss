@@ -58,10 +58,26 @@ Each integration point is a sidecar service behind an [OpenAPI contract](contrac
 8. **Risky changes wait for review.** If the proposal is not compliant or is high impact, apply is blocked and your administrator team is notified to accept or reject it.
 9. **You apply.** Once the proposal is cleared, you approve and apply it, and Kumoss gives you a new report with the result.
 
+## ▶️ See Kumoss in action: a real run
+
+Watch a real, unscripted cloud session, condensed for viewing with explanatory overlays and recreated notification cards: a developer asks for infrastructure in plain language, Kumoss delivers a compliant pull request and applies it, and then a risky delete is stopped until an administrator says yes.
+
+https://github.com/user-attachments/assets/3183b9e5-5414-4352-93f1-8254c58affba
+
+In four minutes, you see Kumoss:
+
+- **Turn one sentence into working infrastructure.** _"My app needs to store images and use a fixed outbound IP"_ becomes storage, a NAT gateway, and a static IP, built to your organization's standards.
+- **Fix drift nobody told it about.** A network rule changed by hand in the cloud is found and folded back into the code, in the same pull request.
+- **Show the impact and the cost before anything changes.** A report anyone can read, then a pull request that applies exactly the reviewed plan.
+- **Block a dangerous delete on its own.** The session locks, the platform team is notified, and only an administrator can lift the lock.
+
+**[Read the step-by-step walkthrough, with a link to the guide behind each moment →](https://inditextech.github.io/kumoss/stable/main/see-it-in-action/)**
+
 ## Documentation
 
 The full documentation is published at **[inditextech.github.io/kumoss](https://inditextech.github.io/kumoss/stable/)**.
 
+- [See it in action](https://inditextech.github.io/kumoss/stable/main/see-it-in-action/): a real, unscripted session, from request to applied pull request and a blocked delete.
 - [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/): run the full stack locally with Docker Compose.
 - [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/): components, the core's layering, and the end-to-end flow from a request to an applied plan.
 
