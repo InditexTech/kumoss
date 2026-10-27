@@ -1,4 +1,4 @@
-module github.com/InditexTech/kumoss/cli
+module github.com/InditexTech/kumoss/client/cli
 
 go 1.27.3
 

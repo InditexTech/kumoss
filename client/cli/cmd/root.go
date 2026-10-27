@@ -7,10 +7,10 @@ package cmd
 import (
 	"os"
 
-	cmd "github.com/InditexTech/kumoss/cli/cmd/kumoss"
-	"github.com/InditexTech/kumoss/cli/internal/buildinfo"
-	"github.com/InditexTech/kumoss/cli/internal/cli"
-	"github.com/InditexTech/kumoss/cli/internal/home"
+	cmd "github.com/InditexTech/kumoss/client/cli/cmd/kumoss"
+	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
+	"github.com/InditexTech/kumoss/client/cli/internal/cli"
+	"github.com/InditexTech/kumoss/client/cli/internal/home"
 	"github.com/spf13/cobra"
 )
 

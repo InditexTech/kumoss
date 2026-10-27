@@ -6,7 +6,7 @@
 // subcommand. It sits below both so neither has to import the other.
 package cli
 
-import "github.com/InditexTech/kumoss/cli/internal/home"
+import "github.com/InditexTech/kumoss/client/cli/internal/home"
 
 // Flags is the resolved, read-only context every subcommand receives. It is
 // built once in the root's PersistentPreRunE, so no command resolves flags.
