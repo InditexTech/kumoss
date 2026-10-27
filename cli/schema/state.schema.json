@@ -1,0 +1,123 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://inditextech.github.io/kumoss/schema/state.schema.json",
+    "title": "Kumoss CLI state (kumoss.yaml)",
+    "description": "Non-secret configuration persisted by `kumoss init`. Secrets never appear here; they live only in generated .env files.",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+        "schema_version",
+        "llm",
+        "git",
+        "storage"
+    ],
+    "properties": {
+        "schema_version": {
+            "type": "integer",
+            "const": 1,
+            "description": "Bumped on breaking layout changes so `kumoss init` can migrate older state."
+        },
+        "llm": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "model",
+                "small_model"
+            ],
+            "properties": {
+                "model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "LiteLLM model string for complex tasks (provider/model-id)."
+                },
+                "small_model": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "LiteLLM model string for cheap filler tasks."
+                },
+                "temperature": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 2,
+                    "default": 0.1
+                },
+                "max_output_tokens": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "default": 32000
+                },
+                "timeout": {
+                    "type": "number",
+                    "minimum": 0,
+                    "default": 600
+                }
+            }
+        },
+        "git": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "provider",
+                "author_name",
+                "author_email"
+            ],
+            "properties": {
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "GITHUB",
+                        "AZURE_DEVOPS",
+                        "GITLAB"
+                    ],
+                    "description": "Maps to config.yaml git.provider (GitProviderName enum)."
+                },
+                "author_name": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "author_email": {
+                    "type": "string",
+                    "format": "email"
+                }
+            }
+        },
+        "storage": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+                "provider",
+                "bucket"
+            ],
+            "properties": {
+                "provider": {
+                    "type": "string",
+                    "enum": [
+                        "RUSTFS",
+                        "S3",
+                        "STORAGE_ACCOUNT"
+                    ],
+                    "description": "Maps to config.yaml storage.provider (ObjectStorageProvider enum)."
+                },
+                "bucket": {
+                    "type": "string",
+                    "minLength": 1
+                },
+                "terraform_state_bucket": {
+                    "type": "string",
+                    "description": "Empty string = repository-declared state; never null."
+                },
+                "region": {
+                    "type": "string"
+                },
+                "endpoint_url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "public_endpoint_url": {
+                    "type": "string",
+                    "format": "uri"
+                }
+            }
+        }
+    }
+}
