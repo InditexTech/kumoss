@@ -37,7 +37,7 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			envFlags = cli.Flags{Home: home.New(flagHome), JSON: flagJSON, Yes: flagYes, HomeFlag: flagHome}
+			envFlags = cli.Flags{Home: home.FromFlag(flagHome), JSON: flagJSON, Yes: flagYes, HomeFlag: flagHome}
 			return nil
 		},
 	}
