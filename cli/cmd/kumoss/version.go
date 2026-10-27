@@ -8,10 +8,11 @@ import (
 	"fmt"
 
 	"github.com/InditexTech/kumoss/cli/internal/buildinfo"
+	"github.com/InditexTech/kumoss/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
-func NewVersionCmd(root *cobra.Command) *cobra.Command {
+func NewVersionCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
 		Short: "Print the version number of Kumoss CLI and the checked-out stack tag",

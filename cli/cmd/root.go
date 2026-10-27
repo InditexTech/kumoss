@@ -9,6 +9,8 @@ import (
 
 	cmd "github.com/InditexTech/kumoss/cli/cmd/kumoss"
 	"github.com/InditexTech/kumoss/cli/internal/buildinfo"
+	"github.com/InditexTech/kumoss/cli/internal/cli"
+	"github.com/InditexTech/kumoss/cli/internal/home"
 	"github.com/spf13/cobra"
 )
 
@@ -20,6 +22,13 @@ func Execute(command *cobra.Command) {
 }
 
 func NewRootCmd() *cobra.Command {
+	var (
+		flagHome string
+		flagJSON bool
+		flagYes  bool
+		envFlags cli.Flags
+	)
+
 	root := &cobra.Command{
 		Use:           "kumoss",
 		Short:         "Kumoss CLI",
@@ -27,20 +36,27 @@ func NewRootCmd() *cobra.Command {
 		Version:       buildinfo.Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			envFlags = cli.Flags{Home: home.New(flagHome), JSON: flagJSON, Yes: flagYes, HomeFlag: flagHome}
+			return nil
+		},
 	}
 
-	root.PersistentFlags().String("home", "", "managed home directory (default ~/.kumoss)")
-	root.PersistentFlags().Bool("json", false, "machine-readable output")
-	root.PersistentFlags().Bool("yes", false, "assume yes for confirmations")
+	root.PersistentFlags().StringVar(&flagHome, "home", "", "managed home directory (default ~/.kumoss)")
+	root.PersistentFlags().BoolVarP(&flagJSON, "json", "j", false, "machine-readable output")
+	root.PersistentFlags().BoolVarP(&flagYes, "yes", "y", false, "assume yes for confirmations")
+
+	AddChildCommands(root, &envFlags)
 
 	return root
 }
 
-func AddChildCommands(rootCmd *cobra.Command) {
-	cmd.NewVersionCmd(rootCmd)
-	cmd.NewInitCmd(rootCmd)
-	cmd.NewStatusCmd(rootCmd)
-	cmd.NewLogsCmd(rootCmd)
-	cmd.NewConfigCmd(rootCmd)
-	cmd.NewDoctorCmd(rootCmd)
+func AddChildCommands(rootCmd *cobra.Command, env *cli.Flags) {
+	cmd.NewVersionCmd(rootCmd, env)
+	cmd.NewInitCmd(rootCmd, env)
+	cmd.NewStatusCmd(rootCmd, env)
+	cmd.NewLogsCmd(rootCmd, env)
+	cmd.NewConfigCmd(rootCmd, env)
+	cmd.NewDoctorCmd(rootCmd, env)
+	cmd.NewHomeCmd(rootCmd, env)
 }
