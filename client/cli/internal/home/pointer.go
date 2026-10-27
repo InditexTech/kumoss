@@ -34,7 +34,7 @@ func readPointer() string {
 }
 
 // SetPointer remembers root so later invocations resolve it without --home.
-// Called only by `kumoss init`.
+// Called only by `kumoss init` and `kumoss home --home`.
 func SetPointer(root string) error {
 	p := pointerPath()
 	if p == "" {

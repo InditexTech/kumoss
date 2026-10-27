@@ -15,10 +15,13 @@ import (
 func NewVersionCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print the version number of Kumoss CLI and the checked-out stack tag",
+		Short: "Print the Kumoss CLI version and the stack tag it targets",
+		Long: "Print the Kumoss CLI version and the stack tag it targets.\n\n" +
+			"The tag is the release version for release builds, else the KUMOSS_TAG\n" +
+			"env var, else \"main\".",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			fmt.Fprintf(cmd.OutOrStdout(), "kumoss %s\n", buildinfo.Version)
-			return nil
+			_, err := fmt.Fprintf(cmd.OutOrStdout(), "kumoss %s (stack %s)\n", buildinfo.Version, buildinfo.KumossTag())
+			return err
 		},
 	}
 	root.AddCommand(cmd)
