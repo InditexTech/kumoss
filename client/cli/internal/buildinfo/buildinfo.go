@@ -11,7 +11,7 @@ import (
 
 // Version is the CLI version. It is overwritten at build time via
 //
-//	-ldflags "-X github.com/InditexTech/kumoss/cli/internal/buildinfo.Version=v1.2.3"
+//	-ldflags "-X github.com/InditexTech/kumoss/client/cli/internal/buildinfo.Version=v1.2.3"
 //
 // and stays "dev" for local builds.
 var Version = "dev"

@@ -5,14 +5,14 @@
 package cmd
 
 import (
-	"github.com/InditexTech/kumoss/cli/internal/cli"
+	"github.com/InditexTech/kumoss/client/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
-func NewLogsCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
+func NewStatusCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "logs",
-		Short: "Show the logs of the Kumoss CLI environment",
+		Use:   "status",
+		Short: "Show the status of the Kumoss CLI environment",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return nil
 		},

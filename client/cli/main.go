@@ -5,7 +5,7 @@
 package main
 
 import (
-	"github.com/InditexTech/kumoss/cli/cmd"
+	"github.com/InditexTech/kumoss/client/cli/cmd"
 )
 
 func main() {

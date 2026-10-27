@@ -5,7 +5,7 @@
 package cmd
 
 import (
-	"github.com/InditexTech/kumoss/cli/internal/cli"
+	"github.com/InditexTech/kumoss/client/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
