@@ -5,10 +5,11 @@
 package cmd
 
 import (
+	"github.com/InditexTech/kumoss/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
-func NewConfigCmd(root *cobra.Command) *cobra.Command {
+func NewConfigCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Show the configuration of the Kumoss CLI environment",

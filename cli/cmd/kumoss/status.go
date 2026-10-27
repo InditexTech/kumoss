@@ -5,10 +5,11 @@
 package cmd
 
 import (
+	"github.com/InditexTech/kumoss/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
-func NewStatusCmd(root *cobra.Command) *cobra.Command {
+func NewStatusCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show the status of the Kumoss CLI environment",

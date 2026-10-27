@@ -5,10 +5,11 @@
 package cmd
 
 import (
+	"github.com/InditexTech/kumoss/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
-func NewDoctorCmd(root *cobra.Command) *cobra.Command {
+func NewDoctorCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Show the health status of the Kumoss CLI environment",

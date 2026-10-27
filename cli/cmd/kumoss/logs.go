@@ -5,10 +5,11 @@
 package cmd
 
 import (
+	"github.com/InditexTech/kumoss/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
-func NewLogsCmd(root *cobra.Command) *cobra.Command {
+func NewLogsCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "logs",
 		Short: "Show the logs of the Kumoss CLI environment",
