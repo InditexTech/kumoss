@@ -25,3 +25,20 @@ def test_token_claims_groups_default_empty():
         name=None,
     )
     assert tc.groups == []
+
+
+def test_token_claims_properties_defaults_to_empty_dict():
+    tc = TokenClaims(issuer="iss", subject="sub", email=None, name=None)
+    assert tc.properties == {}
+
+
+def test_token_claims_properties_are_accessible():
+    tc = TokenClaims(
+        issuer="iss",
+        subject="sub",
+        email=None,
+        name=None,
+        properties={"identifier": "abc", "tenant_id": "xyz"},
+    )
+    assert tc.properties["identifier"] == "abc"
+    assert tc.properties["tenant_id"] == "xyz"

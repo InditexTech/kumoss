@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from dataclasses import dataclass, field
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -12,6 +13,9 @@ class TokenClaims:
     ``email_verified`` is True only when the token carried an ``email``
     claim together with ``email_verified: true``; a missing flag or a
     ``preferred_username`` fallback stored in ``email`` leaves it False.
+
+    ``properties`` is the config-driven claim bag forwarded to the authz
+    PDP as ``subject.properties``.
     """
 
     issuer: str
@@ -20,6 +24,7 @@ class TokenClaims:
     name: str | None
     email_verified: bool = False
     groups: list[str] = field(default_factory=list)
+    properties: dict[str, Any] = field(default_factory=dict)
 
 
 DEV_CLAIMS = TokenClaims(
@@ -29,4 +34,5 @@ DEV_CLAIMS = TokenClaims(
     name="Local Developer",
     email_verified=True,
     groups=[],
+    properties={"issuer": "urn:kumoss:dev", "email": "dev@kumoss.local"},
 )
