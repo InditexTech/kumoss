@@ -41,6 +41,7 @@ async def authorize(
     claims: TokenClaims,
     action: str,
     *,
+    user_id: int,
     scope_id: str,
     provider: TerraformProvider,
     repo_uri: str,
@@ -48,11 +49,13 @@ async def authorize(
     session_id: UUID | None = None,
     iteration: bool = False,
 ) -> None:
-    subject_props = SubjectProperties(
-        issuer=claims.issuer,
-        email=claims.email if claims.email_verified else UNSET,
-        groups=claims.groups if claims.groups else UNSET,
-    )
+    props = dict(claims.properties)
+    if not claims.email_verified:
+        props.pop("email", None)
+    groups = props.get("groups")
+    if groups is not None and not isinstance(groups, list):
+        props["groups"] = [groups] if isinstance(groups, str) else []
+    subject_props = SubjectProperties.from_dict(props)
 
     resource_props = ResourceProperties(
         provider=provider,
@@ -68,7 +71,7 @@ async def authorize(
     request = AccessEvaluationRequest(
         subject=Subject(
             type_=SubjectType.USER,
-            id=claims.subject,
+            id=str(user_id),
             properties=subject_props,
         ),
         action=Action(name=ActionName(action)),
