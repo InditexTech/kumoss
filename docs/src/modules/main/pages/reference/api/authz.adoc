@@ -104,7 +104,7 @@ enabled, the core *never* fails open:
 {
   "subject": {
     "type": "user",
-    "id": "someone@example.com",
+    "id": "42",
     "properties": {
       "issuer": "https://login.microsoftonline.com/.../v2.0",
       "email": "someone@example.com",
@@ -142,20 +142,21 @@ enabled, the core *never* fails open:
 
 |`id`
 |Yes
-|The OIDC `sub` claim of the caller.
+|The application's internal user ID (database primary key), as a string.
 
 |`properties.issuer`
 |No
-|The OIDC `iss` claim.
+|The OIDC `iss` claim (universal default).
 
 |`properties.email`
 |No
-|Present only when the token's `email_verified` is true.
+|Present only when the token's `email_verified` is true (universal default).
 
-|`properties.groups`
+|`properties.*`
 |No
-|Group memberships from the JWT `groups` claim (configurable via
-`oidc.groups_claim`). Omitted when empty.
+|Any additional claims configured via `oidc.claims` in `config.yaml`.
+For example, `groups`, `identifier`, `tenant_id`. See
+xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 |===
 
 ==== Action
@@ -323,4 +324,4 @@ suite's job.
   permissions] for the roles that gate Kumoss itself.
 * xref:main:reference/configuration.adoc#config-services[the `services`
   section] of the configuration reference for enabling the sidecar and
-  setting `oidc.groups_claim`.
+  configuring `oidc.claims`.

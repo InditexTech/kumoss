@@ -169,14 +169,18 @@ the default and the issuer host is `login.microsoftonline.com`,
 |Optional
 |Leeway applied to `exp`, `iat`, and `nbf` validation.
 
-|`oidc.groups_claim`
-|string
-|`"groups"`
+|`oidc.claims`
+|map (string → string)
+|`{}`
 |Optional
-|JWT claim name for group memberships. Extracted at token validation and
-forwarded to the authorization PDP as `subject.properties.groups`. Set
-to blank (`""`) to disable. Entra ID caveat: group claims are object IDs;
-users with >200 groups receive an overage indicator instead of the list.
+|Extra JWT claims to extract and forward to the authorization PDP as
+`subject.properties`. Keys are the property names sent to the PDP;
+values are the JWT claim names to read from the token. These merge with
+the universal defaults (`issuer` ← `iss`, `email` ← `email`); extras
+override a default on collision. Example for Azure Entra ID:
+`{ groups: "groups", identifier: "oid", tenant_id: "tid" }`.
+Entra ID caveat: group claims are object IDs; users with >200 groups
+receive an overage indicator instead of the list.
 |===
 
 Related environment variables: none. The SPA is a public PKCE client
@@ -988,7 +992,8 @@ oidc:
   issuer_url: "https://login.example.invalid/realms/platform"
   client_id: "kumoss-web"
   clock_skew_seconds: 60
-  groups_claim: "groups"
+  claims:
+    groups: "groups"
 
 admin:
   default_root_email: "platform-admin@example.invalid"
