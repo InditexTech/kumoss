@@ -248,12 +248,14 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         )
         from src.api.authz import authorize
 
-        claims = _claims(properties={
-            "issuer": "https://idp.test",
-            "email": "alice@example.com",
-            "identifier": "obj-id-123",
-            "tenant_id": "tenant-abc",
-        })
+        claims = _claims(
+            properties={
+                "issuer": "https://idp.test",
+                "email": "alice@example.com",
+                "identifier": "obj-id-123",
+                "tenant_id": "tenant-abc",
+            }
+        )
         await authorize(
             claims,
             "generate",
@@ -270,7 +272,9 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(props_dict["tenant_id"], "tenant-abc")
 
     @patch("src.api.authz.AuthzServiceClient")
-    async def test_authorize_omits_email_from_properties_when_unverified(self, mock_cls):
+    async def test_authorize_omits_email_from_properties_when_unverified(
+        self, mock_cls
+    ):
         mock_cls.return_value.evaluate = AsyncMock(
             return_value=AccessEvaluationResponse(decision=True)
         )
