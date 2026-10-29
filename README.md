@@ -50,9 +50,9 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 
 ## Why Kumoss
 
-Kumoss turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, and Kumoss's agents generate Terraform-compatible HCL in the right repository, guided by the organization's architecture, security, and networking standards. Every change is validated, planned, reported, and audited for compliance before Kumoss opens a pull request and applies it on request.
+Kumoss turns **natural-language requests into reviewed, compliant Infrastructure as Code (IaC)**. Platform engineers and developers describe what they need; Kumoss's agents generate Terraform-compatible HCL in the right repository, following your architecture, security, and networking standards. Every change is **validated, planned, reported, and audited for compliance** before Kumoss opens a pull request and applies it on request.
 
-The result is **developer autonomy for infrastructure operations**. Developers create, change, and maintain their own infrastructure, including day-2 operations such as updates, drift remediation, and importing existing resources, without waiting on the platform team or needing IaC expertise. Every operation stays safe and compliant: the organization's guardrails apply on every request, and anything high impact or non-compliant waits for an administrator.
+The result is **developer autonomy for infrastructure operations**: developers create, change, and maintain their own infrastructure, **day-2 included** (updates, drift remediation, importing existing resources), without waiting on the platform team or needing IaC expertise. It stays **safe and compliant**: your guardrails apply to every request, and anything high impact or non-compliant waits for an administrator.
 
 |                         | Without Kumoss                                     | With Kumoss                                                      |
 | ----------------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
