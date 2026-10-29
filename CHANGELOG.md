@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-29)
+
+
+### Bug Fixes
+
+* **deps:** bump dnspython to 2.9.0 ([GHSA-45c3-73f7-pv4m](https://osv.dev/GHSA-45c3-73f7-pv4m)) ([db959e4](https://github.com/InditexTech/kumoss/commit/db959e4a869170ca3d340973a04c98b823f2cb93))
+
+
+### Documentation
+
+* add QuickStart section to README ([75ab278](https://github.com/InditexTech/kumoss/commit/75ab278fa17fbd499bfe0d83629504ff3c4d5e2c))
+* add real-run demo video to README and docs site ([56f1e6d](https://github.com/InditexTech/kumoss/commit/56f1e6d7f90bb01e86b4bff0b87b61d3f95e3349))
+* add roadmap section to README ([2482f02](https://github.com/InditexTech/kumoss/commit/2482f0213ac72f1927ba8bb5c65934111a890108))
+* simplify README roadmap section ([087c43a](https://github.com/InditexTech/kumoss/commit/087c43a6e24f238337db09b328c69cb9137a4154))
+* update real-run demo video ([ab32583](https://github.com/InditexTech/kumoss/commit/ab325830ce23e8220cae6358713687825e95ee68))
+* update real-run demo video with sharper cloud console footage ([07fb52e](https://github.com/InditexTech/kumoss/commit/07fb52ea5ae0d2cc05d291632c856a5363d71efc))
+
 ## [1.0.2](https://github.com/InditexTech/kumoss/compare/v1.0.1...v1.0.2) (2026-10-26)
 
 
