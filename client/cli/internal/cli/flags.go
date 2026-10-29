@@ -16,14 +16,14 @@ import (
 type Flags struct {
 	Home home.Home
 
-	// HomeFlag is the raw --home value: "" when the user did not pass it.
+	// HomeOverride is the raw --home value: "" when the user did not pass it.
 	// Only init and home consult it, to decide whether to persist the choice.
-	HomeFlag string
+	HomeOverride string
 }
 
 // RegisterHome adds the --home flag to a command that honours it. Only init
 // and home do: registering it everywhere would accept the flag on commands
 // that ignore it, silently doing nothing.
 func (f *Flags) RegisterHome(cmd *cobra.Command) {
-	cmd.Flags().StringVar(&f.HomeFlag, "home", "", "managed home directory (default ~/.kumoss)")
+	cmd.Flags().StringVar(&f.HomeOverride, "home", "", "managed home directory (default ~/.kumoss)")
 }

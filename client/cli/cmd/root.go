@@ -36,9 +36,9 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			// HomeFlag is bound by whichever command registered --home (empty
-			// elsewhere); resolve it here, once parsing is done.
-			envFlags.Home = home.FromFlag(envFlags.HomeFlag)
+			// HomeOverride is bound by whichever command registered --home
+			// (empty elsewhere); resolve it here, once parsing is done.
+			envFlags.Home = home.FromFlag(envFlags.HomeOverride)
 			return nil
 		},
 	}

@@ -6,7 +6,7 @@ package cmd
 
 import (
 	"github.com/InditexTech/kumoss/client/cli/internal/cli"
-	"github.com/InditexTech/kumoss/client/cli/internal/home"
+	"github.com/InditexTech/kumoss/client/cli/internal/pipeline"
 	"github.com/spf13/cobra"
 )
 
@@ -22,17 +22,10 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			"override and the .env files are produced by their own commands.\n\n" +
 			"Launches the TUI for further interactions.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if err := flags.Home.Ensure(); err != nil {
-				return err
-			}
-			// Only an explicit --home is persisted; otherwise there is nothing
-			// to remember beyond the default.
-			if flags.HomeFlag != "" {
-				if err := home.SetPointer(flags.Home.Root); err != nil {
-					return err
-				}
-			}
-			return nil
+			return pipeline.RunPipeline(pipeline.Options{
+				Home:        flags.Home,
+				PersistHome: flags.HomeOverride != "",
+			})
 		},
 	}
 	root.AddCommand(cmd)
