@@ -596,13 +596,11 @@ loses detail the agent cannot get back.
 |===
 
 Each search starts the same way: the engine returns ranked hits, and
-every hit's page is rendered in headless Chromium through Playwright and
-reduced to markdown with https://trafilatura.readthedocs.io/[trafilatura],
-so the agent works from the pages themselves — including
-JavaScript-rendered ones — rather than the engine's snippets. The pages
-are read concurrently from one shared browser, and Chromium presents the
-fingerprint bot protection expects, so blogs and forums answer `200`
-where a bare HTTP client would get `403`. A page that will not render
+every hit's page is fetched over HTTP and reduced to markdown with
+https://trafilatura.readthedocs.io/[trafilatura], so the agent works from
+the pages themselves rather than the engine's snippets. The pages are
+read concurrently over one shared client. A page that will not fetch or
+extract — a `403` from bot protection, a PDF, a JavaScript-only page —
 falls back to its snippet, so a partial failure costs detail rather than
 the whole search.
 

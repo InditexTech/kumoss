@@ -6,15 +6,12 @@
 
 Delegates to the LiteLLM unified search API (``litellm.asearch``) so the
 search backend is swappable from ``config.yaml`` (SearXNG, Tavily, Brave,
-Perplexity, ...), then reads each hit's page. Engine snippets are a
-sentence or two, too thin for the provider-documentation lookups the
-agents make, so each page is rendered in headless Chromium (Playwright)
-and reduced to markdown with trafilatura: the render executes the page's
-JavaScript, and Chromium carries the browser fingerprint bot protection
-expects.
+Perplexity, ...), then reads each hit's page and extracts its readable
+text as markdown with trafilatura: engine snippets are a sentence or
+two, too thin for the provider-documentation lookups the agents make.
 
 Degrades in layers, mirroring the pattern used by ``AuthzServiceClient``:
-a page that will not render or extract falls back to the engine snippet,
+a page that will not fetch or extract falls back to the engine snippet,
 and only a failure of the search call itself raises the typed
 ``SearchEngineError`` that the caller turns into a "do not retry" tool
 result.
@@ -25,12 +22,11 @@ from __future__ import annotations
 import asyncio
 
 from types import TracebackType
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
+import httpx
 import litellm
 import trafilatura
-from playwright.async_api import async_playwright
-from playwright.async_api import Error as PlaywrightError
 
 from src.domains.value_objects import SearchResult
 from src.shared.config import system_config
@@ -48,19 +44,29 @@ def _text(hit: Any, field: str) -> str:
 
 
 class _PageReader:
-    """Render search-hit pages in one shared headless Chromium.
+    """Fetch search-hit pages over one shared HTTP client.
 
-    One browser serves a whole search's reads; each hit gets a throwaway
-    context on top of it, which is far lighter than a Chromium per page.
+    One connection pool serves a whole search's reads, so hits on the
+    same host reuse their connection.
     """
 
+    # Some documentation sites and forums answer a library User-Agent with
+    # a 403; a browser-shaped request header set gets the page.
+    BROWSER_HEADERS: ClassVar[dict[str, str]] = {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
     def __init__(self) -> None:
-        self.__playwright: Any = None
-        self.__browser: Any = None
+        self.__client = httpx.AsyncClient(
+            headers=self.BROWSER_HEADERS, follow_redirects=True
+        )
 
     async def __aenter__(self) -> Self:
-        self.__playwright = await async_playwright().start()
-        self.__browser = await self.__playwright.chromium.launch(headless=True)
         return self
 
     async def __aexit__(
@@ -69,43 +75,28 @@ class _PageReader:
         exc: BaseException | None,
         tb: TracebackType | None,
     ) -> None:
-        if self.__browser:
-            await self.__browser.close()
-        if self.__playwright:
-            await self.__playwright.stop()
+        await self.__client.aclose()
 
     async def read(self, url: str, timeout: float) -> str:
-        """Render ``url`` and return its readable text as markdown.
+        """Fetch ``url`` and return its readable text as markdown.
 
         Raises ``PageReadError`` for every expected failure — a dead
         link, a non-2xx response, a document trafilatura cannot reduce to
-        text (PDFs) — so the caller can tell those apart from a bug.
+        text (PDFs, JavaScript-only pages) — so the caller can tell those
+        apart from a bug.
         """
         try:
-            context = await self.__browser.new_context()
-            try:
-                page = await context.new_page()
-                response = await page.goto(
-                    url, timeout=timeout * 1000, wait_until="domcontentloaded"
-                )
-                try:
-                    await page.wait_for_load_state("networkidle", timeout=5000)
-                except PlaywrightError:
-                    pass  # chatty pages never idle; the DOM is there already
-                if response and response.status >= 400:
-                    raise PageReadError(
-                        message=f"'{url}' answered HTTP {response.status}",
-                        error_code=502,
-                    )
-                html = await page.content()
-            finally:
-                await context.close()
-        except PageReadError:
-            raise
-        except PlaywrightError as e:
+            response = await self.__client.get(url, timeout=timeout)
+        except httpx.HTTPError as e:
             raise PageReadError(
-                message=f"could not render '{url}'", error_code=502
+                message=f"could not fetch '{url}'", error_code=502
             ) from e
+        if response.status_code >= 400:
+            raise PageReadError(
+                message=f"'{url}' answered HTTP {response.status_code}",
+                error_code=502,
+            )
+        html = response.text
         # trafilatura parses HTML with lxml: CPU-bound and blocking, so
         # keep it off the event loop while sibling reads are in flight.
         text = await asyncio.to_thread(
@@ -156,8 +147,8 @@ class SearchServiceClient:
             return []
 
         # One page read per hit, all in flight at once, sharing a single
-        # Chromium; each read is bounded by `wait_for` so a hung page
-        # cannot stretch the batch.
+        # HTTP client; each read is bounded by `wait_for` so a slow-dripping
+        # page cannot stretch the batch.
         async def _read(url: str) -> str:
             if not url:
                 raise PageReadError(message="search hit carried no url", error_code=422)

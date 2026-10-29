@@ -24,13 +24,12 @@
 #
 # The fix is two-part, both wired below:
 #
-#   * Build — the core image downloads Chromium, and both images fetch
-#     their dependencies over HTTPS, so the corporate roots are needed at
-#     build time too. The `host-certs` build context points at the host
+#   * Build — both images fetch their dependencies over HTTPS, so the
+#     corporate roots are needed at build time too. The `host-certs` build context points at the host
 #     directory holding them.
 #   * Runtime — the same roots are mounted into the containers at
 #     KUMOSS_CA_DIR, where each entrypoint merges them into a trust bundle
-#     (and, for the core, into Chromium's NSS database) before starting.
+#     before starting.
 #
 # Set KUMOSS_HOST_CA_DIR to the host directory holding your corporate
 # roots (one file per root, PEM or DER). On Linux the default is the

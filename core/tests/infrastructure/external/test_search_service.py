@@ -11,11 +11,11 @@ provider, endpoint and limits; an unreachable or misbehaving engine is
 never surfaced raw — it is translated into the typed ``SearchEngineError``
 the ``web_search`` tool turns into a "do not retry" result.
 
-Each hit's page is then rendered in headless Chromium and reduced to
+Each hit's page is then fetched and reduced to
 markdown. That read is best effort: the cases below pin that a page
-which will not render costs its own hit the body and nothing more,
+which will not fetch costs its own hit the body and nothing more,
 leaving the engine snippet in its place. The page reader is stubbed
-throughout — no case may launch a browser or touch the network.
+throughout — no case may touch the network.
 """
 
 import asyncio
@@ -54,7 +54,7 @@ def _config(
 def _reader(
     markdown: str | None = None,
 ) -> MagicMock:
-    """A ``_PageReader`` class stub no browser escapes from.
+    """A ``_PageReader`` class stub no request escapes from.
 
     With ``markdown``, every page read returns it; without, every read
     raises, so the engine snippet stays.
@@ -64,7 +64,7 @@ def _reader(
     ctx.__aenter__ = AsyncMock(return_value=ctx)
     ctx.__aexit__ = AsyncMock(return_value=False)
     if markdown is None:
-        ctx.read = AsyncMock(side_effect=RuntimeError("no browser"))
+        ctx.read = AsyncMock(side_effect=RuntimeError("no network"))
     else:
         ctx.read = AsyncMock(return_value=markdown)
     return stub
@@ -74,7 +74,7 @@ class _NoCrawlCase(unittest.IsolatedAsyncioTestCase):
     """Base case: every page read fails, so content is the snippet.
 
     Keeps the engine-delegation cases focused on the search call without
-    letting a page read launch Chromium or escape to the network.
+    letting a page read escape to the network.
     """
 
     def setUp(self) -> None:
@@ -287,8 +287,7 @@ class TestSearchServiceClient(_NoCrawlCase):
 
 
 class TestPageReads(unittest.IsolatedAsyncioTestCase):
-    """Rendering each hit's page in Chromium, and degrading when that
-    fails."""
+    """Fetching each hit's page, and degrading when that fails."""
 
     async def _search(
         self,
@@ -315,7 +314,7 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
         ):
             return await SearchServiceClient().search("q")
 
-    async def test_rendered_markdown_replaces_the_snippet(self):
+    async def test_extracted_markdown_replaces_the_snippet(self):
         results = await self._search(
             [_FakeResult("T", "https://a", "thin snippet")], _reader("# the page")
         )
@@ -340,7 +339,7 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
     async def test_a_failed_read_is_logged_with_its_cause(self):
         # The warning is the only trace a dropped page leaves, so it has
         # to say *why*: a rejected certificate, a refused connection and
-        # a timeout are one undiagnosable "could not render" otherwise.
+        # a timeout are one undiagnosable "could not fetch" otherwise.
         reader = _reader()
         reader.return_value.read = AsyncMock(
             side_effect=RuntimeError(
@@ -358,7 +357,7 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_hit_without_a_url_falls_back_to_the_snippet(self):
         # The reader never sees the empty url: the facade must not spend
-        # a browser context on a hit the engine already sent without one.
+        # a request on a hit the engine already sent without one.
         reader = _reader("body")
 
         results = await self._search([_FakeResult("T", "", "snip")], reader)
