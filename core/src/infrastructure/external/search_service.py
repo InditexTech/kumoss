@@ -96,7 +96,7 @@ class _PageReader:
                 message=f"'{url}' answered HTTP {response.status_code}",
                 error_code=502,
             )
-        html = response.text
+        html = response.content
         # trafilatura parses HTML with lxml: CPU-bound and blocking, so
         # keep it off the event loop while sibling reads are in flight.
         text = await asyncio.to_thread(
