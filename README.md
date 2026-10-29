@@ -72,13 +72,15 @@ In four minutes, you see Kumoss:
 - **Block a dangerous delete on its own.** The session locks, the platform team is notified, and only an administrator can lift the lock.
 
 **[Read the step-by-step walkthrough, with a link to the guide behind each moment →](https://inditextech.github.io/kumoss/stable/main/see-it-in-action/)**
+  
+## QuickStart
+
+- [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/): run the full stack locally with Docker Compose.
 
 ## Documentation
 
 The full documentation is published at **[inditextech.github.io/kumoss](https://inditextech.github.io/kumoss/stable/)**.
 
-- [See it in action](https://inditextech.github.io/kumoss/stable/main/see-it-in-action/): a real, unscripted session, from request to applied pull request and a blocked delete.
-- [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/): run the full stack locally with Docker Compose.
 - [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/): components, the core's layering, and the end-to-end flow from a request to an applied plan.
 
 ## Contributing
