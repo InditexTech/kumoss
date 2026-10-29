@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/). Kumoss bundles the IaC and notifications services, which you can replace with your own; for authorization, provide your own implementation.
 
 > [!NOTE]
-> Kumoss exposes everything through a FastAPI API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.
+> Kumoss exposes everything through a FastAPI API, and support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is on the [roadmap](#roadmap), letting other agents consume Kumoss directly.
 
 ## How it works
 
@@ -82,6 +82,32 @@ In four minutes, you see Kumoss:
 The full documentation is published at **[inditextech.github.io/kumoss](https://inditextech.github.io/kumoss/stable/)**.
 
 - [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/): components, the core's layering, and the end-to-end flow from a request to an applied plan.
+
+## Roadmap
+
+Where Kumoss is heading, grouped into seven themes. The roadmap states intent, not commitment: no initiative carries a delivery date, the order does not indicate priority, and each feature is announced in the [release notes](https://github.com/InditexTech/kumoss/releases) when it ships.
+
+| Theme | Initiative | Status |
+|---|---|---|
+| **Continuous operations** | Scheduled drift detection and import | 🚧 In progress |
+| **Cloud and code lifecycle** | From cloud to code: discover existing resources and generate the compliant IaC and repository | Planned |
+| | From code to cloud: derive the infrastructure an application repository needs | Planned |
+| | Infrastructure diagrams and visual change previews | Planned |
+| **Operations at scale** | Bulk operations across all or selected projects | Planned |
+| | Multiproject requests | Planned |
+| **Quality and governance** | Evaluation harness and automated testing | Planned |
+| | Model benchmarking | Planned |
+| | Policy as code with Open Policy Agent (Rego) | Planned |
+| | Multicloud governance overview | Planned |
+| **Cost management (FinOps)** | Accurate cost estimates and cost guardrails | Planned |
+| | Cost overview by resource and project | Planned |
+| | Integration with FinOps tools and assistants (FOCUS) | Planned |
+| **Agent interoperability** | Model Context Protocol (MCP) support | Planned |
+| | Agent2Agent (A2A) protocol support | Planned |
+| **Deployment and adoption** | Helm chart for Kubernetes | Planned |
+| | Installation wizard | Planned |
+
+Read the full [roadmap](https://inditextech.github.io/kumoss/stable/main/roadmap/) for what each initiative covers. To propose an initiative, comment on a planned one, or offer to help build it, open or join a discussion on the [issue tracker](https://github.com/InditexTech/kumoss/issues).
 
 ## Contributing
 
