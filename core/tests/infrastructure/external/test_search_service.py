@@ -11,22 +11,29 @@ provider, endpoint and limits; an unreachable or misbehaving engine is
 never surfaced raw — it is translated into the typed ``SearchEngineError``
 the ``web_search`` tool turns into a "do not retry" result.
 
-Each hit's page is then rendered in headless Chromium and reduced to
+Each hit's page is then fetched and reduced to
 markdown. That read is best effort: the cases below pin that a page
-which will not render costs its own hit the body and nothing more,
+which will not fetch costs its own hit the body and nothing more,
 leaving the engine snippet in its place. The page reader is stubbed
-throughout — no case may launch a browser or touch the network.
+throughout — no case may touch the network.
 """
 
 import asyncio
 import unittest
 from dataclasses import dataclass
+from typing import Any, override
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+
+from src.infrastructure.external import search_service
 from src.infrastructure.external.search_service import (
     SearchEngineError,
     SearchServiceClient,
+    _PageReader,
 )
+from src.infrastructure.exceptions import PageReadError
 
 
 @dataclass(frozen=True)
@@ -54,7 +61,7 @@ def _config(
 def _reader(
     markdown: str | None = None,
 ) -> MagicMock:
-    """A ``_PageReader`` class stub no browser escapes from.
+    """A ``_PageReader`` class stub no request escapes from.
 
     With ``markdown``, every page read returns it; without, every read
     raises, so the engine snippet stays.
@@ -64,7 +71,7 @@ def _reader(
     ctx.__aenter__ = AsyncMock(return_value=ctx)
     ctx.__aexit__ = AsyncMock(return_value=False)
     if markdown is None:
-        ctx.read = AsyncMock(side_effect=RuntimeError("no browser"))
+        ctx.read = AsyncMock(side_effect=RuntimeError("no network"))
     else:
         ctx.read = AsyncMock(return_value=markdown)
     return stub
@@ -74,7 +81,7 @@ class _NoCrawlCase(unittest.IsolatedAsyncioTestCase):
     """Base case: every page read fails, so content is the snippet.
 
     Keeps the engine-delegation cases focused on the search call without
-    letting a page read launch Chromium or escape to the network.
+    letting a page read escape to the network.
     """
 
     def setUp(self) -> None:
@@ -287,8 +294,7 @@ class TestSearchServiceClient(_NoCrawlCase):
 
 
 class TestPageReads(unittest.IsolatedAsyncioTestCase):
-    """Rendering each hit's page in Chromium, and degrading when that
-    fails."""
+    """Fetching each hit's page, and degrading when that fails."""
 
     async def _search(
         self,
@@ -315,7 +321,7 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
         ):
             return await SearchServiceClient().search("q")
 
-    async def test_rendered_markdown_replaces_the_snippet(self):
+    async def test_extracted_markdown_replaces_the_snippet(self):
         results = await self._search(
             [_FakeResult("T", "https://a", "thin snippet")], _reader("# the page")
         )
@@ -340,7 +346,7 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
     async def test_a_failed_read_is_logged_with_its_cause(self):
         # The warning is the only trace a dropped page leaves, so it has
         # to say *why*: a rejected certificate, a refused connection and
-        # a timeout are one undiagnosable "could not render" otherwise.
+        # a timeout are one undiagnosable "could not fetch" otherwise.
         reader = _reader()
         reader.return_value.read = AsyncMock(
             side_effect=RuntimeError(
@@ -358,7 +364,7 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_hit_without_a_url_falls_back_to_the_snippet(self):
         # The reader never sees the empty url: the facade must not spend
-        # a browser context on a hit the engine already sent without one.
+        # a request on a hit the engine already sent without one.
         reader = _reader("body")
 
         results = await self._search([_FakeResult("T", "", "snip")], reader)
@@ -412,3 +418,80 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(peak, 5)
         self.assertEqual(reader.call_count, 1)
+
+
+_ARTICLE = (
+    "<html><head><title>S3 backend</title></head><body><article>"
+    + "<h1>S3 backend</h1>"
+    + "<p>Stores the Terraform state as a given key in a given bucket on "
+    + "Amazon S3. This backend also supports state locking, which can be "
+    + "enabled by setting the use_lockfile argument to true.</p>" * 5
+    + "</article></body></html>"
+).encode()
+
+
+class _Body(httpx.AsyncByteStream):
+    """A response body that counts how many chunks were pulled from it."""
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self.chunks: list[bytes] = chunks
+        self.pulled: int = 0
+
+    @override
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for chunk in self.chunks:
+            self.pulled += 1
+            yield chunk
+
+
+class TestPageReader(unittest.IsolatedAsyncioTestCase):
+    """The real reader, over a mock transport: what it buffers, and what
+    it refuses before buffering it."""
+
+    async def _read(self, body: _Body, headers: dict[str, str]) -> str:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, headers=headers, stream=body)
+
+        real = httpx.AsyncClient
+
+        def client(**kw: Any) -> httpx.AsyncClient:
+            return real(transport=httpx.MockTransport(handler), **kw)
+
+        with patch.object(search_service.httpx, "AsyncClient", client):
+            async with _PageReader() as reader:
+                return await reader.read("https://a", 30.0)
+
+    async def test_an_html_page_is_reduced_to_markdown(self):
+        body = _Body([_ARTICLE])
+
+        text = await self._read(body, {"content-type": "text/html; charset=utf-8"})
+
+        self.assertIn("state locking", text)
+
+    async def test_a_page_without_a_content_type_is_still_read(self):
+        text = await self._read(_Body([_ARTICLE]), {})
+
+        self.assertIn("state locking", text)
+
+    async def test_a_non_html_body_is_refused_before_it_is_read(self):
+        body = _Body([b"%PDF-1.7"] * 3)
+
+        with self.assertRaises(PageReadError) as ctx:
+            _ = await self._read(body, {"content-type": "application/pdf"})
+
+        self.assertEqual(ctx.exception.error_code, 415)
+        self.assertEqual(body.pulled, 0)
+
+    async def test_an_oversized_body_stops_downloading_at_the_cap(self):
+        # The cap is what bounds memory: reading must stop at the chunk
+        # that crosses it, not after the whole body has arrived.
+        body = _Body([b"<p>xxxx</p>"] * 10)
+
+        with (
+            patch.object(_PageReader, "MAX_PAGE_BYTES", 20),
+            self.assertRaises(PageReadError) as ctx,
+        ):
+            _ = await self._read(body, {"content-type": "text/html"})
+
+        self.assertEqual(ctx.exception.error_code, 413)
+        self.assertEqual(body.pulled, 2)
