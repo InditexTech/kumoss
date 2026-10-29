@@ -86,7 +86,7 @@ qualifies.
 If a directory is missing from the offered list, check that its `.tf`
 files are committed on the default branch and that no parent directory
 is named `modules`, `examples`, `example`, or `.terraform`. The rules
-live in `core/src/infrastructure/filesystem/iac_root_detector.py`.
+live in `core/src/infrastructure/filesystem/iac_root.rs`.
 
 == Next steps
 

@@ -331,7 +331,7 @@ its phases use.
 request, or applies.
 
 |*Web UI + Core API* (blue)
-|The React application and the FastAPI routers: authentication
+|The React application and the core's axum routes: authentication
 dependency, `202` answers, SSE stream, presigned URLs.
 
 |*Control gates* (red)
@@ -511,8 +511,8 @@ configured ceiling (`orchestration.max_tool_agent_executions`,
 `drift_group_operations`; the drift pre-check inside a generate round is
 fixed at two iterations).
 
-*Deterministic, non-LLM components* fill the other lanes: the FastAPI
-routers and use-case handlers; PostgreSQL session, ownership, status,
+*Deterministic, non-LLM components* fill the other lanes: the core's
+API routes and use-case handlers; PostgreSQL session, ownership, status,
 `in_flight` and `is_blocked` controls; the git workspace service and the
 GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
 calculation (`plan_to_drift`, DeepDiff); the code-computed compliance

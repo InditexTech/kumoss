@@ -1,0 +1,142 @@
+[
+{
+"in": "",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid length: expected length 32 for simple format, found 0"
+},
+{
+"in": "x",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `x` at 1"
+},
+{
+"in": "bad",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid length: expected length 32 for simple format, found 3"
+},
+{
+"in": "not-a-uuid",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `n` at 1"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33-a89d28aba9b",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group length in group 4: expected 12, found 11"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33-a89d28aba9b00",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group length in group 4: expected 12, found 13"
+},
+{
+"in": "917d0485a0a24c348f33a89d28aba9b0",
+"ok": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+},
+{
+"in": "917d0485a0a24c348f33a89d28aba9b",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid length: expected length 32 for simple format, found 31"
+},
+{
+"in": "917d0485a0a24c348f33a89d28aba9bz",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `z` at 32"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33-a89d28aba9bz",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `z` at 36"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33_a89d28aba9b0",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `_` at 24"
+},
+{
+"in": "{917d0485-a0a2-4c34-8f33-a89d28aba9b0}",
+"ok": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+},
+{
+"in": "urn:uuid:917d0485-a0a2-4c34-8f33-a89d28aba9b0",
+"ok": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+},
+{
+"in": "urn:uuid:917d0485",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group count: expected 5, found 1"
+},
+{
+"in": "917d0485-a0a24-c34-8f33-a89d28aba9b0",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group length in group 1: expected 4, found 5"
+},
+{
+"in": "917D0485-A0A2-4C34-8F33-A89D28ABA9B0",
+"ok": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+},
+{
+"in": " 917d0485-a0a2-4c34-8f33-a89d28aba9b0",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found ` ` at 1"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33-a89d28aba9b0 ",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found ` ` at 37"
+},
+{
+"in": "ééé",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `é` at 1"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33-a89d28abé9b0",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `é` at 33"
+},
+{
+"in": "------------------------------------",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group count: expected 5, found 37"
+},
+{
+"in": "gggggggggggggggggggggggggggggggg",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `g` at 1"
+},
+{
+"in": "0000000000000000000000000000000g",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid character: found `g` at 32"
+},
+{
+"in": "000000000000000000000000000000000000",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid length: expected length 32 for simple format, found 36"
+},
+{
+"in": "00000000-0000-0000-0000-000000000000",
+"ok": "00000000-0000-0000-0000-000000000000"
+},
+{
+"in": "{00000000000000000000000000000000}",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group count: expected 5, found 1"
+},
+{
+"in": "917d0485-a0a2-4c34-8f33",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group count: expected 5, found 4"
+},
+{
+"in": "a-b",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid group count: expected 5, found 2"
+},
+{
+"in": "1234",
+"type": "uuid_parsing",
+"msg": "Input should be a valid UUID, invalid length: expected length 32 for simple format, found 4"
+}
+]

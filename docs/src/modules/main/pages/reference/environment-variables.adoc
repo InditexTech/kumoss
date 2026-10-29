@@ -1,11 +1,11 @@
 = Environment variables and secrets
-:description: Every environment variable Kumoss reads: the core, the bundled IaC and notifications sidecars, the IaC engine, and the LLM providers.
+:description: Every environment variable Kumoss reads: the core, the bundled IaC, notifications and LLM sidecars, the IaC engine, and the LLM providers.
 
 Kumoss keeps every secret in environment variables. `config.yaml` holds
 only non-secret settings and, where a secret is needed, the _name_ of
 the variable that carries it (fields ending in `_env`). This page
-documents every variable in `core/env.sample` and in the two bundled
-sidecar `env.sample` files (IaC and notifications), plus the variables
+documents every variable in `core/env.sample` and in the bundled
+sidecar `env.sample` files (IaC, notifications and LLM), plus the variables
 that the IaC engine and the LLM providers read on their own. Mapping
 and authorization have no bundled sidecar: they are optional extension
 points you implement yourself, so the only variables Kumoss reads for
@@ -13,16 +13,17 @@ them are the core-side tokens.
 
 Each `env.sample` is a template: copy it to a `.env` file next to it
 (`core/.env`, `services/<name>/.env`). Docker Compose loads those `.env`
-files per container. `core/.env` is required for the stack to start;
-the sidecar files are optional and the containers fall back to their
-built-in defaults when a file is missing.
+files per container. `core/.env` and `services/llm/.env` are required
+for the stack to start; the other sidecar files are optional and the
+containers fall back to their built-in defaults when a file is missing.
 
 All example values in this page are fictitious. Never commit a `.env`
 file; they are gitignored.
 
 Which files you need depends on the deployment model:
-xref:main:quickstart.adoc[Quickstart] needs `core/.env` and
-`services/iac/.env` (plus the notifications file when enabled);
+xref:main:quickstart.adoc[Quickstart] needs `core/.env`,
+`services/llm/.env` and `services/iac/.env` (plus the notifications
+file when enabled);
 xref:main:guides/deploy-to-production.adoc[Deploy to production]
 replaces the files with a secret store but keeps the same variable
 names.
@@ -37,33 +38,27 @@ The core reads variables through the names configured in
 `config.yaml`. The table lists the default names; if you rename a
 `*_env` field, rename the variable accordingly.
 
+The core holds *no LLM provider credentials*. LiteLLM runs in the LLM
+sidecar, so `ANTHROPIC_API_KEY`, the `VERTEXAI_*` trio and every other
+provider or hosted web-search key go in `services/llm/.env`; see
+<<llm-sidecar>>.
+
 [cols="2,2,2,5,2",options="header"]
 |===
 |Variable |Requirement |Default |Meaning |Checked
-
-|LLM provider credentials (`ANTHROPIC_API_KEY` for the shipped
-`anthropic/` models; for example `AZURE_AI_API_KEY` and
-`AZURE_AI_API_BASE`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` /
-`VERTEXAI_CREDENTIALS` trio, for other providers)
-|Mandatory for the provider selected by `llm.model`, `llm.small_model`
-or `llm.model_list`
-|none
-|Credentials that LiteLLM reads for the configured provider. Names
-follow LiteLLM conventions; see
-xref:main:reference/llm-providers.adoc[LLM providers and models].
-`VERTEXAI_CREDENTIALS` holds the service-account key itself, as
-single-line JSON content (see
-<<example-all-sidecars,the Vertex AI example>>).
-For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or
-`ANTHROPIC_AUTH_TOKEN`.
-|At boot for providers LiteLLM can validate; otherwise on the first LLM
-call
 
 |`KUMOSS_IAC_TOKEN`
 |Mandatory (the IaC sidecar is always called; it has no `enabled` flag)
 |sample value `dev-iac-token`
 |Bearer token the core sends to the IaC sidecar. Must equal
 `KUMOSS_IAC_TOKEN` in `services/iac/.env`.
+|At boot: an empty token aborts startup
+
+|`KUMOSS_LLM_TOKEN`
+|Mandatory (the LLM sidecar is always called; it has no `enabled` flag)
+|sample value `dev-llm-token`
+|Bearer token the core sends to the LLM sidecar on every completion and
+web search. Must equal `KUMOSS_LLM_TOKEN` in `services/llm/.env`.
 |At boot: an empty token aborts startup
 
 |`KUMOSS_MAPPING_TOKEN`
@@ -179,78 +174,59 @@ The `rustfsadmin` fallback applies only when the variable is *absent
 from the environment*. A variable that is present but blank
 (`RUSTFS_ACCESS_KEY=` in `core/.env`) resolves to the empty string, no
 fallback is applied, and under `storage.provider: RUSTFS` the core
-embeds no static credentials at all: boto3 falls back to the AWS
+embeds no static credentials at all: the AWS SDK falls back to the AWS
 default credential chain, which has nothing to find in the container,
 and boot fails at the bucket check. Blank the two keys only for
 `storage.provider: S3` with an instance profile or IRSA, where an empty
 value is what tells the core to omit them and let the AWS default chain
 resolve.
 
-*What the boot check actually covers.* The core validates the LLM
-credentials with `litellm.validate_environment` for every entry in the
-effective model list. Coverage depends on the provider. For the shipped
-`anthropic/...` models a missing key fails the boot. For `azure_ai/...`
-models the check verifies *nothing*: LiteLLM has no validation mapping
-for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE`
-boots cleanly and fails on the first LLM call. For
-`vertex_ai/...` models the check requires `VERTEXAI_PROJECT` and
-`VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at
-boot, and when it is unset LiteLLM falls back to Application Default
-Credentials. Coverage is per provider (for `anthropic/*`, either
-`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no
-provider's check validates that a credential actually works.
-
-*`litellm` loads `core/.env` by itself.* The library calls
-`load_dotenv()` at import time unless `LITELLM_MODE` is `PRODUCTION`,
-so running the core or its test suite _outside_ Docker silently picks
-up `core/.env` even when you meant to run with a clean environment.
-Running from another directory does *not* avoid it: python-dotenv
-searches upwards from the calling package's directory, not from the
-working directory, so a virtual environment at `core/.venv` finds
-`core/.env` from anywhere. Variables already set in the environment
-are left alone. To reproduce a missing-credential failure, set
-`LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual
-environment outside `core/`.
-
 Two related facts about the sample file:
 
-* The pre-filled `dev-*-token` placeholders are accepted because the
-  bundled sidecars ship with an empty expected token, which disables
-  their bearer check. That is acceptable only on an isolated
-  workstation.
+* The pre-filled `dev-*-token` placeholders work because each bundled
+  sidecar's `env.sample` (IaC, notifications, LLM) pre-fills the same
+  value. They are publicly known, so that is acceptable only on an
+  isolated workstation.
 * Nothing OIDC-related goes in `core/.env`. The single-page application
   is a public client using PKCE (Proof Key for Code Exchange), and the
   core validates tokens with the issuer's public keys. All OIDC
   settings live in `config.yaml`.
 
-=== Read by libraries, not by Kumoss
+=== Observability variables
 
-Two more variables can matter to the core even though no Kumoss code
-reads them. Neither is in `core/env.sample`, and neither is needed for
-the bundled Phoenix.
+Three more variables can matter to the core. None is in
+`core/env.sample`, and none is needed for the bundled Phoenix.
 
 [cols="2,2,5",options="header"]
 |===
 |Variable |Read by |Meaning
 
 |`OTEL_EXPORTER_OTLP_HEADERS`
-|the OpenTelemetry SDK
+|the OpenTelemetry OTLP exporter (`opentelemetry-otlp` crate), not by
+Kumoss code
 |Comma-separated `key=value` headers added to OTLP exports — the usual
 way to authenticate against a hosted collector. The core builds its
-`OTLPSpanExporter` with the endpoint only and passes no headers of its own.
+OTLP span exporter with the endpoint only and passes no headers of its
+own.
 
 |`PHOENIX_API_KEY`
-|the `phoenix.client` library
-|API key for an authenticated Phoenix instance, used when fetching and
-seeding prompt templates. The core constructs `AsyncClient(base_url=...)`
-and supplies no credential.
+|the core's Phoenix prompt client
+|API key for an authenticated Phoenix instance, sent as
+`Authorization: Bearer <key>` when fetching and seeding prompt
+templates, unless `PHOENIX_CLIENT_HEADERS` already carries an
+`Authorization` header.
+
+|`PHOENIX_CLIENT_HEADERS`
+|the core's Phoenix prompt client
+|Comma-separated, URL-encoded `name=value` headers added to the same
+Prompts API requests, resolved the way the Phoenix Python client
+resolves them.
 |===
 
-Because the core passes the endpoint and base URL programmatically,
-whether each library still picks these variables up from the
-environment in that configuration is *not verified in this
-repository* — consult the OpenTelemetry Python and Phoenix client
-documentation for the version you run before relying on them.
+The core passes only the OTLP endpoint programmatically; the exporter
+still reads its headers from the environment
+(`OTEL_EXPORTER_OTLP_TRACES_HEADERS`, falling back to
+`OTEL_EXPORTER_OTLP_HEADERS`).
 
 == IaC sidecar (`services/iac/env.sample`)
 
@@ -483,6 +459,102 @@ set for it (only `proxy` carries `restart: on-failure`), so it exits once and th
 the service from your Compose file or provide a webhook URL if you
 would rather not see it.
 
+[#llm-sidecar]
+== LLM sidecar (`services/llm/env.sample`)
+
+The LLM sidecar owns LiteLLM: every chat completion the core makes, the
+`web_search` engine call, and the headless-Chromium page reads behind
+each search hit. Its `.env` is therefore where the LLM and hosted
+web-search provider credentials live. It reads the `llm` and
+`web_search` sections of the same `config.yaml` the core reads (mounted
+at `/etc/kumoss/config.yaml`).
+
+[cols="2,2,2,5,2",options="header"]
+|===
+|Variable |Requirement |Default |Meaning |Checked
+
+|`KUMOSS_LLM_TOKEN`
+|Recommended; mandatory outside an isolated workstation
+|empty (accepts any bearer); sample value `dev-llm-token`
+|Token the sidecar requires on `/v1/completions` and `/v1/search`. Must
+equal the core's `KUMOSS_LLM_TOKEN`.
+|Per request: a mismatch returns `401` to the core
+
+|`KUMOSS_CONFIG`
+|Optional; commented out in the sample
+|`/etc/kumoss/config.yaml`
+|Path, inside the container, of the `config.yaml` whose `llm` and
+`web_search` sections the sidecar reads. A missing file means built-in
+defaults.
+|At boot
+
+|LLM provider credentials (`ANTHROPIC_API_KEY` for the shipped
+`anthropic/` models; for example `AZURE_AI_API_KEY` and
+`AZURE_AI_API_BASE`, or the `VERTEXAI_PROJECT` / `VERTEXAI_LOCATION` /
+`VERTEXAI_CREDENTIALS` trio, for other providers)
+|Mandatory for the provider selected by `llm.model`, `llm.small_model`
+or `llm.model_list`
+|none
+|Credentials that LiteLLM reads for the configured provider. Names
+follow LiteLLM conventions; see
+xref:main:reference/llm-providers.adoc[LLM providers and models].
+`VERTEXAI_CREDENTIALS` holds the service-account key itself, as
+single-line JSON content (see
+<<example-all-sidecars,the Vertex AI example>>).
+For `anthropic/*` models LiteLLM accepts either `ANTHROPIC_API_KEY` or
+`ANTHROPIC_AUTH_TOKEN`.
+|At boot for providers LiteLLM can validate; otherwise on the first LLM
+call
+
+|`ONPREM_LLM_MODEL_KEY`
+|Optional; empty in the sample
+|empty
+|Placeholder for an on-premises model key referenced from
+`llm.model_list` as `os.environ/ONPREM_LLM_MODEL_KEY`. Rename it to
+match the reference in your `config.yaml`.
+|When the referencing model is called
+
+|Hosted web-search credentials (for example `TAVILY_API_KEY`)
+|Conditional: only for a hosted `web_search.provider` (`tavily`,
+`brave`, `perplexity`, ...)
+|none
+|The provider's standard LiteLLM variable. The bundled SearXNG needs
+none.
+|On the first search
+|===
+
+*What the boot check actually covers.* At startup the sidecar validates
+the LLM credentials with `litellm.validate_environment` for every entry
+in the effective model list, and exits with `LLM credentials missing
+from environment: ...` before serving anything when a variable is
+reported missing. Coverage depends on the provider. For the shipped
+`anthropic/...` models a missing key fails the boot. For `azure_ai/...`
+models the check verifies *nothing*: LiteLLM has no validation mapping
+for that provider, so a missing `AZURE_AI_API_KEY` or `AZURE_AI_API_BASE`
+boots cleanly and fails on the first LLM call. For
+`vertex_ai/...` models the check requires `VERTEXAI_PROJECT` and
+`VERTEXAI_LOCATION` only; `VERTEXAI_CREDENTIALS` is not verified at
+boot, and when it is unset LiteLLM falls back to Application Default
+Credentials. Coverage is per provider (for `anthropic/*`, either
+`ANTHROPIC_API_KEY` or `ANTHROPIC_AUTH_TOKEN` satisfies it), and no
+provider's check validates that a credential actually works.
+
+*`litellm` loads `services/llm/.env` by itself.* The library calls
+`load_dotenv()` at import time unless `LITELLM_MODE` is `PRODUCTION`,
+and the sidecar image does not set it. Inside the container this is
+harmless: Compose injects the file as environment variables and no
+`.env` file sits next to the installed packages. Running the sidecar or
+its test suite _outside_ Docker, though, silently picks up
+`services/llm/.env` even when you meant to run with a clean
+environment. Running from another directory does *not* avoid it:
+python-dotenv searches upwards from the calling package's directory, not
+from the working directory, so a virtual environment at
+`services/llm/.venv` finds `services/llm/.env` from anywhere. Variables
+already set in the environment are left alone. To reproduce a
+missing-credential failure, set `LITELLM_MODE=PRODUCTION`, move
+`services/llm/.env` aside, or use a virtual environment outside
+`services/llm/`. The Rust core loads no `.env` file on its own.
+
 == Mapping and authorization (no bundled sidecar)
 
 Kumoss bundles no mapping or authorization service, so there is no
@@ -519,8 +591,9 @@ empty token.
 
 The bundled SearXNG metasearch sidecar backs the agents' `web_search`
 tool (routed there by `web_search.provider: "searxng"` in
-`config.yaml`). It takes no credential from the core — SearXNG itself
-accepts unauthenticated requests inside the Compose network by default.
+`config.yaml`). The LLM sidecar, not the core, queries it, and it takes
+no credential — SearXNG itself accepts unauthenticated requests inside
+the Compose network by default.
 
 [cols="2,2,2,5,2",options="header"]
 |===
@@ -540,7 +613,7 @@ throwaway local stack and never for a reachable deployment.
 |Optional
 |`8888`
 |Port SearXNG listens on inside the Compose network. Keep the default:
-the core's `web_search.endpoint` ships pointing at `:8888`.
+`web_search.endpoint` ships pointing at `:8888`.
 |At container start
 |===
 
@@ -548,8 +621,9 @@ the core's `web_search.endpoint` ships pointing at `:8888`.
 
 The bundled SearXNG metasearch sidecar backs the agents' `web_search`
 tool (routed there by `web_search.provider: "searxng"` in
-`config.yaml`). It takes no credential from the core — SearXNG itself
-accepts unauthenticated requests inside the Compose network by default.
+`config.yaml`). The LLM sidecar, not the core, queries it, and it takes
+no credential — SearXNG itself accepts unauthenticated requests inside
+the Compose network by default.
 
 [cols="2,2,2,5,2",options="header"]
 |===
@@ -569,7 +643,7 @@ throwaway local stack and never for a reachable deployment.
 |Optional
 |`8888`
 |Port SearXNG listens on inside the Compose network. Keep the default:
-the core's `web_search.endpoint` ships pointing at `:8888`.
+`web_search.endpoint` ships pointing at `:8888`.
 |At container start
 |===
 
@@ -598,7 +672,7 @@ searxng`). Two caveats, verified against the pinned build:
 xref:main:reference/terraform-providers.adoc[Terraform providers])
 |`init`, `validate`, `plan`, `show`, `apply` against your cloud
 
-|AWS SDK (boto3) in the core
+|AWS SDK in the core
 |`core/.env` (`RUSTFS_*` or the default chain)
 |Artifact storage when `storage.provider` is `RUSTFS` or `S3`
 
@@ -606,8 +680,8 @@ xref:main:reference/terraform-providers.adoc[Terraform providers])
 |`core/.env` (`STORAGE_ACCOUNT_KEY`)
 |Artifact storage when `storage.provider` is `STORAGE_ACCOUNT`
 
-|LiteLLM in the core
-|`core/.env`
+|LiteLLM in the LLM sidecar
+|`services/llm/.env`
 |Cloud-hosted LLM providers (Vertex AI, Bedrock, Azure OpenAI, and so
 on)
 |===
@@ -615,10 +689,11 @@ on)
 Cloud credentials for the IaC engine and for the LLM provider are
 independent. A stack that generates AWS infrastructure with an Azure
 OpenAI model needs AWS credentials in `services/iac/.env` and Azure
-OpenAI credentials in `core/.env`.
+OpenAI credentials in `services/llm/.env`.
 
 == LLM-provider credentials
 
+These variables go in `services/llm/.env`, not in `core/.env`.
 Variable names follow LiteLLM's provider conventions and are selected
 by the `llm.model` and `llm.small_model` strings. The complete
 per-provider table, the `os.environ/VARIABLE_NAME` syntax for custom
@@ -641,13 +716,13 @@ configuration). Generate a distinct value per sidecar. Do not reuse the
 isolated workstation: an empty sidecar token disables its bearer check
 entirely.
 * *Never put secrets in `config.yaml`.* It is baked into every core
-  image and is meant to be shareable. Use the `*_env` fields to rename
+  and LLM sidecar image and is meant to be shareable. Use the `*_env` fields to rename
   variables if your platform imposes naming conventions.
 * *Keep sidecars private.* The bundled sidecars compare bearer tokens
   in constant time, but they are still simple services: keep them on a
   private network that only the core can reach, and rotate tokens on a
   schedule.
-* *The core, IaC, and notifications images run unprivileged.* Their
+* *The core, IaC, notifications, and LLM images run unprivileged.* Their
   Dockerfiles each create and switch to the `kumoss` user (uid/gid `10001` by default, from the
   `KUMOSS_UID` / `KUMOSS_GID` build args). The `proxy` service is the
   upstream nginx image, which starts as root and drops privileges for
@@ -681,10 +756,10 @@ entirely.
 
 All values below are fictitious. Replace every token and URL.
 
-=== Core plus IaC sidecar only (Anthropic models)
+=== Core plus the mandatory sidecars only (Anthropic models)
 
-Only the IaC sidecar is enabled, and the model strings are the shipped
-ones — `anthropic/*` is both what the checked-in `config.yaml` selects
+Only the two always-on sidecars, IaC and LLM, are in use, and the model
+strings are the shipped ones — `anthropic/*` is both what the checked-in `config.yaml` selects
 and what the core falls back to when no `config.yaml` is loaded at all.
 The Vertex AI set is shown in the next example.
 
@@ -701,11 +776,9 @@ llm:
 
 [source,dotenv]
 ----
-# LLM provider
-ANTHROPIC_API_KEY=sk-example-not-a-real-key
-
-# Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)
+# Sidecar bearer tokens (iac and llm are always called)
 KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
+KUMOSS_LLM_TOKEN=0000000000000000000000000000000000000000000000000000000000000005
 KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled
 
 # Git push credentials
@@ -716,6 +789,16 @@ GIT_TOKEN=ghp_example_not_a_real_token
 RUSTFS_ACCESS_KEY=rustfsadmin
 RUSTFS_SECRET_KEY=rustfsadmin
 KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss
+----
+
+`services/llm/.env`:
+
+[source,dotenv]
+----
+KUMOSS_LLM_TOKEN=0000000000000000000000000000000000000000000000000000000000000005
+
+# LLM provider
+ANTHROPIC_API_KEY=sk-example-not-a-real-key
 ----
 
 `services/iac/.env` (AWS example):
@@ -764,22 +847,21 @@ services:
   iac:
     # No enabled flag: the IaC sidecar is mandatory and always called.
     endpoint: "http://iac:8082"
+  llm:
+    # No enabled flag either: the LLM sidecar is mandatory.
+    endpoint: "http://llm:8090"
 ----
 
 `core/.env`:
 
 [source,dotenv]
 ----
-# LLM provider (Google Vertex AI). The service-account key JSON, on one line.
-VERTEXAI_PROJECT=demo-platform-project
-VERTEXAI_LOCATION=europe-west1
-VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
-
 # One distinct token per sidecar
 KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 KUMOSS_MAPPING_TOKEN=0000000000000000000000000000000000000000000000000000000000000002
 KUMOSS_NOTIFICATIONS_TOKEN=0000000000000000000000000000000000000000000000000000000000000003
 KUMOSS_AUTHZ_TOKEN=0000000000000000000000000000000000000000000000000000000000000004
+KUMOSS_LLM_TOKEN=0000000000000000000000000000000000000000000000000000000000000005
 
 GIT_USER=kumoss-bot
 GIT_TOKEN=example-not-a-real-gitlab-token
@@ -789,13 +871,25 @@ RUSTFS_SECRET_KEY=rustfsadmin
 KUMOSS_SQL_DATABASE_URL=postgresql://postgres:postgres@core-db:5432/kumoss
 ----
 
+`services/llm/.env`:
+
+[source,dotenv]
+----
+KUMOSS_LLM_TOKEN=0000000000000000000000000000000000000000000000000000000000000005
+
+# LLM provider (Google Vertex AI). The service-account key JSON, on one line.
+VERTEXAI_PROJECT=demo-platform-project
+VERTEXAI_LOCATION=europe-west1
+VERTEXAI_CREDENTIALS={"type":"service_account","project_id":"demo-platform-project","private_key":"<service-account-private-key-pem>","client_email":"kumoss@demo-platform-project.iam.gserviceaccount.example.invalid"}
+----
+
 Paste the downloaded key file's content as the value, collapsed onto one
 line and unquoted. Keep the `\n` escapes inside `private_key` as they
 are: turning them into real line breaks makes the JSON invalid.
 
 NOTE: `VERTEXAI_CREDENTIALS` also accepts a path to the key file instead
 of its content. Kumoss does not provide that file: create a secret or
-file mount into the *core* container yourself (the Compose file mounts
+file mount into the *llm* container yourself (the Compose file mounts
 nothing there), readable by uid `10001`. A path that does not exist
 inside the container is not caught at boot. The first LLM call then
 fails with a JSON-parsing error rather than a missing-file error.
@@ -829,6 +923,8 @@ LOG_LEVEL=INFO
 ----
 
 === Other LLM providers (drop-in replacements for the LLM block)
+
+These replace the provider lines of `services/llm/.env`.
 
 [tabs]
 --

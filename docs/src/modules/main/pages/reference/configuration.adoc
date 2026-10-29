@@ -2,10 +2,13 @@
 :description: Every `config.yaml` field: type, default, validation rule, and effect.
 
 `config.yaml` at the repository root is Kumoss's single configuration
-file for the core service. This page documents every supported section
-and field. The authoritative schema is the `SystemConfig` Pydantic
-model in `core/src/shared/config/system_config.py`; when this page and
-the code disagree, the code wins and this page has a bug.
+file for the core service. The LLM sidecar (`services/llm`) reads the
+same file, but only its `llm` and `web_search` sections. This page
+documents every supported section and field. The authoritative schema
+is the `SystemConfig` struct and its section readers in
+`core/src/shared/config.rs` (for the sidecar's share, the `LlmConfig` /
+`SearchConfig` models in `services/llm/src/config.py`); when this page
+and the code disagree, the code wins and this page has a bug.
 
 Which fields you must touch depends on the deployment model: see
 xref:main:quickstart.adoc[Quickstart] and
@@ -69,10 +72,12 @@ image from your edited checkout.
 
 |*Mandatory* (the core refuses to boot otherwise)
 |The environment variable named by `database.kumoss_database_url_env`
-must be set; the variable named by `services.iac.token_env` must be set
-(the IaC sidecar is always called and has no `enabled` flag); the
-credentials that LiteLLM requires for `llm.model` and `llm.small_model`
-must be set for providers LiteLLM can validate.
+must be set; the variables named by `services.iac.token_env` and
+`services.llm.token_env` must be set (the IaC and LLM sidecars are
+always called and have no `enabled` flag). The LLM sidecar, in turn,
+refuses to start unless the credentials that LiteLLM requires for
+`llm.model` and `llm.small_model` are set in `services/llm/.env`, for
+providers LiteLLM can validate.
 
 |*Conditionally mandatory*
 |`oidc.client_id` when `oidc.issuer_url` is set; the `token_env`
@@ -208,23 +213,24 @@ Requires restart: yes.
 [#config-services]
 == `services`
 
-Wiring for the four sidecars. Each sidecar implements an OpenAPI
-contract in `contracts/openapi/`. Kumoss bundles services for IaC and
-notifications, and any implementation of their contract can replace
-the bundled one by changing `endpoint`; mapping and authorization are
-optional extension points you implement yourself and point `endpoint`
-at.
+Wiring for the five sidecars. Each sidecar implements an OpenAPI
+contract in `contracts/openapi/`. Kumoss bundles services for IaC,
+notifications and the LLM gateway, and any implementation of their
+contract can replace the bundled one by changing `endpoint`; mapping
+and authorization are optional extension points you implement yourself
+and point `endpoint` at.
 
 Common fields, available under `services.notifications`,
-`services.mapping`, `services.authz`, and `services.iac`. The `enabled`
-flag exists only for the three optional sidecars; `services.iac` has
-none because the core cannot run without it.
+`services.mapping`, `services.authz`, `services.iac`, and
+`services.llm`. The `enabled` flag exists only for the three optional
+sidecars; `services.iac` and `services.llm` have none because the core
+cannot run without them.
 
 [cols="2,1,2,2,1,4",options="header"]
 |===
 |YAML path |Type |Code default |Shipped `config.yaml` |Requirement |Meaning and effect
 
-|`services.<name>.enabled` (not for `iac`)
+|`services.<name>.enabled` (not for `iac` or `llm`)
 |boolean
 |`false`
 |`false` for `notifications`, `mapping`, `authz`
@@ -233,19 +239,23 @@ none because the core cannot run without it.
 contacted: mapping is done locally, notifications are dropped, and
 authorization answers "authorized". Compose still starts the
 bundled notifications container; mapping and authorization have no
-bundled container. An `enabled` key under `services.iac` is ignored.
+bundled container. An `enabled` key under `services.iac` or
+`services.llm` is ignored.
 
 |`services.<name>.endpoint`
 |string (base URL)
 |`""` for `notifications`, `mapping`, `authz`; *`\http://iac:8082`* for
-`iac` (its own code default, not just the shipped value)
-|`\http://notifications:8080`, `\http://iac:8082`; `""` for
-`mapping` and `authz` (no bundled implementation)
-|Conditional (needed when enabled; always for `iac`)
+`iac` and *`\http://llm:8090`* for `llm` (their own code defaults, not
+just the shipped values)
+|`\http://notifications:8080`, `\http://iac:8082`, `\http://llm:8090`;
+`""` for `mapping` and `authz` (no bundled implementation)
+|Conditional (needed when enabled; always for `iac` and `llm`)
 |Base URL the core calls, resolvable from inside the core container.
 *An empty `services.iac.endpoint` aborts the boot* with
 `services.iac.endpoint is empty; the IaC service is mandatory. Point it
-at an implementation of the iac contract.` *An enabled optional sidecar
+at an implementation of the iac contract.` (and the matching
+`services.llm.endpoint is empty; the LLM service is mandatory. ...`
+for `llm`). *An enabled optional sidecar
 with an empty endpoint also aborts the boot*, with `Enabled services
 have no endpoint: services.<name>.endpoint. Point each at an
 implementation of its contract, or flip it to enabled: false.`
@@ -253,24 +263,28 @@ implementation of its contract, or flip it to enabled: false.`
 |`services.<name>.token_env`
 |string (variable name)
 |`""` for `notifications`, `mapping`, `authz`; *`KUMOSS_IAC_TOKEN`* for
-`iac` (its own code default)
+`iac` and *`KUMOSS_LLM_TOKEN`* for `llm` (their own code defaults)
 |`KUMOSS_NOTIFICATIONS_TOKEN`, `KUMOSS_MAPPING_TOKEN`,
-`KUMOSS_AUTHZ_TOKEN`, `KUMOSS_IAC_TOKEN`
-|Conditional (always for `iac`)
+`KUMOSS_AUTHZ_TOKEN`, `KUMOSS_IAC_TOKEN`, `KUMOSS_LLM_TOKEN`
+|Conditional (always for `iac` and `llm`)
 |Name of the environment variable holding the bearer token sent on
 every call. *A sidecar the core will call whose variable resolves to
 an empty value aborts the boot* with `Services the core calls have no
 bearer token in the environment: services.<name> → $<VAR>. Set the
 listed env vars; the optional sidecars can also be flipped to
-enabled: false (services.iac cannot — it is mandatory).`
+enabled: false (services.iac and services.llm cannot — they are
+mandatory).`
 
 |`services.<name>.timeout`
 |float (seconds)
-|`30.0`
-|`30.0`
+|`30.0`; `2700.0` for `llm`
+|`30.0`; `2700.0` for `llm`
 |Optional
-|Per-request HTTP budget. Every sidecar call returns promptly (long
-work runs as jobs the core polls), so this covers one round trip only.
+|Per-request HTTP budget. Every sidecar call except `llm` returns
+promptly (long work runs as jobs the core polls), so this covers one
+round trip only. An `llm` call blocks for the whole inference,
+LiteLLM's own retries included, so keep `services.llm.timeout` above
+`(3 + 1) × llm.timeout`; it must be `> 0`.
 Honoured by the IaC and notifications clients; the mapping and
 authorization clients currently use fixed budgets of 10 and 15 seconds
 and ignore this field.
@@ -307,6 +321,12 @@ commands through it, so its configuration has no `enabled` flag:
 always contacted. Each has its own boot check with its own
 `ConfigError`: the empty-endpoint text is quoted in the `endpoint` row
 above, the empty-token text in the `token_env` row.
+
+*The LLM sidecar is mandatory too.* Every model completion and every
+`web_search` call goes through it, so `services.llm` has no `enabled`
+flag either; its empty-endpoint and empty-token checks mirror the IaC
+ones. The core does not read the sidecar's LLM provider credentials;
+those live in `services/llm/.env`.
 
 Related environment variables: the ones named by each `token_env`, in
 `core/.env`, with the same value in the sidecar's `.env`. See
@@ -440,8 +460,11 @@ where each limit applies.
 [#config-llm]
 == `llm`
 
-Model selection through LiteLLM. Details, provider tables, and router
-examples are in xref:main:reference/llm-providers.adoc[LiteLLM providers
+Model selection through LiteLLM. Both the core and the LLM sidecar read
+this section: the core picks the model string per call and sends it,
+with `temperature`, `max_output_tokens` and `timeout`, to the sidecar,
+whose LiteLLM Router (built from `model_list`) serves it. Details,
+provider tables, and router examples are in xref:main:reference/llm-providers.adoc[LiteLLM providers
 and models].
 
 [cols="2,2,1,1,1,4",options="header"]
@@ -497,7 +520,7 @@ internal retries gets a fresh budget.
 |Advanced routing: load balancing across entries that share a
 `model_name`, per-entry endpoints, and `os.environ/VAR` credential
 references. Router-level fallbacks between different models are *not*
-configurable today; the core passes only `model_list` to the Router.
+configurable today; the sidecar passes only `model_list` to the Router.
 When non-empty, `model` and `small_model` must match a `model_name` and
 boot validation runs against the listed entries. As shipped, the
 aliases are `main` (a self-hosted OpenAI-compatible endpoint with a
@@ -505,22 +528,24 @@ per-entry `api_base` and `os.environ/`-referenced key) and `small`
 (`vertex_ai/claude-sonnet-5-5`).
 |===
 
-Validation: at boot the core asks LiteLLM which environment variables
-each configured model needs and fails with `LLM credentials missing
-from environment: ...` if any is unset. Some providers have no
+Validation: the core checks only that `timeout` is positive and that
+`model_list` is a list. At startup the LLM sidecar asks LiteLLM which
+environment variables each configured model needs and exits with `LLM
+credentials missing from environment: ...` if any is unset. Some providers have no
 validation mapping and fail on the first call instead; see the
 xref:main:reference/llm-providers.adoc#startup-credential-validation[LiteLLM
 guide].
 
 Related environment variables: the provider's credential variables in
-`core/.env`. Requires restart: yes, for the YAML and for a credential
-change.
+`services/llm/.env`. Requires restart: yes, of both `core` and `llm`
+for the YAML, and a recreate of `llm` for a credential change.
 
 [#config-web-search]
 == `web_search`
 
-The search backend behind the agents' `web_search` tool. Requests go
-through the LiteLLM unified search API
+The search backend behind the agents' `web_search` tool. The core sends
+each query to the LLM sidecar, which reads this section too and runs
+the engine call through the LiteLLM unified search API
 (https://docs.litellm.ai/docs/completion/web_search[LiteLLM search]), and
 the shipped `config.yaml` routes every search through the bundled SearXNG
 sidecar. Pointing it at another provider is a config change, but the
@@ -624,9 +649,11 @@ answers with the reason and a nudge to rephrase the query. What caps a
 stuck agent is the agent loop's own
 `orchestration.max_tool_agent_executions` budget.
 
-Validation: an unknown provider name aborts the boot; `searxng` without
-an endpoint does too; an `endpoint` without a `provider` is rejected as
-a half-configured state.
+Validation: an unknown provider name stops the LLM sidecar at startup;
+`searxng` without an endpoint aborts the boot of both the core and the
+sidecar; an `endpoint` without a `provider` is rejected as a
+half-configured state. Each search's page reads run in the sidecar, so
+their failures are logged by `llm`, not `core`.
 
 [NOTE]
 ====
@@ -638,11 +665,11 @@ TLS-inspecting proxy].
 ====
 
 Related environment variables: the chosen provider's credential
-variables in `core/.env` (SearXNG needs none; see the
+variables in `services/llm/.env` (SearXNG needs none; see the
 xref:main:reference/environment-variables.adoc[Environment variables
 and secrets] page). The bundled SearXNG sidecar reads its instance
 secret from `services/searxng/.env` (`SEARXNG_SECRET`) and takes no
-credential from the core. Requires rebuild: yes for the YAML.
+credential from its caller. Requires rebuild: yes for the YAML.
 
 [#config-paths]
 == `paths`
@@ -701,13 +728,15 @@ Requires restart: yes.
 connection URL. URLs embed credentials, which is why the URL itself is
 not in this file. Boot fails with `Missing env variable for kumoss
 database` when the variable is empty, and database initialisation
-fails when it is unreachable. A `postgresql://` scheme is rewritten to
-`postgresql+asyncpg://`, and a `sslmode=` query parameter to asyncpg's
-`ssl=`, so URLs copied from a managed PostgreSQL service work as-is.
+fails when it is unreachable. The URL is handed to sqlx as-is: both
+`postgres://` and `postgresql://` schemes and the standard `sslmode=`
+query parameter are understood, so URLs copied from a managed
+PostgreSQL service work as-is.
 |===
 
-Schema note: there are no migrations; tables are created with
-`create_all`. A database volume created by an older schema must be
+Schema note: there are no migrations; missing tables and indexes are
+created at boot from `core/src/infrastructure/database/schema.sql`
+(`CREATE ... IF NOT EXISTS`). A database volume created by an older schema must be
 migrated by hand or dropped.
 
 Requires restart: yes for the field name; the URL value lives in
@@ -882,8 +911,7 @@ type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for
 created, no override is written, and each repository must declare its
 own remote backend, whose credentials belong to the IaC sidecar. A bare
 `terraform_state_bucket:` with nothing after it is *not* the same as
-`""`: it parses as YAML null and fails boot with a Pydantic validation
-error. See xref:main:guides/configure-state-backends.adoc[Configure state
+`""`: it parses as YAML null and fails boot with a validation error. See xref:main:guides/configure-state-backends.adoc[Configure state
 backends].
 
 |`storage.terraform_state_filename`
@@ -1099,7 +1127,10 @@ git:
   provider: "GITHUB"
 ----
 
-Everything omitted keeps its default. Credentials go in `core/.env`.
+Everything omitted keeps its default (including `services.llm`, whose
+code default is the bundled `\http://llm:8090`). Credentials go in
+`core/.env`, except the LLM provider credentials, which go in
+`services/llm/.env`.
 
 [#example-production]
 == Example: production-shaped deployment (fictitious)
@@ -1137,12 +1168,16 @@ services:
     endpoint: "http://iac:8082"
     token_env: "KUMOSS_IAC_TOKEN"
     job_timeout: 3600.0
+  llm:
+    endpoint: "http://llm:8090"
+    token_env: "KUMOSS_LLM_TOKEN"
+    timeout: 2700.0
 
 orchestration:
   enable_compliance_checker: true
   block_on_high_impact: true
 
-# Credentials stay in core/.env under the provider's default variable
+# Credentials stay in services/llm/.env under the provider's default variable
 # names (here AZURE_API_KEY, AZURE_API_BASE, AZURE_API_VERSION); no
 # model_list is needed for that. Use llm.model_list for load balancing
 # across entries that share a model_name, custom credential env var
@@ -1188,6 +1223,7 @@ Phoenix must be reachable at `collector_url` for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,
 `KUMOSS_SQL_DATABASE_URL`, `GIT_TOKEN`, and the `AZURE_API_*`
-credentials must come from a secret store. See
+credentials (the latter in the LLM sidecar's environment) must come
+from a secret store. See
 xref:main:reference/environment-variables.adoc[Environment variables and
 secrets].

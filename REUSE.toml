@@ -11,6 +11,8 @@ path = [
     ".github/CODEOWNERS",
     "**env.sample",
     "**uv.lock",
+    "**Cargo.lock",
+    "core/resources/*.html",
     "**/*json",
     "**/*txt",
     "**/*gitignore",

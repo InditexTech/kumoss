@@ -20,10 +20,12 @@
         { "type": "chore", "section": "Miscellaneous Chores", "hidden": true }
       ],
       "extra-files": [
-        { "type": "toml", "path": "core/pyproject.toml", "jsonpath": "$.project.version" },
-        { "type": "generic", "path": "core/src/main.py" },
+        { "type": "toml", "path": "core/Cargo.toml", "jsonpath": "$.package.version" },
+        { "type": "toml", "path": "core/Cargo.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-core')].version" },
         { "type": "generic", "path": "docker-compose.yml" },
-        { "type": "toml", "path": "core/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss')].version" },
+        { "type": "toml", "path": "services/llm/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "services/llm/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-llm')].version" },
+        { "type": "generic", "path": "services/llm/src/main.py" },
         { "type": "toml", "path": "services/iac/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "services/iac/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-iac')].version" },
         { "type": "toml", "path": "services/notifications/pyproject.toml", "jsonpath": "$.project.version" },

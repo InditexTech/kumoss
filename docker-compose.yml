@@ -56,8 +56,33 @@ services:
       - core-db
       - notifications
       - iac
+      - llm
       - redis
       - object-storage
+    networks:
+      - bridge-network
+
+  # LLM sidecar: LiteLLM completions and the `web_search` engine plus
+  # headless-Chromium page reads, behind an internal API the core calls.
+  # It reads the same config.yaml (llm and web_search sections) and owns
+  # the LLM provider credentials (services/llm/.env).
+  llm:
+    image: ghcr.io/inditextech/kumoss-llm:1.0.2 # x-release-please-version
+    build:
+      context: .
+      dockerfile: ./services/llm/Dockerfile
+      # Extra CA roots the Dockerfile copies in as the "host-certs" build
+      # context. Empty by default; the override points it at the host's
+      # corporate roots behind a TLS-inspecting proxy.
+      additional_contexts:
+        host-certs: ./docker/certs
+    env_file:
+      - path: ./services/llm/.env
+        required: true
+    volumes:
+      - ./config.yaml:/etc/kumoss/config.yaml:ro
+    expose:
+      - 8090
     networks:
       - bridge-network
 

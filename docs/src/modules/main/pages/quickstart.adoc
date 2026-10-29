@@ -19,6 +19,7 @@ git clone https://github.com/InditexTech/kumoss.git
 cd kumoss
 
 cp core/env.sample core/.env
+cp services/llm/env.sample services/llm/.env
 cp services/iac/env.sample services/iac/.env
 ----
 
@@ -29,7 +30,9 @@ for their names. Every `.env` file is gitignored; never commit one.
 
 `config.yaml` at the repository root is the single configuration file.
 Compose mounts it into the core container, and the core reads it at
-startup, so every edit needs `docker compose restart core`.
+startup, so every edit needs `docker compose restart core`. The LLM
+sidecar reads the same file for its `llm` and `web_search` sections, so
+an edit there needs `docker compose restart core llm`.
 
 ==== What to Edit vs. Keep as Default
 
@@ -61,23 +64,23 @@ git:
 * *Keep as Default:*
 ** All unmentioned configuration fields automatically fall back to core code defaults.
 
-=== 3. Fill in core/.env
+=== 3. Fill in core/.env and services/llm/.env
 
-The `core/.env` passes mandatory runtime secrets such as LLM API keys and Git access tokens. The core will not run without them.
+The `core/.env` passes mandatory runtime secrets such as Git access tokens and the sidecar bearer tokens. The `services/llm/.env` passes the LLM API keys to the LLM sidecar, which makes every model call on the core's behalf. Neither container will run without them.
 
 WARNING: every `.env` file is gitignored by default. Never commit a `.env` file containing real credentials to version control.
 
 ==== What to Edit vs. Keep as Default
 
 * *Variables you MUST set:*
-** *LLM provider credentials:* set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in `llm.model` and `llm.small_model`. See examples below. For more info see xref:main:reference/llm-providers.adoc#provider-credentials[provider credential variables].
-** `GIT_USER`, `GIT_TOKEN`: the account username and personal access token for the provider named by `git.provider` defined in `config.yaml`. See examples below.
+** *LLM provider credentials, in `services/llm/.env`:* set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in `llm.model` and `llm.small_model`. See examples below. For more info see xref:main:reference/llm-providers.adoc#provider-credentials[provider credential variables].
+** `GIT_USER`, `GIT_TOKEN`, in `core/.env`: the account username and personal access token for the provider named by `git.provider` defined in `config.yaml`. See examples below.
 * *Variables to Keep as Default:*
-** *All other sample values in `core/env.sample`:* leave all pre-populated values intact (such as internal tokens, container URLs, and service connection details). These are pre-configured to match the bundled Docker Compose setup. For a complete reference of every variable, see xref:main:reference/environment-variables.adoc[environment variables and secrets].
+** *All other sample values in `core/env.sample` and `services/llm/env.sample`:* leave all pre-populated values intact (such as internal tokens, container URLs, and service connection details). These are pre-configured to match the bundled Docker Compose setup; in particular `KUMOSS_LLM_TOKEN` must stay identical in both files. For a complete reference of every variable, see xref:main:reference/environment-variables.adoc[environment variables and secrets].
 
-TIP: if you modify `core/.env` after the stack is already running, recreate the container using `docker compose up -d core` to apply changes. Running `docker compose restart` will *not* reload `.env` variables.
+TIP: if you modify `core/.env` or `services/llm/.env` after the stack is already running, recreate the container using `docker compose up -d core` (or `docker compose up -d llm`) to apply changes. Running `docker compose restart` will *not* reload `.env` variables.
 
-==== Brief core/.env examples
+==== Brief services/llm/.env examples
 
 [.example]
 --
@@ -102,7 +105,12 @@ AZURE_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 AZURE_API_BASE="https://your-resource.openai.azure.com"
 AZURE_API_VERSION="2025-01-01-preview"
 ----
+--
 
+==== Brief core/.env example
+
+[.example]
+--
 *Git Credentials example:*
 [source,env]
 ----
@@ -165,8 +173,9 @@ docker compose up
 Add `-d` to run in the background. Compose pulls the Kumoss images for
 the checked-out release from `ghcr.io/inditextech/kumoss-*` (`linux/amd64`
 and `linux/arm64`). To run code changes from your checkout instead, add
-`--build`; the first build downloads the base images, installs the
-Python dependencies, downloads both IaC engines, and compiles the web
+`--build`; the first build downloads the base images, compiles the Rust
+core, installs the sidecars' Python dependencies and the LLM sidecar's
+headless Chromium, downloads both IaC engines, and compiles the web
 application.
 
 After a later change to `config.yaml`, restart the core:
@@ -177,19 +186,20 @@ docker compose restart core
 ----
 
 A change to a `.env` file needs the affected container recreated
-(`docker compose up -d core`, `docker compose up -d iac`); `docker compose
-restart` does not reload it.
+(`docker compose up -d core`, `docker compose up -d llm`, `docker compose
+up -d iac`); `docker compose restart` does not reload it.
 
 === 6. Verify the services
 
 [source,bash]
 ----
 docker compose ps
-docker compose logs -f core
+docker compose logs -f core llm
 ----
 
-Wait for `Application startup complete` in the core log. Boot is strict:
-if a start-up step fails, the container exits with the reason in the log.
+Wait for `Kumoss core listening on \http://0.0.0.0:8000` in the core log
+and `Application startup complete` in the llm log. Boot is strict: if a
+start-up step fails, the container exits with the reason in the log.
 A `notifications` container that has exited is expected while that
 optional sidecar is unconfigured.
 
@@ -297,13 +307,19 @@ RustFS.
 == Troubleshooting
 
 * *The core exits during boot.* Boot is strict and the reason is in
-  `docker compose logs core` — most often missing LLM credentials, an
-  empty `KUMOSS_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not
+  `docker compose logs core` — most often an empty `KUMOSS_IAC_TOKEN`,
+  `KUMOSS_LLM_TOKEN` or database URL in `core/.env`, or Phoenix not
   yet reachable. The stack has no healthchecks, so a dependency that was
   simply slower to start leaves the core stopped rather than retrying: run
   `docker compose up -d core` again.
+* *The llm container exits during boot.* The reason is in `docker compose
+  logs llm` — most often `LLM credentials missing from environment: ...`:
+  set the listed variables in `services/llm/.env` and run `docker compose
+  up -d llm`.
 * *Every session fails at validation with a `401` from the IaC sidecar.*
   `KUMOSS_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
+* *Every LLM call fails with a `401` from the LLM sidecar.*
+  `KUMOSS_LLM_TOKEN` differs between `core/.env` and `services/llm/.env`.
 * *A `config.yaml` change has no effect.* Restart the core with
   `docker compose restart core`; the file is read only at startup.
 * *`plan` or `apply` fails with a provider authentication error.* The cloud
@@ -324,7 +340,8 @@ RustFS.
   xref:main:guides/customize-prompts.adoc[Customize prompts].
 * *The browser cannot download an artifact.* Port 9000 must be reachable
   from the browser under the host in `storage.public_endpoint_url`.
-* *LLM calls fail although the core booted.* Not every provider can be
-  validated at boot. See
+* *LLM calls fail although the core and the llm sidecar booted.* Not
+  every provider can be validated at boot; the sidecar log carries the
+  `LiteLLM API error: ...` line. See
   xref:main:reference/llm-providers.adoc#llm-troubleshooting[LiteLLM
   troubleshooting].

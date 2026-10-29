@@ -33,6 +33,8 @@ jobs:
         include:
           - image: core
             dockerfile: core/Dockerfile
+          - image: llm
+            dockerfile: services/llm/Dockerfile
           - image: iac
             dockerfile: services/iac/Dockerfile
           - image: notifications

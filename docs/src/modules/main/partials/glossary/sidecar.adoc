@@ -1,5 +1,7 @@
 An integration point between Kumoss and an organization's systems,
 implementing an OpenAPI contract. Kumoss bundles the `iac` and
 `notifications` sidecars; for `mapping` and `authz`, provide your own
-implementation. Any implementation of a contract is used by pointing
+implementation. The bundled `llm` sidecar, which runs LiteLLM for the
+core, also implements a contract but is internal rather than an
+integration point. Any implementation of a contract is used by pointing
 `services.<name>.endpoint` in `config.yaml` at it.

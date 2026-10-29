@@ -57,8 +57,15 @@ via the `RUSTFS` provider
 |BSD-2-Clause
 |—
 
+|Rust, axum, tokio, sqlx, MiniJinja
+|Core language, HTTP framework, async runtime, PostgreSQL driver, prompt
+templates
+|MIT / Apache-2.0
+|Rust, tokio and axum are MIT (Rust also Apache-2.0); sqlx is dual MIT /
+Apache-2.0; MiniJinja is Apache-2.0
+
 |FastAPI, LiteLLM, React, oidc-client-ts
-|Framework, model router, portal, OIDC client
+|Sidecar framework, model router (in the llm sidecar), portal, OIDC client
 |MIT
 |—
 

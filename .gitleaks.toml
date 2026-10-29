@@ -1,0 +1,15 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# gitleaks configuration, read by the pre-commit hook and `gitleaks git`.
+# Keeps every default rule and only silences known test fixtures.
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "OIDC validator fixtures: JWTs signed with throwaway keys by a local fake IdP (core/testdata/oidc/gen.py)"
+paths = [
+    '''(^|/)core/testdata/oidc/[^/]+\.json$''',
+]

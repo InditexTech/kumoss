@@ -21,7 +21,8 @@ xref:main:guides/deploy-to-production.adoc[Deploy to production].
 
 == Requirements
 
-* Credentials for one LLM provider supported by LiteLLM. See
+* Credentials for one LLM provider supported by LiteLLM. They are given
+  to the LLM sidecar (`services/llm/.env`). See
   xref:main:reference/llm-providers.adoc[LLM providers and models].
 * Cloud credentials for the cloud your OpenTofu/Terraform code targets:
   the variables your providers read to create and change the resources

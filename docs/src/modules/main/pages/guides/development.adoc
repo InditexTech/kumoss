@@ -1,5 +1,5 @@
 = Development
-:description: Contribute to Kumoss: prerequisites, running the stack for development, core and frontend tests, type checking, linting, and regenerating sidecar clients.
+:description: Contribute to Kumoss: prerequisites, running the stack for development, core and frontend tests, linting, and updating sidecar clients.
 
 This guide covers contributing to Kumoss itself — running the repository's
 own test suites, checks, and tooling. It does not cover deploying or
@@ -14,15 +14,16 @@ proposing a change.
 
 == Repository layout
 
-The repository is a monorepo: the FastAPI core in `core/`, the IaC and
-notifications sidecar services in `services/`, the React web application
-in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See
+The repository is a monorepo: the Rust core (axum, tokio, sqlx,
+MiniJinja) in `core/`, the Python (FastAPI) IaC, notifications and LLM
+sidecar services in `services/`, the React web application in
+`client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See
 xref:main:architecture.adoc[] for how they fit together.
 
 == Running the stack for development
 
-Copy each `env.sample` to a `.env` next to it (`core/.env` is
-required), set the two model strings in `config.yaml`, and run `docker
+Copy each `env.sample` to a `.env` next to it (`core/.env` and
+`services/llm/.env` are required), set the two model strings in `config.yaml`, and run `docker
 compose up --build`. xref:main:quickstart.adoc[] is the step-by-step
 guide. `--build` matters: without it, Compose runs the published
 release images (`ghcr.io/inditextech/kumoss-*`) instead of your
@@ -32,7 +33,8 @@ with the published ones again.
 After a code change, rebuild and recreate the affected service, for
 example `docker compose up -d --build core`. An edit to `config.yaml`
 needs only `docker compose restart core`, because Compose bind-mounts
-that file.
+that file; restart `llm` too when you change the `llm` or `web_search`
+sections, which the LLM sidecar reads from the same file.
 
 [#local-compose-overrides]
 === Local Compose overrides
@@ -52,7 +54,7 @@ cp docker-compose.override.example.yml docker-compose.override.yml
 
 On a corporate network that inspects HTTPS, most outbound container
 requests fail while a few domains keep working: `web_search` returns
-engine snippets instead of page content, and `docker compose logs core`
+engine snippets instead of page content, and `docker compose logs llm`
 shows the reads failing before any HTTP request is sent.
 
 [source,text]
@@ -70,7 +72,7 @@ you received:
 
 [source,bash]
 ----
-docker compose exec core sh -c \
+docker compose exec llm sh -c \
   'echo | openssl s_client -connect example.com:443 \
    -servername example.com 2>/dev/null | openssl x509 -noout -issuer'
 ----
@@ -79,8 +81,8 @@ An `issuer` naming your company rather than a public CA confirms the
 interception. The fix is two-part, both wired in the override template
 above, and keeps the certificates on your machine:
 
-* *Build* — the core downloads Chromium, so the roots are needed at build
-  time too. The override points the `host-certs` build context at the host
+* *Build* — the llm image downloads Chromium, and every image fetches its
+  dependencies over HTTPS, so the roots are needed at build time too. The override points the `host-certs` build context at the host
   directory holding them.
 * *Runtime* — the override mounts that directory at `KUMOSS_CA_DIR`, and
   each entrypoint merges its certificates into a bundle and points the
@@ -90,40 +92,47 @@ A *hostname mismatch* is not a trust problem: the proxy is sinkholing
 that domain under its filtering policy, and the certificate honestly
 belongs to the sinkhole. No configuration fixes that one.
 
+[#core-tests]
 == Core tests
 
-Python 3.14, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
-dependency group, so sync the project first:
+The core is a Cargo project (`core/Cargo.toml`, Rust edition 2024). Its
+checks are formatting, Clippy with warnings denied, and the test suite —
+unit tests next to the code in `core/src/` and integration tests in
+`core/tests/`:
 
 [source,bash]
 ----
 cd core
-uv sync --frozen --group tooling
-uv run --no-sync pytest tests/
+cargo fmt --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo test --locked
 ----
 
-Async tests use `unittest.IsolatedAsyncioTestCase` (no pytest-asyncio
-plugin, no `--asyncio-mode` flag).
-`core/tests/conftest.py` supplies placeholder values for the LLM
-credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that
-the configuration module validates at import; suites that talk to
-PostgreSQL or Redis need the compose stack (or point
-`KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own
-instances).
+The integration tests (`core/tests/schema_parity.rs`,
+`core/tests/api_catalog.rs`) need a PostgreSQL they may freely write
+to, named by `KUMOSS_TEST_DATABASE_URL`; when the variable is unset they
+print a skip notice and pass. Point it at a *disposable* database, never
+at the compose stack's `core-db`.
 
-== Type checking
-
-`basedpyright` lives in the `tooling` dependency group, which the
-project install above does not include; install the group first:
+To run everything without a local Rust toolchain, use the same image as
+the build stage of `core/Dockerfile` and a throwaway PostgreSQL:
 
 [source,bash]
 ----
-cd core
-uv pip install --system --group tooling -r pyproject.toml
-basedpyright
+docker network create kumoss-test
+docker run -d --rm --name kumoss-test-db --network kumoss-test \
+  -e POSTGRES_USER=kumoss -e POSTGRES_PASSWORD=kumoss \
+  -e POSTGRES_DB=kumoss_test postgres:17
+docker run --rm --network kumoss-test -v "$PWD/core":/app -w /app \
+  -e KUMOSS_TEST_DATABASE_URL=postgres://kumoss:kumoss@kumoss-test-db:5432/kumoss_test \
+  rust:1-bookworm sh -c 'rustup component add rustfmt clippy &&
+    cargo fmt --check &&
+    cargo clippy --locked --all-targets -- -D warnings &&
+    cargo test --locked'
+docker rm -f kumoss-test-db && docker network rm kumoss-test
 ----
 
-`pyrightconfig.json` only includes `src/` — tests are not type-checked.
+The build output lands in `core/target/`, which git ignores.
 
 == Frontend checks
 
@@ -152,8 +161,10 @@ uv run pytest
 
 == Linting and formatting
 
-`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`),
-the REUSE check, and gitleaks secret scanning. Install the hooks once
+`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`)
+over the Python sidecars, the REUSE check, and gitleaks secret scanning.
+The core's Rust formatting and lints are `cargo fmt` and `cargo clippy`
+(see <<core-tests>>). Install the hooks once
 with `pre-commit install`.
 
 == Continuous integration
@@ -161,31 +172,26 @@ with `pre-commit install`.
 Pull requests run Repolinter, the REUSE compliance check, the
 Conventional Commits check, and an offline Markdown link and anchor
 check, plus a Verify workflow: frontend type check, tests, and
-production build, and the pytest suite of each sidecar service. *The
-core suite is not run in CI*, so run it locally against the compose
-stack before opening a pull request.
+production build; the core's `cargo fmt --check`, Clippy and `cargo
+test`, with the integration tests against a disposable PostgreSQL 17
+service; and the pytest suite of each sidecar service.
 
 [#regenerating-clients]
-== Regenerating sidecar clients
+== Updating sidecar clients
 
 Changing a sidecar's behavior means updating its spec in
-`contracts/openapi/`, its conformance suite in `contracts/conformance/`,
-and regenerating the core's client for that service. From `core/`, once
-per service:
+`contracts/openapi/`, its conformance suite in `contracts/conformance/`
+(the `llm` contract has none), and the core's client for that service.
+The core's clients are hand-written Rust — nothing is generated:
 
-[source,bash]
-----
-uv run --group tooling openapi-python-client generate \
-  --path ../contracts/openapi/<service>.v1.yaml \
-  --config ../contracts/openapi-python-client.yaml \
-  --meta none \
-  --output-path src/clients/<service> \
-  --overwrite
-----
+* `core/src/infrastructure/external/` — authz, mapping and notifications,
+  plus the shared bearer-auth, timeout and RFC 7807 handling;
+* `core/src/infrastructure/terraform/iac.rs` — IaC;
+* `core/src/infrastructure/llm/sidecar.rs` — LLM.
 
-Regeneration drops the SPDX headers from the generated files; re-add
-them afterwards. Do not hand-edit anything under
-`core/src/clients/{authz,iac,mapping,notifications}/`.
+After changing a spec, update the matching client and its tests in
+`core/` so requests, responses and error handling still follow the
+document, then run the core checks above.
 
 == Pull requests
 

@@ -229,9 +229,7 @@ class AwsScopeLister:
                 continue
             if self._is_default_managed(entry):
                 continue
-            if self._is_default_ec2(
-                session, entry, arn, res_type, ec2_defaults_cache
-            ):
+            if self._is_default_ec2(session, entry, arn, res_type, ec2_defaults_cache):
                 continue
             kept.append(arn)
         return kept
@@ -239,9 +237,7 @@ class AwsScopeLister:
     def _is_default_memorydb_acl(self, arn: str) -> bool:
         parts = arn.split(":", 5)
         return (
-            len(parts) >= 6
-            and parts[2] == "memorydb"
-            and parts[5] == "acl/open-access"
+            len(parts) >= 6 and parts[2] == "memorydb" and parts[5] == "acl/open-access"
         )
 
     def _is_default_ec2(

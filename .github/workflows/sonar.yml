@@ -34,13 +34,13 @@ jobs:
             project_name: kumoss-python
             conformance_dir_list: contracts/conformance/authz,contracts/conformance/iac,contracts/conformance/mapping,contracts/conformance/notifications
             coverage_paths: >-
-              services/iac/coverage.xml,services/notifications/coverage.xml
+              services/llm/coverage.xml,services/iac/coverage.xml,services/notifications/coverage.xml
           - technology: web
             project_key: InditexTech_kumoss-web
             project_name: kumoss-web
             coverage_paths: client/web/coverage/lcov.info
     env:
-      PY_PACKAGES: services/iac services/notifications
+      PY_PACKAGES: services/llm services/iac services/notifications
     steps:
       - name: Check out source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -55,7 +55,6 @@ jobs:
           python-version: "3.14"
           enable-cache: true
           cache-dependency-glob: |
-            core/uv.lock
             services/*/uv.lock
 
       - name: Verify SONAR_TOKEN is configured
@@ -71,11 +70,8 @@ jobs:
       - name: Test with coverage (python)
         if: matrix.technology == 'python'
         shell: bash
-        # The core suite is not run in CI: its DB-backed and terraform-backed
-        # tests need the compose stack (documented policy). Core is analyzed
-        # without coverage rather than with failing runs.
-        # pytest-asyncio is not used: core async tests are
-        # unittest.IsolatedAsyncioTestCase-driven.
+        # The core is a Rust crate, tested by the Verify workflow; Sonar
+        # analyzes the Python services here.
         run: |
           set -euo pipefail
           export UV_PYTHON=3.14
@@ -124,14 +120,13 @@ jobs:
             "-Dsonar.projectName=${SONAR_PROJECT_NAME}"
           )
           if [ "$SONAR_TECH" = "python" ]; then
-            sources="core/src,services/iac/src,services/notifications/src"
-            tests="core/tests,services/iac/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
+            sources="services/llm/src,services/iac/src,services/notifications/src"
+            tests="services/llm/tests,services/iac/tests,services/notifications/tests,${SONAR_CONFORMANCE_DIRS}"
             args+=(
               "-Dsonar.sources=$sources"
               "-Dsonar.tests=$tests"
               "-Dsonar.test.inclusions=**/test_*.py,**/test_conformance.py,**/conftest.py"
               "-Dsonar.python.coverage.reportPaths=${SONAR_COVERAGE_PATHS}"
-              "-Dsonar.coverage.exclusions=core/src/**,core/tests/**"
             )
           else
             args+=(

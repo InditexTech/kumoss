@@ -84,8 +84,10 @@ Other settings that follow from the origin:
   Phoenix's OTLP port must *not* be exposed through the ingress. Use
   network policies so that only the core reaches the sidecars.
 
-Outbound connections you must allow: the core to the LLM provider, the
-Git host, the identity provider, object storage, and Phoenix; the IaC
+Outbound connections you must allow: the core to the LLM sidecar, the
+Git host, the identity provider, object storage, and Phoenix; the LLM
+sidecar to the LLM provider, the web-search engine, and the pages its
+`web_search` reads; the IaC
 sidecar to the provider registry (`registry.opentofu.org` or
 `registry.terraform.io`) and to the cloud APIs; the notifications
 sidecar to `hooks.slack.com` (or your channel).
@@ -94,13 +96,13 @@ sidecar to `hooks.slack.com` (or your channel).
 == Images and configuration delivery
 
 * Each release publishes every Kumoss-built image to
-  `ghcr.io/inditextech/kumoss-<image>`: `core`, `iac`,
+  `ghcr.io/inditextech/kumoss-<image>`: `core`, `llm`, `iac`,
   `notifications`, and `proxy` (nginx with the web application),
   tagged `X.Y.Z`, `X.Y`, `X` and `latest`, for `linux/amd64` and
   `linux/arm64`. They are built with the default
-  `KUMOSS_UID`/`KUMOSS_GID` (`10001`), and the core image carries the
-  repository's default `config.yaml`, so mount your own at
-  `KUMOSS_CONFIG` (see below). Pin the `X.Y.Z` tag, or the digest, in
+  `KUMOSS_UID`/`KUMOSS_GID` (`10001`), and the core and llm images carry
+  the repository's default `config.yaml`, so mount your own at
+  `KUMOSS_CONFIG` in both (see below). Pin the `X.Y.Z` tag, or the digest, in
   production.
 * To build the images yourself instead, build them from the repository
   with your registry's tags. The
@@ -115,7 +117,10 @@ sidecar to `hooks.slack.com` (or your channel).
   token is set and only the endpoint falls back to the built-in default
   (`\http://iac:8082`, unreachable from most environments), the core
   boots successfully and the failure only surfaces on the first IaC
-  call (init/validate/plan/apply), not at boot.
+  call (init/validate/plan/apply), not at boot. The LLM sidecar behaves
+  the same way (`\http://llm:8090`, `KUMOSS_LLM_TOKEN`), and it reads
+  its `llm` and `web_search` sections from its own `KUMOSS_CONFIG`
+  mount, so give it the same file.
 * Build the core and IaC images with the *same* `KUMOSS_UID` and
   `KUMOSS_GID` build arguments (default `10001`) and run both with that
   identity.

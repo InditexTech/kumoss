@@ -1,0 +1,422 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+openapi: 3.1.0
+info:
+  title: Kumoss LLM Service
+  version: "1.0.0"
+  summary: LLM completions and web search for the Kumoss core.
+  description: |
+    The LLM service owns the pieces of Kumoss that only exist in the
+    Python ecosystem: the LiteLLM Router (multi-provider chat
+    completions), the LiteLLM unified web search, and the page reads
+    behind each search hit (headless Chromium via Playwright, reduced to
+    markdown with trafilatura).
+
+    The core keeps all prompt construction and reply interpretation:
+    it sends fully-formed OpenAI chat-completions kwargs and receives
+    the raw fields of the provider reply (finish reason unmapped, tool
+    arguments as the raw JSON string the model produced).
+
+    Model selection, provider credentials and the search backend are
+    deployment configuration of the implementation: the bundled
+    reference implementation (`services/llm/`) reads the `llm` and
+    `web_search` sections of the same `config.yaml` the core reads and
+    the provider credentials from its own environment.
+  contact:
+    name: Kumoss maintainers
+    url: https://github.com/InditexTech/kumoss
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://llm:8090
+    description: Default in-cluster URL when running via docker-compose.
+
+tags:
+  - name: completions
+    description: LLM chat completions.
+  - name: search
+    description: Web search with page reads.
+  - name: ops
+    description: Operational endpoints (liveness, readiness).
+
+paths:
+  /v1/completions:
+    post:
+      operationId: createCompletion
+      tags: [completions]
+      summary: Run one chat completion through the LiteLLM Router.
+      description: |
+        Calls `router.acompletion(**body, drop_params=True)` with exactly
+        the keys in the body: an omitted optional key is not forwarded.
+        `messages` and `tools` are forwarded verbatim. LiteLLM applies
+        `num_retries` and the per-attempt `timeout` itself, so one call
+        can take up to roughly `(num_retries + 1) * timeout` seconds;
+        callers must size their HTTP timeout accordingly.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompletionRequest"
+      responses:
+        "200":
+          description: The provider replied.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CompletionResponse"
+        "400":
+          $ref: "#/components/responses/TransportError"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          description: |
+            The provider call failed (any `openai.OpenAIError`, which every
+            LiteLLM exception subclasses). Always `502` on the wire; the
+            provider-side status rides along in `status_code`. `detail` is
+            `Inference call to {model} failed.`; the raw provider error is
+            logged, never echoed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/InferenceProblem"
+
+  /v1/search:
+    post:
+      operationId: search
+      tags: [search]
+      summary: Search the web and read each hit's page.
+      description: |
+        Calls the configured LiteLLM search provider, keeps at most
+        `max_results` hits (enforced locally), then renders every hit's
+        page concurrently in one shared headless Chromium and reduces it
+        to markdown, truncated to `max_page_chars`. A page that fails to
+        render or extract (timeout, HTTP status >= 400, no readable
+        content, no url) falls back to the engine's snippet for that hit
+        only; only a failure of the search call itself fails the request.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SearchRequest"
+      responses:
+        "200":
+          description: Search results, possibly empty.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+        "400":
+          description: |
+            No search engine is configured. `detail` is exactly
+            `no search engine is configured (web_search.provider is empty
+            in config.yaml)`. Transport-level parse errors (malformed
+            JSON) MAY also answer `400` with a framework-default body.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/InternalError"
+        "502":
+          description: |
+            The search engine call failed. `detail` is exactly
+            `the '<provider>' search engine call failed`; the raw engine
+            error is logged, never echoed.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+
+  /v1/healthz:
+    get:
+      operationId: healthz
+      tags: [ops]
+      summary: Liveness probe.
+      description: |
+        Returns 200 with `{"status":"ok"}` if the service process is alive
+        and able to handle requests. Does not check provider connectivity.
+        The reference implementation also answers on the unversioned
+        `/healthz` path the other bundled services use.
+      responses:
+        "200":
+          description: Service is alive.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Health"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: |
+        Per-service bearer token. The token value is the contents of the
+        environment variable named in the system config (default
+        `KUMOSS_LLM_TOKEN`). If the implementation has no token
+        configured, it MAY accept all requests for local development.
+
+  responses:
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      headers:
+        WWW-Authenticate:
+          description: |
+            Bearer challenge. RFC 9110 11.6.1 requires a 401 to carry at
+            least one challenge, so implementations must send this.
+          required: true
+          schema:
+            type: string
+            examples: ["Bearer"]
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    TransportError:
+      description: |
+        Request could not be parsed at the transport layer (malformed
+        JSON, non-UTF-8 bytes in a JSON body). Implementations MAY return
+        either a Problem object or a framework-default body for this
+        case. Distinct from 422 (well-formed JSON failing schema
+        validation).
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    ValidationError:
+      description: |
+        Request body failed validation: well-formed JSON that does not
+        satisfy the schema (missing required field, wrong type, unknown
+        key, etc.).
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+    InternalError:
+      description: Unexpected failure inside the implementation.
+      content:
+        application/problem+json:
+          schema:
+            $ref: "#/components/schemas/Problem"
+
+  schemas:
+    CompletionRequest:
+      type: object
+      description: |
+        LiteLLM / OpenAI chat-completions kwargs. Optional keys that are
+        absent (or null) are not forwarded to LiteLLM.
+      required: [model, messages, max_tokens, temperature, num_retries, timeout]
+      additionalProperties: false
+      properties:
+        model:
+          type: string
+          description: |
+            LiteLLM model id (`provider/model`) or a `model_name` of the
+            configured Router `model_list`.
+          examples: ["anthropic/claude-sonnet-5"]
+        messages:
+          type: array
+          description: OpenAI chat messages, forwarded verbatim.
+          items:
+            type: object
+            additionalProperties: true
+        max_tokens:
+          type: integer
+        temperature:
+          type: number
+        num_retries:
+          type: integer
+          description: LiteLLM retry count for this call.
+        timeout:
+          type: number
+          description: Per-attempt budget in seconds, enforced by LiteLLM.
+        tools:
+          type: array
+          description: OpenAI function tools, forwarded verbatim.
+          items:
+            type: object
+            additionalProperties: true
+        tool_choice:
+          description: OpenAI tool choice (the core sends `auto`).
+          oneOf:
+            - type: string
+            - type: object
+              additionalProperties: true
+        reasoning_effort:
+          type: string
+          description: LiteLLM reasoning effort (the core sends `low`).
+
+    CompletionResponse:
+      type: object
+      required:
+        - text
+        - finish_reason
+        - model
+        - prompt_tokens
+        - completion_tokens
+        - tool_calls
+        - reasoning_content
+        - model_name
+        - llm_provider
+      additionalProperties: false
+      properties:
+        text:
+          type: string
+          description: The first choice's message content; `""` when null.
+        finish_reason:
+          type: [string, "null"]
+          description: |
+            Raw finish reason of the first choice (`stop`, `length`,
+            `tool_calls`, `content_filter`, ...), unmapped.
+        model:
+          type: [string, "null"]
+          description: The model the provider reports having served.
+        prompt_tokens:
+          type: integer
+          description: Input tokens; 0 when the reply carries no usage.
+        completion_tokens:
+          type: integer
+          description: Output tokens; 0 when the reply carries no usage.
+        tool_calls:
+          type: array
+          items:
+            $ref: "#/components/schemas/ToolCall"
+        reasoning_content:
+          type: [string, "null"]
+          description: The message's reasoning text, when the provider returned one.
+        model_name:
+          type: [string, "null"]
+          description: |
+            Model name resolved from the request's `model` by
+            `litellm.get_llm_provider`; null when it cannot be resolved
+            (e.g. a `model_list` alias).
+        llm_provider:
+          type: [string, "null"]
+          description: |
+            LiteLLM provider resolved the same way (`anthropic`,
+            `vertex_ai`, `openai`, ...); null when unresolvable.
+
+    ToolCall:
+      type: object
+      required: [id, name, arguments]
+      additionalProperties: false
+      properties:
+        id:
+          type: [string, "null"]
+        name:
+          type: [string, "null"]
+        arguments:
+          type: string
+          description: The raw JSON arguments string the model produced, unparsed.
+
+    InferenceProblem:
+      description: Problem details for a failed provider call.
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          required: [status_code]
+          properties:
+            status_code:
+              type: [integer, "null"]
+              description: |
+                The provider exception's `status_code` (e.g. 429, 503),
+                or 502 when it carries none.
+
+    SearchRequest:
+      type: object
+      required: [query]
+      additionalProperties: false
+      properties:
+        query:
+          type: string
+
+    SearchResponse:
+      type: object
+      required: [results]
+      additionalProperties: false
+      properties:
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/SearchResult"
+
+    SearchResult:
+      type: object
+      required: [title, url, content]
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          description: Hit title; `""` when the engine sent none.
+        url:
+          type: string
+          description: Hit URL; `""` when the engine sent none.
+        content:
+          type: string
+          description: |
+            The page's readable text as markdown, truncated to the
+            configured `max_page_chars`, or the engine snippet (`""` when
+            none) when the page could not be read.
+
+    Health:
+      type: object
+      required: [status]
+      additionalProperties: false
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    Problem:
+      type: object
+      description: |
+        Problem details for HTTP APIs (RFC 7807).
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri-reference
+          description: |
+            URI reference identifying the problem type. Use
+            `about:blank` if the implementation has no problem-type vocabulary.
+          default: "about:blank"
+        title:
+          type: string
+          description: Short, human-readable summary of the problem type.
+        status:
+          type: integer
+          minimum: 100
+          maximum: 599
+        detail:
+          type: string
+          description: Human-readable explanation specific to this occurrence.
+        instance:
+          type: string
+          format: uri-reference
+          description: URI reference identifying the specific occurrence.

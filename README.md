@@ -10,7 +10,7 @@ SPDX-License-Identifier: Apache-2.0
 
 Kumoss turns natural-language requests into reviewed, compliant Infrastructure as Code (IaC). Platform engineers and application developers describe the infrastructure they need, and Kumoss's agents generate Terraform-compatible HCL in the right repository, guided by the organization's architecture, security, and networking standards. Every change is validated, planned, reported, and audited for compliance before Kumoss opens a pull request and applies it on request.
 
-Kumoss is an orchestration platform: a FastAPI core, a React web application, and replaceable sidecar services — four behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization, plus a bundled SearXNG metasearch instance the agents use to search the web.
+Kumoss is an orchestration platform: a Rust core, a React web application, and replaceable sidecar services — four behind OpenAPI contracts for the IaC engine, repository mapping, notifications, and authorization, an LLM gateway that owns the model provider calls, plus a bundled SearXNG metasearch instance the agents use to search the web.
 
 https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 
@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/). Kumoss bundles the IaC and notifications services, which you can replace with your own; for authorization, provide your own implementation.
 
 > [!NOTE]
-> Kumoss exposes everything through a FastAPI API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.
+> Kumoss exposes everything through an HTTP API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.
 
 ## How it works
 

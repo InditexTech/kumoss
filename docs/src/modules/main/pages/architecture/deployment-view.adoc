@@ -21,13 +21,13 @@ include::partial$interactive-diagram.adoc[]
 Named volumes are written into each container's subtitle instead of
 being drawn as separate nodes (`core_db_data`, `phoenix_db_data`,
 `object_storage_data`, and `workspaces`), and `phoenix-db` is folded
-into the phoenix node, so the ninth container of the stack is not a
-box of its own. Two edges are left out because the
+into the phoenix node, so that container of the stack is not a box of
+its own. Two edges are left out because the
 xref:main:architecture.adoc[system architecture diagram] already
 carries them — the core's OTLP traces and prompt calls to Phoenix, and
 the proxy's port 9000 path to object storage — and the connections that
-leave the stack (LLM and git provider APIs from the core, the Slack
-webhook from notifications) appear in the notes beside the diagram
+leave the stack (LLM provider and search APIs from the llm sidecar, git
+provider APIs from the core, the Slack webhook from notifications) appear in the notes beside the diagram
 rather than as external nodes.
 
 Only the proxy publishes host ports; all other containers are reachable
@@ -51,24 +51,24 @@ repository ships no Kubernetes manifests or Helm charts.
 
 === Topology
 
-* All nine containers share one Docker bridge network. Only `proxy`
+* All eleven containers share one Docker bridge network. Only `proxy`
   publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
   (presigned object-storage access); every other service is
   internal-only via `expose`.
 * Compose `depends_on` orders start-up (it does not health-check): core
-  waits for core-db, notifications, mapping, iac, authz, Redis, and
-  object storage; the proxy waits for core, Phoenix, and object storage.
-  SearXNG has no dependency ordering — the core calls it per request, so
-  a missing or slow engine surfaces only as the `web_search` tool's
-  "unavailable" result. The core has no Compose dependency on Phoenix,
+  waits for core-db, notifications, iac, llm, Redis, and object
+  storage; the proxy waits for core, Phoenix, and object storage.
+  SearXNG has no dependency ordering — the llm sidecar calls it per
+  request, so a missing or slow engine surfaces only as the `web_search`
+  tool's "unavailable" result. The core has no Compose dependency on Phoenix,
   which is why its prompt seeder retries.
 * Four named volumes persist state: `core_db_data`, `phoenix_db_data`,
   `object_storage_data`, and `workspaces`.
 
 === Core start-up
 
-* The FastAPI lifespan enforces a strict order: database, then Redis,
-  then object-storage bucket creation, then Phoenix prompt seeding.
+* The core's start-up (`core/src/main.rs`) enforces a strict order:
+  database, then Redis, then object-storage bucket creation, then Phoenix prompt seeding.
   Failure of any step aborts boot. Git credential configuration follows
   and is best-effort.
 * Configuration comes from a single `config.yaml`, read once at
@@ -80,11 +80,12 @@ repository ships no Kubernetes manifests or Helm charts.
 * Secrets never appear in the file: `*_env` fields name environment
   variables (database URL, service bearer tokens, storage keys, git
   personal access token), and the core validates at boot that every
-  enabled service's token and every referenced LLM credential resolves.
-  Each `KUMOSS_<SERVICE>_TOKEN` must match between the core's outbound
-  client and the sidecar's inbound validation.
+  enabled service's token resolves. The LLM provider credentials are
+  not the core's: the llm sidecar holds them and validates them at its
+  own start-up. Each `KUMOSS_<SERVICE>_TOKEN` must match between the
+  core's outbound client and the sidecar's inbound validation.
 * Authentication needs no secret: the `oidc` block and
-  `admin.default_root_email` are plain configuration that Pydantic
+  `admin.default_root_email` are plain configuration that the core
   validates at load, so an `issuer_url` without a `client_id` fails the
   boot; discovery and JWKS are fetched lazily on the first request, so a
   wrong or unreachable issuer surfaces as a `401` at first login, not at

@@ -233,7 +233,7 @@ export function codeChangeLabel(
  * been recorded yet.
  *
  * Canonical end point for a session — deliberately not `updated_at`, which
- * carries `onupdate` (see `core/src/infrastructure/database/models.py`), so
+ * is bumped by every session write (see `core/src/domain/services/database.rs`), so
  * *any* write moves it: toggling the apply lock on a session that finished
  * hours earlier would inflate its duration and drag its "Completed"
  * timestamp forward.

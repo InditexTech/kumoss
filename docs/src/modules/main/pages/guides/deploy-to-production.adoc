@@ -53,7 +53,8 @@ and scaling constraints]
 |3
 |Treat the four sidecars as integration boundaries: implement IaC to
 your requirements, implement mapping and authorization yourself or
-leave them disabled, integrate notifications
+leave them disabled, integrate notifications (the internal LLM sidecar
+runs as shipped)
 |<<sidecars-as-production-integration-boundaries,Sidecars as production
 integration boundaries>>, below
 
@@ -168,12 +169,12 @@ definition for your environment.
 
 == Reference topology
 
-The Compose stack defines nine services on one network. In production
+The Compose stack defines eleven services on one network. In production
 each row below is a deployment decision; the mapping and authorization
 rows are services you provide yourself, because Kumoss ships only their
 contracts. Every image built from a Dockerfile in this repository is
 also published for each release as `ghcr.io/inditextech/kumoss-<image>`
-(`core`, `iac`, `notifications`, `proxy`); see
+(`core`, `llm`, `iac`, `notifications`, `proxy`); see
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].
 
@@ -183,7 +184,8 @@ and configuration delivery].
 |Production decision
 
 |Core API
-|`core/Dockerfile` (Python 3.14, port 8000, user `kumoss` 10001)
+|`core/Dockerfile` (Rust binary `/usr/src/app/kumoss-core` on Debian
+bookworm-slim, port 8000, user `kumoss` 10001)
 |Ingress (`/api`), nothing else
 |Shared workspace volume
 |Run *one replica* (see
@@ -241,6 +243,16 @@ Phoenix.
 |*Mandatory.* *As a starting point* — harden the image and container,
 or implement the contract yourself to your organization's requirements.
 
+|LLM sidecar
+|`services/llm/Dockerfile` (Python 3.14, LiteLLM, headless Chromium;
+port 8090; user `kumoss` 10001)
+|Core only; needs egress to the LLM providers, the search engine, and
+the web pages it reads
+|none
+|*Mandatory.* Holds the LLM and hosted web-search provider credentials
+(`services/llm/.env`); inject them from your secret store. Give it the
+same `config.yaml` as the core.
+
 |Mapping sidecar
 |None bundled; your implementation of the mapping contract
 |Core only
@@ -261,7 +273,7 @@ replace it.
 |Implement it against your entitlement source, or leave it disabled.
 |===
 
-The Kumoss-built core, iac, and notifications images run as the
+The Kumoss-built core, llm, iac, and notifications images run as the
 unprivileged `kumoss` user, uid/gid 10001. The
 `nginx/Dockerfile` proxy image is the exception: it has no `USER`
 directive and starts as root, dropping privileges only for its worker

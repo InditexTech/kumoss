@@ -26,9 +26,21 @@ updates:
         patterns:
           - github/codeql-action/*
 
-  # Python packages live in uv-managed projects (core + services/*).
-  - package-ecosystem: uv
+  # The core is a Cargo crate.
+  - package-ecosystem: cargo
     directory: /core
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  # Python packages live in uv-managed projects (services/*).
+  - package-ecosystem: uv
+    directory: /services/llm
     schedule:
       interval: weekly
       day: monday

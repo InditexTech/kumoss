@@ -1,0 +1,444 @@
+[
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": ""
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"q\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {},
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"q\"],\"msg\":\"Field required\",\"input\":{}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, Exactly one of `repo_uri` or `session_id` must be provided.\",\"input\":{\"q\":\"x\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "http://github.com/a/b"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"repo_uri\"],\"msg\":\"Value error, repo_uri must be an https:// URL (e.g. `https://github.com/org/repo.git`); SSH, git://, http://, file:// and local paths are not supported.\",\"input\":\"http://github.com/a/b\",\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://u:p@github.com/a/b"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"repo_uri\"],\"msg\":\"Value error, repo_uri must not embed a password or token; pass the repository URI without the `:<secret>` part (a bare `user@host` prefix is fine).\",\"input\":\"https://u:p@github.com/a/b\",\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, First call (repo_uri) requires `terraform_providers`.\",\"input\":{\"q\":\"x\",\"repo_uri\":\"https://github.com/a/b\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b",
+   "terraform_providers": "azure"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, First call (repo_uri) requires `scope_id`.\",\"input\":{\"q\":\"x\",\"repo_uri\":\"https://github.com/a/b\",\"terraform_providers\":\"azure\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b",
+   "terraform_providers": "azurerm",
+   "scope_id": "s"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"enum\",\"loc\":[\"body\",\"terraform_providers\"],\"msg\":\"Input should be 'azure', 'gcp', 'aws', 'oci', 'kubernetes' or 'vmware'\",\"input\":\"azurerm\",\"ctx\":{\"expected\":\"'azure', 'gcp', 'aws', 'oci', 'kubernetes' or 'vmware'\"}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b",
+   "terraform_providers": "azure",
+   "scope_id": ""
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"scope_id\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b",
+   "terraform_providers": "azure",
+   "scope_id": "s",
+   "iac_path": "/abs"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"iac_path\"],\"msg\":\"Value error, iac_path must be a repo-relative path (not absolute) and must not contain '..' segments\",\"input\":\"/abs\",\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b",
+   "terraform_providers": "azure",
+   "scope_id": "s",
+   "iac_path": "a/../b"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"iac_path\"],\"msg\":\"Value error, iac_path must be a repo-relative path (not absolute) and must not contain '..' segments\",\"input\":\"a/../b\",\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "session_id": "not-a-uuid"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"uuid_parsing\",\"loc\":[\"body\",\"session_id\"],\"msg\":\"Input should be a valid UUID, invalid character: found `n` at 1\",\"input\":\"not-a-uuid\",\"ctx\":{\"error\":\"invalid character: found `n` at 1\"}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0",
+   "iac_path": "a"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, iac_path is set only on the first call; iteration calls inherit it from the session.\",\"input\":{\"q\":\"x\",\"session_id\":\"917d0485-a0a2-4c34-8f33-a89d28aba9b0\",\"iac_path\":\"a\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": "x",
+   "session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0",
+   "repo_uri": "https://github.com/a/b"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, Exactly one of `repo_uri` or `session_id` must be provided.\",\"input\":{\"q\":\"x\",\"session_id\":\"917d0485-a0a2-4c34-8f33-a89d28aba9b0\",\"repo_uri\":\"https://github.com/a/b\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": {
+   "q": 5,
+   "repo_uri": 7
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_type\",\"loc\":[\"body\",\"repo_uri\"],\"msg\":\"Input should be a valid string\",\"input\":7},{\"type\":\"string_type\",\"loc\":[\"body\",\"q\"],\"msg\":\"Input should be a valid string\",\"input\":5}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/generate",
+  "body": [
+   1,
+   2
+  ],
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"model_attributes_type\",\"loc\":[\"body\"],\"msg\":\"Input should be a valid dictionary or object to extract fields from\",\"input\":[1,2]}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/drift",
+  "body": {
+   "q": " ",
+   "is_partial": true,
+   "session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, Partial drift detection requires a non-empty `q`.\",\"input\":{\"q\":\" \",\"is_partial\":true,\"session_id\":\"917d0485-a0a2-4c34-8f33-a89d28aba9b0\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/drift",
+  "body": {
+   "q": "x",
+   "is_partial": "maybe",
+   "session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"bool_parsing\",\"loc\":[\"body\",\"is_partial\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"maybe\"}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/import",
+  "body": {
+   "q": " ",
+   "is_partial": true,
+   "session_id": "917d0485-a0a2-4c34-8f33-a89d28aba9b0"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, Partial import requires a non-empty `q`.\",\"input\":{\"q\":\" \",\"is_partial\":true,\"session_id\":\"917d0485-a0a2-4c34-8f33-a89d28aba9b0\"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/import",
+  "body": {
+   "q": "x",
+   "repo_uri": "https://github.com/a/b",
+   "terraform_providers": "aws",
+   "scope_id": "  "
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\"],\"msg\":\"Value error, The `scope_id` must be provided when `repo_uri` is set.\",\"input\":{\"q\":\"x\",\"repo_uri\":\"https://github.com/a/b\",\"terraform_providers\":\"aws\",\"scope_id\":\"  \"},\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/apply",
+  "body": {},
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"session_id\"],\"msg\":\"Field required\",\"input\":{}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/iac/apply",
+  "body": {
+   "session_id": "x"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"uuid_parsing\",\"loc\":[\"body\",\"session_id\"],\"msg\":\"Input should be a valid UUID, invalid character: found `x` at 1\",\"input\":\"x\",\"ctx\":{\"error\":\"invalid character: found `x` at 1\"}}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sessions/list?page=0",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"page\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sessions/list?page_size=101&operation=nope&status=bad",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"page_size\"],\"msg\":\"Input should be less than or equal to 100\",\"input\":\"101\",\"ctx\":{\"le\":100}},{\"type\":\"enum\",\"loc\":[\"query\",\"operation\"],\"msg\":\"Input should be 'generate', 'drift' or 'import'\",\"input\":\"nope\",\"ctx\":{\"expected\":\"'generate', 'drift' or 'import'\"}},{\"type\":\"enum\",\"loc\":[\"query\",\"status\"],\"msg\":\"Input should be 'started', 'filtering', 'generating', 'validating', 'reconciling', 'report', 'apply', 'completed', 'uncompleted' or 'failed'\",\"input\":\"bad\",\"ctx\":{\"expected\":\"'started', 'filtering', 'generating', 'validating', 'reconciling', 'report', 'apply', 'completed', 'uncompleted' or 'failed'\"}}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sessions/list?search=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_too_long\",\"loc\":[\"query\",\"search\"],\"msg\":\"String should have at most 200 characters\",\"input\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"ctx\":{\"max_length\":200}}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sessions",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"query\",\"id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/sessions?id=bad&include_chat_history=maybe",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"uuid_parsing\",\"loc\":[\"query\",\"id\"],\"msg\":\"Input should be a valid UUID, invalid length: expected length 32 for simple format, found 3\",\"input\":\"bad\",\"ctx\":{\"error\":\"invalid length: expected length 32 for simple format, found 3\"}},{\"type\":\"bool_parsing\",\"loc\":[\"query\",\"include_chat_history\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"maybe\"}]}"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/repository/pr",
+  "body": {},
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"session_id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/repository/pr",
+  "body": {
+   "session_id": 3
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"uuid_type\",\"loc\":[\"body\",\"session_id\"],\"msg\":\"UUID input should be a string, bytes or UUID object\",\"input\":3}]}"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/repository/pr/merge",
+  "body": "x",
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"session_id\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/repository/parse",
+  "body": {
+   "repo_uri": "ssh://git@github.com/a/b"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"value_error\",\"loc\":[\"body\",\"repo_uri\"],\"msg\":\"Value error, repo_uri must be an https:// URL (e.g. `https://github.com/org/repo.git`); SSH, git://, http://, file:// and local paths are not supported.\",\"input\":\"ssh://git@github.com/a/b\",\"ctx\":{\"error\":{}}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/repository/parse",
+  "body": {},
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"repo_uri\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/auth/authorize",
+  "body": {
+   "cloud": "a"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"project_name\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"missing\",\"loc\":[\"body\",\"environment\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/auth/authorize",
+  "body": {
+   "cloud": 1,
+   "project_name": null,
+   "environment": []
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_type\",\"loc\":[\"body\",\"cloud\"],\"msg\":\"Input should be a valid string\",\"input\":1},{\"type\":\"missing\",\"loc\":[\"body\",\"project_name\"],\"msg\":\"Field required\",\"input\":null},{\"type\":\"string_type\",\"loc\":[\"body\",\"environment\"],\"msg\":\"Input should be a valid string\",\"input\":[]}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/mapping/resolve",
+  "body": {
+   "identifier": "",
+   "extra": 1
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"identifier\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}},{\"type\":\"extra_forbidden\",\"loc\":[\"body\",\"extra\"],\"msg\":\"Extra inputs are not permitted\",\"input\":1}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/mapping/resolve",
+  "body": {
+   "identifier": "x",
+   "terraform_provider": "nope"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"enum\",\"loc\":[\"body\",\"terraform_provider\"],\"msg\":\"Input should be 'azure', 'gcp', 'aws', 'oci', 'kubernetes' or 'vmware'\",\"input\":\"nope\",\"ctx\":{\"expected\":\"'azure', 'gcp', 'aws', 'oci', 'kubernetes' or 'vmware'\"}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/notifications",
+  "body": {
+   "kind": "",
+   "severity": "low",
+   "subject": "s",
+   "body": "b",
+   "links": [
+    {
+     "label": "l",
+     "url": "notaurl"
+    }
+   ],
+   "foo": 1
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"kind\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}},{\"type\":\"literal_error\",\"loc\":[\"body\",\"severity\"],\"msg\":\"Input should be 'info', 'warning', 'error' or 'critical'\",\"input\":\"low\",\"ctx\":{\"expected\":\"'info', 'warning', 'error' or 'critical'\"}},{\"type\":\"url_parsing\",\"loc\":[\"body\",\"links\",0,\"url\"],\"msg\":\"Input should be a valid URL, relative URL without a base\",\"input\":\"notaurl\",\"ctx\":{\"error\":\"relative URL without a base\"}},{\"type\":\"extra_forbidden\",\"loc\":[\"body\",\"foo\"],\"msg\":\"Extra inputs are not permitted\",\"input\":1}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/notifications",
+  "body": {
+   "kind": "k",
+   "severity": "info",
+   "subject": "s",
+   "body": "b",
+   "links": [
+    {
+     "label": "",
+     "url": "ftp://x"
+    }
+   ]
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"string_too_short\",\"loc\":[\"body\",\"links\",0,\"label\"],\"msg\":\"String should have at least 1 character\",\"input\":\"\",\"ctx\":{\"min_length\":1}},{\"type\":\"url_scheme\",\"loc\":[\"body\",\"links\",0,\"url\"],\"msg\":\"URL scheme should be 'http' or 'https'\",\"input\":\"ftp://x\",\"ctx\":{\"expected_schemes\":\"'http' or 'https'\"}}]}"
+ },
+ {
+  "method": "POST",
+  "path": "/v1/notifications",
+  "body": {
+   "kind": "k",
+   "severity": "info",
+   "subject": "s",
+   "body": "b",
+   "context": []
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"dict_type\",\"loc\":[\"body\",\"context\"],\"msg\":\"Input should be a valid dictionary\",\"input\":[]}]}"
+ },
+ {
+  "method": "PATCH",
+  "path": "/v1/admin/sessions/bad/toggle_lock",
+  "body": {
+   "locked": "x"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"uuid_parsing\",\"loc\":[\"path\",\"session_id\"],\"msg\":\"Input should be a valid UUID, invalid length: expected length 32 for simple format, found 3\",\"input\":\"bad\",\"ctx\":{\"error\":\"invalid length: expected length 32 for simple format, found 3\"}},{\"type\":\"bool_parsing\",\"loc\":[\"body\",\"locked\"],\"msg\":\"Input should be a valid boolean, unable to interpret input\",\"input\":\"x\"}]}"
+ },
+ {
+  "method": "PATCH",
+  "path": "/v1/admin/sessions/917d0485-a0a2-4c34-8f33-a89d28aba9b0/toggle_lock",
+  "body": {},
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"missing\",\"loc\":[\"body\",\"locked\"],\"msg\":\"Field required\",\"input\":null}]}"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/admin/users/abc/roles",
+  "body": {
+   "operation_role": "boss"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"user_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"abc\"},{\"type\":\"enum\",\"loc\":[\"body\",\"operation_role\"],\"msg\":\"Input should be 'developer' or 'devops'\",\"input\":\"boss\",\"ctx\":{\"expected\":\"'developer' or 'devops'\"}}]}"
+ },
+ {
+  "method": "PUT",
+  "path": "/v1/admin/users/1/roles",
+  "body": {
+   "operation_role": "developer",
+   "panel_role": "x"
+  },
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"enum\",\"loc\":[\"body\",\"panel_role\"],\"msg\":\"Input should be 'viewer', 'editor' or 'admin'\",\"input\":\"x\",\"ctx\":{\"expected\":\"'viewer', 'editor' or 'admin'\"}}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/admin/users?page=-1&page_size=0",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"page\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"-1\",\"ctx\":{\"ge\":1}},{\"type\":\"greater_than_equal\",\"loc\":[\"query\",\"page_size\"],\"msg\":\"Input should be greater than or equal to 1\",\"input\":\"0\",\"ctx\":{\"ge\":1}}]}"
+ },
+ {
+  "method": "GET",
+  "path": "/v1/events/subscribe/notauuid",
+  "body": null,
+  "status": 422,
+  "response": "{\"detail\":[{\"type\":\"uuid_parsing\",\"loc\":[\"path\",\"session_id\"],\"msg\":\"Input should be a valid UUID, invalid character: found `n` at 1\",\"input\":\"notauuid\",\"ctx\":{\"error\":\"invalid character: found `n` at 1\"}}]}"
+ }
+]

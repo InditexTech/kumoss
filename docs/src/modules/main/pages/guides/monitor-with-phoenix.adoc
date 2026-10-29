@@ -96,12 +96,10 @@ vendor endpoint) receives the spans. Two caveats:
 * The core sets no exporter headers itself (it passes no `headers`
   argument when it configures the span exporter); OTLP header env vars
   such as `OTEL_EXPORTER_OTLP_HEADERS` (for example
-  `authorization=Bearer%20<token>`) may be honoured by the OpenTelemetry
-  SDK when it reads the core's environment, but this is not verified in
-  this codebase — treat it as unconfirmed. The Phoenix client used for
-  prompts separately reads `PHOENIX_API_KEY`. Put an authenticating
-  proxy or collector in front of Phoenix if you need auth on the
-  trace-export path.
+  `authorization=Bearer%20<token>`) are honoured by the OTLP exporter,
+  which reads them from the core's environment
+  (`OTEL_EXPORTER_OTLP_TRACES_HEADERS` takes precedence). The Phoenix
+  client used for prompts separately reads `PHOENIX_API_KEY`.
 * Today `telemetry.collector_url` is also the base URL of the Phoenix
   client used for prompt seeding and fetching. Pointing it at a
   non-Phoenix collector breaks startup. To send traces elsewhere while
@@ -181,7 +179,7 @@ generation, code generation, reporting, and so on).
   underlying `provider/model-id` string, and `llm.provider` is left
   unset because the alias carries no recognizable prefix.
 * *Invocation parameters:* `llm.invocation_parameters` with every
-  request argument sent to LiteLLM, including the raw `messages` and
+  request argument sent to LiteLLM through the llm sidecar, including the raw `messages` and
   `tools` payloads alongside temperature, max tokens, tool choice,
   retries, timeout and reasoning effort.
 * *Messages:* `llm.input_messages.N.message.role` and `.content` for the
@@ -271,12 +269,14 @@ start time, so durations are correct even though the nesting is flat.
 * *Logs.* Application logs go to the container's standard output and
   are not correlated with traces.
 * *Sidecar activity.* The sidecars are not instrumented; engine commands
-  appear only through the core's Terraform evaluator spans.
+  appear only through the core's Terraform evaluator spans, and model
+  calls only through the core's LLM spans.
 
 == Startup and shutdown
 
 * Tracer providers for all nine projects are created when the core
-  module is imported, before the FastAPI application starts. Each has a
+  process starts, after the configuration loads and before the HTTP
+  server starts. Each has a
   batching span processor with the OpenTelemetry SDK defaults (export
   every 5 seconds, batches of up to 512 spans, queue of 2048).
 * Span creation never touches the network; export happens on a
@@ -289,7 +289,7 @@ start time, so durations are correct even though the nesting is flat.
   prompt seeding: it retries the connection for about 27 seconds and
   then aborts the boot. In the bundled stack that makes Phoenix
   effectively required at startup.
-* On shutdown the lifespan handler shuts every provider down,
+* On shutdown the core shuts every provider down,
   which drains pending spans (within a 30-second budget) before the
   process exits.
 

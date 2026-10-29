@@ -282,10 +282,9 @@ class GcpScopeLister:
         address = member.removeprefix("serviceAccount:")
         if address.endswith(f"@{scope_id}.iam.gserviceaccount.com"):
             return True
-        if (
-            any(pat in address for pat in self._MANAGED_SA_PATTERNS)
-            or address.startswith("service-")
-        ):
+        if any(
+            pat in address for pat in self._MANAGED_SA_PATTERNS
+        ) or address.startswith("service-"):
             return False
         if address.endswith((".gserviceaccount.com", ".gserviceaccount.co")):
             return False

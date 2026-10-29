@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [core, services/iac, services/notifications]
+        package: [services/llm, services/iac, services/notifications]
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -86,6 +86,7 @@ jobs:
         dockerfile:
           - core/Dockerfile
           - nginx/Dockerfile
+          - services/llm/Dockerfile
           - services/iac/Dockerfile
           - services/notifications/Dockerfile
     steps:
@@ -98,7 +99,7 @@ jobs:
         uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
         with:
           dockerfile: ${{ matrix.dockerfile }}
-          # Pre-existing debt: DL3008 in core/iac (unpinned apt), DL3003/4006
+          # Pre-existing debt: DL3008 in core/llm/iac (unpinned apt), DL3003/4006
           # in iac. Only error-level findings block; warnings are tracked for
           # a follow-up cleanup.
           failure-threshold: error
@@ -121,7 +122,8 @@ jobs:
         with:
           scan-args: |-
             --format=table
-            ./core/uv.lock
+            ./core/Cargo.lock
+            ./services/llm/uv.lock
             ./services/iac/uv.lock
             ./services/notifications/uv.lock
             ./contracts/conformance/authz/uv.lock

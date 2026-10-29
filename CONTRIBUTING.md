@@ -47,22 +47,19 @@ and its purpose.
 
 ## Development
 
-The repository is a monorepo: the FastAPI core in `core/`, the IaC and notifications sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/) explains how they fit together.
+The repository is a monorepo: the Rust core in `core/`, the LLM, IaC and notifications sidecar services in `services/`, the React web application in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/) explains how they fit together.
 
-**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build` (without `--build`, Compose runs the published release images instead of your checkout). [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/) is the step-by-step guide. After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`.
+**Run the stack.** Copy each `env.sample` to a `.env` next to it (`core/.env` and `services/llm/.env` are required), set the two model strings in `config.yaml`, and run `docker compose up --build` (without `--build`, Compose runs the published release images instead of your checkout). [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/) is the step-by-step guide. After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`.
 
-**Core tests** (Python 3.14, `uv`): `pytest` and `pytest-cov` live in the
-`tooling` dependency group, so sync the project first. **Async tests use
-`unittest.IsolatedAsyncioTestCase`** (no pytest-asyncio plugin required,
-so no `--asyncio-mode` flag):
+**Core checks** (Rust, the toolchain of `core/Dockerfile`'s build stage): formatting, Clippy with warnings denied, and the test suite. Run them in the toolchain container, for example:
 
 ```bash
-cd core
-uv sync --frozen --group tooling
-uv run --no-sync pytest tests/
+docker run --rm -v "$PWD/core":/app -w /app -e CARGO_TARGET_DIR=/tmp/target rust:1-bookworm sh -c \
+  'rustup component add rustfmt clippy && cargo fmt --check \
+   && cargo clippy --locked --all-targets -- -D warnings && cargo test --locked'
 ```
 
-Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra flag. `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
+The unit tests need no services. The integration tests in `core/tests/` (schema bootstrap and the API error catalog) run only when `KUMOSS_TEST_DATABASE_URL` points at a disposable PostgreSQL database, and skip otherwise; never point it at a database whose data you need.
 
 **Frontend checks** (Node 24): `cd client/web && npm ci && npm run lint && npm run test:ci && npm run build`.
 
@@ -70,10 +67,10 @@ Async tests use `unittest.IsolatedAsyncioTestCase` and need no plugin or extra f
 
 **Lint and format.** `pre-commit run --all-files` runs Ruff (check and format), the REUSE check, and gitleaks secret scanning; install the hooks with `pre-commit install`.
 
-**CI.** Pull requests run Repolinter, the REUSE check, the Conventional Commits check, and an offline Markdown link and anchor check, plus the `Verify` workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar. The core suite is not run in CI, so run it locally against the compose stack before opening a pull request.
+**CI.** Pull requests run Repolinter, the REUSE check, the Conventional Commits check, and an offline Markdown link and anchor check, plus the `Verify` workflow: frontend type check, tests, and production build, the core's format check, Clippy and test suite (against a throwaway PostgreSQL), and the pytest suite of each sidecar.
 
-**Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core's client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
+**Contracts.** Changing a sidecar behaviour means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and updating the core's hand-written client as described in [`contracts/openapi/README.md`](contracts/openapi/README.md).
 
-**Releases.** [release-please](https://github.com/googleapis/release-please) keeps a release pull request open against `main`, built from the Conventional Commit subjects merged since the last release: `fix` bumps the patch version, `feat` the minor, and a breaking change (`!` or a `BREAKING CHANGE:` footer) the major. Merging it updates `CHANGELOG.md` and every component's version, tags `vX.Y.Z`, and publishes the GitHub Release; publishing it pushes every Kumoss-built image to `ghcr.io/inditextech/kumoss-<image>` (`core`, `iac`, `notifications`, `proxy`; tags `X.Y.Z`, `X.Y`, `X`, `latest`; `linux/amd64` and `linux/arm64`). The release pull request also bumps the image tags in `docker-compose.yml`. Never edit those versions by hand; to force a specific version, add a `Release-As: X.Y.Z` footer to a commit.
+**Releases.** [release-please](https://github.com/googleapis/release-please) keeps a release pull request open against `main`, built from the Conventional Commit subjects merged since the last release: `fix` bumps the patch version, `feat` the minor, and a breaking change (`!` or a `BREAKING CHANGE:` footer) the major. Merging it updates `CHANGELOG.md` and every component's version, tags `vX.Y.Z`, and publishes the GitHub Release; publishing it pushes every Kumoss-built image to `ghcr.io/inditextech/kumoss-<image>` (`core`, `llm`, `iac`, `notifications`, `proxy`; tags `X.Y.Z`, `X.Y`, `X`, `latest`; `linux/amd64` and `linux/arm64`). The release pull request also bumps the image tags in `docker-compose.yml`. Never edit those versions by hand; to force a specific version, add a `Release-As: X.Y.Z` footer to a commit.
 
 **Pull requests.** Fill in the pull-request template (signed commits, Conventional Commits, documentation updated, CLA signed) and link the issue. Include UI screenshots for visible changes.

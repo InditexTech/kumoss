@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "kumoss-llm"
+version = "1.0.2"
+description = "Kumoss LLM sidecar — contracts/openapi/llm.v1.yaml: LiteLLM Router completions and LiteLLM web search with Playwright/trafilatura page reads."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.139.2",
+    "litellm>=1.103.2",
+    "openai>=2.47.0",
+    "pyyaml>=6.0.3",
+    "playwright>=1.40.0",
+    "trafilatura>=2.3.1",
+    # Provider SDKs LiteLLM imports for credential resolution. The Python
+    # core shipped both (Vertex AI via google-auth, Bedrock via boto3), so
+    # the sidecar keeps them to support the same providers.
+    "google-cloud-aiplatform>=1.165.1",
+    "boto3>=1.43.54",
+]
+
+[dependency-groups]
+tooling = [
+    "pytest>=9.0.3",
+    "pytest-cov>=6.0",
+]

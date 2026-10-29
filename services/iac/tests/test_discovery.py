@@ -91,7 +91,9 @@ def test_a_provider_without_a_lister_has_no_resource_ids() -> None:
     assert resource_ids_for("azure", FakeLister([])) == []
 
 
-@pytest.mark.parametrize("terraform_provider", ["azure", "gcp", "oci", "kubernetes", "vmware"])
+@pytest.mark.parametrize(
+    "terraform_provider", ["azure", "gcp", "oci", "kubernetes", "vmware"]
+)
 def test_only_aws_scopes_are_verified(terraform_provider: str) -> None:
     """Azure, GCP and OCI commands are pointed at scope_id by an injected
     variable, and Kubernetes and vSphere name theirs in the code; only an

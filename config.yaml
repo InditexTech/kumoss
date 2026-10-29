@@ -10,11 +10,12 @@
 # Secrets live in env vars. The core looks them up by name; the default
 # names (GIT_USER, GIT_TOKEN, KUMOSS_SQL_DATABASE_URL, RUSTFS_ACCESS_KEY,
 # KUMOSS_<SERVICE>_TOKEN, …) are defined in code and don't need to be
-# repeated here. LLM provider credentials use LiteLLM's own variable
-# names:
+# repeated here. LLM provider credentials belong to the LLM sidecar
+# (services/llm/.env), which reads the `llm` and `web_search` sections of
+# this same file, and use LiteLLM's own variable names:
 #   https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/
 # Override only if you need a different env var name — see
-# core/src/shared/config/system_config.py for the `*_env` fields.
+# core/src/shared/config.rs for the `*_env` fields.
 #
 # To customize, edit this file (e.g., flip `services.mapping.enabled` to
 # true and point it at your own mapping service) or override
@@ -90,6 +91,13 @@ services:
     timeout: 30.0
     job_poll_interval: 5.0
     job_timeout: 3600.0
+  # The LLM sidecar (services/llm): LiteLLM completions and the web_search
+  # engine. Mandatory, like iac. `timeout` bounds one call, which covers
+  # LiteLLM's own retries: keep it above (3 + 1) × llm.timeout.
+  llm:
+    endpoint: "http://llm:8090"
+    token_env: "KUMOSS_LLM_TOKEN"
+    timeout: 2700.0
 
 # Iteration limits and behaviour switches for the core's orchestration
 # loops. Raise the limits carefully — they bound runaway-loop costs.
@@ -126,15 +134,15 @@ orchestration:
 #
 # `model` handles complex tasks, `small_model` cheap filler tasks. Both
 # are LiteLLM model strings (`provider/model-id`). Credentials are read
-# from the provider's standard env vars, set in core/.env — the models
-# below need ANTHROPIC_API_KEY. For providers LiteLLM can validate
-# (anthropic/..., vertex_ai/..., openai/..., azure/...) the core fails
-# boot when the required env vars are missing; for the rest (azure_ai/...
+# from the provider's standard env vars, set in services/llm/.env — the
+# models below need the Vertex AI variables. For providers LiteLLM can validate
+# (anthropic/..., vertex_ai/..., openai/..., azure/...) the LLM sidecar
+# fails boot when the required env vars are missing; for the rest (azure_ai/...
 # among them) a missing or invalid credential is only detected on the
 # first LLM call.
 # Advanced routing (load balancing, custom credential env var names,
 # per-entry endpoints) is available via an optional `model_list` key.
-# The core passes only that list to the Router, so router-level
+# The sidecar passes only that list to the Router, so router-level
 # fallbacks between different models are not configurable.
 #
 # Refer to:
@@ -232,7 +240,7 @@ http:
 
 # Object storage for generated artifacts (reports, terraform plans, code
 # changes). `provider` is ObjectStorageProvider enum names (see
-# core/src/shared/constants.py::ObjectStorageProvider): RUSTFS (the
+# core/src/shared/constants.rs, ObjectStorageProvider): RUSTFS (the
 # bundled store, or any custom-endpoint S3-compatible server), S3
 # (real AWS S3 on its regional default endpoints), or STORAGE_ACCOUNT
 # (a public Azure storage account — point both URLs at the account
@@ -289,7 +297,7 @@ storage:
 # URLs must be https://; SSH and every other scheme are rejected.
 #
 # `provider` defaults to GITHUB and must be a GitProviderName enum name
-# or value (see core/src/shared/constants.py::GitProviderName): GITHUB,
+# or value (see core/src/shared/constants.rs, GitProviderName): GITHUB,
 # AZURE_DEVOPS, GITLAB. Full field reference:
 #   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
 git:

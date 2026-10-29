@@ -87,7 +87,6 @@ an isolated workstation:
   `rustfsadmin`. Deleting them does not remove the default; only
   setting them does.
 * Floating image tags (`rustfs/rustfs:latest`,
-  `ghcr.io/astral-sh/uv:latest` in every Python Dockerfile,
   `node:24-alpine`, `postgres:17`, `redis:8.8`) are convenient for local
   use but not reproducible. Pin every image you run in production by
   digest.

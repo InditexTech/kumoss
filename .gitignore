@@ -11,6 +11,9 @@
 docker-compose.override.*
 !docker-compose.override.example.yml
 
+# Rust build output
+core/target/
+
 # Distribution / packaging
 __pycache__
 .Python

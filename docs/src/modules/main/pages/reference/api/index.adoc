@@ -1,24 +1,28 @@
 = HTTP APIs
-:description: The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the four sidecar OpenAPI contracts the core consumes as a client (IaC, notifications, repository mapping, authorization).
+:description: The two HTTP surfaces in a Kumoss deployment — the core's own browser-facing API under /api/v1, and the sidecar OpenAPI contracts the core consumes as a client (IaC, notifications, repository mapping, authorization, and the internal LLM gateway).
 
 A Kumoss deployment has two kinds of HTTP surface, and they are
 documented from two different sources.
 
-The *core API* is the browser-facing orchestration API. It is a FastAPI
-application whose routers live in `core/src/api/v1/`. There is no
-hand-written specification for it: the routers are the source of
-truth, and FastAPI derives the OpenAPI document from them at runtime.
+The *core API* is the browser-facing orchestration API. It is a Rust
+(axum) application whose handlers live in `core/src/api/v1/` and whose
+routes are registered in `core/src/api/mod.rs`. The handlers are the
+source of truth; the OpenAPI document it publishes is a snapshot kept
+next to them in `core/resources/openapi.json`, and the core's
+integration tests check the router against it.
 xref:main:reference/api/core.adoc[Core API] documents every route it
 exposes.
 
-The *sidecar contracts* are four hand-written OpenAPI 3.1 documents in
-`contracts/openapi/`. They define what the core expects of the
-authorization, IaC, mapping, and notifications services. Here the
-specification is the source of truth. Kumoss bundles services for IaC
-and notifications under `services/`, while mapping and authorization
-are optional extension points you implement yourself — the core calls
-every service through a generated client and never imports an
-implementation directly. Each sidecar page below documents its
+The *sidecar contracts* are hand-written OpenAPI 3.1 documents in
+`contracts/openapi/`. Four define what the core expects of the
+authorization, IaC, mapping, and notifications services; a fifth,
+`llm.v1.yaml`, describes the internal LLM gateway (LiteLLM completions,
+web search and page reads) that the bundled `services/llm` implements.
+Here the specification is the source of truth. Kumoss bundles services
+for IaC, notifications and the LLM gateway under `services/`, while
+mapping and authorization are optional extension points you implement
+yourself — the core calls every service through a hand-written HTTP
+client and never imports an implementation directly. Each sidecar page below documents its
 contract and, where Kumoss bundles one, the behaviour of the bundled
 implementation.
 
@@ -54,15 +58,15 @@ route, and disabled by default. No bundled implementation.
 
 == Where the core API lives
 
-The core mounts every router under `/v1` and runs with
-`root_path="/api"`, so the reverse proxy publishes the routes as
+The core serves every route under `/v1`, both bare and below the `/api`
+root path, so the reverse proxy publishes the routes as
 `/api/v1/...`. Every path in this reference is written with that
 prefix, because it is the path a browser or an external client uses.
 Inside the container the same route answers at `/v1/...`.
 
-FastAPI's own interactive documentation is generated from the same
-routers and is reachable at `/api/docs` on a running deployment, with
-the raw OpenAPI document at `/api/openapi.json`.
+Interactive documentation (Swagger UI) for the published OpenAPI
+document is reachable at `/api/docs` on a running deployment, ReDoc at
+`/api/redoc`, and the raw OpenAPI document at `/api/openapi.json`.
 
 == Where the sidecar contracts live
 
@@ -75,42 +79,48 @@ including third-party and enterprise implementations — must satisfy:
   a new file.
 * `contracts/conformance/<service>/` — a Schemathesis test pack that
   any implementation must pass to claim conformance. Every sidecar
-  page has a Conformance section with the command.
+  page has a Conformance section with the command. The internal `llm`
+  contract has no conformance pack and no page of its own; its bundled
+  implementation is described in `services/llm/README.md`.
 
-Three conventions hold across all four contracts:
+Three conventions hold across all five contracts:
 
 * *Errors* are RFC 7807 problem documents
   (`application/problem+json`) on every endpoint.
 * *Authentication* is a per-service bearer token
   (`Authorization: Bearer <token>`). The core reads the value from the
   environment variable named by `services.<name>.token_env`; the
-  sidecar reads it from its own variable. The two must match. Both
-  bundled implementations treat a blank token as "accept every
+  sidecar reads it from its own variable. The two must match. All
+  three bundled implementations treat a blank token as "accept every
   request", which is acceptable only on an isolated workstation.
 * *Liveness* is `GET /healthz`, which answers `200` with
   `{"status":"ok"}` on every service and is the only endpoint outside
-  `/v1` and the only one that needs no token.
+  `/v1` and the only one that needs no token (the `llm` service also
+  answers it at `/v1/healthz`).
 
 Each service is addressed through `services.<name>.endpoint`. The
 checked-in defaults for the bundled services are the compose-network
-names `\http://iac:8082` and `\http://notifications:8080`; `mapping`
+names `\http://iac:8082`, `\http://notifications:8080` and
+`\http://llm:8090`; `mapping`
 and `authz` ship with `enabled: false` and an empty `endpoint`, which
 you point at your own implementation when you enable them. Only the
-IaC service is mandatory. See
+IaC and LLM services are mandatory. See
 xref:main:reference/configuration.adoc#config-services[the `services`
 section] of the configuration reference.
 
 [#generated-clients]
-== The generated clients
+== The core's sidecar clients
 
-`core/src/clients/{authz,iac,mapping,notifications}/` is *generated
-code*, produced from the contracts with `openapi-python-client`. Do not
-hand-edit it.
+The core's clients for the sidecars are hand-written Rust:
+`core/src/infrastructure/external/` (authz, mapping, notifications and
+their shared contract plumbing), `core/src/infrastructure/terraform/iac.rs`
+(IaC) and `core/src/infrastructure/llm/sidecar.rs` (LLM). Nothing is
+generated from the contracts.
 
-After changing a contract, regenerate the client for that service or
-the core keeps speaking the old shape. The command, the reason the
-generator drops the SPDX headers, and how to put them back are in
-xref:main:guides/development.adoc#regenerating-clients[Regenerating
+After changing a contract, update the matching client and its tests in
+`core/` so requests, responses and error handling still follow the
+document, or the core keeps speaking the old shape. See
+xref:main:guides/development.adoc#regenerating-clients[Updating the
 sidecar clients].
 
 == Next steps
@@ -120,4 +130,4 @@ sidecar clients].
 * xref:main:guides/deploy-to-production.adoc[Deploy to production] for
   which sidecars to enable, replace, or leave off.
 * xref:main:reference/configuration.adoc[Configuration] for the
-  `services` block that wires all four.
+  `services` block that wires them all.

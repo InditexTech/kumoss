@@ -35,8 +35,8 @@ before running Kumoss beyond a trusted workstation.
 
 [card,subheader="Architecture"]
 .xref:main:architecture.adoc[See how it is built]
-The layered FastAPI core, the four contract-first integration points,
-and the request lifecycle from filter to apply.
+The layered Rust core and its LLM sidecar, the four contract-first
+integration points, and the request lifecycle from filter to apply.
 
 [card,subheader="Guides"]
 .xref:main:guides-overview.adoc[Follow a session end to end]

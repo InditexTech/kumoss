@@ -21,6 +21,9 @@
 **/.pytest_cache
 **/.ruff_cache
 
+# Rust build output. core/Dockerfile builds the crate itself.
+core/target
+
 # Node. nginx/Dockerfile regenerates these in its builder stage with
 # `npm ci && npm run build`.
 **/node_modules
