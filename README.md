@@ -85,29 +85,15 @@ The full documentation is published at **[inditextech.github.io/kumoss](https://
 
 ## Roadmap
 
-Where Kumoss is heading, grouped into seven themes. The roadmap states intent, not commitment: no initiative carries a delivery date, the order does not indicate priority, and each feature is announced in the [release notes](https://github.com/InditexTech/kumoss/releases) when it ships.
+- **Continuous operations:** scheduled drift detection and import (in progress).
+- **Cloud and code lifecycle:** from cloud to code, from code to cloud, and infrastructure diagrams.
+- **Operations at scale:** bulk and multiproject requests.
+- **Quality and governance:** evaluation harness, model benchmarking, and policy as code with Open Policy Agent.
+- **Cost management (FinOps):** accurate cost estimates, cost guardrails, and FinOps integrations.
+- **Agent interoperability:** MCP and A2A support.
+- **Deployment and adoption:** Helm chart and installation wizard.
 
-| Theme | Initiative | Status |
-|---|---|---|
-| **Continuous operations** | Scheduled drift detection and import | 🚧 In progress |
-| **Cloud and code lifecycle** | From cloud to code: discover existing resources and generate the compliant IaC and repository | Planned |
-| | From code to cloud: derive the infrastructure an application repository needs | Planned |
-| | Infrastructure diagrams and visual change previews | Planned |
-| **Operations at scale** | Bulk operations across all or selected projects | Planned |
-| | Multiproject requests | Planned |
-| **Quality and governance** | Evaluation harness and automated testing | Planned |
-| | Model benchmarking | Planned |
-| | Policy as code with Open Policy Agent (Rego) | Planned |
-| | Multicloud governance overview | Planned |
-| **Cost management (FinOps)** | Accurate cost estimates and cost guardrails | Planned |
-| | Cost overview by resource and project | Planned |
-| | Integration with FinOps tools and assistants (FOCUS) | Planned |
-| **Agent interoperability** | Model Context Protocol (MCP) support | Planned |
-| | Agent2Agent (A2A) protocol support | Planned |
-| **Deployment and adoption** | Helm chart for Kubernetes | Planned |
-| | Installation wizard | Planned |
-
-Read the full [roadmap](https://inditextech.github.io/kumoss/stable/main/roadmap/) for what each initiative covers. To propose an initiative, comment on a planned one, or offer to help build it, open or join a discussion on the [issue tracker](https://github.com/InditexTech/kumoss/issues).
+See the full [roadmap](https://inditextech.github.io/kumoss/stable/main/roadmap/) for details.
 
 ## Contributing
 
