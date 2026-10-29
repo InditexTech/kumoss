@@ -1,0 +1,14 @@
+README.md
+  h_f224e8cf34c0b8 88-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "087c43a6e24f238337db09b328c69cb9137a4154",
+  "prompts": {},
+  "humans": {
+    "h_f224e8cf34c0b8": {
+      "author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
