@@ -7,6 +7,7 @@ package cmd
 import (
 	"github.com/InditexTech/kumoss/client/cli/internal/cli"
 	"github.com/InditexTech/kumoss/client/cli/internal/pipeline"
+	"github.com/InditexTech/kumoss/client/cli/internal/tui"
 	"github.com/spf13/cobra"
 )
 
@@ -25,6 +26,11 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			return pipeline.RunPipeline(pipeline.Options{
 				Home:        flags.Home,
 				PersistHome: flags.HomeOverride != "",
+				UI: &tui.Wizard{
+					In:         cmd.InOrStdin(),
+					Out:        cmd.OutOrStdout(),
+					Accessible: false,
+				},
 			})
 		},
 	}

@@ -5,11 +5,18 @@
 package state
 
 import (
-	"fmt"
+	"os"
 )
 
-func Load(path string) (a State, warnings []string, err error) {
-	return a, warnings, fmt.Errorf("not implemented")
+func StateFileExist(path string) (bool, error) {
+	exist, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return !exist.IsDir(), nil
 }
 
 func resolveEnvRefs(a *State) (warnings []string, err error) {
