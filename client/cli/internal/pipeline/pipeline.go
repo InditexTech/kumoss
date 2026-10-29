@@ -9,23 +9,12 @@
 package pipeline
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
-)
-
-// Mode is what the pipeline does with an existing install.
-type Mode int
-
-const (
-	// ModeFresh is a new install: the forms open empty.
-	ModeFresh Mode = iota
-	// ModeReconfigure is an existing install the user chose to edit: the forms
-	// open pre-filled with the current values.
-	ModeReconfigure
-	// ModeKeep is an existing install the user chose to leave as-is: the forms
-	// are skipped and only config.yaml is regenerated.
-	ModeKeep
+	"github.com/InditexTech/kumoss/client/cli/internal/state"
+	"github.com/InditexTech/kumoss/client/cli/internal/tui"
 )
 
 // Options is the resolved input to Run.
@@ -37,6 +26,7 @@ type Options struct {
 	// invocations find it without repeating --home. Set only when the user
 	// passed --home explicitly.
 	PersistHome bool
+	UI          tui.UI
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
@@ -52,6 +42,30 @@ func RunPipeline(opts Options) error {
 		}
 	}
 
+	// 2. Check if the state file exists and load it
+	var mode tui.Mode
+
+	if exists, err := state.StateFileExist(opts.Home.StateFile()); err != nil {
+		return err
+	} else if exists {
+		if stateFile, err := os.ReadFile(opts.Home.StateFile()); err != nil {
+			return err
+		} else {
+			_ = stateFile
+			fmt.Println("kumoss.yaml does exist, state file loaded")
+			fmt.Println("state file content:", string(stateFile))
+
+			if mode, err = opts.UI.SelectStateAction(); err != nil {
+				return err
+			}
+			fmt.Println("selected mode:", mode)
+		}
+	} else {
+		fmt.Println("kumoss.yaml does not exist")
+		fmt.Println("Selected mode:", mode)
+
+	}
+
 	// 2. Decide what to do with an existing install, then collect answers.
 	// mode := ModeFresh
 	// exists, err := stateFileExists(opts.Home)
@@ -59,16 +73,4 @@ func RunPipeline(opts Options) error {
 	// 	return err
 	// }
 	return nil
-}
-
-// stateFileExists reports whether kumoss.yaml is already present.
-func stateFileExists(h home.Home) (bool, error) {
-	_, err := os.Stat(h.StateFile())
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
 }
