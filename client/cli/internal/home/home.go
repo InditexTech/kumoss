@@ -94,12 +94,17 @@ func (h Home) ComposeOverride() string { return filepath.Join(h.Root, "compose.o
 // CoreEnv is src/core/.env.
 func (h Home) CoreEnv() string { return filepath.Join(h.SrcDir(), "core", ".env") }
 
+// CoreDir is src/core/ — the core's env file lives here.
+func (h Home) CoreDir() string { return filepath.Join(h.SrcDir(), "core") }
+
 // ServicesDir is src/services/ — one subdir per sidecar.
-func (h Home) ServicesDir() string { return filepath.Join(h.SrcDir(), "services") }
+func (h Home) ServicesDir(service string) string {
+	return filepath.Join(h.SrcDir(), "services", service)
+}
 
 // ServiceEnv is src/services/<name>/.env.
-func (h Home) ServiceEnv(name string) string {
-	return filepath.Join(h.ServicesDir(), name, ".env")
+func (h Home) ServiceEnv(service string) string {
+	return filepath.Join(h.ServicesDir(service), ".env")
 }
 
 // Services needing a generated .env. Hardcoded because the CLI ships without
@@ -111,10 +116,15 @@ var Services = []string{"iac", "notifications", "searxng"}
 // Ensure creates the empty skeleton directories. File contents are written by
 // their producers (stack.Clone for src/, render + Write for the rest).
 func (h Home) Ensure() error {
-	for _, dir := range []string{h.Root, h.SrcDir(), h.ServicesDir(), h.ConfigDir()} {
+	dirs := []string{h.Root, h.SrcDir(), h.CoreDir(), h.ConfigDir()}
+	for _, name := range Services {
+		dirs = append(dirs, h.ServicesDir(name))
+	}
+	for _, dir := range dirs {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
+		// fmt.Fprintf(os.Stdout, "Created directory: %s\n", dir) // Debug
 	}
 	return nil
 }
