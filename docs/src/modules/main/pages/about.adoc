@@ -19,6 +19,9 @@ validation, the compliance verdict, the session lock, apply — is computed
 by application code, not by a model, and applying a reviewed plan is always
 a human action.
 
+TIP: To watch this on a real cloud, from request to applied pull request and a
+blocked delete, see xref:main:see-it-in-action.adoc[See Kumoss in action].
+
 == What you deploy
 
 :diagram-name: readme-components
