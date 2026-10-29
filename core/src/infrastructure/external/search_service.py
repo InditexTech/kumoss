@@ -61,6 +61,17 @@ class _PageReader:
         "Accept-Language": "en-US,en;q=0.9",
     }
 
+    # Only HTML is worth extracting: anything else (PDFs, archives,
+    # images) is refused off the headers, before its body is read.
+    HTML_TYPES: ClassVar[frozenset[str]] = frozenset(
+        {"text/html", "application/xhtml+xml"}
+    )
+
+    # Decompressed bytes buffered per page. Neither the timeout nor
+    # `max_page_chars` bounds a download, and a search's reads are all
+    # in flight at once, so a large hit could otherwise exhaust memory.
+    MAX_PAGE_BYTES: ClassVar[int] = 500 * 1024
+
     def __init__(self) -> None:
         self.__client = httpx.AsyncClient(
             headers=self.BROWSER_HEADERS, follow_redirects=True
@@ -81,22 +92,46 @@ class _PageReader:
         """Fetch ``url`` and return its readable text as markdown.
 
         Raises ``PageReadError`` for every expected failure — a dead
-        link, a non-2xx response, a document trafilatura cannot reduce to
-        text (PDFs, JavaScript-only pages) — so the caller can tell those
-        apart from a bug.
+        link, a non-2xx response, a non-HTML or oversized body, a
+        document trafilatura cannot reduce to text (JavaScript-only
+        pages) — so the caller can tell those apart from a bug.
         """
         try:
-            response = await self.__client.get(url, timeout=timeout)
+            async with self.__client.stream("GET", url, timeout=timeout) as response:
+                if response.status_code >= 400:
+                    raise PageReadError(
+                        message=f"'{url}' answered HTTP {response.status_code}",
+                        error_code=502,
+                    )
+                media_type = (
+                    response.headers.get("content-type", "")
+                    .split(";")[0]
+                    .strip()
+                    .lower()
+                )
+                # A missing Content-Type is let through: trafilatura
+                # rejects a body that turns out not to be HTML.
+                if media_type and media_type not in self.HTML_TYPES:
+                    raise PageReadError(
+                        message=f"'{url}' is {media_type}, not HTML",
+                        error_code=415,
+                    )
+                body = bytearray()
+                async for chunk in response.aiter_bytes():
+                    body += chunk
+                    if len(body) > self.MAX_PAGE_BYTES:
+                        raise PageReadError(
+                            message=(
+                                f"'{url}' is larger than "
+                                + f"{self.MAX_PAGE_BYTES} bytes"
+                            ),
+                            error_code=413,
+                        )
         except httpx.HTTPError as e:
             raise PageReadError(
                 message=f"could not fetch '{url}'", error_code=502
             ) from e
-        if response.status_code >= 400:
-            raise PageReadError(
-                message=f"'{url}' answered HTTP {response.status_code}",
-                error_code=502,
-            )
-        html = response.content
+        html = bytes(body)
         # trafilatura parses HTML with lxml: CPU-bound and blocking, so
         # keep it off the event loop while sibling reads are in flight.
         text = await asyncio.to_thread(

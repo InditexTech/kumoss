@@ -21,12 +21,19 @@ throughout — no case may touch the network.
 import asyncio
 import unittest
 from dataclasses import dataclass
+from typing import Any, override
+from collections.abc import AsyncIterator
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+
+from src.infrastructure.external import search_service
 from src.infrastructure.external.search_service import (
     SearchEngineError,
     SearchServiceClient,
+    _PageReader,
 )
+from src.infrastructure.exceptions import PageReadError
 
 
 @dataclass(frozen=True)
@@ -411,3 +418,80 @@ class TestPageReads(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(peak, 5)
         self.assertEqual(reader.call_count, 1)
+
+
+_ARTICLE = (
+    "<html><head><title>S3 backend</title></head><body><article>"
+    + "<h1>S3 backend</h1>"
+    + "<p>Stores the Terraform state as a given key in a given bucket on "
+    + "Amazon S3. This backend also supports state locking, which can be "
+    + "enabled by setting the use_lockfile argument to true.</p>" * 5
+    + "</article></body></html>"
+).encode()
+
+
+class _Body(httpx.AsyncByteStream):
+    """A response body that counts how many chunks were pulled from it."""
+
+    def __init__(self, chunks: list[bytes]) -> None:
+        self.chunks: list[bytes] = chunks
+        self.pulled: int = 0
+
+    @override
+    async def __aiter__(self) -> AsyncIterator[bytes]:
+        for chunk in self.chunks:
+            self.pulled += 1
+            yield chunk
+
+
+class TestPageReader(unittest.IsolatedAsyncioTestCase):
+    """The real reader, over a mock transport: what it buffers, and what
+    it refuses before buffering it."""
+
+    async def _read(self, body: _Body, headers: dict[str, str]) -> str:
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, headers=headers, stream=body)
+
+        real = httpx.AsyncClient
+
+        def client(**kw: Any) -> httpx.AsyncClient:
+            return real(transport=httpx.MockTransport(handler), **kw)
+
+        with patch.object(search_service.httpx, "AsyncClient", client):
+            async with _PageReader() as reader:
+                return await reader.read("https://a", 30.0)
+
+    async def test_an_html_page_is_reduced_to_markdown(self):
+        body = _Body([_ARTICLE])
+
+        text = await self._read(body, {"content-type": "text/html; charset=utf-8"})
+
+        self.assertIn("state locking", text)
+
+    async def test_a_page_without_a_content_type_is_still_read(self):
+        text = await self._read(_Body([_ARTICLE]), {})
+
+        self.assertIn("state locking", text)
+
+    async def test_a_non_html_body_is_refused_before_it_is_read(self):
+        body = _Body([b"%PDF-1.7"] * 3)
+
+        with self.assertRaises(PageReadError) as ctx:
+            _ = await self._read(body, {"content-type": "application/pdf"})
+
+        self.assertEqual(ctx.exception.error_code, 415)
+        self.assertEqual(body.pulled, 0)
+
+    async def test_an_oversized_body_stops_downloading_at_the_cap(self):
+        # The cap is what bounds memory: reading must stop at the chunk
+        # that crosses it, not after the whole body has arrived.
+        body = _Body([b"<p>xxxx</p>"] * 10)
+
+        with (
+            patch.object(_PageReader, "MAX_PAGE_BYTES", 20),
+            self.assertRaises(PageReadError) as ctx,
+        ):
+            _ = await self._read(body, {"content-type": "text/html"})
+
+        self.assertEqual(ctx.exception.error_code, 413)
+        self.assertEqual(body.pulled, 2)
