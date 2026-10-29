@@ -6,10 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset=".github/assets/kumoss-banner-dark.png">
-  <img alt="Kumoss" src=".github/assets/kumoss-banner-light.png" width="720">
-</picture>
+<img alt="Kumoss" src=".github/assets/kumoss-banner.png" width="720">
 
 ### Compliant Infrastructure as Code from plain language
 
