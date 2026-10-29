@@ -44,7 +44,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 Each integration point is a sidecar service behind an [OpenAPI contract](contracts/openapi/). Kumoss bundles the IaC and notifications services, which you can replace with your own; for authorization, provide your own implementation.
 
 > [!NOTE]
-> Kumoss exposes everything through a FastAPI API, so support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is in progress, letting other agents consume Kumoss directly.
+> Kumoss exposes everything through a FastAPI API, and support for the Model Context Protocol (MCP) and the Agent2Agent (A2A) protocol is on the [roadmap](#roadmap), letting other agents consume Kumoss directly.
 
 ## How it works
 
@@ -82,6 +82,18 @@ In four minutes, you see Kumoss:
 The full documentation is published at **[inditextech.github.io/kumoss](https://inditextech.github.io/kumoss/stable/)**.
 
 - [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/): components, the core's layering, and the end-to-end flow from a request to an applied plan.
+
+## Roadmap
+
+- **Continuous operations:** scheduled drift detection and import (in progress).
+- **Cloud and code lifecycle:** from cloud to code, from code to cloud, and infrastructure diagrams.
+- **Operations at scale:** bulk and multiproject requests.
+- **Quality and governance:** evaluation harness, model benchmarking, and policy as code with Open Policy Agent.
+- **Cost management (FinOps):** accurate cost estimates, cost guardrails, and FinOps integrations.
+- **Agent interoperability:** MCP and A2A support.
+- **Deployment and adoption:** Helm chart and installation wizard.
+
+See the full [roadmap](https://inditextech.github.io/kumoss/stable/main/roadmap/) for details.
 
 ## Contributing
 
