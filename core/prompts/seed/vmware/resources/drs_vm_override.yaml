@@ -1,0 +1,25 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere DRS per-VM override default configuration (automation level, used sparingly).
+body: |
+  # VMware vSphere DRS VM Override
+
+  For a `vsphere_drs_vm_override`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Use overrides sparingly: every override reduces DRS's ability to
+    balance the cluster and to evacuate hosts for maintenance. Create
+    one only when the user asks for it (for example a latency-
+    sensitive VM that must not be migrated during business hours).
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `virtual_machine_id` referencing the virtual machine resource.
+  - `drs_enabled = true` with `drs_automation_level =
+    "partiallyAutomated"` (initial placement only) or `"manual"`.
+    Never set `drs_enabled = false` without an explicit request; it
+    blocks automatic migrations, including during host maintenance.
+  - Prefer VM-host or affinity rules over overrides when the goal is
+    placement rather than migration control.
+  - State in the summary that the VM will no longer be balanced
+    automatically.

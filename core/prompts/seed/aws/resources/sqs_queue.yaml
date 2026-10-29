@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS SQS queue default configuration (encryption, dead-letter queue redrive, long polling, queue policy).
+body: |
+  # AWS SQS Queue
+
+  For an SQS queue, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `sqs-<application>-<purpose>-<environment>`,
+    and `sqs-<application>-<purpose>-<environment>-dlq` for its
+    dead-letter queue. `name` and `fifo_queue` force replacement;
+    FIFO queues (name ending in `.fifo`, with a FIFO DLQ) only on
+    request.
+  - Encryption: `sqs_managed_sse_enabled = true` by default; use
+    `kms_master_key_id` with a customer-managed key (and
+    `kms_data_key_reuse_period_seconds = 300`) when requested or
+    when AWS services that require it publish to the queue.
+  - Dead-letter queue: a second `aws_sqs_queue` with
+    `message_retention_seconds = 1209600` (14 days); the main queue
+    sets `redrive_policy = jsonencode({ deadLetterTargetArn = ...,
+    maxReceiveCount = 5 })`, and the DLQ gets an
+    `aws_sqs_queue_redrive_allow_policy` that allows only the main
+    queue.
+  - Main queue: `message_retention_seconds = 345600` (4 days),
+    `receive_wait_time_seconds = 20` (long polling, fewer empty
+    receives), and `visibility_timeout_seconds` at least six times
+    the consumer Lambda's timeout (or the consumer's processing
+    time).
+  - Add a CloudWatch alarm on the DLQ's
+    `ApproximateNumberOfMessagesVisible` > 0.
+  - Attach an `aws_sqs_queue_policy` that denies access without TLS
+    (`aws:SecureTransport = false`) and allows `sqs:SendMessage`
+    only from the needed roles or service principals, with
+    `aws:SourceArn` conditions for services such as SNS or
+    EventBridge.

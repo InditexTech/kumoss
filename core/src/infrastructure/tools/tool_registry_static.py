@@ -9,7 +9,7 @@ from typing import Any, Callable, override
 
 from pydantic import ValidationError
 
-from src.domains.interfaces import ILLMProvider, IToolRegistry
+from src.domains.interfaces import IToolRegistry
 from src.domains.dto import (
     ComplianceCheckReport,
     TerraformDriftReport,
@@ -21,21 +21,33 @@ from src.domains.dto import (
     TerraformImportReport,
     ReconciliationReport,
 )
+from src.domains.value_objects import SearchResult, TerraformDoc
 from src.infrastructure.exceptions import (
-    InferenceCallAPIError,
-    InferenceCallWebSearchNotSupported,
     ToolDefinitionContextNotFound,
     ToolDefinitionNameNotFound,
     ToolInferenceParamsError,
 )
+from src.infrastructure.external.search_service import (
+    SearchEngineError,
+    SearchServiceClient,
+)
+from src.infrastructure.external.search_summarizer_service import (
+    SearchResultsSummarizer,
+)
+from src.infrastructure.external.terraform_registry_service import (
+    TerraformDocsNotFoundError,
+    TerraformRegistryClient,
+    TerraformRegistryError,
+)
+from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
 
 class ToolRegistryStatic(IToolRegistry):
-    def __init__(self, llm: ILLMProvider):
-        self.__llm = llm
+    def __init__(self, summarizer: SearchResultsSummarizer):
+        self.__summarizer = summarizer
         self.__tools_directory = Path(__file__).parent
         self.__tool_definitions: dict[str, ToolDefinitionDTO] = {}
         self.__tool_handlers: dict[str, Callable[[dict[str, Any]], Any]] = (
@@ -103,6 +115,7 @@ class ToolRegistryStatic(IToolRegistry):
             "report_compliance_findings": self._handle_compliance_findings,
             # External information
             "web_search": self.__handle_web_search,
+            "terraform_docs": self.__handle_terraform_docs,
         }
 
     @override
@@ -160,6 +173,11 @@ class ToolRegistryStatic(IToolRegistry):
                 error_message=None,
             )
         except ExceptionHandler as e:
+            # `message` reaches the agent and carries no backend detail,
+            # so the cause chain is the only diagnosis left.
+            logging.error(
+                f"Tool {tool_call.name} failed: {e.message} ({e.__cause__!r})"
+            )
             return ToolResultDTO(
                 name=tool_call.name,
                 tool_call_id=tool_call.id,
@@ -387,7 +405,6 @@ class ToolRegistryStatic(IToolRegistry):
         return report
 
     def __handle_import_addresses(self, parameters: dict[str, Any]) -> dict[str, Any]:
-        status = parameters["status"]
         summary = parameters["summary"]
         imports = parameters["imports"]
         if not isinstance(imports, list):
@@ -395,30 +412,181 @@ class ToolRegistryStatic(IToolRegistry):
                 message=f"IAC import inference hasn't returned the expected structure. got={imports}",
                 error_code=500,
             )
-        return {"status": status, "summary": summary, "imports": imports}
+        return {"summary": summary, "imports": imports}
 
     async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
         query = parameters["query"]
+        if not system_config.web_search.provider:
+            return {
+                "query": query,
+                "result": "Web search is unavailable: no provider configured. Do NOT retry web_search.",
+            }
         try:
-            response = await self.__llm.inference(msg=query, web_search=True)
-        except (
-            InferenceCallWebSearchNotSupported,
-            InferenceCallAPIError,
-        ) as e:
+            results = await SearchServiceClient().search(query)
+        except SearchEngineError as e:
             return {
                 "query": query,
                 "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
             }
+        if not results:
+            return self.__no_results(
+                query, f"Web search with query '{query}' returned no content."
+            )
+        summaries = await self.__summarized_search_results(query, results)
+        if summaries is None:
+            return self.__no_results(
+                query,
+                f"Web search with query '{query}' returned no relevant content.",
+            )
+        return {"query": query, "result": summaries}
 
-        if not response.text:
-            return {
-                "query": query,
-                "result": f"Web search with query '{query}' returned no content. Do NOT retry web_search.",
+    async def __handle_terraform_docs(
+        self, parameters: dict[str, Any]
+    ) -> dict[str, Any]:
+        provider = parameters["provider"]
+        resource_type = parameters["resource_type"]
+        focus = parameters["focus"]
+        version = parameters.get("version") or None
+        section = parameters.get("section") or "full"
+        kind = parameters.get("kind") or "resource"
+        if section not in ("full", "import") or kind not in ("resource", "data_source"):
+            raise ToolInferenceParamsError(
+                message="`section` must be 'full' or 'import' and `kind` must be "
+                + f"'resource' or 'data_source'. got section={section}, kind={kind}",
+                error_code=400,
+            )
+        if section == "import" and kind == "data_source":
+            raise ToolInferenceParamsError(
+                message="Data sources cannot be imported and have no Import "
+                + "section; use section 'full' for a data source.",
+                error_code=400,
+            )
+        if not isinstance(focus, str) or not focus.strip():
+            raise ToolInferenceParamsError(
+                message="`focus` must say what you need from the documentation.",
+                error_code=400,
+            )
+        answer: dict[str, Any] = {
+            "provider": provider,
+            "version": version,
+            "resource_type": resource_type,
+            "section": section,
+        }
+        try:
+            doc = await TerraformRegistryClient().fetch(
+                provider, resource_type, version, data_source=kind == "data_source"
+            )
+        except TerraformDocsNotFoundError as e:
+            return answer | {
+                "result": f"{e.message} Check the provider source, version and "
+                + "type name before calling terraform_docs again; do not repeat "
+                + "this call."
             }
+        except TerraformRegistryError as e:
+            return answer | {
+                "result": f"Terraform documentation is unavailable: {e.message}. "
+                + "Do NOT retry terraform_docs; use web_search instead."
+            }
+        answer |= {"provider": doc.source, "version": doc.version, "url": doc.url}
+        content = doc.content
+        if section == "import":
+            content = TerraformRegistryClient.import_section(doc.content)
+            if content is None:
+                return answer | {
+                    "result": f"The documentation of {doc.resource_type} in "
+                    + f"{doc.source} {doc.version} has no Import section: the "
+                    + "resource type may not support import."
+                }
+        return answer | {
+            "result": await self.__condensed_docs(doc, content, focus.strip())
+        }
+
+    async def __condensed_docs(
+        self, doc: TerraformDoc, content: str, focus: str
+    ) -> str:
+        """``content`` of the page condensed to ``focus`` by the search summarizer.
+
+        A page is one resource's own documentation, so there is nothing
+        to rank: only the per-page summary runs. Any summarizer failure
+        degrades to the raw, truncated content, as for ``web_search``.
+        """
+        content = content[: TerraformRegistryClient.MAX_DOC_CHARS]
+        page = SearchResult(
+            title=f"{doc.resource_type} ({doc.source} {doc.version})",
+            url=doc.url,
+            content=content,
+        )
+        try:
+            summary = await self.__summarizer.condense(
+                f"{doc.resource_type}: {focus}", page
+            )
+        except ExceptionHandler as e:
+            logging.warning(
+                f"Terraform docs summarization failed, returning the raw page: {e!r}"
+            )
+            return content
+        if summary is None:
+            return (
+                f"The documentation of {doc.resource_type} in {doc.source} "
+                + f"{doc.version} has nothing on '{focus}'. Ask with a different "
+                + "focus; do not repeat this one."
+            )
+        return summary
+
+    def __no_results(self, query: str, reason: str) -> dict[str, Any]:
+        """Answer a search that found nothing with a nudge to rephrase.
+
+        The retry budget is the agent loop's own
+        (``orchestration.max_tool_agent_executions``); this tool only
+        reports what happened and asks for a better query. Only
+        query-shaped failures come through here — a missing provider or a
+        broken engine answers immediately, since no rephrasing fixes
+        either.
+        """
         return {
             "query": query,
-            "result": response.text,
+            "result": (
+                f"{reason} Search again with a different query — other "
+                + "keywords, synonyms, or a broader or narrower scope. Do "
+                + "not repeat this query."
+            ),
         }
+
+    async def __summarized_search_results(
+        self, query: str, results: list[SearchResult]
+    ) -> str | None:
+        """Condense every hit, rank them, return the top summaries.
+
+        ``None`` means the pages were read and none answers the query,
+        which the caller turns into a dead end. Every summarizer
+        *failure* instead degrades to the raw, unfiltered results, so
+        the tool call never fails on account of the reduction.
+        """
+        try:
+            selected, discarded = await self.__summarizer.best(query, results)
+        except ExceptionHandler as e:
+            logging.warning(
+                f"Search result summarization failed, returning raw results: {e!r}"
+            )
+            return "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results)
+        if not selected:
+            logging.debug(
+                f"web_search '{query}' found no relevant page among "
+                + f"{len(results)} result(s)."
+            )
+            return None
+        if discarded:
+            logging.debug(
+                "web_search '"
+                + query
+                + "' discarded "
+                + str(len(discarded))
+                + " source(s) considered less relevant: "
+                + "; ".join(f"{s.result.title} ({s.result.url})" for s in discarded)
+            )
+        return "\n".join(
+            f"- {s.result.title}: {s.summary} ({s.result.url})" for s in selected
+        )
 
     def _handle_compliance_findings(
         self, parameters: dict[str, Any]

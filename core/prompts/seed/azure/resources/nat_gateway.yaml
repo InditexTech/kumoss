@@ -2,31 +2,39 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure NAT Gateway default configuration (public IP, subnet association, idle timeout).
+description: Azure NAT Gateway default configuration (public IP, subnet association, idle timeout, zones).
 body: |
   # Azure NAT Gateway
 
   For a NAT Gateway, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `natgw-<application>-<environment>`.
-  - SKU set to Standard (the only available tier).
-  - Associate at least one public IP address with the NAT Gateway.
-    Name the public IP `pip-natgw-<application>-<environment>`.
+  - Naming convention: `ng-<application>-<environment>`.
+  - SKU set to Standard. A StandardV2 SKU may be available in some
+    regions with zone redundancy; use it only on explicit request
+    and only if the provider version supports it.
+  - Associate at least one public IP address with the NAT Gateway
+    through `azurerm_nat_gateway_public_ip_association`. Name the
+    public IP `pip-ng-<application>-<environment>`.
   - Public IP SKU must be Standard and allocation method must be
     Static (required for NAT Gateway).
   - Idle timeout set to 4 minutes (default). Increase up to 120
     minutes only when the workload requires long-lived outbound
     connections.
   - Associate the NAT Gateway with the private subnets that need
-    outbound internet access.
+    outbound internet access through
+    `azurerm_subnet_nat_gateway_association`, never an inline
+    subnet argument.
   - Do not associate a NAT Gateway with subnets that already have a
     different outbound method (e.g. Azure Firewall, load balancer
     outbound rules) unless explicitly requested.
   - A single NAT Gateway supports up to 64,512 SNAT ports per
     public IP. Add additional public IPs or a public IP prefix for
     high-throughput workloads.
-  - NAT Gateway is zone-resilient by default — it spans all AZs in
-    a region. When using zonal public IPs, align the NAT Gateway's
-    availability zone with the public IP zone.
-  - Apply standard tags: environment and managed_by.
+  - A Standard NAT Gateway is either zonal (pinned to one zone) or
+    no-zone (placed by Azure); it is not zone-redundant. Default to
+    no-zone. For zone resiliency, in regions that support
+    availability zones, deploy one zonal NAT Gateway per
+    zone, each with a public IP in the same zone, and associate it
+    with zone-aligned subnets. Changing `zones` forces replacement.
+  - Public IP and subnet associations do not support tags.

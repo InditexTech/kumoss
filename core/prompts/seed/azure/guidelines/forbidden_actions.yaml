@@ -12,7 +12,12 @@ body: |
   ## Networking
   - Public IP addresses on database, storage, or compute resources
     intended for internal use.
-  - `0.0.0.0/0` inbound rules on Network Security Groups.
+  - Inbound NSG rules whose source is `0.0.0.0/0`, `::/0`, `*`, or
+    the `Internet` service tag, except allowing ports 80 and 443 to
+    an internet-facing front end (Application Gateway, load
+    balancer, or web tier), and inbound 443 from `Internet` and
+    `GatewayManager` on the `AzureBastionSubnet` NSG, which Azure
+    Bastion requires.
   - Disabling the Azure Firewall on existing networks.
 
   ## Identity and access
@@ -20,18 +25,49 @@ body: |
   - Creating service principals with secrets that never expire.
   - Storing credentials in resource tags, descriptions, or outputs.
 
+  ## Compute
+  - The legacy `azurerm_virtual_machine` and
+    `azurerm_virtual_machine_scale_set` resources; use the Linux or
+    Windows specific resources instead.
+  - The CustomScript VM extension (Linux or Windows),
+    `azurerm_virtual_machine_run_command`, or any other mechanism
+    that runs commands on a host. Configure guests only through
+    `custom_data` (cloud-init).
+
   ## Data
   - Disabling encryption-at-rest on storage accounts, managed disks,
     or databases.
   - Setting `public_network_access_enabled = true` on resources whose
-    intent is private.
-  - Deleting or replacing resources holding state (databases, storage
-    accounts) without an explicit `lifecycle.prevent_destroy = true`
-    override request from the user.
+    intent is private. A default-deny firewall that admits only the
+    engine egress CIDRs (see the networking guidelines) is allowed.
+  - Setting `purge_protection_enabled = false` or lowering
+    `soft_delete_retention_days` on Key Vaults, disabling blob or
+    container soft delete or versioning on storage accounts,
+    switching Cosmos DB from continuous to periodic backup, or
+    setting `prevent_deletion_if_contains_resources = false` in the
+    provider `features` block, without an explicit user request.
+  - Removing `lifecycle.prevent_destroy`, an
+    `azurerm_management_lock`, or customer-managed encryption keys
+    (`customer_managed_key`, `disk_encryption_set_id`) from
+    resources that already have them. The only exception is removing
+    `lifecycle.prevent_destroy` in the same change that performs a
+    replacement the user explicitly requested for that resource,
+    stated in the summary; never to enable a deletion.
+  - Changes that force replacement of a stateful resource (storage
+    accounts, PostgreSQL and other databases, Cosmos DB, Key Vault,
+    managed disks, Redis, Service Bus Premium namespaces) unless the
+    user explicitly asked for the replacement. Standalone deletions
+    are always rejected by the compliance check, even when
+    requested.
 
   ## Cost
-  - Provisioning Premium SKUs without an explicit user request.
-  - Creating resources with no auto-shutdown in non-production envs.
+  - Provisioning SKUs, tiers, or sizes above the production default
+    of the matching resource template without an explicit user
+    request.
+  - Creating virtual machines with no auto-shutdown schedule, or VM
+    scale sets with no out-of-hours scale-in, in non-production
+    environments. Non-production App Service plans and AKS user node
+    pools scale down through autoscale instead.
 
   Replace this body with your organization's authoritative
   forbidden-action policy.

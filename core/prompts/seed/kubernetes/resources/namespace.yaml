@@ -2,30 +2,43 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes Namespace default configuration (labels, PSA, resource quotas, limit ranges).
+description: Kubernetes Namespace default configuration (labels, PSA, quotas, limit ranges, network policies).
 body: |
   # Kubernetes Namespace
 
   For a Namespace, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<team>-<application>-<environment>`.
-  - Apply standard Kubernetes labels: `app.kubernetes.io/managed-by`,
-    `app.kubernetes.io/part-of`.
-  - Never use `default`, `kube-system`, `kube-public`, or
-    `kube-node-lease` for application workloads.
-  - Apply Pod Security Admission labels to enforce security standards:
+  - Resource type: `kubernetes_namespace_v1`.
+  - Naming convention: `<app>-<environment>` (no suffix), a DNS-1123
+    label of at most 63 characters.
+  - The name is immutable: renaming makes Terraform replace the
+    namespace (+/-), which deletes every object inside it. Never
+    rename an existing namespace unless the user explicitly asked
+    for it, and state the data loss in the summary.
+  - Add `lifecycle { prevent_destroy = true }` to namespaces that
+    hold production data.
+  - Add the Pod Security Admission labels:
     - `pod-security.kubernetes.io/enforce = "restricted"`.
     - `pod-security.kubernetes.io/audit = "restricted"`.
     - `pod-security.kubernetes.io/warn = "restricted"`.
     Use `"baseline"` only when `"restricted"` is not feasible.
-    Never use `"privileged"` for application namespaces.
-  - Consider pairing with a `kubernetes_resource_quota` to enforce
-    CPU, memory, and object count limits.
-  - Consider pairing with a `kubernetes_limit_range` to set default
-    container resource requests and limits.
-  - Apply a default-deny ingress AND egress NetworkPolicy immediately
-    after namespace creation. Always allow DNS egress (port 53) in
-    deny-all egress policies.
-  - Use annotations for metadata such as team ownership and
-    cost-center attribution.
+    Never use `"privileged"` for application namespaces; it is
+    reserved for the dedicated namespace of an explicitly
+    requested node-agent DaemonSet.
+  - Never use `default`, `kube-system`, `kube-public`, or
+    `kube-node-lease` for application workloads.
+  - Companions — add them when creating a new production namespace,
+    or when requested; never add them to an existing namespace
+    unprompted:
+    - A `kubernetes_resource_quota_v1` to cap CPU, memory and
+      object counts.
+    - A `kubernetes_limit_range_v1` for default container requests
+      and limits.
+    - A default-deny ingress AND egress `kubernetes_network_policy_v1`
+      plus a DNS egress allow (port 53 TCP/UDP). On an existing
+      namespace a default-deny cuts traffic for running pods — high
+      impact.
+  - Team ownership is the standard `owner` label; use annotations
+    for other descriptive metadata such as cost-center attribution
+    or contact details.

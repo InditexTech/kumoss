@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Private DNS zone default configuration (privatelink zones, VNet links, hub-and-spoke placement).
+body: |
+  # Azure Private DNS Zone
+
+  For a Private DNS zone, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - `azurerm_private_dns_zone` named exactly after the service's
+    private link zone (e.g. `privatelink.blob.core.windows.net`,
+    `privatelink.vaultcore.azure.net`, `privatelink.azurecr.io`,
+    `privatelink.servicebus.windows.net`), or the organization's
+    internal domain for custom zones. Private DNS zones are global:
+    they take no `location`.
+  - Create each `privatelink.*` zone once. In hub-and-spoke
+    topologies the zones live in the hub (connectivity) resource
+    group and are linked to every spoke; reference an existing zone
+    with a data source instead of creating a duplicate.
+  - Link the zone to each VNet that resolves it with
+    `azurerm_private_dns_zone_virtual_network_link`
+    (`link-<vnet-name>`, referencing the zone through
+    `private_dns_zone_id` in provider 5.x), `registration_enabled =
+    false` for privatelink zones. Enable auto-registration only for a
+    custom zone used for VM records, on request.
+  - Records for private endpoints come from the endpoint's
+    `private_dns_zone_group`; do not create them by hand.
+  - Renaming a zone forces replacement and drops all its records —
+    high impact.
+  - Tag the zone and the VNet link; record sets do not need
+    tags.

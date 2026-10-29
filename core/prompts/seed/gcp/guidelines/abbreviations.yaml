@@ -15,21 +15,28 @@ body: |
   | VPC network                    | vpc    |
   | Subnetwork                     | snet   |
   | Firewall rule                  | fw     |
+  | Network firewall policy        | fwp    |
   | Cloud Router                   | cr     |
   | Cloud NAT                      | nat    |
+  | Private services access range  | psa    |
   | External IP address            | ip     |
-  | Load balancer                  | lb     |
+  | Load balancer (forwarding rule)| lb     |
   | Backend service                | bes    |
+  | Health check                   | hc     |
+  | SSL certificate                | cert   |
   | Cloud Armor policy             | armor  |
   | Compute Engine instance        | vm     |
   | Instance template              | tpl    |
   | Managed instance group         | mig    |
+  | Unmanaged instance group       | uig    |
+  | Autoscaler                     | as     |
+  | Resource policy (schedule)     | rp     |
   | Persistent disk                | disk   |
   | GKE cluster                    | gke    |
   | GKE node pool                  | np     |
   | Artifact Registry repository   | ar     |
   | Cloud Run service              | run    |
-  | Cloud Functions function       | fn     |
+  | Cloud Run function             | fn     |
   | Cloud Storage bucket           | gcs    |
   | Cloud SQL instance             | sql    |
   | Spanner instance               | spn    |

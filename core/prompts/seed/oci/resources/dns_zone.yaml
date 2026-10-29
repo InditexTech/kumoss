@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: OCI DNS Zone default configuration (zone type, records, views).
+description: OCI DNS Zone default configuration (zone type, record sets, views).
 body: |
   # OCI DNS Zone
 
@@ -14,16 +14,21 @@ body: |
   - Zone type set to PRIMARY. Use SECONDARY only for zone transfer
     from an external DNS provider.
   - Create the zone in the application compartment.
-  - For private DNS resolution within a VCN, use a private DNS
-    view attached to the VCN's DNS resolver.
-  - DNS records:
+  - For private DNS resolution within a VCN, create the zone with
+    `scope = "PRIVATE"` in a private view (`view_id`) attached to
+    the VCN's DNS resolver.
+  - DNS records: manage them with `oci_dns_rrset` (one per domain
+    and record type, with `items` blocks). `oci_dns_record` is
+    deprecated — do not use it in new code.
     - A records for load balancer or instance IP addresses.
     - CNAME records for aliases.
     - Set TTL to 300 seconds (5 minutes) for standard records.
     - Set TTL to 60 seconds for records that may change frequently
       (failover scenarios).
+  - An rrset owns every record of its domain and type: changing its
+    `items` rewrites the set in place, and records missing from the
+    list are removed (high impact for live traffic).
   - For DNSSEC, enable only when the parent zone supports DS
     record delegation.
   - Use steering policies (failover, load balance, geolocation)
     when traffic management across regions is required.
-  - Apply freeform tags: Name.

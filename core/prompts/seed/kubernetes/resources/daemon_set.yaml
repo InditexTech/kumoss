@@ -2,33 +2,49 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Kubernetes DaemonSet default configuration (node-level agents, tolerations, update strategy).
+description: Kubernetes DaemonSet default configuration (node-level agents, tolerations, update strategy, host access).
 body: |
   # Kubernetes DaemonSet
 
   For a DaemonSet, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<component>`.
+  - Resource type: `kubernetes_daemon_set_v1`.
+  - Naming convention: `<app>-<component>-ds`.
   - Use DaemonSet for workloads that must run on every node (or a
     subset): log collectors, monitoring agents, network plugins.
-  - Update strategy: use `RollingUpdate` with `max_unavailable = 1`
-    as default. Use `max_surge = 1` (K8s 1.22+) when zero-downtime
-    rollouts are required — the new pod starts before the old one
-    is terminated.
+  - Selector: `match_labels` with only `app.kubernetes.io/name`
+    and `app.kubernetes.io/instance`; keep
+    `app.kubernetes.io/version` in metadata and pod template labels
+    only. The selector is immutable — changing it replaces the
+    DaemonSet (+/-) and restarts the agent on every node.
+  - Update strategy: `RollingUpdate` with `max_unavailable = 1`
+    and no surge (max surge 0). Surge updates (max surge 1) require
+    max unavailable 0 and do not work for pods using host ports or
+    `host_network`, since old and new pods cannot share them; use
+    surge only when requested.
   - Set `min_ready_seconds` to ensure pods are stable before the
     controller moves on to the next node.
   - Set `revision_history_limit = 5` to control
     ControllerRevision history.
   - Use `node_selector` or `affinity` rules to target specific node
     pools when the agent should not run on all nodes.
-  - Add appropriate `toleration` blocks if the DaemonSet must run
-    on tainted nodes (e.g., master/control-plane nodes).
+  - Add `toleration` blocks only when the DaemonSet must run on
+    tainted nodes, e.g. control-plane nodes
+    (`node-role.kubernetes.io/control-plane`, effect
+    `NoSchedule`). The old `master` taint no longer exists.
   - Define resource requests and limits — DaemonSet pods compete
     for resources on every node.
+  - Configure liveness and readiness probes as for Deployments.
   - Apply the same security context guidelines as Deployments,
     including `seccomp_profile { type = "RuntimeDefault" }`.
-  - Use `host_network = true` only for network-level agents (e.g.,
-    CNI plugins) and only when explicitly requested.
+  - Host access (`hostPath` volumes, `host_network = true`) follows
+    the node-agent exception in Forbidden Actions: only for an
+    explicitly requested node agent, in a dedicated namespace
+    labeled with PSA `enforce = "privileged"` (an application
+    namespace's `restricted` level rejects these pods), with
+    `hostPath` mounts `read_only = true` wherever possible.
   - Use `priority_class_name = "system-node-critical"` for
     infrastructure-critical DaemonSets only.
+  - Pod template labels carry the recommended `app.kubernetes.io/*`
+    labels but not the standard tags.

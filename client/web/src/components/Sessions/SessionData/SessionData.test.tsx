@@ -433,7 +433,7 @@ describe("SessionData artifacts", () => {
 describe("SessionData apply lock", () => {
   it("renders a read-only label when no lock handler is given", () => {
     renderWithProviders(
-      <SessionData session={makeSessionDetail({ is_blocked: false })} />,
+      <SessionData session={makeSessionDetail({ is_blocked: false })} onReload={() => {}} />,
     );
 
     expect(screen.getByText("Apply Open")).toBeInTheDocument();
@@ -445,6 +445,7 @@ describe("SessionData apply lock", () => {
     renderWithProviders(
       <SessionData
         session={makeSessionDetail({ is_blocked: true })}
+        onReload={() => {}}
         onToggleLock={onToggleLock}
       />,
     );

@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes PodDisruptionBudget default configuration (availability during drains, selector, safe thresholds).
+body: |
+  # Kubernetes PodDisruptionBudget
+
+  For a PodDisruptionBudget, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Resource type: `kubernetes_pod_disruption_budget_v1`.
+  - Naming convention: `<app>-<component>-pdb`.
+  - Create one when creating a new production workload with at
+    least 2 replicas, or when requested. Never add one to an
+    existing workload unprompted.
+  - `selector { match_labels }` with the same
+    `app.kubernetes.io/name` and `app.kubernetes.io/instance` as the
+    target workload's selector — nothing else.
+  - Set exactly one of `max_unavailable` or `min_available`.
+    Default `max_unavailable = 1`; it keeps working when an HPA
+    changes the replica count.
+  - Never set `max_unavailable = 0` or `min_available` equal to the
+    replica count — that blocks node drains, upgrades and cluster
+    maintenance.
+  - A PDB on a single-replica workload blocks drains; skip it or
+    raise replicas first.
+  - A PDB protects only against voluntary disruptions (drains,
+    evictions); it does not prevent node failures.

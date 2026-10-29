@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI compartment default configuration (hierarchy, home region, deletion behaviour, quotas).
+body: |
+  # OCI Compartment
+
+  For a compartment, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `cmp-<application>-<environment>`. Names
+    must be unique among siblings under the same parent.
+  - Create it with `oci_identity_compartment` under the request's
+    target compartment (`compartment_id = var.compartment_ocid`).
+    Create a top-level compartment directly under the root
+    (`compartment_id = var.tenancy_ocid`) only on explicit request.
+    Keep the hierarchy shallow (OCI allows at most six levels).
+  - A `description` is required; state the application,
+    environment and owning team.
+  - Identity write: create it through the home-region provider
+    alias (see the permissions guidelines).
+  - Set `enable_delete = false`, so removing the resource from
+    Terraform only drops it from state and never deletes the
+    compartment. Add `lifecycle { prevent_destroy = true }` for
+    production.
+  - Changing `compartment_id` moves the compartment and everything
+    in it under a new parent: inherited policies change at once
+    (high impact). Do it only on explicit request.
+  - New compartments take a short time to propagate; resources and
+    policies that reference one in the same apply may need a
+    retry.
+  - For non-production, consider a compartment quota
+    (`oci_limits_quota`) that caps expensive shapes and services.

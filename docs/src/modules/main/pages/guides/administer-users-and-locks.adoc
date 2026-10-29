@@ -72,8 +72,10 @@ review the results, create or merge the pull request, apply, or
 continue the conversation. Failed sessions cannot be resumed; start a
 new one.
 
-The conversation history is not shown in this view; it is available in
-the admin panel.
+The detail panel also shows the session's *Conversation*: every request
+you made and the answer that closed each round. A round whose answer
+could not be produced contributes nothing, so the conversation can be
+shorter than the timeline.
 
 == Admin panel
 
@@ -103,10 +105,17 @@ Controls:
   session; search by session id in Phoenix. See
   xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
 
-The detail panel shows everything the owner sees plus the conversation
-*History* (every user request and answer in the session) and, for
-editors and admins, the "Apply Locked" or "Apply Open" toggle. "Reload
-Session" is available here too and opens the session in the wizard.
+The detail panel shows everything the owner sees — including the
+*Conversation* — plus the *Internal history* and, for editors and
+admins, the "Apply Locked" or "Apply Open" toggle. "Reload Session" is
+available here too and opens the session in the wizard.
+
+*Internal history* is the record the backend feeds to the LLM, shown
+only here. It is not the user's conversation: it holds whatever the
+prompting strategy needs, so expect raw tool output, validation notes,
+and internal status text, and expect its shape to change without
+notice. Read it to understand why a round produced what it did; for what
+the user was actually told, read the *Conversation*.
 
 === Users tab (panel `admin` only)
 

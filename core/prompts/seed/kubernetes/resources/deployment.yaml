@@ -9,9 +9,18 @@ body: |
   For a Deployment, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<component>-<environment>`.
-  - Set `replicas` to at least 2 for high availability. Use an odd
-    number (3) when the workload requires leader election.
+  - Resource type: `kubernetes_deployment_v1`.
+  - Naming convention: `<app>-<component>-deploy`.
+  - Set `replicas` to at least 2 for high availability. Leader
+    election does not need an odd count; only quorum-based systems
+    (consensus stores) do, and those usually belong in a
+    StatefulSet.
+  - Selector: `selector { match_labels }` with only
+    `app.kubernetes.io/name` and `app.kubernetes.io/instance`. Put
+    `app.kubernetes.io/version` and the rest of the recommended
+    labels in `metadata.labels` and the pod template labels only. The
+    selector is immutable — changing it replaces the Deployment
+    (+/-) and restarts all pods.
   - Set `revision_history_limit = 5` to control how many old
     ReplicaSets are retained for rollback.
   - Strategy: use `RollingUpdate` with `max_unavailable = 1` and
@@ -41,18 +50,28 @@ body: |
   - Security context at the container level:
     - `allow_privilege_escalation = false`.
     - `read_only_root_filesystem = true` when possible.
-    - Drop all capabilities, add only what is needed.
+    - `capabilities { drop = ["ALL"] }`, adding back only what is
+      needed (never `SYS_ADMIN`, `NET_RAW` or `ALL`).
+  - Sidecar containers (K8s 1.29+) go in an `init_container` with
+    `restart_policy = "Always"`.
   - Set `automount_service_account_token = false` on the pod spec
     unless the application needs Kubernetes API access.
-  - Use a dedicated `kubernetes_service_account` — never the
+  - Use a dedicated `kubernetes_service_account_v1` — never the
     namespace default.
-  - Use `topology_spread_constraints` to distribute pods across
-    zones and nodes:
+  - Add a `topology_spread_constraint` block to spread replicas
+    across zones:
     - `max_skew = 1`, `topology_key = "topology.kubernetes.io/zone"`.
-    - `when_unsatisfiable = "DoNotSchedule"`.
-  - Pair with a `kubernetes_pod_disruption_budget_v1` to protect
-    availability during voluntary disruptions (node drains, upgrades).
+    - `when_unsatisfiable = "ScheduleAnyway"`, so pods still
+      schedule on single-zone clusters; `"DoNotSchedule"` only on
+      request.
+    - `label_selector { match_labels }` with the selector labels.
+  - When creating a new production Deployment, or when requested,
+    pair it with a `kubernetes_pod_disruption_budget_v1`. Do not
+    add one to an existing Deployment unprompted.
   - When an HPA manages replicas, add
     `lifecycle { ignore_changes = [spec[0].replicas] }` so Terraform
     does not fight the autoscaler.
-  - Apply standard labels for selectors and identification.
+  - Any change to the pod template (image, env, annotations,
+    resources) triggers a rolling restart of all pods.
+  - Pod template labels carry the recommended `app.kubernetes.io/*`
+    labels but not the standard tags.

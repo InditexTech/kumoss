@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Log Analytics workspace default configuration (SKU, retention, daily cap, access control).
+body: |
+  # Azure Log Analytics Workspace
+
+  For a Log Analytics workspace, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `log-<application>-<environment>`.
+  - Prefer one shared workspace per environment (or the platform's
+    central workspace) over one per application; reference an
+    existing workspace with a data source when the request implies
+    one already exists.
+  - `azurerm_log_analytics_workspace` with `sku = "PerGB2018"` and
+    `location = azurerm_resource_group.<x>.location`. Commitment
+    tiers only on request.
+  - `retention_in_days = 30` (the included retention). Longer
+    retention or archive only on explicit request; it adds cost.
+  - Set `daily_quota_gb` in non-production (e.g. 1-5 GB) to cap
+    cost; leave production uncapped unless requested, so security
+    and audit logs are not dropped.
+  - Disable local (shared key) authentication
+    (`local_authentication_enabled = false`) when all agents and
+    clients use Microsoft Entra ID; never output the workspace keys
+    (if a key output is unavoidable, mark it `sensitive = true`).
+  - Use resource-context access control so users see only the logs
+    of resources they can read; grant `Log Analytics Reader` at the
+    narrowest scope.
+  - Internet ingestion and query (`internet_ingestion_access_type` and
+    `internet_query_access_type` in provider 5.x) follow the network
+    isolation requirements; private workloads use Azure Monitor
+    Private Link Scope (AMPLS).
+  - Renaming the workspace or moving it forces replacement and loses
+    its data — call it out as high impact.

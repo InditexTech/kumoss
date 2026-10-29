@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Bastion service default configuration (managed SSH sessions, TTL, client CIDR allow list).
+body: |
+  # OCI Bastion
+
+  For administrative access to private resources, unless explicitly
+  requested otherwise, use the OCI Bastion service instead of a
+  public jump host:
+
+  - Naming convention: `bst<application><environment>`. Bastion
+    names are immutable and accept a restricted character set, so
+    avoid hyphens.
+  - Create an `oci_bastion_bastion` with `bastion_type =
+    "standard"` and `target_subnet_id` = the private subnet of the
+    targets. No public subnet or public IP is needed.
+  - `client_cidr_block_allow_list`: only the corporate or VPN egress
+    CIDRs, passed as a variable. Never `0.0.0.0/0`.
+  - `max_session_ttl_in_seconds`: 3600 for production, at most
+    10800 (the service maximum).
+  - Allow SSH (TCP 22) to the targets only from the bastion's
+    private endpoint IP or the target subnet CIDR, through the
+    target NSG.
+  - Managed SSH sessions need the Bastion plugin of the Oracle Cloud
+    Agent enabled on the target instances (see `compute_instance`
+    or `instance_configuration`); port-forwarding sessions do not.
+  - Sessions (`oci_bastion_session`) are short-lived and created on
+    demand by operators; do not manage them in Terraform unless the
+    user asks. Sessions only ever take a public key; never put a
+    private key in code or state.
+  - Grant operators a policy in the target compartment (manage
+    `bastion-session`, read `instances`, read
+    `instance-agent-plugins`) instead of broad access.

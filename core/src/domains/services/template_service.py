@@ -49,6 +49,7 @@ class TemplateOrchestrationService:
             # messages
             "joker": self.__templates.render_joker,
             "status_update": self.__templates.render_status_update,
+            "chat_reply": self.__templates.render_chat_reply,
         }
 
     async def render(self, prompt: PromptsLibrary, **kwargs: Any) -> PromptTemplateDTO:

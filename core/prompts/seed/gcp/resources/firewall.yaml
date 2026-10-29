@@ -2,31 +2,37 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP Firewall Rule default configuration (least-privilege, tagging, priority).
+description: GCP Firewall Rule default configuration (least-privilege, service-account targeting, priority, logging).
 body: |
   # GCP VPC Firewall Rule
 
   For a Firewall Rule, unless explicitly requested otherwise, use
   the following default configuration:
 
-  - Naming convention: `<action>-<protocol>-<purpose>-<network>`
-    (e.g. allow-https-web-vpc-prod).
-  - Never use source ranges 0.0.0.0/0 for ingress rules unless the
-    resource is explicitly public-facing (load balancer frontend,
-    CDN-fronted service). Always scope to known CIDRs, source tags,
-    or source service accounts.
-  - Use target tags or target service accounts to scope which
-    instances the rule applies to. Avoid network-wide rules.
-  - Prefer service account-based targeting over network tags for
-    stronger identity guarantees — tags can be set by any user with
-    instance edit permissions.
-  - Priority numbering should use 1000 as the default. Lower
-    numbers evaluate first. Use priorities below 1000 for
-    higher-priority allow rules and above 1000 for deny rules.
-  - For egress restriction, set direction to EGRESS and use
-    destination ranges.
-  - Every rule should have a clear description explaining its
-    purpose.
-  - Consider using Hierarchical Firewall Policies at the
-    organization or folder level for organization-wide rules
-    instead of per-VPC firewall rules.
+  - Naming convention: `fw-<network>-<ingress|egress>-<purpose>`
+    (e.g. fw-vpc-shop-prod-ingress-https-lb).
+  - Never use source ranges `0.0.0.0/0` for ingress rules unless the
+    port is 80 or 443 and the target is explicitly public-facing.
+    Always scope to known CIDRs, source service accounts, or source
+    tags.
+  - Scope the rule with `target_service_accounts` (preferred) or
+    `target_tags`. Avoid network-wide rules. Service accounts give
+    stronger identity guarantees than tags, which anyone with
+    instance edit permissions can set.
+  - Administrative SSH (22) and RDP (3389) only from the
+    Identity-Aware Proxy range `35.235.240.0/20`.
+  - Load balancer and autohealing health checks only from
+    `130.211.0.0/22` and `35.191.0.0/16` on the health-check port.
+  - Use priority 1000 by default; lower numbers evaluate first. Give
+    narrow allow rules a priority below that of any broad deny rule
+    they must override.
+  - For egress restriction, set `direction = "EGRESS"`, use
+    `destination_ranges`, and pair a low-priority deny-all egress
+    rule with higher-priority allow rules.
+  - Enable logging (`log_config { metadata =
+    "INCLUDE_ALL_METADATA" }`) on production allow rules.
+  - Every rule has a `description` explaining its purpose.
+  - Consider hierarchical firewall policies at the folder level, or
+    network firewall policies with secure tags, for rules shared by
+    many projects instead of duplicating per-VPC firewall rules.
+  - Firewall rules do not support labels.

@@ -10,32 +10,45 @@ body: |
   - One VCN per application or per environment depending on
     isolation requirements.
   - Use non-overlapping CIDR blocks sized for growth. Default to
-    /16 for production VCNs.
-  - Enable DNS resolution within the VCN.
+    /16 for production VCNs. Use `cidr_blocks`, not the deprecated
+    `cidr_block`.
+  - Enable DNS resolution within the VCN. VCN and subnet
+    `dns_label` values are at most 15 alphanumeric characters,
+    start with a letter, have no hyphens, and are immutable.
 
   ## Subnets
   - Separate public and private subnets.
   - Public subnets only for load balancers, bastion hosts, and
     resources that require direct internet access.
-  - Application and database tiers belong in private subnets.
+  - Application and database tiers belong in private subnets with
+    `prohibit_public_ip_on_vnic = true` (immutable).
   - Use regional subnets (spanning all ADs in the region) unless
     AD-specific placement is explicitly required.
 
-  ## Gateways
+  ## Gateways and routing
   - Internet Gateway for public subnet outbound/inbound traffic.
   - NAT Gateway for private subnet outbound-only internet access.
   - Service Gateway for access to Oracle services (Object Storage,
-    Autonomous Database) without traversing the internet.
+    Autonomous Database) without traversing the internet (see
+    `service_gateway`).
   - DRG (Dynamic Routing Gateway) for on-premises connectivity
-    or inter-VCN peering.
+    or inter-VCN peering (see `drg`).
+  - Dedicated route tables per subnet tier (see `route_table`).
 
   ## Security
   - Use Network Security Groups (NSGs) over Security Lists for
     granular, resource-level traffic control.
-  - Default Security List should not be modified — create new
-    security lists or NSGs instead.
-  - Never open 0.0.0.0/0 ingress on ports other than 80 and 443.
-  - Enable VCN Flow Logs for audit and troubleshooting.
+  - On a new VCN, manage the default security list with
+    `oci_core_default_security_list` and lock it down (no
+    `0.0.0.0/0` port 22 ingress, which OCI adds by default). Put
+    workload rules in dedicated security lists or NSGs. On existing
+    VCNs, change the default security list only on explicit request.
+  - Never open `0.0.0.0/0` or `::/0` ingress on ports other than 80
+    and 443.
+  - Administrative access goes through the OCI Bastion service (see
+    `bastion`), not public SSH.
+  - Enable VCN Flow Logs for audit and troubleshooting (see
+    `logging`).
 
   ## Load Balancing
   - Use flexible load balancers for HTTP/HTTPS workloads.

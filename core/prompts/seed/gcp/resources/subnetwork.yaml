@@ -9,17 +9,29 @@ body: |
   For a Subnetwork, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `snet-<purpose>` (e.g. snet-web, snet-app,
-    snet-data).
+  - Naming convention: `snet-<environment>-<tier>-<region>` (e.g.
+    snet-prod-app-europe-west1).
   - Assign CIDR ranges carved from the parent VPC's planned address
-    space.
-  - Enable Private Google Access so VMs without external IPs can
-    reach Google APIs and services.
-  - Enable VPC flow logs for security monitoring and
-    troubleshooting in production. Use an aggregation interval of
-    10 minutes, flow sampling at 0.5, and include all metadata.
-    Disable or reduce sampling in non-production to manage cost.
-  - For GKE clusters, allocate secondary IP ranges for pods and
-    services using secondary range blocks.
-  - One subnetwork per purpose per region.
-  - Apply standard labels where supported.
+    space, following the networking guidelines. A range can be
+    expanded in place but never shrunk; shrinking it or changing the
+    parent `network` recreates the subnetwork.
+  - `purpose` left as the default (private) and `stack_type =
+    "IPV4_ONLY"` unless the request needs dual stack.
+  - Enable Private Google Access (`private_ip_google_access = true`)
+    so VMs without external IPs can reach Google APIs and services.
+  - Enable VPC Flow Logs on every subnetwork through the `log_config`
+    block (the provider no longer has an `enable_flow_logs` argument):
+    production uses `aggregation_interval = "INTERVAL_5_SEC"`,
+    `flow_sampling = 0.5` and `metadata = "INCLUDE_ALL_METADATA"`;
+    non-production may lower cost with `INTERVAL_10_MIN` and
+    `flow_sampling = 0.25`. Never disable flow logs.
+  - For GKE clusters, allocate named secondary IP ranges for pods
+    and services (`secondary_ip_range` blocks named `pods` and
+    `services`).
+  - For an internal Application Load Balancer or a regional external
+    one, create a separate proxy-only subnetwork (`purpose =
+    "REGIONAL_MANAGED_PROXY"`, `role = "ACTIVE"`, a `/23` or larger)
+    per region and network.
+  - One subnetwork per tier per region.
+  - Subnetworks do not support labels; describe the subnetwork's
+    purpose in `description`.

@@ -22,6 +22,5 @@ body: |
   - Keep `dpm_enabled = false` unless requested.
   - Do not add hosts through `host_system_ids` unless the user
     explicitly provides them.
-  - Apply tags from the `environment`, `owner` and `managed-by`
-    categories.
-  - Add `lifecycle { prevent_destroy = true }`.
+  - Add `lifecycle { prevent_destroy = true }` for production
+    compute clusters.

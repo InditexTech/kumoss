@@ -1,0 +1,54 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS ECS on Fargate default configuration (cluster, task definition, service, Container Insights, private networking).
+body: |
+  # AWS ECS Fargate Service
+
+  For an ECS service on Fargate, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Cluster
+  - Naming convention: `ecs-<application>-<environment>`.
+  - Container Insights enabled: a `setting` block with `name =
+    "containerInsights"` and `value = "enabled"` (one argument per
+    line; HCL blocks take no commas).
+  - `aws_ecs_cluster_capacity_providers` with `FARGATE`; add
+    `FARGATE_SPOT` as the default strategy only for fault-tolerant
+    non-production services.
+
+  ## Task definition
+  - Family `td-<application>-<component>-<environment>`,
+    `requires_compatibilities = ["FARGATE"]`, `network_mode =
+    "awsvpc"`, task-level `cpu` and `memory`.
+  - `runtime_platform` with `cpu_architecture = "ARM64"` (Graviton)
+    unless the image is x86-only, and `operating_system_family =
+    "LINUX"`.
+  - Separate roles: the execution role with
+    AmazonECSTaskExecutionRolePolicy plus `secretsmanager:GetSecretValue`
+    on the specific secret ARNs; the task role with only the
+    application's scoped permissions.
+  - `container_definitions` via `jsonencode`: image by immutable tag
+    or digest from ECR, `readonlyRootFilesystem = true`,
+    non-root `user` when the image supports it, a container health
+    check, `awslogs` to an explicit log group with retention, and
+    secrets through `secrets` (`valueFrom` ARNs) — never in
+    `environment`.
+
+  ## Service
+  - Naming convention: `svc-<application>-<component>-<environment>`.
+  - `network_configuration` with private subnets in at least two AZs,
+    the service security group, and `assign_public_ip = false`.
+  - Production `desired_count` 2 or more; Application Auto Scaling
+    target tracking on CPU or `ALBRequestCountPerTarget`, with
+    `ignore_changes = [desired_count]`.
+  - A `deployment_circuit_breaker` block with `enable = true` and
+    `rollback = true`.
+  - `enable_execute_command = false`; enable it only on request,
+    with session logging.
+  - Behind a load balancer: `load_balancer` block to an `ip` target
+    group and `health_check_grace_period_seconds`.
+  - `propagate_tags = "SERVICE"` and `enable_ecs_managed_tags = true`.
+  - A new task definition revision triggers a rolling deployment;
+    state it in the summary.

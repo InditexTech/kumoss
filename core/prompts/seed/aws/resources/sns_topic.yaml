@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS SNS topic default configuration (KMS encryption, topic policy, subscriptions, delivery retries).
+body: |
+  # AWS SNS Topic
+
+  For an SNS topic, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `sns-<application>-<purpose>-<environment>`.
+    `name` and `fifo_topic` force replacement; FIFO topics (name
+    ending in `.fifo`) only on request.
+  - Encrypt with `kms_master_key_id`. Use a customer-managed key
+    whenever AWS services publish to the topic (CloudWatch alarms,
+    EventBridge, S3 events), with a key policy allowing those
+    service principals `kms:GenerateDataKey*` and `kms:Decrypt`:
+    the AWS managed `alias/aws/sns` key's policy cannot be changed,
+    so those services cannot publish to a topic that uses it.
+  - Attach an `aws_sns_topic_policy` that:
+    - denies `sns:Publish` without TLS (`aws:SecureTransport =
+      false`);
+    - allows publishing only from the needed service principals or
+      roles, with `aws:SourceArn` or `aws:SourceAccount` conditions.
+  - Subscriptions:
+    - SQS (with `raw_message_delivery = true` when the consumer
+      expects the original payload) and Lambda are fully managed in
+      Terraform; the queue policy must allow `sqs:SendMessage` from
+      this topic ARN.
+    - Email subscriptions must be confirmed by the recipient outside
+      Terraform; state it in the summary.
+    - Add a `redrive_policy` with an SQS dead-letter queue on
+      subscriptions whose messages must not be lost.

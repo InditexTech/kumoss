@@ -153,26 +153,43 @@ have been initialised, the seeder:
   errors for about 27 seconds. If Phoenix stays unreachable the boot
   fails with `Phoenix unreachable after 8 attempts`. Phoenix must
   therefore be available whenever the core starts.
-. For each seed, asks Phoenix whether a prompt with that name exists
-  (by name, regardless of tags). If it exists, the seed is skipped. If
-  not, the seeder creates the prompt with one version whose displayed
-  model name is `kumoss-seed` (Phoenix requires a model name; Kumoss
-  ignores it) and tags that version with every `environment` value:
-  `development`, `staging`, and `production`.
-. Logs `Prompt seeding complete: N created, M already present`.
+. For each seed, reads the prompt's version tagged `seed`, the one the
+  seeder last pushed. A prompt without that tag gets it on its latest
+  version first; prompts seeded before the tag existed get it this way
+  on the first boot that runs this seeder.
+. If the prompt does not exist, the seeder creates it with one version
+  whose displayed model name is `kumoss-seed` (Phoenix requires a model
+  name; Kumoss ignores it) and tags that version with every
+  `environment` value, `development`, `staging` and `production`, then
+  with `seed`.
+. If the text of the `seed` version differs from the seed file, the
+  seeder pushes the seed as a new version, moves to it every
+  environment tag that still points at the `seed` version, and moves
+  `seed` last. A tag on any other version, or a tag you removed, is
+  left alone.
+. Logs `Prompt seeding complete: N created, M updated, K unchanged`.
+
+Only the text counts: the seeder compares the `seed` version's text
+with the seed file, and ignores its model, invocation parameters and
+description.
 
 Consequences to plan for:
 
-* *Seeding never overwrites.* Editing a seed file after the first boot
-  against a given Phoenix database has no effect on the prompt that
-  already exists there. To change an already seeded prompt, edit it in
-  Phoenix (see below) or delete it there and restart the core.
-* *Only new names are pushed.* Adding a new seed file and restarting the
-  core does create the new prompt, even on an existing deployment.
-* *A failed tag is not retried.* If Phoenix rejects one of the three tag
-  writes, boot fails, but the prompt already exists and the next boot
-  skips it. The error names the prompt, its version, and the tags still
-  missing; add them to that version in Phoenix.
+* *Seeding never moves a tag off your versions.* A seed changed by a
+  release reaches every environment tag that still points at the `seed`
+  version. Once you point a tag at your own version, that tag keeps it
+  on every later boot, and seed changes for it are yours to merge by
+  hand. Do not move `seed` onto your own version, and do not remove it:
+  without it the seeder takes the latest version as its own, which may
+  be yours.
+* *New seed files are pushed too.* Adding a seed file and restarting the
+  core creates the new prompt, even on an existing deployment.
+* *A failed tag is not always retried.* If Phoenix rejects one of the
+  tag writes, boot fails. The error names the prompt, its version, and
+  the tags still missing; add them to that version in Phoenix. On an
+  update the next boot retries the tags that still point at the `seed`
+  version, which moves only once they all have, but on a new prompt the
+  untagged environments look removed and are never tagged.
 * *The environment tag matters.* The core fetches prompts by name and
   tag, and the tag is `environment`. Seeded versions carry all three
   tags, so changing `environment` keeps working for them. It does not
@@ -330,41 +347,57 @@ resource prompts differ per cloud.
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
-|`aurora`, `bedrock`, `cloudwatch`, `dynamodb`, `ec2`, `iam_role`,
-`internet_gateway`, `lambda`, `nat_gateway`, `rds`, `redshift`,
-`route53`, `s3_bucket`, `sagemaker`, `security_group`, `subnet`, `vpc`
+|`aurora`, `auto_scaling_group`, `bedrock`, `cloudwatch`, `dynamodb`,
+`ebs_volume`, `ec2`, `ecr_repository`, `ecs_fargate_service`, `efs`,
+`eks_cluster`, `elasticache_redis`, `iam_role`, `internet_gateway`,
+`kms_key`, `lambda`, `launch_template`, `load_balancer`,
+`nat_gateway`, `rds`, `redshift`, `route53`, `route_table`,
+`s3_bucket`, `sagemaker`, `secrets_manager`, `security_group`,
+`sns_topic`, `sqs_queue`, `subnet`, `vpc`, `vpc_endpoint`,
+`waf_web_acl`
 |none
 
 |`azure`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
-|`application_insights`, `azure_openai`, `container_app`, `cosmosdb`,
-`function`, `key_vault`, `nat_gateway`, `network_security_group`,
-`postgres_flexible_server`, `redis_managed`, `resource_group`,
-`storage_account`, `subnet`, `virtual_machine`, `virtual_network`,
-`webapp`
+|`aks_cluster`, `application_gateway`, `application_insights`,
+`azure_openai`, `bastion`, `container_app`, `container_registry`,
+`cosmosdb`, `diagnostic_setting`, `function`, `key_vault`,
+`load_balancer`, `log_analytics_workspace`, `managed_disk`,
+`nat_gateway`, `network_security_group`, `postgres_flexible_server`,
+`private_dns_zone`, `private_endpoint`, `public_ip`, `redis_managed`,
+`resource_group`, `role_assignment`, `service_bus`, `storage_account`,
+`subnet`, `user_assigned_identity`, `virtual_machine`,
+`virtual_network`, `vm_scale_set`, `webapp`
 |none
 
 |`gcp`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
-|`bigquery`, `cloud_nat`, `cloud_router`, `cloud_run`,
-`cloud_sql_postgres`, `firewall`, `gke_autopilot`, `load_balancer`,
-`project`, `service_account`, `spanner`, `storage_bucket`,
-`subnetwork`, `vertex`, `vpc_network`
+|`artifact_registry`, `bigquery`, `cloud_armor`, `cloud_dns`,
+`cloud_functions`, `cloud_kms`, `cloud_nat`, `cloud_router`,
+`cloud_run`, `cloud_sql_postgres`, `compute_instance`, `firewall`,
+`gke_autopilot`, `gke_standard`, `instance_template`,
+`load_balancer`, `managed_instance_group`, `memorystore_redis`,
+`persistent_disk`, `project`, `pubsub`, `secret_manager`,
+`service_account`, `spanner`, `storage_bucket`, `subnetwork`,
+`vertex`, `vpc_network`
 |none
 
 |`oci`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
-|`autonomous_database`, `block_volume`, `compute_instance`,
-`dns_zone`, `file_storage`, `functions`, `iam_policy`,
-`internet_gateway`, `load_balancer`, `nat_gateway`,
+|`autonomous_database`, `bastion`, `block_volume`, `certificate`,
+`compartment`, `compute_instance`, `container_repository`, `dns_zone`,
+`drg`, `dynamic_group`, `file_storage`, `functions`, `iam_policy`,
+`instance_configuration`, `instance_pool`, `internet_gateway`,
+`load_balancer`, `logging`, `mysql_db_system`, `nat_gateway`,
 `network_security_group`, `object_storage`, `oke_cluster`,
-`security_list`, `subnet`, `vault`, `vcn`
+`route_table`, `security_list`, `service_gateway`, `subnet`, `vault`,
+`vcn`
 |none
 
 |`kubernetes`
@@ -372,18 +405,23 @@ resource prompts differ per cloud.
 `permissions`, `resource_creation`, `resources_list`
 |`cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`,
 `daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`,
-`namespace`, `network_policy`, `persistent_volume_claim`, `role`,
-`role_binding`, `secret`, `service`, `service_account`, `stateful_set`
+`job`, `limit_range`, `namespace`, `network_policy`,
+`persistent_volume_claim`, `pod_disruption_budget`, `priority_class`,
+`resource_quota`, `role`, `role_binding`, `secret`, `service`,
+`service_account`, `stateful_set`, `storage_class`
 |none
 
 |`vmware`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
 `permissions`, `resource_creation`, `resources_list`
-|`compute_cluster`, `compute_cluster_vm_anti_affinity_rule`,
-`content_library`, `datastore_cluster`, `distributed_port_group`,
-`distributed_virtual_switch`, `entity_permissions`, `folder`,
-`resource_pool`, `role`, `tag`, `virtual_disk`, `virtual_machine`,
-`vm_storage_policy`
+|`compute_cluster`, `compute_cluster_host_group`,
+`compute_cluster_vm_affinity_rule`,
+`compute_cluster_vm_anti_affinity_rule`, `compute_cluster_vm_group`,
+`compute_cluster_vm_host_rule`, `content_library`,
+`content_library_item`, `datastore_cluster`, `distributed_port_group`,
+`distributed_virtual_switch`, `drs_vm_override`, `entity_permissions`,
+`folder`, `ha_vm_override`, `resource_pool`, `role`, `tag`,
+`virtual_disk`, `virtual_machine`, `vm_storage_policy`
 |none
 |===
 
@@ -570,9 +608,10 @@ not withhold the resources inside it, which appear in the scope listing
 under their own IDs.
 
 NOTE: Before this list was parsed by the core, the `import_filter`
-agent read it as prose. Seeding never overwrites, so a deployment whose
-list was curated in free text keeps that text: any ID not written as a
-bullet is now silently ignored. Rewrite such lists as bullets.
+agent read it as prose. Seeding never overwrites your versions, so a
+deployment whose list was curated in free text keeps that text: any ID
+not written as a bullet is now silently ignored. Rewrite such lists as
+bullets.
 
 == How prompts are composed into a system prompt
 

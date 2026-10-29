@@ -2,23 +2,60 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: VMware vSphere tag category and tag default configuration (cardinality, associable types).
+description: VMware vSphere tag category and tag default configuration (lookups, cardinality, associable types).
 body: |
   # VMware vSphere Tag Category and Tag
 
   For `vsphere_tag_category` and `vsphere_tag`, unless explicitly
   requested otherwise, use the following default configuration:
 
-  - Tag categories are vCenter-wide. Reuse existing categories with
-    `data "vsphere_tag_category"`; create one only when the user
-    asks for a new classification.
-  - Category names are lowercase and hyphenated (`environment`,
-    `owner`, `managed-by`, `data-classification`).
+  ## Mandatory tags are looked up, not created
+  - The mandatory categories (`environment`, `owner`, `managed_by`)
+    and their tags are vCenter-wide. Reference them with data
+    sources, never by creating them per workload: tag names are
+    unique per category, so creating `prod` a second time fails.
+  - A lookup fails the plan when the category or tag does not exist.
+    Look them up only when the workspace already does, or the request
+    confirms they exist in vCenter; never look up a tag whose value
+    is `unassigned`. Otherwise record the standard tags in the VM
+    `annotation` (see the tagging guidelines) and list in the summary
+    the categories and tags the vCenter administrator must create.
+
+    ```hcl
+    data "vsphere_tag_category" "environment" {
+      name = "environment"
+    }
+
+    data "vsphere_tag" "environment" {
+      name        = local.standard_tags.environment
+      category_id = data.vsphere_tag_category.environment.id
+    }
+    ```
+  - Resources reference them with
+    `tags = [data.vsphere_tag.environment.id, ...]`.
+  - If a required tag value does not exist yet, create it only when
+    the user asks; otherwise state in the summary that it is
+    missing.
+
+  ## New categories and tags
+  - Create a `vsphere_tag_category` only when the user asks for a
+    new classification. Category names for the standard keys are
+    exactly the standard tag keys (`environment`, `owner`,
+    `managed_by`); other category names are plain lowercase words
+    with no prefix (`data_classification`), following the general
+    tag-key charset.
   - `cardinality = "SINGLE"` for classifications an object can only
     have one value of; `MULTIPLE` only when several values make sense.
-  - Restrict `associable_types` to the object types the category
-    applies to (for example `VirtualMachine`, `Folder`,
-    `ResourcePool`, `Datastore`).
-  - Tag names are lowercase values (`prod`, `team-billing`); set a
-    `description` on every tag.
-  - Reference tags from resources with `tags = [vsphere_tag.<name>.id]`.
+  - `associable_types` lists every object type the category is
+    applied to. For a category used by the mandatory tag rule that
+    covers every taggable resource Kumoss creates, for example
+    `VirtualMachine`, `Folder`, `ResourcePool`,
+    `ClusterComputeResource`, `Datastore`, `StoragePod`,
+    `VmwareDistributedVirtualSwitch` and
+    `DistributedVirtualPortgroup`. Confirm the exact type strings
+    against the provider documentation for the pinned version.
+  - Tag names are plain lowercase values with no prefix (`prod`,
+    `team-billing`); set a `description` on every tag.
+  - Changing a category's `cardinality` or `name`, or removing an
+    associable type, may force replacement of the category and every
+    tag in it; call it out.

@@ -6,8 +6,10 @@
 .idea/
 .vscode/
 
-# Local dev compose overrides
+# Local dev compose overrides. The example is tracked on purpose: it
+# carries paths and settings, never a certificate or a secret.
 docker-compose.override.*
+!docker-compose.override.example.yml
 
 # Distribution / packaging
 __pycache__

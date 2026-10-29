@@ -26,10 +26,67 @@ body: |
   ## Variables and outputs
   - Every variable declares `type` and `description`.
   - Mark sensitive variables with `sensitive = true`.
+  - Required variables (no default) are only those the IaC engine
+    injects for the cloud; anything else needs a default, a data
+    source, or a generated value (for example `random_password`).
   - Outputs that expose secrets are also marked `sensitive = true`.
 
+  ## Standard tags
+  Every workspace keeps its baseline tags in one place: a
+  `standard_tags.tf` file in the root of the Terraform directory.
+
+  ```hcl
+  locals {
+    standard_tags = {
+      environment = "prod"
+      owner       = "team-payments"
+      managed_by  = "terraform"
+    }
+  }
+  ```
+
+  - Keys are `environment` (`dev`, `staging` or `prod`), `owner`
+    (the owning team, never an individual) and `managed_by`
+    (always `terraform`). An organization may add keys to the local;
+    never remove one.
+  - Keys start with a lowercase letter. Keys and values use only
+    lowercase letters, digits, `-` and `_`, start and end with a
+    letter or digit, and are at most 63 characters, so the same set
+    is valid on every cloud.
+  - Values are literals. Never turn them into variables: the code
+    must plan the same way wherever it runs.
+  - If the workspace already defines `local.standard_tags`, reuse it
+    as it is. If it already applies a baseline under another name or
+    casing (for example AWS `default_tags` with `Environment`), keep
+    using that instead and do not create a second set.
+  - Otherwise create `standard_tags.tf`, taking each value from the
+    request or, failing that, from tags already in the workspace.
+    When a value cannot be determined, write `unassigned` and list
+    it in the summary as a value for the user to confirm.
+  - Never change a value as a side effect: it retags every resource
+    that uses the local. Change it only when the request asks, and
+    say in the summary that all those resources will be updated.
+  - Attach the local the way the cloud's resource creation
+    guidelines describe. Resource-specific tags are merged on top
+    but never reuse a standard key.
+  - Never add tags to, or change tags on, existing resources unless
+    the request asks for it.
+
   ## State and providers
-  - Pin provider versions with `~>` (allow patch updates, block minor).
+  - Pin each provider to its current major version with `~> X.0`
+    (allows newer minor and patch releases, blocks the next major),
+    or `~> X.Y` when a seed requires a minimum minor version.
+  - The provider versions in these guidelines apply to new
+    workspaces only. If the workspace already pins a provider
+    (a `required_providers` entry, or a `.terraform.lock.hcl`
+    selecting its version), never change that constraint and
+    never move it to another major: the engine does not upgrade
+    locked providers, so `init` fails, and a major upgrade
+    changes existing resources. Write arguments, resources and
+    attributes valid for the pinned version, even where a seed
+    describes a newer major's form. When the request needs a
+    newer major, say so in the summary as a separate upgrade
+    for the user to plan instead of doing it.
   - Do not embed credentials in code; rely on environment configuration
     or workload identity.
 

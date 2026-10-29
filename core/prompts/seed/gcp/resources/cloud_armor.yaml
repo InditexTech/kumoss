@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud Armor security policy default configuration (WAF rules, rate limiting, adaptive protection).
+body: |
+  # GCP Cloud Armor
+
+  For a Cloud Armor security policy, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `armor-<application>-<environment>`.
+  - `google_compute_security_policy` with `type = "CLOUD_ARMOR"`,
+    attached through `security_policy` to every backend service of
+    an external Application Load Balancer.
+  - Preconfigured WAF rules as `deny(403)` with sensitivity level 1
+    for SQL injection, cross-site scripting, local and remote file
+    inclusion, remote code execution, scanner detection, protocol
+    attack, and session fixation (e.g.
+    `evaluatePreconfiguredWaf('sqli-v33-stable', {'sensitivity': 1})`).
+  - Add new WAF rules with `preview = true` in production and switch
+    them to enforcement only when the user asks, so false positives
+    surface in the logs before they block traffic.
+  - Per-client-IP rate limiting (`action = "throttle"` with
+    `rate_limit_options`) on request, or on login and API endpoints
+    when the user names them.
+  - Layer 7 DDoS defense through Adaptive Protection
+    (`adaptive_protection_config { layer_7_ddos_defense_config {
+    enable = true } }`).
+  - `advanced_options_config` with `json_parsing = "STANDARD"` and
+    `log_level = "NORMAL"`; use `VERBOSE` only while troubleshooting.
+  - The default rule (priority 2147483647) allows traffic; deny by
+    default only when the user asks for an allow list (e.g.
+    geographic or IP restrictions).
+  - Every rule has a `description`. Security policies do not
+    support labels.

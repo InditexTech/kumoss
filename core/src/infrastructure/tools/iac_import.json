@@ -7,14 +7,6 @@
     "parameters": {
       "type": "object",
       "properties": {
-        "status": {
-          "type": "boolean",
-          "description": "The final status of the inspection. `true` if at least one generated resource block was found and mapped, `false` otherwise."
-        },
-        "summary": {
-          "type": "string",
-          "description": "A detailed, human-readable narrative of the inspection: which files were inspected, which resource blocks were found, and any block that could not be mapped to a cloud resource ID together with the reason."
-        },
         "imports": {
           "type": "array",
           "items": {
@@ -26,15 +18,23 @@
               },
               "resource_id": {
                 "type": "string",
-                "description": "The cloud provider's native resource ID to import (e.g. an Azure resource ID, AWS ARN, or GCP asset name), cased the way the Terraform provider parses it. Structural segments carry the provider's own spelling ('resourceGroups', 'Microsoft.Authorization/roleAssignments'); name segments are copied byte for byte from the listed id."
+                "description": "The import ID, in the exact format the \"Import\" section of the resource type's Terraform Registry documentation specifies for the provider version in use. The format depends on the provider and the resource type, for any provider: for example a name ('acme-logs' for aws_s3_bucket), a short id ('vpc-0123' for aws_vpc), a full ARN, Azure resource ID or OCID, a composite ('n/<namespace>/b/<bucket>' for oci_objectstorage_bucket), or an inventory path ('/dc1/vm/web01' for vsphere_virtual_machine). Every value in it is copied byte for byte from the listed id; only the format and the spelling of structural segments come from the documentation."
+              },
+              "listed_id": {
+                "type": "string",
+                "description": "The listed id from `<selected_resource_ids>` this import ID was built from, copied unchanged (for a previous attempt, its `listed_id`). It is kept with the attempt so that, if the import is rejected, a retry can rebuild the import ID from it."
               }
             },
-            "required": ["address", "resource_id"]
+            "required": ["address", "resource_id", "listed_id"]
           },
           "description": "The mapping of each generated resource block to the cloud resource it represents. Each entry feeds directly into `terraform import <address> <resource_id>`."
+        },
+        "summary": {
+          "type": "string",
+          "description": "A detailed, human-readable narrative of the inspection: which files were inspected, which resource blocks were found, and for each resource type the documented import format applied and the provider version it came from."
         }
       },
-      "required": ["status", "summary", "imports"]
+      "required": ["summary", "imports"]
     }
   }
 ]

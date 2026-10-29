@@ -14,22 +14,23 @@ from src.api.deps import (
     get_validated_claims,
     require_operation_role,
 )
-from src.domains.services.tracer_service import tracer
-from src.domains.services.database_service import DatabaseService
-from src.domains.entities import SessionContext, User
-from src.domains.value_objects.token_claims import TokenClaims
+from src.application.exceptions import RequestFilterException
 from src.application.factory import ApplicationFactory
 from src.application.iac_requests import (
-    BaseIacRequest,
-    GenerateRequest,
-    DriftRequest,
     ApplyRequest,
-    SessionRequest,
+    BaseIacRequest,
+    DriftRequest,
+    GenerateRequest,
     ImportRequest,
+    SessionRequest,
 )
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
+from src.domains.entities import SessionContext, User
+from src.domains.services.database_service import DatabaseService
+from src.domains.services.tracer_service import tracer
+from src.domains.value_objects.token_claims import TokenClaims
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
@@ -149,6 +150,10 @@ def _make_runner(
             last = await DatabaseService.get_last_status(ctx.id)
             if last.status is not SessionStatus.UNCOMPLETED:
                 await DatabaseService.mark_completed(ctx.id, ctx.operation.name)
+        except RequestFilterException:
+            await DatabaseService.mark_uncompleted(
+                ctx.id, ctx.chat_history.get_last_turn().assistant
+            )
         except ExceptionHandler as e:
             msg = f"runner failed: {e.message}"
             logging.error(f"{msg} (session {ctx.id})")

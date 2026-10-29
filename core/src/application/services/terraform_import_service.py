@@ -134,6 +134,7 @@ class TerraformImportService:
             attempt = TerraformImportAttempt(
                 address=r.address,
                 resource_id=r.resource_id,
+                listed_id=r.listed_id,
                 error=result.feedback,
             )
             if result.ok:

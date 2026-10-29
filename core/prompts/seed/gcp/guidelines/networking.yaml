@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP networking conventions (VPC networks, subnetworks, firewall rules, Cloud NAT, private access).
+description: GCP networking conventions (VPC networks, subnetworks, firewall rules, Cloud NAT, private access, load balancing).
 body: |
   # GCP Networking Guidelines
 
@@ -14,8 +14,8 @@ body: |
     project owns the network and subnetworks, service projects attach
     workloads to them.
   - Connect environments or on-premises networks through VPC Network
-    Peering, Cloud VPN, or Cloud Interconnect; do not chain peerings
-    (peering is not transitive).
+    Peering, Network Connectivity Center, Cloud VPN, or Cloud
+    Interconnect; do not chain peerings (peering is not transitive).
 
   ## Address space
   - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs or
@@ -24,14 +24,19 @@ body: |
     `/20` subnetworks within it; use `/24` where a tier is small.
   - Reserve secondary ranges for GKE pods and services on the
     subnetworks that host clusters.
+  - Reserve one private services access range per VPC network (see
+    Private connectivity) outside the subnetwork ranges.
 
   ## Subnetworks
   - Subnetworks are regional; create one per tier per region:
     `web`, `app`, `data`, `mgmt`.
   - Enable `private_ip_google_access = true` on every subnetwork so
     workloads reach Google APIs without external IPs.
-  - Enable VPC Flow Logs (`log_config`) on every subnetwork; a
-    sampling rate of 0.5 is acceptable outside production.
+  - Enable VPC Flow Logs (`log_config`) on every subnetwork and never
+    disable them. Production: `aggregation_interval =
+    "INTERVAL_5_SEC"`, `flow_sampling = 0.5`, `metadata =
+    "INCLUDE_ALL_METADATA"`. Outside production, `INTERVAL_10_MIN`
+    with `flow_sampling = 0.25` is acceptable.
   - Name subnetworks `snet-<environment>-<tier>-<region>`.
 
   ## Firewall rules
@@ -42,10 +47,15 @@ body: |
     rather than network tags where possible; use tags only for
     resources that cannot run as a dedicated service account.
   - Allow administrative SSH and RDP only from the Identity-Aware
-    Proxy range `35.235.240.0/20`.
-  - Allow health checks from the Google load-balancer ranges
-    `130.211.0.0/22` and `35.191.0.0/16` only on the health-check
-    port.
+    Proxy range `35.235.240.0/20`, combined with OS Login. Do not
+    deploy bastion hosts with external IPs.
+  - Allow health checks only on the health-check port, from
+    `130.211.0.0/22` and `35.191.0.0/16` (Application Load Balancers,
+    proxy Network Load Balancers, and managed instance group
+    autohealing); passthrough Network Load Balancers also need
+    `209.85.152.0/22` and `209.85.204.0/22`.
+  - Enable firewall rule logging (`log_config { metadata =
+    "INCLUDE_ALL_METADATA" }`) on allow rules in production.
   - Prefer hierarchical firewall policies at folder level for rules
     that apply to every project.
 
@@ -58,24 +68,33 @@ body: |
     request asks for full logging.
 
   ## Private connectivity
-  - Use Private Service Connect or private services access
-    (`google_service_networking_connection`) for Cloud SQL,
-    Memorystore, and other managed services; never their public IPs.
-  - Deploy GKE clusters as private clusters with authorized networks
-    for the control plane.
-  - Access Cloud Run, Cloud Functions, and other serverless products
-    from the VPC through Direct VPC egress or a Serverless VPC Access
-    connector, and restrict their ingress to internal traffic when
-    they are not public.
+  - Reach Cloud SQL, Memorystore, and other managed services through
+    private services access or Private Service Connect, never their
+    public IPs. For private services access, reserve a
+    `google_compute_global_address` with `purpose = "VPC_PEERING"`,
+    `address_type = "INTERNAL"` and a `/20` or larger prefix, then
+    create one `google_service_networking_connection` per VPC network
+    that every managed service shares.
+  - Never remove or shrink a private services access range or
+    connection that managed services already use.
+  - Deploy GKE clusters with private nodes and restrict the control
+    plane with authorized networks or the IAM-protected DNS-based
+    endpoint.
+  - Access Cloud Run, Cloud Run functions, and other serverless
+    products from the VPC through Direct VPC egress or a Serverless
+    VPC Access connector, and restrict their ingress to internal
+    traffic when they are not public.
 
   ## Load balancing
-  - Use the global external Application Load Balancer for public
-    HTTP(S) entry points, with a Cloud Armor security policy attached
-    to every backend service.
+  - Use the global external Application Load Balancer
+    (`load_balancing_scheme = "EXTERNAL_MANAGED"`, never the classic
+    `EXTERNAL` scheme) for public HTTP(S) entry points, with a Cloud
+    Armor security policy attached to every backend service.
   - Use internal Application or Network Load Balancers for traffic
     between tiers inside the VPC.
   - Terminate TLS at the load balancer with Google-managed
-    certificates unless the request requires otherwise.
+    certificates and an SSL policy that enforces TLS 1.2 or later,
+    unless the request requires otherwise.
 
   Replace this body with your organization's authoritative networking
   standards.

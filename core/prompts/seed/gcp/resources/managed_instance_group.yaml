@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP managed instance group default configuration (regional distribution, autohealing, rolling updates, autoscaling).
+body: |
+  # GCP Managed Instance Group
+
+  For a managed instance group (MIG), unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Group
+  - Naming convention: `mig-<application>-<role>-<environment>`,
+    with `base_instance_name = "vm-<application>-<role>"`.
+  - Use a regional MIG (`google_compute_region_instance_group_manager`)
+    spread across three zones read from `data
+    "google_compute_zones" "available"`, with
+    `distribution_policy_target_shape = "EVEN"`. Use a zonal MIG
+    (`google_compute_instance_group_manager`) only for
+    non-production or on request.
+  - Reference an `instance_template` in the `version` block.
+  - Do not set `target_size` when an autoscaler is attached; the
+    autoscaler owns the size.
+  - Declare `named_port` blocks for the ports a load balancer
+    backend service uses.
+  - Use unmanaged instance groups (`google_compute_instance_group`)
+    only to group existing, heterogeneous instances on explicit
+    request; they neither autoheal nor autoscale.
+
+  ## Autohealing
+  - `auto_healing_policies` with a dedicated
+    `google_compute_health_check` (`hc-<application>-<role>-<environment>`)
+    on the application's health endpoint and `initial_delay_sec`
+    long enough for instances to boot (default 300).
+  - Make the autohealing check more conservative than the load
+    balancer check (check interval 10 seconds, timeout 5 seconds,
+    healthy threshold 2, unhealthy threshold 5), so instances are
+    drained before they are recreated.
+  - Add the firewall rule that allows `130.211.0.0/22` and
+    `35.191.0.0/16` on the health-check port, targeted at the
+    group's service account.
+
+  ## Updates
+  - `update_policy` with `type = "PROACTIVE"`, `minimal_action =
+    "REPLACE"`, `replacement_method = "SUBSTITUTE"`,
+    `max_surge_fixed = 3`, and `max_unavailable_fixed = 0`. For a
+    regional MIG, fixed surge and unavailable values must be 0 or at
+    least the number of zones.
+  - A template change rolls every instance; state in the summary
+    that instances will be replaced.
+
+  ## Autoscaling
+  - A `google_compute_region_autoscaler`
+    (`as-<application>-<role>-<environment>`) targeting the group,
+    with CPU utilization target 0.6 and `cooldown_period = 90`.
+  - Production: `min_replicas = 3` (one per zone), `max_replicas`
+    sized to the workload, and `scale_in_control` limiting scale-in
+    to 10% of instances per 10 minutes.
+  - Non-production: `min_replicas = 0` or 1, plus a
+    `scaling_schedules` entry that keeps capacity only during
+    working hours in the team's time zone.
+
+  ## Load balancing
+  - Expose the group through a load balancer backend service that
+    references the MIG's `instance_group` output (see
+    `load_balancer`).
+  - Managed instance groups do not support labels; the instance
+    template carries them.

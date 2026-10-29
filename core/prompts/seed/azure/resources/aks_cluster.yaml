@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Kubernetes Service cluster default configuration (restricted API, CNI overlay, workload identity, Entra RBAC, node pools, upgrades).
+body: |
+  # Azure Kubernetes Service (AKS) Cluster
+
+  For an AKS cluster, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  ## Cluster
+  - Naming convention: `aks-<application>-<environment>`, with
+    `dns_prefix` derived from it.
+  - `azurerm_kubernetes_cluster` with
+    `location = azurerm_resource_group.<x>.location`, `sku_tier =
+    "Standard"` for production and `"Free"` for non-production.
+  - API server: public by default, restricted with
+    `api_server_access_profile { authorized_ip_ranges = [...] }` to
+    the CIDRs the request or workspace provides (including the
+    Kumoss engine's egress, which runs later Kubernetes requests
+    from outside the VNet). Never leave it open to all in production
+    without an explicit request. Use `private_cluster_enabled =
+    true` only when the request states operators and the engine
+    reach the API from inside the VNet. Toggling
+    `private_cluster_enabled` forces replacement. State in the summary who can reach the API.
+  - Networking: `network_plugin = "azure"` with
+    `network_plugin_mode = "overlay"`, `network_policy` and
+    `network_data_plane` set to `"cilium"`, nodes in a dedicated
+    subnet. Changing the network plugin or pod CIDR forces
+    replacement. Egress through a NAT Gateway or firewall.
+  - Identity: system-assigned (or user-assigned) cluster identity;
+    `oidc_issuer_enabled = true` and `workload_identity_enabled =
+    true`, with `azurerm_federated_identity_credential` per workload
+    on a `user_assigned_identity` (`user_assigned_identity_id`). Never
+    use service principal secrets or pod-mounted keys.
+  - Access: `azure_active_directory_role_based_access_control` with
+    `azure_rbac_enabled = true` and `local_account_disabled = true`.
+  - `azure_policy_enabled = true`; send logs to Log Analytics via
+    `oms_agent`. Enable `microsoft_defender` only on request (cost).
+  - Provider 5.x requires a `node_provisioning_profile` block: keep
+    `mode = "Manual"` (no Node Auto Provisioning) unless requested.
+
+  ## Node pools
+  - `default_node_pool` is the system pool:
+    `only_critical_addons_enabled = true`, `zones = ["1", "2",
+    "3"]` where the region supports availability zones,
+    `auto_scaling_enabled = true` with min 1 (non-prod) or 3 (prod),
+    and `temporary_name_for_rotation` set so size changes rotate the
+    pool instead of replacing the cluster.
+  - Workloads run in user pools (`azurerm_kubernetes_cluster_node_pool`,
+    `np<role>`, max 12 lowercase alphanumerics) with the autoscaler
+    enabled (`auto_scaling_enabled = true`). Non-production user
+    pools use `min_count = 0` so they scale to zero when idle.
+    Stopping and starting the whole cluster is an operational action
+    (`az aks stop`/`start`), not Terraform configuration; never model
+    it. Set `temporary_name_for_rotation` on user pools too, so a VM
+    size change rotates the pool instead of replacing it.
+
+  ## Upgrades
+  - `automatic_upgrade_channel = "patch"` and
+    `node_os_upgrade_channel = "NodeImage"`, with
+    `maintenance_window_auto_upgrade` and `maintenance_window_node_os`
+    set to off-peak hours. Version upgrades drain and restart nodes
+    — high impact.
+  - Node pools take tags; federated identity credentials do not.

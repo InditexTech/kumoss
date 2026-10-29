@@ -13,16 +13,44 @@ body: |
     `inspect` < `read` < `use` < `manage`.
   - Scope policies to compartments, not the tenancy, unless
     cross-compartment access is explicitly required.
-  - Never grant `manage all-resources in tenancy` outside of
-    administrator groups.
+  - Never grant `manage all-resources in tenancy` without an
+    explicit user request, and then only to an administrators
+    group.
+  - Never write `Allow any-user` statements without an explicit
+    request; documented service patterns must carry a
+    `request.principal` condition.
+  - In tenancies with identity domains, subjects are
+    domain-qualified: `Allow group '<domain>'/'<group>' to ...` and
+    `Allow dynamic-group '<domain>'/'<dynamic-group>' to ...`.
+
+  ## Home region and root compartment
+  - Identity writes (policies, compartments, dynamic groups, groups,
+    tag namespaces) must target the tenancy home region: use an
+    aliased `oci` provider whose region comes from
+    `data "oci_identity_region_subscriptions"` filtered on
+    `is_home_region = true`.
+  - Dynamic groups and policies with tenancy-scope statements live
+    in the root compartment; everything else lives in application
+    compartments.
 
   ## Groups and Dynamic Groups
   - Assign policies to groups, not individual users.
   - Use dynamic groups for compute instances, functions, and other
-    OCI resources that need to call OCI APIs.
+    OCI resources that need to call OCI APIs. For OKE pods, prefer
+    workload identity on enhanced clusters.
   - Dynamic group matching rules should be as specific as possible
     (match on compartment OCID + resource type, not just
     resource type).
+
+  ## Service policies for customer-managed keys
+  A service can only use a Vault key after a policy allows it, for
+  example:
+  - Object Storage: `Allow service objectstorage-<region> to use
+    keys in compartment <cmp> where target.key.id = '<key_ocid>'`.
+  - Block Volume and boot volumes: `Allow service blockstorage to use
+    keys ...`.
+  - File Storage: `Allow service FssOc1Prod to use keys ...`.
+  - OKE secrets encryption: `Allow service oke to use keys ...`.
 
   ## Instance Principals
   - Prefer instance principals over API keys for workloads running
@@ -30,11 +58,13 @@ body: |
   - Create a dynamic group matching the specific instances, then
     write a policy granting the required access.
 
-  ## API Keys
-  - Use only for external workloads (CI/CD, on-premises services).
+  ## API Keys and other user credentials
+  - Use only for external workloads (CI/CD, on-premises services),
+    and only on explicit request.
   - Rotate API keys at least every 90 days.
   - Never store private keys in Terraform state, outputs, or
-    version control.
+    version control. Auth tokens and customer secret keys created
+    with Terraform return their secret into state.
 
   ## Service Limits
   - Check service limits before provisioning large-scale resources.

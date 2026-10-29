@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Merge with SearXNG's default settings, but keep only the general-purpose
+# engines `web_search` needs: the stock ~70 fan out on every query and the
+# free upstreams rate-limit the shared container IP, suspending an engine
+# for 180s at a time. Kept in priority order (SearXNG weighs earlier ones
+# more): bing (most reliable here), duckduckgo, brave (rate-limits under
+# load). Dropped: wikipedia/wikidata (encyclopedic, and wikidata fails the
+# TLS chain here), startpage/mojeek (`inactive` upstream), google (needs a
+# CSE key). The Tor engines are removed because they cannot load without
+# Tor networking. See the Search engines section of the environment
+# variables reference.
+use_default_settings:
+  engines:
+    keep_only:
+      - bing
+      - duckduckgo
+      - brave
+    remove:
+      - ahmia
+      - torch
+
+# keep_only preserves each engine's default `disabled` flag, and `bing`
+# ships disabled; re-declaring it here is what makes it run.
+engines:
+  - name: bing
+    disabled: false
+
+server:
+  # Substituted at container start by docker-entrypoint.sh from the
+  # SEARXNG_SECRET env var (services/searxng/.env — see env.sample).
+  # Unset, the entrypoint generates a per-boot random key instead.
+  secret_key: "${SEARXNG_SECRET}"
+  limiter: false
+  image_proxy: true
+
+search:
+  formats:
+    - html
+    - json

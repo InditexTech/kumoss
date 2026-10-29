@@ -40,4 +40,4 @@ body: |
   - Health check: TCP on the service port.
 
   ## Common
-  - Apply freeform tags: Name.
+  - Listeners, backend sets and backends take no tags.

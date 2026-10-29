@@ -5,10 +5,13 @@
 from pathlib import Path
 from typing import Any, Callable, override
 
-from src.domains.interfaces import IFileSystem, IGit, ILLMProvider
+from src.domains.interfaces import IFileSystem, IGit
 from src.infrastructure.exceptions import (
     CustomFileNotFoundError,
     ToolInferenceParamsError,
+)
+from src.infrastructure.external.search_summarizer_service import (
+    SearchResultsSummarizer,
 )
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
 from src.shared.constants import ToolContext
@@ -21,12 +24,11 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         self,
         filesystem: IFileSystem,
         git: IGit,
-        llm: ILLMProvider,
+        summarizer: SearchResultsSummarizer,
     ):
         self.__filesystem = filesystem
         self.__git = git
-        self.__llm = llm
-        super().__init__(llm)
+        super().__init__(summarizer)
 
     @override
     def _tool_files(self) -> dict[str, ToolContext]:

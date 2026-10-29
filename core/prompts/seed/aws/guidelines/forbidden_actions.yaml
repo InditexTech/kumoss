@@ -10,13 +10,19 @@ body: |
   request requires one of these, refuse and explain why.
 
   ## Networking
-  - Security group ingress rules with `cidr_blocks = ["0.0.0.0/0"]`
-    on ports other than 80 and 443.
+  - Security group ingress rules open to the internet on ports other
+    than 80 and 443: `cidr_blocks = ["0.0.0.0/0"]`,
+    `ipv6_cidr_blocks = ["::/0"]`, `cidr_ipv4 = "0.0.0.0/0"`, or
+    `cidr_ipv6 = "::/0"`.
   - Public IP addresses on RDS instances, ElastiCache clusters, or
     internal-only EC2 instances.
   - Disabling VPC flow logs on existing VPCs.
-  - Removing or replacing the default allow-all egress rule without
-    an explicit user request.
+  - All-protocol egress (`ip_protocol = "-1"`, or `protocol = "-1"`
+    in inline blocks) to `0.0.0.0/0` or `::/0` without an explicit
+    user request. The provider removes AWS's default allow-all egress
+    from every new security group, so declare egress per port and
+    destination instead (e.g. TCP 443 to VPC endpoints or through
+    the NAT Gateway).
 
   ## Identity and access
   - IAM policies with `Effect: Allow` on `Resource: "*"` combined
@@ -32,15 +38,41 @@ body: |
     RDS instances, or DynamoDB tables.
   - Setting S3 bucket ACLs to `public-read` or `public-read-write`.
   - Disabling S3 Block Public Access settings.
-  - Deleting or replacing stateful resources (RDS, DynamoDB, S3)
-    without an explicit `lifecycle.prevent_destroy = true` override
-    request from the user.
+  - Setting `deletion_protection = false`,
+    `enable_deletion_protection = false`, `skip_final_snapshot =
+    true`, `force_destroy = true`, `force_delete = true`, or
+    `recovery_window_in_days = 0` on RDS instances, Aurora clusters,
+    DynamoDB tables, load balancers, S3 buckets, ECR repositories,
+    or Secrets Manager secrets without an explicit user request.
+  - Removing customer-managed KMS keys (CMKs) from resources that
+    already have them.
+  - Removing `lifecycle.prevent_destroy` from a resource that has
+    it, except in the same change that performs a replacement the
+    user explicitly requested for that resource; the summary must
+    say that the protection was removed for that replacement.
+    Never remove it to enable a deletion.
+  - Changes that force replacement of a stateful resource (RDS,
+    Aurora, DynamoDB, S3, EBS, EFS, ElastiCache, Redshift, KMS keys)
+    unless the user explicitly asked for the replacement. Standalone
+    deletions are always rejected by the compliance check, even
+    when requested.
 
   ## Cost
   - Provisioning compute-intensive instance families (e.g. `p5`,
     `x2idn`, `u-*`) without an explicit user request.
-  - Creating resources with no auto-stop mechanism in non-production
-    environments.
+  - In non-production environments: standalone EC2 instances, RDS
+    instances, or Aurora clusters with no stop/start schedule, Auto
+    Scaling groups with no scale-to-zero schedule, SageMaker
+    notebook instances with no stop schedule, and SageMaker Studio
+    domains with no idle shutdown (see
+    the `ec2`, `auto_scaling_group`, `rds`, `aurora`, and
+    `sagemaker` templates for the recipes). Exceptions: RDS
+    configurations that cannot be stopped (instances with read
+    replicas, read replicas themselves, some Multi-AZ SQL Server
+    setups) get a summary note instead of a schedule, and Aurora
+    Serverless v2 with a minimum capacity of 0 ACUs (automatic
+    pause) replaces the schedule where the engine version supports
+    it.
   - Provisioning provisioned-mode DynamoDB tables without explicit
     capacity planning from the user.
 

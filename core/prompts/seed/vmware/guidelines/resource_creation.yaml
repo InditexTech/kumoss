@@ -19,14 +19,20 @@ body: |
     }
   }
 
-  provider "vsphere" {
-    allow_unverified_ssl = false
-  }
+  provider "vsphere" {}
   ```
 
-  The vCenter address and credentials come from the `VSPHERE_SERVER`,
-  `VSPHERE_USER` and `VSPHERE_PASSWORD` environment variables. Never
-  set `vsphere_server`, `user` or `password` in the provider block.
+  - The IaC engine supplies the vCenter address, the credentials and
+    the TLS settings from its environment (`VSPHERE_SERVER`,
+    `VSPHERE_USER`, `VSPHERE_PASSWORD` and, in labs only,
+    `VSPHERE_ALLOW_UNVERIFIED_SSL`). Leave the provider block empty.
+  - Never set `vsphere_server`, `user`, `password` or
+    `allow_unverified_ssl` in code: an explicit argument overrides the
+    engine's environment.
+  - Never add variables for vCenter credentials.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
 
   ## Inventory lookups
   - vSphere has no regions or accounts: placement is a datacenter,
@@ -36,7 +42,9 @@ body: |
     `vsphere_datacenter`, `vsphere_compute_cluster`,
     `vsphere_resource_pool`, `vsphere_datastore`,
     `vsphere_datastore_cluster`, `vsphere_network`,
-    `vsphere_storage_policy` — passing names in through variables.
+    `vsphere_storage_policy` — passing names in through variables
+    whose default is the name from the request or the workspace (the
+    engine supplies no inventory names).
   - Never hardcode managed object IDs (`datacenter-3`, `group-v42`,
     `domain-c7`); they differ between vCenters.
   - Declare exactly one `vsphere_datacenter` data source, named from a
@@ -56,22 +64,50 @@ body: |
   - Do not place virtual machines on a host directly; let DRS choose.
 
   ## Tagging
-  vSphere has no free-form tags: tags belong to tag categories. Every
-  resource that supports `tags` carries at minimum a tag from each of
-  these categories (cardinality `SINGLE`):
-  - `environment` — `dev`, `staging`, or `prod`.
-  - `owner` — team responsible.
-  - `managed-by` — `terraform`.
-  Tag categories are vCenter-wide: look existing ones up with
-  `data "vsphere_tag_category"` instead of creating duplicates. Use
-  the VM `annotation` for a human-readable description.
+  vSphere has no free-form tags: tags belong to tag categories, and
+  `data "vsphere_tag_category"` / `data "vsphere_tag"` fail the plan
+  when the category or tag does not exist. The standard tags
+  (`local.standard_tags`, defined in `standard_tags.tf` as the
+  general Terraform guidelines describe) map to one category per key,
+  named exactly as the key (`environment`, `owner`, `managed_by`,
+  cardinality `SINGLE`), with the value as the tag's name.
+  - Attach them as vSphere tags only when the workspace already looks
+    those categories and tags up, or the request confirms they exist
+    in vCenter: look each category up with
+    `data "vsphere_tag_category"` and each tag with
+    `data "vsphere_tag"` (`name = local.standard_tags.<key>` plus the
+    category's `category_id`), then reference
+    `data.vsphere_tag.<key>.id`.
+  - Never look up a tag whose value is `unassigned`; leave that key
+    out of `tags`.
+  - Otherwise record the standard tags in the VM `annotation` (for
+    example `environment=prod owner=team-billing
+    managed_by=terraform`), or in `custom_attributes` only when the
+    workspace already uses them, and list in the summary the
+    categories and tags the vCenter administrator must create to
+    enable tagging.
+  - Never create these tags per workload: tag names are unique per
+    category, so a second `prod` tag fails.
 
-  ## Lifecycle
-  - Add `lifecycle { prevent_destroy = true }` to production virtual
-    machines, virtual disks, datastore clusters and content
-    libraries.
+  ## Guest configuration
   - Configure guests through guest customization or cloud-init
     `guestinfo` keys, never through provisioners.
+
+  ## Deletion safeguards
+  - Keep the protective defaults: virtual disks in `persistent` mode,
+    VM encryption storage policies and vTPM devices in place, and
+    `entity_permissions`, cluster groups and rules only on objects
+    created in the same workspace.
+  - Add `lifecycle { prevent_destroy = true }` to production virtual
+    machines, virtual disks, datastore clusters, content libraries
+    and compute clusters, and to any shared object other workspaces
+    depend on.
+  - Never retrofit a replacement-forcing change onto an existing
+    resource to apply a convention; leave the existing value and
+    note the deviation in the summary instead.
+  - Each resource template lists the fields that force its
+    replacement; state every replacement and its impact explicitly
+    in the summary.
 
   Replace this body with your organization's authoritative vSphere
   resource-creation standards.

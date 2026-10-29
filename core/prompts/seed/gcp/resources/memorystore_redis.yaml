@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Memorystore for Redis default configuration (tier, private access, AUTH, TLS, persistence, maintenance).
+body: |
+  # GCP Memorystore for Redis
+
+  For a Memorystore for Redis instance, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Use `google_redis_instance`. Use Memorystore for Redis Cluster
+    or Memorystore for Valkey only when the user needs cluster mode
+    or asks for Valkey.
+  - Naming convention: `redis-<application>-<environment>`.
+  - Tier `BASIC` with 1 GB for non-production; `STANDARD_HA` with
+    at least one replica for production. Changing the tier replaces
+    the instance.
+  - Latest supported `redis_version` unless the user specifies one.
+  - Private networking only: `authorized_network` set to the VPC
+    network and `connect_mode = "PRIVATE_SERVICE_ACCESS"`, using the
+    network's private services access range.
+  - `auth_enabled = true` and `transit_encryption_mode =
+    "SERVER_AUTHENTICATION"`. The AUTH string is stored in the
+    Terraform state; never expose it in outputs except as
+    `sensitive = true`, and let clients read it from Secret Manager.
+  - Production: RDB persistence (`persistence_config` with
+    `persistence_mode = "RDB"` and `rdb_snapshot_period =
+    "TWELVE_HOURS"`).
+  - Weekly `maintenance_policy` window outside peak hours.
+  - Encryption: Google-managed keys by default;
+    `customer_managed_key` only when CMEK is requested.

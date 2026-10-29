@@ -1,0 +1,63 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS Elastic Load Balancing default configuration (ALB/NLB, target groups, listeners, TLS, access logs, WAF).
+body: |
+  # AWS Load Balancer
+
+  For an Application or Network Load Balancer, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  ## Load balancer
+  - Naming convention: `alb-<application>-<environment>` or
+    `nlb-<application>-<environment>` (32 characters maximum).
+    `name`, `internal`, and `load_balancer_type` force replacement.
+  - Use an ALB for HTTP(S) and an NLB only for TCP/UDP/TLS or static
+    IP needs. `internal = true` unless the request says
+    internet-facing.
+  - Subnets in at least two AZs: public subnets for internet-facing,
+    private subnets for internal.
+  - Attach a dedicated security group (`sg-<application>-lb-<environment>`)
+    allowing 443 (and 80 for the redirect) from the allowed sources,
+    with egress only to the targets' security group on the target
+    port. NLB security groups can only be attached at creation;
+    adding them later forces replacement.
+  - ALB: `drop_invalid_header_fields = true`.
+  - `enable_deletion_protection = true` in production.
+  - Enable `access_logs` to a dedicated S3 bucket encrypted with
+    SSE-S3 (`AES256`; load balancer logs do not support SSE-KMS),
+    whose bucket policy allows Elastic Load Balancing log delivery
+    for the region.
+
+  ## Listeners and TLS
+  - HTTPS listener on 443 with `ssl_policy =
+    "ELBSecurityPolicy-TLS13-1-2-2021-06"` (or a newer TLS 1.3
+    policy) and an ACM certificate.
+  - ACM certificate: `aws_acm_certificate` with
+    `validation_method = "DNS"`, validation records in Route 53, and
+    `aws_acm_certificate_validation`; `create_before_destroy = true`
+    on the certificate so renewals or domain changes do not cut
+    traffic.
+  - ALB: an HTTP listener on 80 whose only action redirects to HTTPS
+    (`HTTP_301`).
+  - NLB: TLS listeners with the same policy, or TCP pass-through
+    only on request.
+
+  ## Target groups
+  - Naming convention: `tg-<application>-<component>-<environment>`.
+  - `target_type = "ip"` for Fargate/EKS pods, `"instance"` for
+    Auto Scaling groups. `port`, `protocol`, `target_type`, and
+    `vpc_id` force replacement: use `name_prefix` with
+    `create_before_destroy = true` when they may change.
+  - Health check on the application's health path with matcher
+    `200`, interval 15-30 seconds, healthy threshold 3, unhealthy
+    threshold 3.
+  - `deregistration_delay` 30-60 seconds instead of the 300-second
+    default.
+
+  ## Protection
+  - Internet-facing production ALBs get a WAF web ACL (see
+    `waf_web_acl`) through `aws_wafv2_web_acl_association`;
+    non-production ALBs only on request. WAFv2 cannot attach to an
+    NLB.

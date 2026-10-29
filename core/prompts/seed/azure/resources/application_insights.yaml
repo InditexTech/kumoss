@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure Application Insights default configuration (workspace-based, retention, sampling).
+description: Azure Application Insights default configuration (workspace-based, connection string, retention, cost).
 body: |
   # Azure Application Insights
 
@@ -10,24 +10,32 @@ body: |
   use the following default configuration:
 
   - Naming convention: `appi-<application>-<environment>`.
-  - Must be workspace-based (linked to a Log Analytics workspace).
-    Classic (standalone) mode is deprecated and must not be used.
+  - Must be workspace-based: always set `workspace_id` to a Log
+    Analytics workspace (see `log_analytics_workspace`). Classic
+    (standalone) mode is retired and must not be used. Changing the
+    workspace of an existing component may force replacement.
   - Application type set to web unless the user specifies otherwise
     (e.g. java, other).
   - Daily data cap should be configured to prevent unexpected cost
-    spikes. Set a cap appropriate to the workload and alert when
+    spikes. Set `daily_data_cap_in_gb` (the provider default is 100)
+    to a cap appropriate to the workload and alert when
     the cap is approaching.
   - Retention period set to 30 days (default). Increase only when
     the user explicitly requests longer retention.
-  - Sampling should be enabled to reduce telemetry volume and cost
-    while maintaining statistical accuracy. The default adaptive
-    sampling rate is appropriate for most workloads.
+  - Adaptive sampling is configured in the application SDK or
+    OpenTelemetry distro, not in Terraform; mention it in the
+    summary instead of setting arguments for it.
+  - Disable local authentication when all clients can authenticate
+    with Microsoft Entra ID (`local_authentication_enabled = false`).
   - Internet ingestion and query must be enabled or disabled based
     on the network isolation requirements. For private workloads,
     use Azure Monitor Private Link Scope (AMPLS).
   - Disable IP masking only when the user explicitly requests it
-    — IP masking is enabled by default for privacy.
-  - The instrumentation key and connection string are outputs that
-    should be stored in Key Vault or passed via app settings
-    references — never hardcode them.
-  - Apply standard tags: environment and managed_by.
+    — IP masking (`ip_masking_enabled = true`) is the default for
+    privacy.
+  - Instrumentation-key ingestion is retired: clients use the
+    connection string only (`APPLICATIONINSIGHTS_CONNECTION_STRING`
+    app setting). Never output the instrumentation key.
+  - Any output exposing the connection string must be marked
+    `sensitive = true`; pass it via app settings or Key Vault
+    references — never hardcode it.

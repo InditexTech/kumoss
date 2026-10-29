@@ -11,18 +11,25 @@ body: |
   in this Phoenix repository.
 
   - `compute_cluster` — Compute cluster with HA and DRS.
+  - `compute_cluster_host_group` — Host group inside a compute cluster for VM-host rules.
+  - `compute_cluster_vm_affinity_rule` — Affinity rule keeping VMs on the same host.
   - `compute_cluster_vm_anti_affinity_rule` — Anti-affinity rule spreading VMs across hosts.
+  - `compute_cluster_vm_group` — VM group inside a compute cluster for VM-host rules.
+  - `compute_cluster_vm_host_rule` — Rule pinning a VM group to (or away from) a host group.
   - `content_library` — Content library for templates and ISO images.
+  - `content_library_item` — OVF/OVA template or ISO published into a content library.
   - `datastore_cluster` — Datastore cluster with Storage DRS.
   - `distributed_port_group` — Distributed port group on an existing VDS.
   - `distributed_virtual_switch` — vSphere Distributed Switch.
+  - `drs_vm_override` — Per-VM DRS automation override.
   - `entity_permissions` — Permissions binding a group to a role on an object.
   - `folder` — VM folder for workload organization and access control.
+  - `ha_vm_override` — Per-VM HA restart priority and isolation response override.
   - `resource_pool` — Resource pool with shares, limits and reservations.
   - `role` — Custom role with an explicit privilege list.
   - `tag` — Tag category and tags for classification.
   - `virtual_disk` — Standalone virtual disk (VMDK).
-  - `virtual_machine` — Virtual machine cloned from a template.
+  - `virtual_machine` — Virtual machine cloned from a template or content library item.
   - `vm_storage_policy` — VM storage policy, including encryption.
 
   This list is the source of truth. Adding a new

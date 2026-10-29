@@ -37,7 +37,7 @@ class TestDriftHandlerReportContent(unittest.IsolatedAsyncioTestCase):
         self.session_svc = AsyncMock()
         self.template_svc = AsyncMock()
         self.filter_svc = AsyncMock()
-        self.filter_svc.filter.return_value = (True, "")
+        self.filter_svc.filter.return_value = True
         self.report_svc = AsyncMock()
         self.target_svc = AsyncMock()
         self.drift_svc = AsyncMock()

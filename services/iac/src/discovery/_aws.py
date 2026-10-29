@@ -68,7 +68,22 @@ class AwsScopeLister:
     async def list_resource_ids(self, scope_id: str) -> list[str]:
         return await asyncio.to_thread(self._list, scope_id)
 
+    async def verify_account(self, scope_id: str) -> None:
+        """Raise DiscoveryError unless the ambient credentials belong to
+        account ``scope_id``.
+
+        No environment variable selects an AWS account, so the engine
+        runs in whatever account the credentials resolve to; this is the
+        check that keeps it from running in a different one.
+        """
+        _ = await asyncio.to_thread(self._verified_session, scope_id)
+
     def _list(self, scope_id: str) -> list[str]:
+        session, region = self._verified_session(scope_id)
+        explorer, view_arn = self._view(session, region, scope_id)
+        return self._resources(session, explorer, view_arn, scope_id)
+
+    def _verified_session(self, scope_id: str) -> tuple[Any, str]:
         if not scope_id.isascii() or not scope_id.isdigit() or len(scope_id) != 12:
             raise DiscoveryError(f"'{scope_id}' is not an AWS account id")
         region = self._environ.get("AWS_REGION") or self._environ.get(
@@ -83,8 +98,7 @@ class AwsScopeLister:
         except Exception as exc:
             raise DiscoveryError(f"AWS session setup failed: {exc}") from exc
         self._check_account(session, region, scope_id)
-        explorer, view_arn = self._view(session, region, scope_id)
-        return self._resources(session, explorer, view_arn, scope_id)
+        return session, region
 
     def _client(self, session: Any, service: str, region: str) -> Any:
         try:

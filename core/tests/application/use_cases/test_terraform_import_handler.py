@@ -32,7 +32,6 @@ from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
     ReportType,
-    SessionStatus,
 )
 
 
@@ -80,7 +79,9 @@ def _drift_dto(in_sync: bool, plan: str = "plan output") -> TerraformDriftDTO:
 def _attempts(pairs: list[tuple[str, str]]) -> set[TerraformImportAttempt]:
     """Build import attempts from (address, resource_id) pairs."""
     return {
-        TerraformImportAttempt(address=address, resource_id=resource_id)
+        TerraformImportAttempt(
+            address=address, resource_id=resource_id, listed_id=resource_id
+        )
         for address, resource_id in pairs
     }
 
@@ -96,6 +97,7 @@ def _import_outcome(
             TerraformImportAttempt(
                 address=address,
                 resource_id=resource_id,
+                listed_id=resource_id,
                 error=f"import failed for {address}",
             )
             for address, resource_id in failed or []
@@ -176,22 +178,20 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
     # --- Filter rejection ---
 
-    async def test_filter_rejection_sets_uncompleted_and_saves(self):
-        self.requests_filter_svc.filter.return_value = (False, "not an import request")
+    async def test_filter_rejection_skips_import_and_does_not_double_save(self):
+        self.requests_filter_svc.filter.return_value = False
 
         task = await self.handler.handle("create a vnet", is_partial=True)
         await task()
 
         self.session_svc.next_round.assert_awaited_once_with("create a vnet")
-        status_kwargs = self.session_svc.update_status.await_args.kwargs
-        self.assertIs(status_kwargs["status"], SessionStatus.UNCOMPLETED)
         self.import_svc.get_unmanaged_resources.assert_not_awaited()
-        self.session_svc.save.assert_awaited_once()
+        self.session_svc.save.assert_not_awaited()
 
     # --- Step 1: Discovery ---
 
     async def test_empty_discovery_reports_why_nothing_can_be_imported(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             [], "Every resource in the scope scope-123 is already managed."
         )
@@ -211,7 +211,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.session_svc.save.assert_awaited_once()
 
     async def test_failed_scope_query_reports_the_diagnostics(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             [], "The scope scope-123 could not be listed: Error: invalid token"
         )
@@ -232,7 +232,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     # --- Step 2: Selection ---
 
     async def test_empty_selection_reports_the_filter_explanation(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             ["res-1", "res-2"]
         )
@@ -252,7 +252,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.session_svc.save.assert_awaited_once()
 
     async def test_selection_delegates_the_scope_and_the_conventions(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             ["res-1", "res-2"]
         )
@@ -363,7 +363,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     # --- Step 3: Config generation ---
 
     async def test_config_generation_carries_selected_ids_in_the_query(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
@@ -388,7 +388,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.assertIn("- res-1", gen_kwargs["q"])
 
     async def test_config_generation_failure_raises(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(False)
@@ -410,7 +410,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     # --- Step 4: Import execution ---
 
     async def test_import_execution_uses_the_mapping_agent_addresses(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             ["res-1", "res-2"]
         )
@@ -448,7 +448,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_partial_import_failure_does_not_abort(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             ["res-1", "res-2"]
         )
@@ -472,7 +472,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.report_svc.generate_report.assert_awaited_once()
 
     async def test_no_mapped_address_yields_empty_imports(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
@@ -487,7 +487,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     # --- Step 5: Convergence validation ---
 
     async def test_convergence_runs_on_successful_imports(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
@@ -517,7 +517,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_convergence_delegates_planning_to_the_drift_service(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
@@ -540,7 +540,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.terraform_svc.plan.assert_awaited_once()
 
     async def test_report_uses_convergence_plan_when_imports_succeed(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True, plan="generation plan")
@@ -562,7 +562,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["plan_after_import"], "convergence plan")
 
     async def test_unresolved_convergence_does_not_abort(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
@@ -580,7 +580,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.report_svc.generate_report.assert_awaited_once()
 
     async def test_convergence_skipped_when_all_imports_fail(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True)
@@ -599,7 +599,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
     # --- Step 6: Gate ---
 
     async def test_gate_generates_import_report(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(True, plan="the plan")
@@ -615,7 +615,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(payload["plan_after_import"], "the plan")
 
     async def test_report_content_carries_the_per_resource_import_outcome(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(
             ["res-1", "res-2"]
         )
@@ -653,6 +653,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                     {
                         "address": "azurerm_resource_group.main",
                         "resource_id": "res-1",
+                        "listed_id": "res-1",
                         "error": "",
                     },
                 ],
@@ -660,6 +661,7 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
                     {
                         "address": "azurerm_storage_account.sta",
                         "resource_id": "res-2",
+                        "listed_id": "res-2",
                         "error": "import failed for azurerm_storage_account.sta",
                     },
                 ],
@@ -794,16 +796,16 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
 
     # --- Session always saved ---
 
-    async def test_session_saved_on_filter_rejection(self):
-        self.requests_filter_svc.filter.return_value = (False, "rejected")
+    async def test_session_not_double_saved_on_filter_rejection(self):
+        self.requests_filter_svc.filter.return_value = False
 
         task = await self.handler.handle("create something", is_partial=True)
         await task()
 
-        self.session_svc.save.assert_awaited_once()
+        self.session_svc.save.assert_not_awaited()
 
     async def test_session_saved_on_generation_failure(self):
-        self.requests_filter_svc.filter.return_value = (True, "")
+        self.requests_filter_svc.filter.return_value = True
         self.import_svc.get_unmanaged_resources.return_value = _discovery(["res-1"])
         self.task_svc.filter_imports.return_value = _filter_result(["res-1"])
         self.terraform_svc.plan.return_value = _plan_dto(False)

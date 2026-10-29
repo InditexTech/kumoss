@@ -12,20 +12,25 @@ body: |
   - Naming convention: `vpc-<application>-<environment>`.
   - Allocate a /16 CIDR block from RFC 1918 ranges by default.
     Avoid overlapping with on-premises or peered VPC CIDRs.
+    `cidr_block` forces replacement; never change it on an existing
+    VPC unless asked.
   - Enable DNS support and DNS hostnames — both are required for
     private DNS resolution and VPC endpoints.
   - Use default tenancy. Only use dedicated tenancy when compliance
     explicitly requires it (significant cost increase).
-  - Lock down the default security group by importing it and
-    removing all ingress and egress rules, so nothing accidentally
-    uses it. Tag it with a DO-NOT-USE suffix.
+  - Lock down the default security group with an
+    `aws_default_security_group` resource for the VPC that declares
+    no `ingress` or `egress` blocks. Terraform adopts the existing
+    group without an import and removes all of its rules, so nothing
+    can accidentally use it. Tag it with a DO-NOT-USE suffix.
   - Enable VPC flow logs capturing all traffic, sending to a
-    CloudWatch Logs log group with 30-day retention and KMS
-    encryption. Use traffic type REJECT only in non-production
+    CloudWatch Logs log group with 30-day retention and the
+    default encryption (see `cloudwatch` for when a customer-managed
+    key applies). Use traffic type REJECT only in non-production
     environments to reduce cost.
-  - The flow log requires an IAM role with permissions to publish
-    to CloudWatch Logs.
+  - Use `aws_flow_log` with `log_destination` set to the log group
+    ARN (`log_group_name` was removed in provider v6) and an IAM
+    role allowed to publish to CloudWatch Logs.
   - Subnets are defined as separate resources, not inline.
   - Pair with an Internet Gateway for public subnets and a NAT
     Gateway for private subnet outbound access.
-  - Apply standard tags: Name.

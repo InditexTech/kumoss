@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS ElastiCache Redis OSS/Valkey replication group default configuration (encryption, RBAC/IAM auth, Multi-AZ, backups).
+body: |
+  # AWS ElastiCache Redis
+
+  For an ElastiCache Redis OSS or Valkey cache, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  - Use `aws_elasticache_replication_group` (not
+    `aws_elasticache_cluster`). Naming convention:
+    `elc-<application>-<environment>` (40 characters maximum);
+    `replication_group_id` forces replacement.
+  - Engine Redis OSS (`engine = "redis"`), or Valkey (`engine =
+    "valkey"`, lower price, Redis-compatible) when requested. Write
+    the engine in lowercase; provider v6 deprecates uppercase values.
+  - Node type: `cache.t4g.micro` or `cache.t4g.small` for
+    non-production; Graviton `cache.r7g.*` or `cache.m7g.*` sized to
+    the workload for production.
+  - Production: `num_cache_clusters` 2 or more in different AZs,
+    `automatic_failover_enabled = true`, `multi_az_enabled = true`.
+    Non-production: a single node.
+  - `aws_elasticache_subnet_group` with private subnets; a dedicated
+    security group allowing 6379 only from the application security
+    groups. Never publicly reachable.
+  - `at_rest_encryption_enabled = true` with a customer-managed
+    `kms_key_id` when provided. Both apply at creation; on an
+    existing group they force replacement, so never retrofit them
+    unless asked.
+  - `transit_encryption_enabled = true`. Enabling it on an existing
+    group may require a migration or replacement; state it in the
+    summary.
+  - Authentication through RBAC user groups (`aws_elasticache_user`
+    with IAM authentication where supported, and
+    `aws_elasticache_user_group`), with the `default` user disabled.
+    Avoid `auth_token`: its value ends up in the Terraform state
+    (and provider v6 then requires an explicit
+    `auth_token_update_strategy`).
+  - `snapshot_retention_limit = 7` (1 for non-production),
+    non-overlapping `snapshot_window` and `maintenance_window`,
+    `auto_minor_version_upgrade = true`, and
+    `final_snapshot_identifier` set.
+  - `apply_immediately = false`, so modifications (node type,
+    engine version) wait for the maintenance window; they can cause
+    failovers or brief unavailability, state it in the summary.
+  - `log_delivery_configuration` for the slow log to a CloudWatch
+    log group with retention.

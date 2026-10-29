@@ -11,30 +11,47 @@ body: |
 
   ## File System
   - Naming convention: `fss-<application>-<environment>`.
+  - `availability_domain` from
+    `data "oci_identity_availability_domains"` (the AD of the
+    mount target and, ideally, of the clients), never a hardcoded
+    name. It is immutable: changing it replaces the file system and
+    loses its data.
   - Encryption uses Oracle-managed keys by default. Use a
-    customer-managed key (OCI Vault) when requested.
-  - Enable snapshots for backup and recovery. Schedule snapshot
-    policies based on RPO requirements.
+    customer-managed key (`kms_key_id`, OCI Vault) when requested,
+    together with the service policy that lets File Storage use it
+    (written in the home region):
+    `Allow service FssOc1Prod to use keys in compartment <cmp>
+    where target.key.id = '<key_ocid>'` (`FssOc1Prod` is the
+    commercial-realm principal; other realms use their own).
+  - Enable snapshots for backup and recovery with an
+    `oci_file_storage_filesystem_snapshot_policy` scheduled to the
+    RPO requirements.
   - Clone file systems for testing or development rather than
     copying data.
   - Add a lifecycle block with prevent_destroy for production.
 
   ## Mount Target
   - Naming convention: `mt-<application>-<environment>`.
-  - Place the mount target in a private subnet.
+  - Place the mount target in a private subnet, in the same
+    `availability_domain` as the file system. Its AD and
+    `subnet_id` are immutable; changing either replaces the mount
+    target and breaks every client mount.
   - One mount target can serve multiple file systems — reuse mount
     targets within the same subnet to reduce costs (each mount
-    target consumes a private IP and has an hourly charge).
-  - Assign an NSG to the mount target allowing NFS traffic
-    (TCP ports 111, 2048, 2049, 2050) only from the subnets that
-    need access.
+    target consumes private IPs).
+  - Assign an NSG (`nsg_ids`) to the mount target allowing NFS
+    traffic only from the subnets that need access: TCP 111 and
+    2048-2050, and UDP 111 and 2048, ingress to the mount target
+    (stateful rules cover the return traffic).
   - Set a hostname label for DNS resolution.
 
   ## Export
   - Export path convention: `/<application>-<environment>`.
   - Export options should restrict access to specific source CIDRs
-    (the subnets mounting the file system).
-  - Use squash set to ROOT for production exports. Use NONE only
-    for trusted non-production environments.
+    (the subnets mounting the file system), `access =
+    "READ_WRITE"` only where writes are needed.
+  - Use `identity_squash = "ROOT"` for production exports. Use
+    `NONE` only for trusted non-production environments.
   - Require privileged source port (ports 1-1023) for production.
-  - Apply freeform tags: Name.
+  - `oci_file_storage_export` and `oci_file_storage_export_set` take
+    no tags; the export set is managed through the mount target.

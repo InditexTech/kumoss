@@ -9,27 +9,45 @@ body: |
   For a Service, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<app>-<component>-svc`.
+  - Resource type: `kubernetes_service_v1`.
+  - Naming convention: `<app>-<component>-svc`, a DNS-1123 label of
+    at most 63 characters.
   - Default type: `ClusterIP` for internal communication.
   - Use `LoadBalancer` only for external-facing services when
     running on a cloud provider.
   - Use `NodePort` only for development or constrained environments
-    where LoadBalancer is unavailable.
+    where LoadBalancer is unavailable. Omit `node_port` so
+    Kubernetes allocates the port, unless a fixed one is requested.
+  - Externally exposed Services terminate TLS: serve HTTP(S) through
+    an Ingress with TLS, or have the application (or the cloud load
+    balancer, through its annotations) terminate TLS on a
+    `LoadBalancer` Service. Never expose plain-text ports
+    externally.
   - Prefer Ingress or Gateway API over per-service LoadBalancers
     for HTTP/HTTPS workloads.
-  - Define `selector` labels that exactly match the pod template
-    labels of the target Deployment or StatefulSet.
+  - `selector`: only `app.kubernetes.io/name` and
+    `app.kubernetes.io/instance`, matching the target workload's
+    pod template labels. Never include `app.kubernetes.io/version`
+    — the Service would lose its endpoints during a rollout.
   - Specify named `port` blocks with `name`, `port`, `target_port`,
-    and `protocol`. Use lowercase protocol names.
+    and `protocol`. `protocol` is uppercase (`TCP`, `UDP` or
+    `SCTP`); the port `name` is a lowercase DNS-style label (e.g.
+    `http`, `grpc`, `metrics`).
   - For headless services (StatefulSet backing), set
-    `cluster_ip = "None"`.
+    `cluster_ip = "None"`. `cluster_ip` is immutable — changing it
+    (or, in some cases, `type`, e.g. to or from `ExternalName`)
+    replaces the Service (+/-).
   - Set `external_traffic_policy = "Local"` on LoadBalancer/NodePort
     services when source IP preservation is needed. Be aware this
     can cause uneven traffic if pods are not on all nodes.
-  - Set `internal_traffic_policy = "Local"` (K8s 1.26+) to prefer
-    node-local endpoints for topology-aware routing.
+  - Leave `internal_traffic_policy` at its default (`Cluster`);
+    `"Local"` drops traffic from nodes without a local endpoint.
+    Topology-aware routing (same-zone preference) only on request:
+    the `service.kubernetes.io/topology-mode: Auto` annotation, or
+    the Service traffic distribution setting `PreferClose` where
+    the cluster and provider version support it.
   - Set `session_affinity = "ClientIP"` only when sticky sessions
     are required — default is `None`.
   - Set `publish_not_ready_addresses = true` on headless services
     when StatefulSet pods need DNS records before becoming ready.
-  - Apply standard labels matching the backed workload.
+  - Label values match the backed workload.

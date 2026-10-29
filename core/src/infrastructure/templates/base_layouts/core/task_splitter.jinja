@@ -13,6 +13,7 @@ The real infrastructure is the source of truth. Every difference in the drift re
 - Your objective is to decompose a structured JSON drift report into a set of logical, human-readable operations, each one a change to the Terraform code.
 - You must interpret the specific changes required and describe them in plain English.
 - You may use available workspace inspection tools to gather context (e.g., read relevant `.tf` files) to make your operations more precise.
+- You may use `terraform_docs` (section `full`, with a specific `focus`) to name the exact arguments and nested blocks a change needs in the provider version in use.
 - The final output MUST be a list of operations grouped cohesively by the affected resource type (e.g., all App Service operations, then all Key Vault operations, etc.). Within each resource operation, changes related to a specific function (like tags, networking, or application settings) should be described together.
 </objective>
 
@@ -64,6 +65,7 @@ This plan will consist of a series of self-contained, descriptive fix steps, one
 - Your objective is to decompose a raw Terraform error output into a set of logical, human-readable fix operations.
 - You must interpret each error and describe the required fix in plain English.
 - You may use available workspace inspection tools to gather context (e.g., read relevant `.tf` files) to make your instructions more precise.
+- You may use `terraform_docs` (section `full`, with a specific `focus`) to check what the provider version in use accepts for the arguments, blocks or import IDs an error points at.
 - The final output MUST be a list of operations, one per root cause, ordered by dependency.
 </objective>
 

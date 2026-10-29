@@ -26,7 +26,7 @@ class InitRequest:
             GCP: project id, AWS: account id, OCI: compartment OCID,
             VMware: vSphere datacenter name.
             Required: generated provider blocks do not carry a scope,
-            so where the cloud has a provider-level variable for one
+            so where the cloud has an environment variable for one
             the implementation injects it into the engine's
             environment for this command only (see "Scope injection").
         terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's

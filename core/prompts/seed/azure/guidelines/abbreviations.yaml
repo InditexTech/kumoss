@@ -6,31 +6,54 @@ description: Resource-name abbreviations the prompt compositor offers to the LLM
 body: |
   # Azure Resource Name Abbreviations
 
-  Standard short prefixes used in resource names. The LLM may pick
-  from this list when generating Terraform.
+  Standard short prefixes used in resource names, aligned with the
+  Cloud Adoption Framework (CAF). The LLM may pick from this list
+  when generating Terraform.
 
-  | Resource                       | Prefix |
-  |--------------------------------|--------|
-  | Resource group                 | rg     |
-  | Virtual network                | vnet   |
-  | Subnet                         | snet   |
-  | Network security group         | nsg    |
-  | Public IP                      | pip    |
-  | Load balancer                  | lb     |
-  | Application gateway            | agw    |
-  | Storage account                | st     |
-  | Key vault                      | kv     |
-  | Virtual machine                | vm     |
-  | Managed disk                   | disk   |
-  | AKS cluster                    | aks    |
-  | Container registry             | acr    |
-  | App service                    | app    |
-  | App service plan               | asp    |
-  | Function app                   | func   |
-  | SQL server                     | sql    |
-  | SQL database                   | sqldb  |
-  | Cosmos DB account              | cosmos |
-  | Log Analytics workspace        | log    |
-  | Application Insights           | appi   |
+  | Resource                        | Prefix |
+  |---------------------------------|--------|
+  | Resource group                  | rg     |
+  | Virtual network                 | vnet   |
+  | Subnet                          | snet   |
+  | Network security group          | nsg    |
+  | NAT Gateway                     | ng     |
+  | Public IP                       | pip    |
+  | Load balancer (internal)        | lbi    |
+  | Load balancer (external)        | lbe    |
+  | Application gateway             | agw    |
+  | WAF policy                      | waf    |
+  | Bastion host                    | bas    |
+  | Private endpoint                | pep    |
+  | Network interface               | nic    |
+  | Private DNS zone VNet link      | link   |
+  | Storage account                 | st     |
+  | Key vault                       | kv     |
+  | Virtual machine                 | vm     |
+  | Virtual machine scale set       | vmss   |
+  | Managed disk                    | disk   |
+  | Autoscale setting               | as     |
+  | AKS cluster                     | aks    |
+  | AKS node pool                   | np     |
+  | Container registry              | acr    |
+  | Container Apps environment      | cae    |
+  | Container app                   | ca     |
+  | App service                     | app    |
+  | App service plan                | asp    |
+  | Function app                    | func   |
+  | SQL server                      | sql    |
+  | SQL database                    | sqldb  |
+  | PostgreSQL Flexible Server      | psql   |
+  | Cosmos DB account               | cosmos |
+  | Azure Managed Redis             | amr    |
+  | Azure Cache for Redis (legacy)  | redis  |
+  | Service Bus namespace           | sbns   |
+  | Service Bus queue               | sbq    |
+  | Service Bus topic               | sbt    |
+  | Service Bus topic subscription  | sbts   |
+  | Azure OpenAI account            | oai    |
+  | User-assigned managed identity  | id     |
+  | Log Analytics workspace         | log    |
+  | Application Insights            | appi   |
+  | Diagnostic setting              | diag   |
 
   Replace this list with your organization's naming standard.

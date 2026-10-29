@@ -1,0 +1,39 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Dynamic Routing Gateway default configuration (VCN attachments, DRG route tables, import distributions).
+body: |
+  # OCI Dynamic Routing Gateway (DRG)
+
+  For a DRG, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `drg-<purpose>-<environment>`; attachments
+    `drgatt-<vcn>-<environment>`; route tables
+    `drgrt-<purpose>-<environment>`.
+  - One `oci_core_drg` per region as the hub for on-premises
+    (IPSec VPN, FastConnect) and inter-VCN connectivity. Prefer
+    DRG VCN attachments over local peering gateways for new
+    hub-and-spoke designs.
+  - Attach each VCN with `oci_core_drg_attachment` and
+    `network_details { type = "VCN", id = ... }`. Set
+    `network_details.route_table_id` only when the VCN routes
+    transit traffic (e.g. through a firewall).
+  - DRG route tables: create dedicated `oci_core_drg_route_table`
+    resources and assign them with `drg_route_table_id` on each
+    attachment. Spokes import only the hub and on-premises routes,
+    so spokes cannot reach each other unless requested.
+  - Dynamic import: `oci_core_drg_route_distribution`
+    (`distribution_type = "IMPORT"`) with
+    `oci_core_drg_route_distribution_statement` resources matching
+    on attachment type or attachment ID. Static prefixes go in
+    `oci_core_drg_route_table_route_rule`.
+  - In each VCN, route the remote CIDRs (never `0.0.0.0/0` unless
+    requested) to the DRG from the subnet route tables.
+  - IPSec shared secrets: never put them in code or variable
+    defaults; let OCI generate them, and treat any value read back
+    as sensitive (it lands in state).
+  - Changing a DRG route table or distribution reroutes live
+    traffic between networks — high impact; list the affected
+    attachments in the summary.

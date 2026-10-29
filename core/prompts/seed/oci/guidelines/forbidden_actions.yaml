@@ -11,31 +11,56 @@ body: |
 
   ## Networking
   - Security list or NSG ingress rules with `source = "0.0.0.0/0"`
-    on ports other than 80 and 443.
+    or `source = "::/0"` on ports other than 80 and 443.
   - Public IP addresses on database instances, private compute
     instances, or backend servers.
   - Disabling VCN flow logs on existing VCNs.
-  - Modifying or deleting the default security list without an
-    explicit user request.
+  - Adding rules to, or loosening, the default security list of an
+    existing VCN without an explicit user request. Managing
+    `oci_core_default_security_list` with locked-down rules is
+    expected on a VCN created in the same request.
+  - OCI Bastion `client_cidr_block_allow_list` containing
+    `0.0.0.0/0`.
 
   ## Identity and access
   - IAM policies with `manage all-resources in tenancy` without
-    an explicit user request.
-  - Creating API keys and storing private key material in
-    Terraform outputs, state, or resource metadata.
+    an explicit user request, or granting it to any group other
+    than an administrators group.
+  - Policy statements starting `Allow any-user` without an explicit
+    user request; documented service patterns must carry a
+    `request.principal` condition.
+  - Creating user credentials (`oci_identity_api_key`,
+    `oci_identity_auth_token`, `oci_identity_customer_secret_key`)
+    without an explicit user request: auth tokens and customer
+    secret keys return their secret into state, and all of them
+    are long-lived user credentials. Never store private key
+    material in Terraform outputs, state, or resource metadata.
   - Granting `manage` verb when `use` or `read` is sufficient.
   - Creating local users with passwords — use federated identity
     providers instead.
 
   ## Data
-  - Disabling encryption on Object Storage buckets, Block Volumes,
-    or Autonomous Database instances.
+  - Removing a customer-managed key (`kms_key_id`) from an Object
+    Storage bucket, Block Volume, boot volume, File System,
+    Autonomous Database, or OKE cluster once it is set (OCI always
+    encrypts at rest; removing the key reverts to Oracle-managed
+    keys).
   - Setting Object Storage bucket visibility to public without an
     explicit user request.
-  - Deleting or replacing stateful resources (Autonomous Database,
-    Block Volumes, Object Storage, File Storage) without a
-    `lifecycle.prevent_destroy = true` override request from the
-    user.
+  - Wide or long-lived pre-authenticated requests
+    (`oci_objectstorage_preauthrequest` with bucket-wide access,
+    write or object-listing access, or an expiry more than 7 days
+    out) without an explicit user request.
+  - Removing `lifecycle.prevent_destroy` from resources that already
+    have it, or setting MySQL `deletion_policy.is_delete_protected =
+    false` or a compartment's `enable_delete = true`, without an
+    explicit user request.
+  - Changes that force replacement of a stateful resource
+    (Autonomous Database, MySQL DB systems, block and boot volumes,
+    File Storage file systems, Object Storage buckets, Vault keys)
+    unless the user explicitly asked for the replacement. Standalone
+    deletions are always rejected by the compliance check, even when
+    requested.
   - Disabling automatic backups on database resources.
 
   ## Cost
@@ -43,8 +68,13 @@ body: |
     without an explicit user request.
   - Creating bare-metal instances when virtual machine shapes
     suffice and the user has not requested bare metal.
-  - Provisioning resources with no auto-stop mechanism in
-    non-production environments.
+  - Creating compute instances or instance pools in
+    non-production environments with no stop schedule: an
+    `oci_resource_scheduler_schedule` for standalone instances (see
+    `compute_instance`) or scheduled autoscaling policies for
+    instance pools (see `instance_pool`). Non-production Autonomous
+    Databases also get `scheduled_operations` (see
+    `autonomous_database`).
   - Creating always-free tier resources in production environments
     without explicit user acknowledgment of the limitations.
 

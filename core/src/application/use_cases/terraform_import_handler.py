@@ -115,16 +115,9 @@ class TerraformImportHandler:
                     history=ctx.history,
                 )
                 if is_partial:
-                    ok, rationale = await self.__requests_filter_svc.filter(
+                    await self.__requests_filter_svc.filter(
                         q, ctx.history, ctx.operation
                     )
-                    if not ok:
-                        ctx.history.append_turn(q, rationale)
-                        _ = await self.__session_svc.update_status(
-                            msg=rationale,
-                            status=SessionStatus.UNCOMPLETED,
-                        )
-                        return
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
@@ -261,6 +254,6 @@ class TerraformImportHandler:
                     ),
                 )
             finally:
-                await self.__session_svc.save()
+                await self.__session_svc.save(q)
 
         return background_task

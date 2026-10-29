@@ -1,0 +1,49 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI HeatWave MySQL DB system default configuration (private networking, HA, backups, deletion protection).
+body: |
+  # OCI HeatWave MySQL DB System
+
+  For a MySQL database, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `mysql-<application>-<environment>`.
+  - Use `oci_mysql_mysql_db_system`. Shape: the smallest current
+    shape from `data "oci_mysql_shapes"` for non-production; size
+    per request for production. Add a HeatWave cluster only on
+    explicit request (it is billed separately).
+  - Placement: `availability_domain` from
+    `data "oci_identity_availability_domains"` and, for standalone
+    systems, a `fault_domain` from `data "oci_identity_fault_domains"`;
+    never hardcoded names. `availability_domain` and
+    `compartment_id` are not updatable: changing either replaces the
+    DB system, so never change them on an existing one without an
+    explicit request.
+  - Availability: `is_highly_available = true` for production (the
+    service spreads three instances across ADs or fault domains);
+    standalone for non-production.
+  - Networking: a private subnet (`subnet_id`), a `hostname_label`,
+    and an NSG allowing 3306 and 33060 only from the application
+    tier. DB systems never get public IPs.
+  - Storage: `data_storage_size_in_gb` at least 50, with storage
+    auto-expansion and a maximum where available.
+  - Backups: `backup_policy` with `is_enabled = true`,
+    `retention_in_days` 7 (non-production) to 35 (production),
+    a `window_start_time` outside peak hours, and point-in-time
+    recovery enabled.
+  - Maintenance window outside peak hours.
+  - Deletion protection: a `deletion_policy` block with
+    `is_delete_protected = true`, `final_backup =
+    "REQUIRE_FINAL_BACKUP"`, and `automatic_backup_retention =
+    "RETAIN"`, plus `lifecycle { prevent_destroy = true }` for
+    production.
+  - Admin credentials: `admin_username` and `admin_password` are
+    never literals or variable defaults. Use `random_password` (at
+    least 8 characters with upper, lower, digit and special
+    characters), store it in an OCI Vault secret, and mark any
+    output `sensitive = true`; the generated value lands in state.
+  - Changing the shape restarts the DB system and toggling high
+    availability changes its topology — high impact; state the
+    downtime in the summary.

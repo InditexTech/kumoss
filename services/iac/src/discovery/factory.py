@@ -37,6 +37,18 @@ class ScopeDiscovery:
                 return None
             return unique(await lister.list_resource_ids(scope_id))
 
+    async def verify_scope(self, terraform_provider: str, scope_id: str) -> None:
+        """Raise DiscoveryError when the ambient credentials cannot serve
+        ``scope_id``.
+
+        Only AWS is checked: its account comes from the credentials, while
+        Azure, GCP and OCI commands are pointed at ``scope_id`` by the
+        variable the engine injects, and Kubernetes and vSphere name their
+        scope in the generated code.
+        """
+        if terraform_provider == "aws":
+            await AwsScopeLister(self._environ).verify_account(scope_id)
+
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=httpx.Timeout(self._TIMEOUT))
 

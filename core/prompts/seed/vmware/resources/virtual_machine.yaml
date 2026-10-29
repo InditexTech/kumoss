@@ -2,49 +2,127 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: VMware vSphere virtual machine default configuration (clone, hardware, security, guest setup).
+description: VMware vSphere virtual machine default configuration (clone, hardware, disks, security, guest setup, lifecycle).
 body: |
   # VMware vSphere Virtual Machine
 
   For a `vsphere_virtual_machine`, unless explicitly requested
   otherwise, use the following default configuration:
 
+  ## Source image
   - Naming convention: `vm-<application>-<environment>-<nn>`. The VM
     name is also the default guest host name.
-  - Clone from a hardened, organization-approved template, looked up
-    with `data "vsphere_virtual_machine"` (template VM) or
-    `data "vsphere_content_library_item"`. Never build from an ISO.
-  - Copy `guest_id`, `firmware`, `scsi_type` and disk sizes from the
-    template data source so the clone matches it.
-  - Placement: `resource_pool_id` of the workload resource pool,
-    `folder` of the workload VM folder, and `datastore_cluster_id`
-    rather than a single `datastore_id`; add `storage_policy_id` on top
-    when a policy is requested, never instead of the datastore. Never
-    set `host_system_id`; let DRS place the VM.
-  - Size: start at 2 vCPUs and 4 GB of memory. Keep
-    `cpu_hot_add_enabled` and `memory_hot_add_enabled` at `false`
-    (hot add disables vNUMA).
-  - Security: `firmware = "efi"`, `efi_secure_boot_enabled = true`
-    and `enable_disk_uuid = true`. Add a `vtpm` block and the VM
-    encryption storage policy when the user asks for encryption or
-    the workload handles sensitive data.
-  - Hardware: `scsi_type = "pvscsi"`, network adapters
-    `adapter_type = "vmxnet3"`, disks `thin_provisioned = true` and
+  - Clone from a hardened, organization-approved template. Never
+    build from an ISO.
+  - Template VM (preferred): look it up with
+    `data "vsphere_virtual_machine" "template"` and take `guest_id`,
+    `firmware` and `scsi_type` from it
+    (`data.vsphere_virtual_machine.template.firmware`, etc.) instead
+    of hardcoding them, so the clone matches the template. Hardened
+    templates must already be EFI with a `pvscsi` controller; if the
+    template is not, state it in the response rather than overriding
+    the values on the clone.
+  - Content library item: `data "vsphere_content_library_item"`
+    exposes only the item ID, not `guest_id`, `firmware` or disks.
+    Set `clone { template_uuid = data.vsphere_content_library_item.<name>.id }`
+    and set `guest_id`, `firmware = "efi"`, `scsi_type = "pvscsi"`
+    and disk sizes explicitly from the OVF/template definition the
+    user or the library documents.
+  - OVF/OVA deployment (`ovf_deploy` with `remote_ovf_url`) only when
+    the user asks for it, from the approved artifact repository over
+    HTTPS with certificate verification on, and with the same
+    hardening rules as a clone.
+
+  ## Placement
+  - `resource_pool_id` of the workload resource pool and `folder` of
+    the workload VM folder.
+  - `datastore_cluster_id` rather than a single `datastore_id`, except
+    when the VM attaches a standalone `vsphere_virtual_disk`
+    (`attach = true`): Storage DRS placement does not support attached
+    disks, so such a VM must use `datastore_id`.
+  - Add `storage_policy_id` on top when a policy is requested, never
+    instead of the datastore. Never set `host_system_id`; let DRS
+    place the VM.
+
+  ## Size
+  - Start at `num_cpus = 2` and `memory = 4096` (memory is in MiB).
+  - Keep `cpu_hot_add_enabled = false` (CPU hot add disables vNUMA)
+    and `memory_hot_add_enabled = false`.
+  - With hot add off, changing `num_cpus` or `memory` makes the
+    provider shut down and power on the guest. The same happens for
+    `firmware`, `efi_secure_boot_enabled`, `extra_config` and
+    `enable_disk_uuid` changes, among others. That is a restart:
+    classify it as high impact and state in the summary that the VM
+    will be powered off and on. Do not add such settings to an
+    existing VM unless the request asks for the change.
+  - No `cpu_reservation`, `memory_reservation` or
+    `memory_reservation_locked_to_max` unless the user asks for them;
+    express priority through the resource pool's shares.
+
+  ## Disks
+  - Every `disk` block has a unique `label` (`disk0`, `disk1`, ...)
+    and a `size` in GB.
+  - When cloning a template VM, declare at least as many disks as the
+    template, in the same order, each with
+    `size >= data.vsphere_virtual_machine.template.disks.<n>.size`,
+    and take `thin_provisioned` and `eagerly_scrub` from the template
+    (`data.vsphere_virtual_machine.template.disks.0.thin_provisioned`).
+  - Additional disks: `thin_provisioned = true`,
     `eagerly_scrub = false`.
+  - Keep `disk_mode = "persistent"` (the default) on every disk;
+    never use the `independent_nonpersistent` mode for data.
+  - Disks can grow in place but never shrink; never reduce `size`.
+
+  ## Security and hardware
+  - `efi_secure_boot_enabled = true` and `enable_disk_uuid = true` on
+    new VMs; on an existing VM, add them only when requested, since
+    the change power-cycles it.
+    Add a `vtpm` block and the VM encryption storage policy when the
+    user asks for encryption or the workload handles sensitive data.
+  - Network adapters `adapter_type = "vmxnet3"`.
   - Networking: one `network_interface` per required network, looked
     up with `data "vsphere_network"`. Never attach to management,
     vMotion or storage networks.
-  - Guest setup: use the `clone.customize` block (`linux_options` or
-    `windows_options`, with `network_interface` and DNS settings) or
-    cloud-init through `extra_config` `guestinfo.metadata` and
-    `guestinfo.userdata` (base64 encoded) — not both. Passwords come
-    from sensitive variables.
-  - Keep VMware Tools current: `tools_upgrade_policy = "upgradeAtPowerCycle"`
-    and `sync_time_with_host = false` when the guest uses NTP.
-  - Set `annotation` to a short description with the owning team.
-  - Apply tags from the `environment`, `owner` and `managed-by`
-    categories.
-  - Add `lifecycle { ignore_changes = [clone[0].template_uuid] }` so
-    rebuilding the template does not force a replacement.
+
+  ## Guest setup
+  - Use the `clone.customize` block (`linux_options` or
+    `windows_options`, with `network_interface`, gateway and DNS
+    settings) or cloud-init through `extra_config`
+    `guestinfo.metadata` and `guestinfo.userdata` (base64 encoded) —
+    not both.
+  - Customization applies only when the VM is created. Any change
+    inside the `clone` block, including `customize` (IP addresses,
+    DNS servers, host name), forces a new virtual machine. Re-IP or
+    rename an existing VM inside the guest, not through Terraform.
+  - Never put literal passwords, keys or tokens in `customize`,
+    `extra_config` or `vapp` properties, and never declare a required
+    variable for them. Windows `admin_password` comes from a
+    `random_password` resource (the value lands in the state; any
+    output carrying it is `sensitive = true`). For Linux, rely on the
+    template's own key-based access and set no password.
+    `guestinfo` / `extra_config` values are
+    readable by any vCenter user with read access to the VM, so they
+    must never carry secrets in clear text.
+  - Keep VMware Tools current:
+    `tools_upgrade_policy = "upgradeAtPowerCycle"` and
+    `sync_time_with_host = false` when the guest uses NTP.
+
+  ## Metadata and lifecycle
+  - Set `annotation` to a short description with the owning team;
+    it also carries the standard tags when they cannot be attached
+    as vSphere tags.
+  - Add `lifecycle { ignore_changes = [clone] }` so rebuilding the
+    template or editing customization later does not force a
+    replacement; ignoring only `clone[0].template_uuid` is not
+    enough. When a request changes anything under `clone` or
+    `customize` on an existing VM (host name, IP addresses, DNS),
+    state in the summary that Terraform ignores the change and that
+    it must be made inside the guest, or through a replacement the
+    user explicitly requests.
   - Add `prevent_destroy = true` to the lifecycle block for
     production virtual machines.
+  - Whenever a plan replaces the VM (for example a `clone` change
+    that is not ignored, or an `ovf_deploy` change), call it out: the
+    VM and its non-attached disks are destroyed and recreated, losing
+    their data. Never remove an existing `vtpm` block or encryption
+    storage policy without an explicit request.

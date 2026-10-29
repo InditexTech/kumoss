@@ -10,20 +10,28 @@ body: |
   otherwise, use the following default configuration:
 
   - One NSG per subnet, named `nsg-<subnet-name>`.
-  - Immediately associate the NSG with its target subnet.
+  - Immediately associate the NSG with its target subnet through
+    `azurerm_subnet_network_security_group_association`.
   - Default inbound behavior is implicit deny from internet — do not
     override this.
-  - Create allow rules as separate resources (not inline blocks) for
-    clarity and merge-safety.
+  - Create allow rules as separate `azurerm_network_security_rule`
+    resources (not inline blocks) for clarity and merge-safety;
+    never mix inline and standalone rules on the same NSG.
   - Every rule must have an explicit description explaining its
     purpose.
-  - Never use source address `*` or `0.0.0.0/0` for inbound rules.
-    Always scope to a known CIDR range or an Azure service tag.
-  - Prefer Azure service tags (AzureLoadBalancer, Internet,
-    VirtualNetwork, AzureBastion) over literal CIDR blocks wherever
-    applicable.
+  - Never use source `*`, `0.0.0.0/0`, `::/0`, or the `Internet`
+    service tag for inbound rules, except to allow TCP 80 and 443
+    to an internet-facing front end (Application Gateway, public
+    load balancer, or web tier). Always scope other inbound rules to
+    a known CIDR range or a narrow Azure service tag.
+  - Prefer Azure service tags (AzureLoadBalancer, VirtualNetwork,
+    GatewayManager) over literal CIDR blocks wherever applicable.
+  - Application Gateway v2 subnet NSGs must allow inbound TCP
+    65200-65535 from the `GatewayManager` service tag and keep the
+    `AzureLoadBalancer` inbound allow; without them the gateway
+    fails.
   - Outbound Internet access should only be allowed where explicitly
     required.
-  - Apply standard tags: environment and managed_by.
+  - NSG rules and subnet associations do not support tags.
   - Priority numbering should start at 100 and increment in steps
     of 100, leaving room for future insertions.

@@ -8,25 +8,45 @@ body: |
 
   When the user's request mentions one of these resources, select the
   matching template. The name on the left is the literal prompt name
-  in this Phoenix repository.
+  in this Phoenix repository. Select every template the request
+  touches: an Auto Scaling group also needs `launch_template`, and an
+  internet-facing Application Load Balancer in production also needs
+  `waf_web_acl` (for non-production only on request; WAFv2 cannot
+  attach to Network Load Balancers).
 
   - `aurora` — Aurora cluster (MySQL or PostgreSQL compatible).
-  - `bedrock` — Amazon Bedrock model access, guardrails, and logging.
+  - `auto_scaling_group` — EC2 Auto Scaling group with instance refresh and scaling policies.
+  - `bedrock` — Amazon Bedrock guardrails, invocation logging, and model use.
   - `cloudwatch` — CloudWatch alarms, log groups, and dashboards.
   - `dynamodb` — DynamoDB table with encryption and capacity settings.
+  - `ebs_volume` — EBS data volume with encryption and attachment.
   - `ec2` — EC2 instance with EBS, networking, and monitoring.
+  - `ecr_repository` — ECR container image repository with scanning and lifecycle policy.
+  - `ecs_fargate_service` — ECS cluster, task definition, and Fargate service.
+  - `efs` — EFS file system with mount targets and access points.
+  - `eks_cluster` — EKS cluster with managed node groups and Pod Identity.
+  - `elasticache_redis` — ElastiCache Redis OSS or Valkey replication group.
   - `iam_role` — IAM role with trust policy and managed policy attachments.
   - `internet_gateway` — Internet Gateway attached to a VPC.
+  - `kms_key` — KMS customer-managed key with key policy and alias.
   - `lambda` — Lambda function with IAM role, VPC, and logging.
+  - `launch_template` — EC2 launch template (IMDSv2, encrypted volumes, user_data).
+  - `load_balancer` — Application or Network Load Balancer with listeners, target groups, and TLS.
   - `nat_gateway` — NAT Gateway in a public subnet for private outbound access.
   - `rds` — RDS instance (MySQL, PostgreSQL, or SQL Server).
   - `redshift` — Redshift Serverless or provisioned data warehouse.
   - `route53` — Route 53 hosted zone and DNS records.
+  - `route_table` — Route tables, routes, and subnet associations.
   - `s3_bucket` — S3 bucket with encryption, versioning, and public access block.
-  - `sagemaker` — SageMaker domain, notebooks, training, and endpoints.
+  - `sagemaker` — SageMaker domain, notebook instances, models, endpoints, and model registry.
+  - `secrets_manager` — Secrets Manager secret container with KMS and rotation.
   - `security_group` — Security group with ingress and egress rules.
+  - `sns_topic` — SNS topic with encryption, topic policy, and subscriptions.
+  - `sqs_queue` — SQS queue with dead-letter queue redrive.
   - `subnet` — Subnet within a VPC.
   - `vpc` — AWS VPC with DNS support.
+  - `vpc_endpoint` — VPC gateway and interface endpoints.
+  - `waf_web_acl` — WAFv2 web ACL with AWS managed rules and rate limiting.
 
   This list is the source of truth. Adding a new
   `core/prompts/seed/aws/resources/<name>.yaml` requires adding the

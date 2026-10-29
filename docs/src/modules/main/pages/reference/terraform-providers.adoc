@@ -10,12 +10,13 @@ backend reads is in <<complete-variable-reference,Complete variable
 reference>> below.
 
 None of the tables below carries the variable the request's cloud
-scope (`scope_id`) supplies: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT`
-arrive with each request and overwrite whatever the container sets, so
-set the credential variables in each row and leave the scope to the
-request. Azure and GCP are the only providers with such a variable;
-AWS, OCI, Kubernetes, and VMware vSphere commands run on the container's
-ambient credentials alone. See
+scope (`scope_id`) supplies: `ARM_SUBSCRIPTION_ID`, `GOOGLE_PROJECT`,
+`TF_VAR_compartment_ocid` and `TF_VAR_aws_account_id` arrive with each
+request and overwrite whatever the container sets, so set the
+credential variables in each row and leave the scope to the request.
+Kubernetes and VMware vSphere commands run on the container's ambient
+credentials alone, and AWS commands are also refused when those
+credentials belong to an account other than `scope_id`. See
 xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
 credentials for the IaC engine] for where these files fit in the
 deployment.
@@ -115,12 +116,64 @@ only.
 `AWS_ENDPOINT_URL`
 |===
 
-`AWS_REGION` is the only universal requirement, and never an account
-id — unlike Azure and GCP, nothing here is injected from `scope_id`,
-because no environment variable redirects the provider to an account.
-Every command runs against whatever account the credentials above
-resolve to, so making them agree with the `scope_id` callers send is
-the deployment's job.
+`AWS_REGION` (or `AWS_DEFAULT_REGION`) is required in every row: the
+account check below needs it, and it is the default region for
+generated code.
+
+*Account.* Do not set `TF_VAR_aws_account_id`; the sidecar injects
+`scope_id` as `TF_VAR_aws_account_id` for `init`, `plan`, `apply`, and
+`import`. The generated code passes it to the provider, which then
+refuses any other account:
+
+[source,hcl]
+----
+variable "aws_account_id" {
+  type = string # no default: the engine supplies it
+}
+
+provider "aws" {
+  allowed_account_ids = [var.aws_account_id]
+}
+----
+
+Before those four commands the sidecar also calls STS
+`GetCallerIdentity` with the container's credentials, and ends the
+command with exit code 1, without starting the engine, when the account
+is not `scope_id`. One deployment therefore serves one AWS account; a
+hub deployment that assumes a role into each target account is refused.
+For LocalStack the `scope_id` is its account id, `000000000000`.
+
+*Region.* The region is not part of the scope. The provider takes the
+first of:
+
+. the `region` argument of the `provider "aws"` block;
+. `AWS_REGION`, then `AWS_DEFAULT_REGION`, on the iac container;
+. the region of the AWS profile in use.
+
+New generated code sets no provider `region`, so every session that does
+not name a region lands in the container's `AWS_REGION`. A request that
+names one gets the per-resource `region` argument (provider v6) or a
+provider alias. An existing provider `region` is kept as it is, so with
+`AWS_REGION=us-east-1` on the container:
+
+[source,hcl]
+----
+variable "region" {
+  default = "eu-west-1"
+}
+
+provider "aws" {
+  region = var.region # eu-west-1 wins; AWS_REGION is ignored
+}
+----
+
+A `region` variable the provider block does not reference changes
+nothing: the provider falls back to `AWS_REGION`.
+
+*Running the code outside Kumoss.* Code merged to a repository declares
+`aws_account_id` with no default, so a pipeline that runs it needs
+`TF_VAR_aws_account_id=<account id>` (and a region) in its own
+environment.
 
 Import discovery additionally requires AWS Resource Explorer to be
 enabled for the account, with an aggregator index and a default view.
@@ -203,8 +256,42 @@ by the runtime
 |`TF_VAR_auth=OkeWorkloadIdentity`, `TF_VAR_region`
 |===
 
-Add `TF_VAR_compartment_ocid` in practice — not a provider setting,
-but nearly every resource needs it.
+Do not set `TF_VAR_compartment_ocid`. For OCI the request's `scope_id`
+is the compartment OCID, and the sidecar injects it as
+`TF_VAR_compartment_ocid` for `init`, `plan`, `apply`, and `import`,
+overriding the container value. It is not a provider setting: it fills
+the `compartment_ocid` input variable the generated code declares.
+
+Because nothing confines the provider to a compartment, the core also
+reads every OCI plan and fails validation when it creates a resource in
+a compartment other than `scope_id`. The generator then rewrites the
+code:
+
+[source,hcl]
+----
+resource "oci_core_vcn" "main" {
+  compartment_id = var.compartment_ocid          # accepted
+  # compartment_id = "ocid1.compartment.oc1..x" # rejected unless it is scope_id
+}
+----
+
+A compartment the same plan creates is accepted, and so are resources
+created in the tenancy (root compartment). Only plain creations are
+checked: an update or replacement that moves an existing resource to
+another compartment is not caught. Code merged to a repository declares `compartment_ocid` with no
+default, so a pipeline that runs it outside Kumoss needs
+`TF_VAR_compartment_ocid`.
+
+`TF_VAR_tenancy_ocid` stays in the container, because it belongs to the
+credential and one deployment serves one tenancy. The API key row
+already requires it. Add it to the other rows too when requests touch
+identity resources: the generated code reads it for resources that live
+in the root compartment (dynamic groups, tenancy-level policies,
+top-level compartments) and for the home-region lookup behind every
+identity write (compartments, policies, dynamic groups, groups, tag
+namespaces), including a compartment nested under the request's
+compartment. Other requests do not need it; availability-domain lookups
+use the request's compartment.
 
 == Kubernetes — provider minimum
 
@@ -417,6 +504,31 @@ export GOOGLE_REGION=europe-west1
 ****
 --
 
+== Provider versions in generated code
+
+The shipped prompt seeds pin these majors in *new* workspaces:
+
+[cols="2,2",options="header"]
+|===
+|Provider |Constraint
+
+|`hashicorp/aws` |`~> 6.0`
+|`hashicorp/azurerm` |`~> 5.0`
+|`hashicorp/google` |`~> 8.0`
+|`oracle/oci` |`~> 9.0`
+|`hashicorp/kubernetes` |`~> 3.0`
+|`vmware/vsphere` |`~> 2.10`
+|===
+
+A workspace that already pins a provider keeps its pin, and the code
+generated for it uses that version's syntax. The engine runs `init`
+without `-upgrade`, so rewriting the pin would fail against the
+workspace's `.terraform.lock.hcl`. For example, a repository on
+`~> 5.0` of `hashicorp/aws` keeps `~> 5.0` and gets the v5 forms
+(`data.aws_region.current.name`, not `.region`); moving it to v6 is an
+upgrade to plan by hand. Pins can be changed in the
+xref:main:guides/customize-prompts.adoc[prompt seeds].
+
 == Three things that trip people up
 
 *Azure needs the most variables by a wide margin.* AWS and GCP
@@ -545,8 +657,8 @@ for the storage data plane
 |`AWS_SESSION_TOKEN` |Static keys |Required for temporary or STS
 credentials
 
-|`AWS_REGION` |Core |Region — *mandatory* unless set in the provider
-block
+|`AWS_REGION` |Core |Region — *mandatory*: the sidecar's account check
+needs it, and it is the region for code whose provider block sets none
 
 |`AWS_DEFAULT_REGION` |Core |Fallback
 
@@ -695,9 +807,10 @@ Functions runtime
 |`OCI_RESOURCE_PRINCIPAL_REGION` |Resource principal |Region
 |===
 
-Compartment OCID is a *resource* argument, not an environment
-variable — commonly passed as `TF_VAR_compartment_ocid`, an ordinary
-Terraform variable rather than a provider setting.
+Compartment OCID is a *resource* argument, not a provider setting —
+passed as `TF_VAR_compartment_ocid`, an ordinary Terraform input
+variable. The sidecar injects it per request from `scope_id`; do not set
+it in the container.
 
 === Kubernetes (`kubernetes`, `helm`)
 

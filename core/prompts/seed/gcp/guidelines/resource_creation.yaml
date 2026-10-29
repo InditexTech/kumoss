@@ -14,35 +14,83 @@ body: |
     required_providers {
       google = {
         source  = "hashicorp/google"
-        version = "~> 5.0"
+        version = "~> 8.0"
       }
     }
   }
 
-  provider "google" {
-    project = var.project_id
-    region  = var.region
-  }
+  provider "google" {}
   ```
+
+  - Do not set `project` on the provider block and do not add a
+    project variable for it: the IaC engine receives the target
+    project of every request in `GOOGLE_PROJECT`. When a value needs
+    the project ID or number (Workload Identity pools, service agent
+    emails), read it from `data "google_project" "current" {}`.
+  - Set `project` on an individual resource only when it must live
+    in a project other than the request's, such as a Shared VPC host
+    project.
+  - Never configure `credentials`, `access_token`, or
+    `impersonate_service_account` in the provider block; the engine
+    supplies credentials from its environment.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
+  - Do not set `region` or `zone` on the provider and do not add a
+    required region variable: nothing supplies it. Set `region`,
+    `location` or `zone` on each resource from the request or the
+    workspace (a `locals` value, or a variable whose default is the
+    request's region), or rely on `GOOGLE_REGION` when the engine's
+    environment sets it.
+  - Use the `google-beta` provider only for arguments that do not
+    exist in `google`, pinned to the same major version and set on
+    just the resources that need it.
 
   ## Projects
   - Every resource belongs to a project.
   - One project per environment per application is the default.
-  - Use folders to group projects under shared billing accounts.
+  - Use folders to group projects that share policies and billing.
+  - Enable each API a module needs with `google_project_service`
+    and `disable_on_destroy = false`, so removing a module never
+    disables an API other workloads still use.
 
   ## Labels
-  Every resource that supports `labels` carries at minimum:
-  - `environment` — `dev`, `staging`, or `prod`.
-  - `owner` — team or individual responsible.
-  - `managed_by` — set to `terraform`.
-
-  Note: GCP labels must be lowercase, may not start with a number,
-  and may only contain letters, numbers, hyphens, and underscores.
+  Apply the standard tags (`local.standard_tags`, defined in
+  `standard_tags.tf` as the general Terraform guidelines describe) as
+  labels on every resource that supports `labels`: `labels =
+  merge(local.standard_tags, {...})` with any resource-specific
+  labels (some resources name the argument `resource_labels` or
+  `user_labels`). GCP labels must be lowercase, at most 63
+  characters, may not start with a number, and may only contain
+  letters, numbers, hyphens, and underscores. Some resources do not
+  support labels (VPC networks, subnetworks, firewall rules, Cloud
+  Routers, Cloud NAT, KMS key rings); never add a `labels` argument
+  to them.
 
   ## Regions and zones
-  - Default to a single primary region per environment.
-  - For zonal resources, use `${region}-a` unless the request needs
-    multi-zone redundancy.
+  - Default to a single primary region per environment, taken from
+    the workspace when it already declares one.
+  - Keep data in the region the request or the workspace names;
+    never move it to another region or a multi-region as a side
+    effect.
+  - Do not assume zone suffixes (`europe-west1` has no `-a` zone).
+    Read zones from `data "google_compute_zones" "available"` for
+    the region.
+  - Prefer regional resources (regional managed instance groups,
+    regional disks, `REGIONAL` Cloud SQL, regional GKE clusters) for
+    production workloads that must survive a zone failure.
+
+  ## Deletion safeguards
+  - Keep the protective provider defaults: `deletion_protection =
+    true` where the resource has it, `force_destroy = false`,
+    `delete_contents_on_destroy = false`, and `deletion_policy =
+    "PREVENT"` on projects.
+  - Add `lifecycle { prevent_destroy = true }` to stateful production
+    resources (databases, buckets, datasets, disks, KMS keys).
+  - Many GCP arguments are immutable: changing one turns the plan
+    into a destroy-and-recreate; state every replacement and its
+    impact explicitly in the summary. Each resource template lists
+    the arguments that force its replacement.
 
   Replace this body with your organization's authoritative GCP
   resource-creation standards.

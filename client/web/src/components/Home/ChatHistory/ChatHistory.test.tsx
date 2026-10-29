@@ -60,18 +60,25 @@ describe("ChatHistory", () => {
     expect(screen.getByText("I'll create the terraform for that.")).toBeInTheDocument();
   });
 
-  it("filters out validation messages", () => {
+  it("renders every turn, in order and unfiltered", () => {
+    // The backend serves a conversation built for people, so there is
+    // nothing left for the view to screen out.
     renderChat(undefined, {
       history: [
         { role: "user", content: "deploy a VM" },
-        { role: "validation", content: "internal validation note" },
-        { role: "assistant", content: "Done!" },
+        { role: "assistant", content: "Done: the plan adds one VM." },
+        { role: "user", content: "add a subnet" },
+        { role: "assistant", content: "Done: the plan adds one subnet." },
       ],
     });
 
-    expect(screen.getByText("deploy a VM")).toBeInTheDocument();
-    expect(screen.getByText("Done!")).toBeInTheDocument();
-    expect(screen.queryByText("internal validation note")).not.toBeInTheDocument();
+    const rendered = [
+      "deploy a VM",
+      "Done: the plan adds one VM.",
+      "add a subnet",
+      "Done: the plan adds one subnet.",
+    ].map((text) => screen.getByText(text));
+    rendered.forEach((node) => expect(node).toBeInTheDocument());
   });
 
   it("submits on Enter key and clears input", async () => {

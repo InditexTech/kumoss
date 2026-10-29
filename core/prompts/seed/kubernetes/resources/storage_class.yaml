@@ -1,0 +1,33 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes StorageClass default configuration (CSI provisioner, reclaim policy, binding mode, expansion).
+body: |
+  # Kubernetes StorageClass
+
+  For a StorageClass, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Resource type: `kubernetes_storage_class_v1` (cluster-scoped).
+  - Naming convention: `<app>-<purpose>-sc`.
+  - `storage_provisioner`: the CSI driver already installed in the
+    cluster (e.g., `ebs.csi.aws.com`, `pd.csi.storage.gke.io`,
+    `disk.csi.azure.com`). Never use the deprecated in-tree
+    provisioners. Driver-specific settings go in `parameters`.
+  - `reclaim_policy = "Retain"` for production data; the Kubernetes
+    default `Delete` removes the backing disk when the PVC is
+    deleted. Every dynamically provisioned PersistentVolume inherits
+    the class's policy.
+  - `volume_binding_mode = "WaitForFirstConsumer"` so volumes are
+    created in the zone where the pod is scheduled.
+  - `allow_volume_expansion = true` so PVCs can grow in place.
+  - The provisioner, `parameters`, `reclaim_policy` and
+    `volume_binding_mode` cannot change after creation; changing
+    them makes Terraform replace the StorageClass (+/-). Existing
+    PVs keep their settings, but new claims get the new class. Do
+    it only on explicit request, and never switch `reclaim_policy`
+    from `Retain` to `Delete` without one.
+  - Do not mark it as the cluster default
+    (`storageclass.kubernetes.io/is-default-class` annotation)
+    unless requested; two default classes make claims ambiguous.

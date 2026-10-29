@@ -2,27 +2,30 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP Project default configuration (naming, APIs, billing, organization).
+description: GCP Project default configuration (naming, APIs, billing, organization, deletion policy).
 body: |
   # GCP Project
 
   For a Project, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Project name convention: `<application>-<environment>`.
-  - Project ID must be globally unique and immutable. Append a
-    short random suffix to avoid name collisions across
-    organizations.
+  - Project name convention: `prj-<application>-<environment>`.
+  - Project ID must be globally unique, 6-30 characters, lowercase,
+    and is immutable. Append a short suffix from a `random_id`
+    resource to avoid collisions across organizations.
   - Place the project under the appropriate organization folder
-    using a folder ID.
-  - Associate a billing account.
-  - Enable required Google Cloud APIs immediately after project
-    creation using service enablement resources. Common APIs:
-    compute.googleapis.com, container.googleapis.com,
+    using `folder_id`; never directly under the organization unless
+    requested.
+  - Associate a billing account (`billing_account`).
+  - Set `auto_create_network = false` so the project never gets the
+    `default` network and its permissive firewall rules.
+  - Keep `deletion_policy = "PREVENT"`. Project deletion is soft for
+    30 days, and the project ID can never be reused.
+  - Enable required Google Cloud APIs with one
+    `google_project_service` per API and `disable_on_destroy =
+    false`. Common APIs: compute.googleapis.com,
     iam.googleapis.com, logging.googleapis.com,
-    monitoring.googleapis.com.
-  - Project deletion is soft for 30 days — the original project ID
-    can only be reused after final deletion.
-  - Delete the default VPC network and default firewall rules after
-    project creation to enforce custom networking.
-  - Apply standard labels: environment, owner, and managed_by.
+    monitoring.googleapis.com, and container.googleapis.com when
+    GKE is used.
+  - Add `lifecycle { prevent_destroy = true }` for production
+    projects.

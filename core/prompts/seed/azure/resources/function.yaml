@@ -10,26 +10,37 @@ body: |
   the following default configuration:
 
   - Naming convention: `func-<application>-<purpose>-<environment>`.
-  - Use the Flex Consumption plan for serverless workloads. Use
-    dedicated App Service Plan or Premium plan only when the user
-    explicitly requires always-on, VNet integration, or long-running
-    functions.
+  - Use the Flex Consumption plan for serverless workloads: an
+    `azurerm_service_plan` with `sku_name = "FC1"` and an
+    `azurerm_function_app_flex_consumption` app. Use a Premium
+    (`EP*`) or dedicated App Service plan only when the user
+    explicitly requires always-on instances, Windows, or a feature
+    Flex Consumption does not offer.
+  - Flex Consumption supports VNet integration: set the app's
+    integration subnet to a dedicated subnet delegated to
+    `Microsoft.App/environments` so the function can reach private
+    resources.
   - Runtime stack should match the user's language requirement
     (e.g. dotnet-isolated, python, node, java). Default to the
-    latest stable runtime version.
+    latest stable runtime version the plan supports.
+  - Set a maximum instance count appropriate to the workload to cap
+    scale-out cost; keep always-ready instances at zero unless
+    cold starts are a stated concern.
   - HTTPS only must be enabled. Minimum TLS version set to 1.2.
   - Enable system-assigned managed identity for authentication to
-    other Azure services.
-  - Application Insights must be connected for monitoring —
-    reference an existing Application Insights resource or create
-    one alongside the function.
+    other Azure services, and use it (not a storage connection
+    string) for the deployment storage container.
+  - Application Insights must be connected through its connection
+    string — reference an existing Application Insights resource or
+    create one alongside the function.
   - Store connection strings and secrets in Azure Key Vault and
     reference them via Key Vault references in app settings — never
     hardcode secrets in application settings.
-  - For VNet-integrated plans, enable VNet integration to a
-    dedicated subnet so the function can reach private resources.
   - The associated storage account must follow the storage account
-    template defaults (encryption, private access, etc.).
+    template defaults (encryption, network rules, etc.). When that
+    account is private (private endpoint, public access disabled),
+    the app must use VNet integration (`virtual_network_subnet_id`)
+    with DNS resolution of the `privatelink` zones; otherwise keep
+    the account reachable through its network rules.
   - Enable diagnostic settings to send platform logs to a Log
     Analytics workspace.
-  - Apply standard tags: environment and managed_by.

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP Load Balancer default configuration (HTTPS, health checks, CDN, SSL).
+description: GCP Load Balancer default configuration (Application Load Balancer, health checks, TLS, CDN, Cloud Armor).
 body: |
   # GCP Load Balancer
 
@@ -10,41 +10,54 @@ body: |
   the following default configuration:
 
   ## Type selection
-  - Use an external Application Load Balancer (HTTP/S) for
-    public-facing web workloads. This is the default when the user
-    asks for a load balancer without specifying the type.
-  - Use an internal Application Load Balancer for internal
-    HTTP/HTTPS services.
-  - Use a Network Load Balancer (TCP/UDP) only when the user
-    requires non-HTTP protocols or ultra-low-latency passthrough.
-  - Use the global tier for external load balancers (anycast IP
-    across all regions). Use regional tier only when explicitly
-    requested or when single-region is sufficient.
+  - Use the global external Application Load Balancer
+    (`load_balancing_scheme = "EXTERNAL_MANAGED"`) for public-facing
+    web workloads. This is the default when the user asks for a load
+    balancer without specifying the type. Never use the classic
+    `EXTERNAL` scheme for new load balancers.
+  - Use an internal Application Load Balancer (`INTERNAL_MANAGED`)
+    for internal HTTP(S) services; it needs a proxy-only subnetwork
+    in the region.
+  - Use a passthrough Network Load Balancer (TCP/UDP) only when the
+    user requires non-HTTP protocols or client IP preservation.
+  - Use a regional load balancer only when explicitly requested or
+    when data residency requires it.
 
   ## Frontend
-  - Naming convention for forwarding rules:
-    `lb-<application>-<environment>`.
-  - Use HTTPS (port 443) with a Google-managed SSL certificate by
-    default. Redirect HTTP (port 80) to HTTPS using a URL map
-    redirect rule.
-  - SSL policy must enforce a minimum TLS version of 1.2 with a
-    MODERN or RESTRICTED profile.
-  - Reserve a static external IP address for the forwarding rule.
+  - Naming convention: `lb-<application>-<environment>` for the
+    forwarding rule, with `ip-`, `cert-` and `bes-` prefixes for the
+    address, certificate, and backend service.
+  - Reserve a static IP address (`google_compute_global_address`)
+    for the forwarding rule.
+  - Use HTTPS (port 443) with a Google-managed certificate
+    (Certificate Manager or `google_compute_managed_ssl_certificate`).
+    Redirect HTTP (port 80) to HTTPS with a separate URL map that
+    sets `default_url_redirect { https_redirect = true }`.
+  - Attach an SSL policy with `min_tls_version = "TLS_1_2"` and the
+    `MODERN` or `RESTRICTED` profile.
 
   ## Backend
-  - Configure health checks with appropriate intervals (check
-    interval 10 seconds, timeout 5 seconds, healthy threshold 2,
-    unhealthy threshold 3).
-  - Enable Cloud CDN on the backend service for cacheable content.
-    Disable CDN for dynamic API backends.
-  - Enable connection draining with a timeout of 300 seconds.
-  - Session affinity set to NONE (stateless) unless the user
+  - Managed instance groups are added as backends through their
+    `instance_group` output with `balancing_mode = "UTILIZATION"`;
+    Cloud Run and Cloud Run functions through a serverless network
+    endpoint group.
+  - Configure health checks (`hc-<application>-<environment>`) with
+    check interval 10 seconds, timeout 5 seconds, healthy threshold
+    2, unhealthy threshold 3, on the application's health path. Add
+    the firewall rule that allows the health-check ranges.
+  - Enable Cloud CDN only on backends that serve cacheable content.
+    Disable it for dynamic API backends.
+  - Connection draining timeout of 300 seconds.
+  - Session affinity set to `NONE` (stateless) unless the user
     specifies otherwise.
-  - Logging must be enabled on the backend service with a sample
-    rate of 1.0 for production.
+  - Enable backend service logging (`log_config`) with a sample
+    rate of 1.0 for production and 0.1 for non-production.
 
   ## Security
-  - Associate a Cloud Armor security policy for DDoS protection
-    and WAF rules on public-facing load balancers.
+  - Attach a Cloud Armor security policy (see `cloud_armor`) to
+    every backend service of a public-facing load balancer.
   - Enable Identity-Aware Proxy (IAP) for internal applications
     that require user authentication.
+  - Only forwarding rules and reserved addresses take labels;
+    backend services, URL maps, and health checks do not support
+    labels.

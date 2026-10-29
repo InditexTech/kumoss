@@ -1,0 +1,35 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Public IP address default configuration (Standard SKU, static, zone-redundant).
+body: |
+  # Azure Public IP
+
+  For a Public IP address, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Create a public IP only for internet-facing components (Application
+    Gateway, public load balancer, NAT Gateway, Bastion, firewall).
+    Never attach one to a VM, database, or other internal resource.
+  - Naming convention: `pip-<consumer>-<application>-<environment>`
+    (e.g. `pip-agw-shop-prod`).
+  - `azurerm_public_ip` with `sku = "Standard"`, `allocation_method =
+    "Static"`, and `location = azurerm_resource_group.<x>.location`.
+    The Basic SKU is retired; never use it.
+  - `zones = ["1", "2", "3"]` (zone-redundant) by default in
+    regions that support availability zones (state the assumption);
+    omit `zones` elsewhere. Use a single zone only when the consumer
+    is zonal, such as a zonal NAT Gateway or VM, and match its zone.
+  - Changing `sku`, `zones`, or `allocation_method` forces
+    replacement and the address changes — call it out as high
+    impact, since DNS records and allow lists depend on it.
+  - IP version IPv4 unless IPv6 is requested.
+  - Set `domain_name_label` only when the user needs an Azure DNS
+    name.
+  - Keep DDoS IP Protection off by default (cost); enable it only on
+    request.
+  - Add a lifecycle block with prevent_destroy for production
+    addresses that are published in DNS or partner allow lists.
+  - Use a public IP prefix only when several stable, contiguous
+    addresses are requested.

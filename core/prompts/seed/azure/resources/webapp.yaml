@@ -12,30 +12,41 @@ body: |
   ## App Service Plan
   - Naming convention: `asp-<application>-<environment>`.
   - Use Linux as the OS type unless Windows is explicitly required.
-  - SKU set to B1 for non-production and P1v3 (or P0v3) for
-    production. Do not provision Premium SKUs without explicit
-    request.
-  - Enable zone redundancy for production plans (requires Premium
-    v3 or Isolated v2 tiers).
+    Changing `os_type` forces replacement.
+  - SKU set to B1 for non-production and P0v3 or P1v3 for
+    production (the production default). Do not provision larger
+    sizes or Isolated tiers without explicit request.
+  - An `azurerm_service_plan` (the legacy `azurerm_app_service_plan`
+    and `azurerm_app_service` are removed in provider 5.x) hosting an
+    `azurerm_linux_web_app` or `azurerm_windows_web_app`.
+  - Enable zone redundancy (`zone_balancing_enabled = true`) for
+    production plans in regions that support availability zones
+    (requires Premium v3 or Isolated v2 tiers and at least 2
+    instances; state the assumption).
 
   ## Web App
   - Naming convention: `app-<application>-<environment>`.
   - HTTPS only must be enabled. Minimum TLS version set to 1.2.
+    Disable FTP/FTPS deployment and basic publishing credentials.
   - Enable system-assigned managed identity for authentication to
     other Azure services.
   - Always-on must be enabled for production (not available on
     Free/Shared tiers).
-  - Set the runtime stack and version matching the user's language
-    (e.g. NODE 20-lts, PYTHON 3.12, DOTNETCORE 8.0).
-  - Enable VNet integration to a dedicated subnet for access to
-    private resources.
+  - Set the runtime stack to a currently supported LTS version of
+    the user's language (e.g. NODE 22-lts, PYTHON 3.13, DOTNETCORE
+    8.0 or later). Check that the version is still supported by
+    App Service; never pick an end-of-life runtime.
+  - Enable VNet integration to a dedicated subnet (delegated to
+    `Microsoft.Web/serverFarms`) for access to private resources.
   - Public network access should be restricted. Use access
-    restrictions or private endpoints for production.
-  - Application Insights must be connected for monitoring.
+    restrictions or a private endpoint in `snet-pe` for production.
+  - Application Insights must be connected through its connection
+    string.
   - Store secrets in Azure Key Vault and reference them via Key
     Vault references in app settings.
   - Enable diagnostic settings (HTTP logs, application logs, platform
     logs) to a Log Analytics workspace.
-  - Configure health check path for automatic instance replacement
-    on failures.
-  - Apply standard tags: environment and managed_by.
+  - Configure `health_check_path` for automatic instance
+    replacement on failures, paired with
+    `health_check_eviction_time_in_min` (e.g. 5 minutes; the
+    provider may require both together).

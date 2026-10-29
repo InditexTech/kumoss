@@ -1,0 +1,83 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI instance pool default configuration (AD and fault-domain placement, load balancer attachment, autoscaling).
+body: |
+  # OCI Instance Pool
+
+  For an instance pool, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  ## Pool
+  - Naming convention: `pool-<application>-<role>-<environment>`.
+  - Use `oci_core_instance_pool` referencing an
+    `instance_configuration` (`instance_configuration_id`).
+  - Placement: read availability domains from
+    `data "oci_identity_availability_domains"` and add one
+    `placement_configurations` block per AD (a `dynamic` block over
+    the list) with the private subnet and the AD's fault domains,
+    read from `data "oci_identity_fault_domains"`, in
+    `fault_domains`. In single-AD regions, the single placement
+    spreads instances across the three fault domains. Never
+    hardcode AD or fault domain names.
+  - Size: 3 for production (one per AD or fault domain), 1 for
+    non-production. When an autoscaling configuration manages the
+    pool, add `lifecycle { ignore_changes = [size] }`.
+  - Attach the pool to a load balancer backend set with a
+    `load_balancers` block (`load_balancer_id`, `backend_set_name`,
+    `port`, `vnic_selection = "PrimaryVnic"`); the backend set health
+    check decides traffic, see `load_balancer`.
+  - Changing `instance_configuration_id` affects only instances
+    launched afterwards; say so in the summary.
+
+  ## Autoscaling
+  - An `oci_autoscaling_auto_scaling_configuration`
+    (`asc-<application>-<role>-<environment>`) with
+    `auto_scaling_resources { type = "instancePool", id = ... }`
+    and `cool_down_in_seconds = 300` (the minimum).
+  - Production: one `policy_type = "threshold"` policy with
+    `capacity` (min 3, max from capacity planning) and two rules
+    on `CPU_UTILIZATION`: scale out by 1 above 75%, scale in by 1
+    below 25%.
+  - Non-production: two `policy_type = "scheduled"` policies, one
+    scaling the pool to 0 in the evening and one back to the base
+    size in the morning. `capacity.initial` is the target size of a
+    scheduled policy (`min` and `max` are ignored):
+
+    ```hcl
+    policies {
+      display_name = "scale-in-evening"
+      policy_type  = "scheduled"
+      capacity {
+        initial = 0
+      }
+      execution_schedule {
+        type       = "cron"
+        expression = "0 0 19 ? * MON-FRI *"
+        timezone   = "UTC"
+      }
+    }
+    policies {
+      display_name = "scale-out-morning"
+      policy_type  = "scheduled"
+      capacity {
+        initial = 1
+      }
+      execution_schedule {
+        type       = "cron"
+        expression = "0 0 7 ? * MON-FRI *"
+        timezone   = "UTC"
+      }
+    }
+    ```
+
+    The expression is a Quartz cron with seconds first (always `0`)
+    and a year field. To keep the instances and their boot volumes
+    instead, use `resource_action { action_type = "power", action =
+    "STOP" }` (and `"START"` in the morning) instead of `capacity`;
+    stopped instances still bill for storage.
+  - Threshold and schedule-based policies cannot be freely combined
+    in one configuration, so use one style per pool.
+  - The pool's instances take their tags from the instance
+    configuration (`launch_details.freeform_tags`).

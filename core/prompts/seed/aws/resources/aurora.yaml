@@ -16,7 +16,10 @@ body: |
     two availability zones.
   - Storage encryption must be enabled with KMS. Specify a
     customer-managed key when provided; otherwise the AWS-managed
-    key is acceptable.
+    key is acceptable. `storage_encrypted` and `kms_key_id` apply at
+    creation; on an existing cluster they force replacement, as do
+    `cluster_identifier`, `engine`, `db_subnet_group_name`, and an
+    instance's `availability_zone`.
   - Use managed master user password (Secrets Manager integration)
     — never hardcode database passwords in variables or outputs.
   - Create a minimum of 2 cluster instances for production (writer
@@ -28,13 +31,18 @@ body: |
   - Define a preferred backup window and maintenance window that do
     not overlap.
   - Copy tags to snapshots must be enabled.
-  - A final snapshot must be taken before deletion — skip final
-    snapshot must be false.
-  - Deletion protection must be enabled on the cluster.
+  - `skip_final_snapshot = false` with a `final_snapshot_identifier`
+    (e.g. `aurora-<application>-<environment>-final`).
+  - `deletion_protection = true` on the cluster.
   - Add a lifecycle block with prevent_destroy on the cluster.
   - Auto minor version upgrade must be enabled on all instances.
-  - Performance Insights must be enabled on each instance with at
-    least 7-day retention (free tier).
+  - Enable Performance Insights on each instance with 7-day
+    retention (free tier) only on instance classes that support it;
+    small burstable classes may not, so check the engine's support
+    matrix before enabling it. AWS is moving Performance Insights to
+    CloudWatch Database Insights; when the provider version and
+    region support Database Insights, prefer its standard mode, and
+    enable the advanced (paid) mode only on request.
   - Enhanced Monitoring must be enabled on each instance with a
     60-second interval. This requires an IAM role with the
     AmazonRDSEnhancedMonitoringRole managed policy.
@@ -48,4 +56,18 @@ body: |
     scaling configuration on the cluster.
   - Define cluster instances as separate resources (not using count
     on the cluster) so each can be individually managed and placed.
-  - Apply standard tags: Name.
+    Leave `availability_zone` unset on instances (AWS spreads them)
+    or take it from `data "aws_availability_zones"`; never hardcode
+    AZ names.
+  - Non-production clusters get an EventBridge Scheduler stop/start
+    schedule, as in the `ec2` template, with the targets
+    `arn:aws:scheduler:::aws-sdk:rds:stopDBCluster` and
+    `arn:aws:scheduler:::aws-sdk:rds:startDBCluster`, `input =
+    jsonencode({ DbClusterIdentifier =
+    aws_rds_cluster.<name>.cluster_identifier })`, and a scheduler
+    role allowed `rds:StopDBCluster` and `rds:StartDBCluster` on the
+    cluster ARN. Aurora starts a stopped cluster again
+    automatically after seven days; the daily stop schedule stops it
+    again. For Aurora Serverless v2, a minimum capacity of 0 ACUs
+    (automatic pause) is an alternative where the engine version
+    supports it.

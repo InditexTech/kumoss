@@ -1,0 +1,55 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Virtual Machine Scale Set default configuration (Flexible orchestration, zones, repairs, upgrades, autoscale).
+body: |
+  # Azure Virtual Machine Scale Set
+
+  For a Virtual Machine Scale Set (VMSS), unless explicitly requested
+  otherwise, use the following default configuration:
+
+  ## Scale set
+  - Naming convention: `vmss-<application>-<role>-<environment>`.
+  - Use Flexible orchestration
+    (`azurerm_orchestrated_virtual_machine_scale_set`) with
+    `platform_fault_domain_count = 1`. Never use the legacy
+    `azurerm_virtual_machine_scale_set`; use the Uniform resources
+    (`azurerm_linux_virtual_machine_scale_set`) only on request.
+  - Set `location = azurerm_resource_group.<x>.location` and, in
+    regions that support availability zones, spread production
+    instances across `zones = ["1", "2", "3"]` (state the
+    assumption; omit zones elsewhere). Changing
+    zones or the orchestration mode forces replacement.
+  - Size, OS disk, SSH-key authentication, managed identity, no
+    public IPs, and `boot_diagnostics {}` follow the
+    `virtual_machine` template. Do not set a fixed instance count
+    when an autoscale setting owns the capacity.
+  - Configure the guest only through `custom_data` (cloud-init);
+    never the CustomScript extension, run commands, or provisioners.
+
+  ## Health and upgrades
+  - Report health with the Application Health extension (or a load
+    balancer probe) and enable `automatic_instance_repair` with a
+    grace period long enough for boot (e.g. 30 minutes).
+  - Roll image and model changes out gradually: use a rolling
+    upgrade policy (max batch 20%, max unhealthy 20%, pause between
+    batches) where the provider version supports it for Flexible
+    orchestration; otherwise state in the summary that existing
+    instances keep the old model until reimaged. Model changes
+    restart or replace instances — high impact.
+
+  ## Autoscale
+  - An `azurerm_monitor_autoscale_setting`
+    (`as-<application>-<role>-<environment>`) targeting the scale
+    set: scale out at CPU above 70% and in below 30%, with a
+    cooldown of at least 5 minutes.
+  - Production: minimum 3 instances (one per zone) and a maximum
+    sized to the workload.
+  - Non-production: scale in out of hours. Use a working-hours
+    `profile` with a `recurrence` block (`timezone`, `days` Monday to
+    Friday, `hours`/`minutes` of the start time, e.g. 07:00) and the
+    CPU rules, plus an off-hours `profile` with a `recurrence` at the
+    end time (e.g. 20:00, every day) whose `capacity` has `minimum`,
+    `default`, and `maximum` set to 0 (or 1 if the workload cannot
+    reach zero) and no rules.

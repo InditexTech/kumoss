@@ -6,24 +6,34 @@ description: Catalogue of available Kubernetes resource templates.
 body: |
   # Available Kubernetes Resource Templates
 
-  The following Kubernetes resource templates are available for
-  selection. Each template name maps to a seed file under
-  `kubernetes/resources/`.
+  When the user's request mentions one of these resources, select the
+  matching template. The name on the left is the literal prompt name
+  in this Phoenix repository and maps to a seed file under
+  `kubernetes/resources/`. Select every template the request touches:
+  a workload exposed by a Service also needs `service`, and a
+  workload scaled by an autoscaler also needs
+  `horizontal_pod_autoscaler`.
 
-  - namespace
-  - deployment
-  - stateful_set
-  - daemon_set
-  - service
-  - ingress
-  - config_map
-  - secret
-  - persistent_volume_claim
-  - service_account
-  - cluster_role
-  - cluster_role_binding
-  - role
-  - role_binding
-  - network_policy
-  - horizontal_pod_autoscaler
-  - cron_job
+  - `namespace` — Namespace with standard and Pod Security Admission labels.
+  - `deployment` — Deployment for stateless workloads.
+  - `stateful_set` — StatefulSet for workloads with stable identity and storage.
+  - `daemon_set` — DaemonSet for per-node agents.
+  - `job` — Job for one-off, run-to-completion tasks.
+  - `cron_job` — CronJob for scheduled tasks.
+  - `service` — Service (ClusterIP, headless, LoadBalancer, NodePort).
+  - `ingress` — Ingress for HTTP/HTTPS routing through an existing controller.
+  - `config_map` — ConfigMap for non-sensitive configuration.
+  - `secret` — Secret for sensitive values.
+  - `persistent_volume_claim` — PersistentVolumeClaim for standalone pod storage.
+  - `storage_class` — StorageClass backed by the cluster's CSI driver.
+  - `service_account` — ServiceAccount for workload identity.
+  - `cluster_role` — ClusterRole (cluster-wide RBAC rules).
+  - `cluster_role_binding` — ClusterRoleBinding (cluster-wide subject binding).
+  - `role` — Role (namespace-scoped RBAC rules).
+  - `role_binding` — RoleBinding (namespace-scoped subject binding).
+  - `network_policy` — NetworkPolicy for pod ingress and egress rules.
+  - `horizontal_pod_autoscaler` — HorizontalPodAutoscaler (autoscaling/v2).
+  - `pod_disruption_budget` — PodDisruptionBudget for voluntary-disruption protection.
+  - `resource_quota` — ResourceQuota for namespace-level resource caps.
+  - `limit_range` — LimitRange for default container requests and limits.
+  - `priority_class` — PriorityClass for pod scheduling priority and preemption.

@@ -9,7 +9,7 @@ body: |
   For an IAM Role, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Naming convention: `<application>-<workload>-role`.
+  - Naming convention: `role-<application>-<workload>-<environment>`.
   - One role per workload — do not share roles across unrelated
     workloads.
   - Define the trust policy (assume role policy) using a policy
@@ -18,9 +18,12 @@ body: |
   - Scope the trust policy to the specific AWS service principal
     that will assume the role (e.g. ec2.amazonaws.com,
     lambda.amazonaws.com).
-  - Add condition blocks to the trust policy to restrict assumption
-    and prevent confused-deputy attacks — use conditions like
-    StringEquals on aws:SourceAccount or aws:SourceArn.
+  - To prevent confused-deputy attacks, add `aws:SourceAccount` or
+    `aws:SourceArn` conditions to the trust policy only for services
+    that document support for them when assuming the role. Do not
+    add them for `ec2.amazonaws.com` (instance profiles) or any
+    service that does not send these keys, or the role cannot be
+    assumed.
   - Attach managed policies using additive attachments. Never use
     authoritative policy attachment resources, as they remove other
     attachments on the same policy.
@@ -29,5 +32,8 @@ body: |
   - Set a permissions boundary when the organization enforces IAM
     boundaries to cap effective permissions.
   - Use a path (e.g. /app/) to organize roles hierarchically and
-    enable path-based IAM policy scoping.
-  - Apply standard tags: Name.
+    enable path-based IAM policy scoping. `name` and `path` apply at
+    creation; on an existing role or policy they force replacement,
+    which breaks every instance profile and trust reference to it.
+    Never retrofit them unless asked.
+  - Policy attachments take no tags.

@@ -21,7 +21,6 @@ import {
 import { composeFileArtifacts } from "@/utils/diffUtils";
 import { normalizeHistory } from "@/types/api";
 import type {
-  HistoryEntry,
   CodeChangeRef,
   ComplianceCheckRef,
   ReportRef,
@@ -29,7 +28,7 @@ import type {
   SessionDetail,
   TerraformPlanRef,
 } from "@/types/api";
-import type { ComplianceReport, TerraformReport, PlanSummary } from "@/types";
+import type { ComplianceReport, TerraformReport } from "@/types";
 import type { ApplyResultsData, Session } from "@/types/ui";
 
 // ─── Outcome model ─────────────────────────────────────────────
@@ -284,8 +283,8 @@ async function fetchRoundArtifacts(
 
 /**
  * Reconstruct the latest round's outcome from the session detail and its
- * artifacts. Accepts a session id (fetched with history for chat rebuild)
- * or an already-fetched detail. Artifact fetches get one detail-refetch
+ * artifacts. Accepts a session id (fetched with the conversation, for the
+ * chat rebuild) or an already-fetched detail. Artifact fetches get one detail-refetch
  * retry: presigned URLs outlive the cached detail's 24h TTL, so a stale
  * URL (403) is fixed by re-reading the session.
  */
@@ -294,7 +293,7 @@ export async function resolveSessionOutcome(
 ): Promise<SessionOutcome> {
   let detail =
     typeof source === "string"
-      ? await getSessionDetail(source, { includeHistory: true })
+      ? await getSessionDetail(source, { includeChatHistory: true })
       : source;
 
   let round = detail.rounds[detail.rounds.length - 1];
@@ -335,7 +334,7 @@ export async function resolveSessionOutcome(
       } catch {
         // Same stale-presigned-URL retry as the results path below.
         const fresh = await getSessionDetail(detail.uuid, {
-          includeHistory: true,
+          includeChatHistory: true,
         });
         const freshRound = fresh.rounds.find((r) => r.id === priorRound.id);
         if (!freshRound) throw new Error("prior round vanished");
@@ -357,7 +356,9 @@ export async function resolveSessionOutcome(
   try {
     artifacts = await fetchRoundArtifacts(round, codeRounds(detail, round));
   } catch {
-    detail = await getSessionDetail(detail.uuid, { includeHistory: true });
+    detail = await getSessionDetail(detail.uuid, {
+      includeChatHistory: true,
+    });
     round =
       detail.rounds.find((r) => r.id === round.id) ??
       detail.rounds[detail.rounds.length - 1];
@@ -371,6 +372,21 @@ export async function resolveSessionOutcome(
 }
 
 // ─── Session-context projection ────────────────────────────────
+
+/**
+ * Find the single PR for this session across all rounds, if one exists.
+ * A session has at most one PR; rounds after it was created carry no new
+ * `PullRequestRef`, so scan backwards for the first hit.
+ */
+export function findSessionPr(
+  detail: SessionDetail,
+): { number: number; url: string } | null {
+  for (let i = detail.rounds.length - 1; i >= 0; i--) {
+    const prs = detail.rounds[i].pull_requests;
+    if (prs.length > 0) return { number: prs[0].number, url: prs[0].url };
+  }
+  return null;
+}
 
 /** Map an outcome onto the UI Session shape. */
 export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
@@ -390,13 +406,9 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     workspace: detail.workspace,
     current_status: detail.current_status,
     is_blocked: detail.is_blocked,
-    history: normalizeHistory(detail.history),
+    history: normalizeHistory(detail.chat_history),
   };
 
-  // `planTargets` and `newFiles` are assigned whenever `code` is, never
-  // omitted: the patch is merged into the existing session, so leaving a key
-  // out would keep the previous round's addresses labelling this round's
-  // plan, or tint the wrong file as new.
   if (outcome.kind === "results") {
     patch.terraform_report = outcome.report ?? undefined;
     patch.compliance_report = outcome.compliance ?? undefined;
@@ -411,24 +423,19 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
     patch.code = outcome.prior.code;
     patch.planTargets = outcome.prior.planTargets ?? [];
     patch.newFiles = outcome.prior.newFiles ?? [];
+  } else {
+    // Rejected without prior artifacts: clear all artifact fields so a
+    // previously loaded session's stale state doesn't bleed through the
+    // shallow merge in updateSession.
+    patch.terraform_report = undefined;
+    patch.compliance_report = undefined;
+    patch.code = undefined;
+    patch.planTargets = undefined;
+    patch.newFiles = undefined;
+    patch.applyResults = undefined;
   }
 
   return patch;
-}
-
-/**
- * Append the round's assistant summary unless the fetched history already
- * ends with it — the backend persists a rejected round's rationale into the
- * history itself, so an unconditional append would show it twice.
- */
-export function appendAssistantMessage(
-  history: HistoryEntry[] | undefined,
-  content: string,
-): HistoryEntry[] {
-  const base = history ?? [];
-  const last = base[base.length - 1];
-  if (last?.role === "assistant" && last.content === content) return base;
-  return [...base, { role: "assistant", content }];
 }
 
 /** The apply-results panel data for an apply round. */
@@ -443,34 +450,4 @@ export function buildApplyResults(
     timestamp: outcome.detail.updated_at,
     applyReport: outcome.report ?? null,
   };
-}
-
-/** The assistant chat entry summarizing what the round produced. */
-export function buildAssistantMessage(outcome: SessionOutcome): string {
-  switch (outcome.kind) {
-    case "rejected":
-      return outcome.rationale;
-    case "failed":
-      return outcome.message;
-    case "apply-results":
-      return outcome.report?.execution_summary || "Apply finished.";
-    case "results": {
-      const report = outcome.report;
-      if (outcome.detail.operation === "drift") {
-        if (typeof report?.summary === "string") return report.summary;
-      }
-      if (outcome.detail.operation === "import") {
-        if (report?.execution_summary) return report.execution_summary;
-      }
-      if (report?.potential_impact?.summary) {
-        return report.potential_impact.summary;
-      }
-      const counts = report?.summary;
-      if (counts && typeof counts === "object" && "create" in counts) {
-        const c = counts as PlanSummary;
-        return `Plan ready: ${c.create} to create, ${c.update} to update, ${c.delete} to delete, ${c.recreate} to recreate.`;
-      }
-      return "Your infrastructure changes are ready for review.";
-    }
-  }
 }

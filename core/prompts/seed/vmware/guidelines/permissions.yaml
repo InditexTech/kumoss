@@ -11,8 +11,10 @@ body: |
     group) to a role (a set of privileges) on an inventory object,
     optionally propagating to its children.
   - Grant the narrowest role on the narrowest object: a VM folder,
-    resource pool, datastore or port group — not the datacenter or
-    the vCenter root.
+    resource pool, datastore or port group. Never grant on the
+    datacenter or the vCenter root by default; do so only on an
+    explicit user request, and with `propagate = true` there only
+    when the request says so.
   - Use `propagate = true` only on folders and resource pools that
     exist for the workload being granted.
 
@@ -33,13 +35,18 @@ body: |
     resource pools, datastores and networks.
 
   ## Credentials
-  - The provider reads `VSPHERE_SERVER`, `VSPHERE_USER` and
-    `VSPHERE_PASSWORD` from the environment; never set `user` or
-    `password` in the provider block.
-  - Guest OS passwords and keys come from variables marked
-    `sensitive = true`; never default them.
-  - Keep TLS verification on (`allow_unverified_ssl = false`) and
-    trust the vCenter certificate through the system CA store.
+  - The IaC engine supplies `VSPHERE_SERVER`, `VSPHERE_USER` and
+    `VSPHERE_PASSWORD` from its environment; never set `user` or
+    `password` in the provider block and never add credential
+    variables.
+  - Guest OS passwords are generated with `random_password` (the
+    value lands in the state; outputs carrying it are
+    `sensitive = true`); never declare a required variable for them.
+  - TLS verification is controlled by the engine environment
+    (`VSPHERE_ALLOW_UNVERIFIED_SSL`, set only in labs); never set
+    `allow_unverified_ssl` in code. Outside labs verification stays
+    on and the vCenter certificate is trusted through the system CA
+    store.
 
   Replace this body with your organization's authoritative access
   standards.

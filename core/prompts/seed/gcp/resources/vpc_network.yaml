@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: GCP VPC Network default configuration (custom mode, routing, firewall).
+description: GCP VPC Network default configuration (custom mode, routing, Shared VPC).
 body: |
   # GCP VPC Network
 
@@ -10,16 +10,24 @@ body: |
   following default configuration:
 
   - Naming convention: `vpc-<application>-<environment>`.
-  - Always use custom subnet mode (auto_create_subnetworks disabled).
-    Auto mode creates a /20 subnet per region, which is wasteful
-    and creates an unnecessarily large attack surface.
-  - Routing mode set to REGIONAL to keep the blast radius small.
-    Only switch to GLOBAL when the request explicitly requires
+  - Always use custom subnet mode (`auto_create_subnetworks =
+    false`). Auto mode creates a subnet in every region, which is
+    wasteful and creates an unnecessarily large attack surface.
+  - Routing mode set to `REGIONAL` to keep the blast radius small.
+    Only switch to `GLOBAL` when the request explicitly requires
     cross-region dynamic routing.
-  - Do not delete default routes on create unless the user
+  - Keep `delete_default_routes_on_create = false` unless the user
     explicitly requests a fully isolated network with no internet
     egress.
-  - Subnetworks are defined as separate resources, not inline.
-  - The default network in a project should not be used — always
+  - Keep the default MTU (1460) unless the request needs jumbo
+    frames or must match a peered network.
+  - Subnetworks, firewall rules, routers, and private services
+    access are defined as separate resources, never inline.
+  - The default network in a project must not be used; always
     create explicit VPC networks.
-  - Apply standard labels: environment and managed_by.
+  - For a Shared VPC host, enable it with
+    `google_compute_shared_vpc_host_project` and attach service
+    projects with `google_compute_shared_vpc_service_project`; grant
+    `roles/compute.networkUser` per subnetwork, not per project.
+  - VPC networks do not support labels; describe the network's
+    purpose in `description`.

@@ -66,6 +66,34 @@ class TerraformUtils:
         return resources
 
     @staticmethod
+    def oci_creations_outside(
+        plan_json: dict[str, Any], compartment_ocid: str
+    ) -> list[str]:
+        """The resources a plan creates in a compartment other than the
+        request's, each as ``address (compartment)``.
+
+        OCI has no provider setting that confines a command to a
+        compartment: ``compartment_id`` is a resource argument, so a
+        hardcoded one escapes the scope. Only plain creations count:
+        existing resources stay where they are, the tenancy (root
+        compartment) is where identity resources live, and a compartment
+        still unknown at plan time is one the same plan creates.
+        """
+        outside: list[str] = []
+        for resource in plan_json.get("resource_changes") or []:
+            change: dict[str, Any] = resource.get("change") or {}
+            if change.get("actions") != ["create"]:
+                continue
+            compartment = (change.get("after") or {}).get("compartment_id")
+            if (
+                isinstance(compartment, str)
+                and compartment.startswith("ocid1.compartment.")
+                and compartment != compartment_ocid
+            ):
+                outside.append(f"{resource['address']} ({compartment})")
+        return outside
+
+    @staticmethod
     def __get_resource_changes(plan: dict[str, Any]) -> list[dict[str, Any]]:
         changed_resources: list[dict[str, Any]] = []
         if not plan.get("resource_changes"):

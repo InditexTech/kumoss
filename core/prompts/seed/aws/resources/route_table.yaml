@@ -1,0 +1,31 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS route table default configuration (per-AZ private tables, explicit associations, standalone routes).
+body: |
+  # AWS Route Table
+
+  For route tables, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `rtb-<application>-<tier>-<environment>` for
+    the public table and `rtb-<application>-<tier>-<az>-<environment>`
+    for private tables.
+  - One public route table for all public subnets, with
+    `0.0.0.0/0` (and `::/0` for IPv6) to the Internet Gateway.
+  - One private route table per AZ per tier, with `0.0.0.0/0` to the
+    NAT Gateway in the same AZ. Non-production with a single NAT
+    Gateway points every private table at it.
+  - Define routes as separate `aws_route` resources; never mix
+    inline `route` blocks with `aws_route` on the same table.
+  - Associate every subnet explicitly with
+    `aws_route_table_association`. Leave the VPC main route table
+    with only the local route and do not change it with
+    `aws_main_route_table_association`.
+  - Attach S3 and DynamoDB gateway endpoints to every private table
+    (see `vpc_endpoint`).
+  - Changing or replacing a route moves live traffic and can
+    interrupt connectivity for every subnet using the table; state
+    it in the summary.
+  - Routes and route table associations take no tags.

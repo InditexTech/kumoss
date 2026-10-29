@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes PriorityClass default configuration (priority value, preemption policy, global default).
+body: |
+  # Kubernetes PriorityClass
+
+  For a PriorityClass, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Resource type: `kubernetes_priority_class_v1` (cluster-scoped).
+  - Naming convention: `<app>-<purpose>-pc`. Never use a name
+    starting with `system-` — reserved for Kubernetes
+    (`system-cluster-critical`, `system-node-critical`).
+  - `value`: an integer up to 1000000000; higher values are
+    reserved for system classes. Leave room between classes (e.g.,
+    `100000` high, `10000` default, `1000` batch).
+  - `value` cannot be changed in place; changing it makes Terraform
+    replace the PriorityClass (+/-). Running pods keep their
+    priority until restarted.
+  - `global_default = false`. Never make a class the global default
+    unless requested — it changes the priority of every new pod in
+    the cluster.
+  - `preemption_policy = "PreemptLowerPriority"` (default) only for
+    genuinely critical workloads; use `"Never"` for workloads that
+    should be scheduled ahead in the queue without evicting others.
+  - Set a `description` explaining when the class should be used.

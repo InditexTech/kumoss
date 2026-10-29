@@ -35,6 +35,7 @@ import { useBrowserNotification } from "@/hooks/useBrowserNotification";
 import { STRINGS } from "@/constants/strings";
 
 const SSE_INACTIVITY_TIMEOUT_MS = 90_000;
+const OUTCOME_SETTLE_DELAY_MS = 2_000;
 
 // ─── State machine ─────────────────────────────────────────────
 
@@ -216,7 +217,10 @@ export function useTerraformActions() {
             eventSourceRef.current = null;
             clearInactivityTimer();
 
-            resolveSessionOutcome(sessionId)
+            new Promise<void>((resolve) =>
+              setTimeout(resolve, OUTCOME_SETTLE_DELAY_MS),
+            )
+              .then(() => resolveSessionOutcome(sessionId))
               .then((outcome) => settleOutcome(outcome, sessionId))
               .catch(() =>
                 settleOutcome(
@@ -288,6 +292,9 @@ export function useTerraformActions() {
                 result.status === "failed"
               ) {
                 try {
+                  await new Promise<void>((resolve) =>
+                    setTimeout(resolve, OUTCOME_SETTLE_DELAY_MS),
+                  );
                   const outcome = await resolveSessionOutcome(sessionId);
                   settleOutcome(outcome, sessionId);
                 } catch {

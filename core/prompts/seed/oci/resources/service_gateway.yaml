@@ -1,0 +1,34 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI Service Gateway default configuration (Oracle Services Network access from private subnets).
+body: |
+  # OCI Service Gateway
+
+  For a Service Gateway, unless explicitly requested otherwise, use
+  the following default configuration:
+
+  - Naming convention: `sgw-<application>-<environment>`.
+  - One Service Gateway per VCN (`oci_core_service_gateway`).
+  - Services: read the region's "All <region> Services In Oracle
+    Services Network" entry from `data "oci_core_services"`
+    (filter on `name` with a regex such as
+    `All .* Services In Oracle Services Network`) and pass its `id`
+    in the `services` block. Use the Object Storage-only entry only
+    when the user restricts access to Object Storage.
+  - Route rule in every private subnet route table:
+    `destination` = the service's `cidr_block` label (e.g.
+    `all-fra-services-in-oracle-services-network`),
+    `destination_type = "SERVICE_CIDR_BLOCK"`, and
+    `network_entity_id` = the Service Gateway. Keep the
+    `0.0.0.0/0` rule to the NAT Gateway alongside it.
+  - Do not add the all-services rule to route tables that route to
+    an Internet Gateway; public subnets reach Oracle services
+    through the Internet Gateway.
+  - Security list or NSG egress to the service: TCP 443 with
+    `destination_type = "SERVICE_CIDR_BLOCK"` and the same label.
+  - Traffic through the gateway stays on the Oracle network and has
+    no data-processing charge, so prefer it over the NAT Gateway for
+    Object Storage, Autonomous Database and OCI APIs.
+  - Leave `block_traffic` false.

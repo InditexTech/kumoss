@@ -10,7 +10,13 @@ body: |
   the following default configuration:
 
   - Naming convention: `sl-<purpose>-<application>-<environment>`.
-  - Do not modify the VCN default security list — create a new one.
+  - Create dedicated security lists for subnets. For a VCN created
+    in the same request, also manage its default security list with
+    `oci_core_default_security_list` and lock it down: keep ICMP
+    type 3 code 4 (path MTU discovery) and the required egress, and
+    leave out the `0.0.0.0/0` port 22 ingress OCI adds by default.
+    On existing VCNs, change the default security list only on
+    explicit request.
   - All rules should be stateful unless the user explicitly
     requests stateless rules for high-throughput scenarios.
   - Egress: allow all outbound traffic (0.0.0.0/0, all protocols)
@@ -18,12 +24,13 @@ body: |
   - Ingress: deny all by default. Only open specific ports:
     - Port 443 (HTTPS) from required source CIDRs.
     - Port 80 (HTTP) only if explicitly requested.
-    - SSH (port 22) only from bastion subnet CIDRs, never from
-      0.0.0.0/0.
+    - SSH (port 22) only from bastion subnet CIDRs or the OCI
+      Bastion service, never from `0.0.0.0/0` or `::/0`.
     - Application-specific ports only from the subnets that need
       them.
-  - Use CIDR blocks as sources, not 0.0.0.0/0, for non-HTTP/HTTPS
-    ingress rules.
+  - Use CIDR blocks as sources, not `0.0.0.0/0` or `::/0`, for
+    non-HTTP/HTTPS ingress rules.
+  - Rules are inline lists; editing them rewrites the whole list
+    in place, so a wrong rule affects every subnet that uses it.
   - Prefer Network Security Groups over Security Lists for
     resource-level granularity when possible.
-  - Apply freeform tags: Name.

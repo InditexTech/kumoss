@@ -8,22 +8,37 @@ body: |
 
   When the user's request mentions one of these resources, select the
   matching template. The name on the left is the literal prompt name
-  in this Phoenix repository.
+  in this Phoenix repository. Select every template the request
+  touches: a managed instance group also needs `instance_template`,
+  and a public load balancer also needs `cloud_armor`.
 
+  - `artifact_registry` — Artifact Registry repository for container images and packages.
   - `bigquery` — BigQuery dataset and tables.
+  - `cloud_armor` — Cloud Armor security policy (WAF, rate limiting, DDoS) for load balancers.
+  - `cloud_dns` — Cloud DNS managed zone and record sets.
+  - `cloud_functions` — Cloud Run function (2nd-gen Cloud Functions).
+  - `cloud_kms` — Cloud KMS key ring and crypto key (CMEK).
   - `cloud_nat` — Cloud NAT gateway for private subnet outbound access.
   - `cloud_router` — Cloud Router for dynamic routing.
   - `cloud_run` — Cloud Run service with IAM and networking.
   - `cloud_sql_postgres` — Cloud SQL PostgreSQL instance.
+  - `compute_instance` — Standalone Compute Engine virtual machine (VM).
   - `firewall` — VPC firewall rule.
-  - `gke_autopilot` — GKE Autopilot cluster.
+  - `gke_autopilot` — GKE Autopilot cluster (default for Kubernetes).
+  - `gke_standard` — GKE Standard cluster with node pools.
+  - `instance_template` — Compute Engine instance template for managed instance groups.
   - `load_balancer` — HTTP(S) or TCP/UDP load balancer.
+  - `managed_instance_group` — Managed instance group (MIG) with autohealing, autoscaler, and health check; also covers unmanaged instance groups.
+  - `memorystore_redis` — Memorystore for Redis instance.
+  - `persistent_disk` — Persistent disk or Hyperdisk volume with snapshot schedule.
   - `project` — GCP project (created via google_project).
+  - `pubsub` — Pub/Sub topic and subscription.
+  - `secret_manager` — Secret Manager secret.
   - `service_account` — IAM service account.
   - `spanner` — Cloud Spanner instance and database.
   - `storage_bucket` — Cloud Storage bucket.
   - `subnetwork` — Subnetwork within a VPC.
-  - `vertex` — Vertex AI endpoint, model, and training.
+  - `vertex` — Vertex AI endpoint, model, training, and Workbench.
   - `vpc_network` — VPC network (custom-mode).
 
   This list is the source of truth. Adding a new

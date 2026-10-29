@@ -1,0 +1,92 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Compute Engine instance default configuration (identity, Shielded VM, OS Login, disks, scheduling).
+body: |
+  # GCP Compute Engine Instance
+
+  For a standalone Compute Engine instance, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  ## When to use
+  - Use a standalone `google_compute_instance` only for singleton
+    workloads (a license server, a single stateful node, a
+    development box). For stateless, scalable, or production web
+    workloads, use an `instance_template` with a regional
+    `managed_instance_group` for autohealing and autoscaling.
+
+  ## Machine and image
+  - Naming convention: `vm-<application>-<role>-<environment>`.
+  - Machine type: `e2-small` or `e2-medium` for non-production;
+    general-purpose families (`n2-standard-*`, `n4-standard-*`,
+    `c4-standard-*`) for production, sized to the workload. Prefer
+    Arm-based `c4a-*` or `t2a-*` only when the workload has arm64
+    images.
+  - Place the instance in a zone of the workspace region read from
+    `data "google_compute_zones" "available"`.
+  - Boot from a public image family passed as a string (e.g.
+    `debian-cloud/debian-12`), or the organization's hardened image
+    family when the workspace references one, so new image releases
+    do not force replacement of the instance.
+
+  ## Disks
+  - Boot disk type `pd-balanced`, or `hyperdisk-balanced` on machine
+    series that only support Hyperdisk (C4, N4, C4A), at least
+    20 GB, with `auto_delete = true`.
+  - Keep application data on separate `persistent_disk` resources
+    attached to the instance, so the data outlives the instance.
+  - Encryption: Google-managed keys by default; set
+    `kms_key_self_link` only when CMEK is requested.
+
+  ## Networking
+  - Attach `network_interface` to a subnetwork of a custom VPC,
+    never the `default` network, with no `access_config` block (no
+    external IP).
+  - Egress to the internet through Cloud NAT; administrative access
+    through IAP TCP forwarding with a firewall rule from
+    `35.235.240.0/20` targeted at the instance's service account.
+  - `can_ip_forward = false`.
+
+  ## Identity and access
+  - Attach a dedicated service account (`service_account { email
+    = ..., scopes = ["cloud-platform"] }`) and control access with
+    IAM roles on that account, not with access scopes. Never use
+    the Compute Engine default service account.
+  - Metadata: `enable-oslogin = "TRUE"` and `block-project-ssh-keys
+    = "TRUE"`. Never set `ssh-keys` or `serial-port-enable`.
+  - When the request asks for user access, grant
+    `roles/compute.osLogin` (or `roles/compute.osAdminLogin` for
+    administrators) and `roles/iap.tunnelResourceAccessor` to a
+    group.
+
+  ## Hardening
+  - `shielded_instance_config` with `enable_secure_boot`,
+    `enable_vtpm`, and `enable_integrity_monitoring` all `true`.
+  - Confidential VM only on request.
+  - `deletion_protection = true` for production instances.
+
+  ## Availability and maintenance
+  - `scheduling` with `on_host_maintenance = "MIGRATE"` and
+    `automatic_restart = true`. Use `provisioning_model = "SPOT"`
+    only for fault-tolerant, non-production batch work on request.
+  - Leave `allow_stopping_for_update` unset. Set it to `true` only
+    when the request changes an argument that requires stopping the
+    instance (machine type, service account, Shielded VM settings),
+    and state in the summary that the instance will restart.
+
+  ## Configuration and cost
+  - Configure the guest only through `metadata_startup_script` or
+    cloud-init `user-data` metadata — never provisioners. Never put
+    secrets in them; read secrets from Secret Manager at boot.
+  - Install the Ops Agent through the image or a VM Manager OS
+    policy assignment for logs and metrics.
+  - Non-production instances get an instance schedule: a
+    `google_compute_resource_policy` named
+    `rp-<application>-<environment>-schedule` with
+    `instance_schedule_policy` (e.g. start 07:00 and stop 20:00 on
+    weekdays in the team's time zone), attached through
+    `resource_policies`. The Compute Engine service agent
+    (`service-<project-number>@compute-system.iam.gserviceaccount.com`)
+    needs `roles/compute.instanceAdmin.v1` to start and stop the
+    instance.

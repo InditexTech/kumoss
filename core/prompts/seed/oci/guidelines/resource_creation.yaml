@@ -14,42 +14,154 @@ body: |
     required_providers {
       oci = {
         source  = "oracle/oci"
-        version = "~> 6.0"
+        version = "~> 9.0"
       }
     }
   }
 
-  provider "oci" {
-    region = var.region
-  }
+  provider "oci" {}
   ```
 
-  Authentication is typically handled via instance principal,
-  resource principal, or API key configuration outside of Terraform
-  files. Never hardcode credentials in provider blocks.
+  - The IaC engine supplies authentication and the region from its
+    environment: the `oci` provider reads `TF_VAR_region`,
+    `TF_VAR_auth`, `TF_VAR_tenancy_ocid` and the API-key or
+    config-file variables as its own defaults. Do not set `region`
+    on the default provider and do not add a variable for it.
+  - Never set `tenancy_ocid`, `user_ocid`, `fingerprint`,
+    `private_key`, `private_key_path`, `private_key_password`,
+    `auth`, or `config_file_profile` in a provider block.
+  - Never add, change, or remove a `backend` or `cloud` block. State
+    is configured outside the generated code: by Kumoss, or by the
+    backend block a repository already declares.
+  - Identity writes (compartments, policies, dynamic groups, groups,
+    tag namespaces) go through a home-region provider alias whose
+    region comes from the tenancy's region subscriptions (see the
+    permissions guidelines):
+
+    ```hcl
+    data "oci_identity_region_subscriptions" "home" {
+      tenancy_id = var.tenancy_ocid
+      filter {
+        name   = "is_home_region"
+        values = [true]
+      }
+    }
+
+    provider "oci" {
+      alias  = "home"
+      region = data.oci_identity_region_subscriptions.home.region_subscriptions[0].region_name
+    }
+    ```
+
+  ## Input variables
+  - The request's target compartment arrives as the input variable
+    `compartment_ocid`: the IaC engine sets it per request from the
+    request's scope. Declare `variable "compartment_ocid"` with a
+    type, a description and no default, under exactly that name, and
+    pass it as `compartment_id` to every resource the request
+    creates. Never hardcode a compartment OCID or give the variable a
+    default. Keep a differently named compartment variable only when
+    the workspace already sets it itself (for example in a tfvars
+    file).
+  - `tenancy_ocid` is an ordinary Terraform variable that the
+    engine does not inject: the deployment must set it as
+    `TF_VAR_tenancy_ocid`. Declare it (type, description, no
+    default) in these two cases only:
+    - resources that must live in the root compartment (dynamic
+      groups, policies with tenancy-scope statements, and top-level
+      compartments created under the root on explicit request);
+    - the home-region lookup (`oci_identity_region_subscriptions`)
+      behind the provider alias for identity writes.
+    Everything else, availability-domain lookups included, uses
+    `var.compartment_ocid`. A new compartment's parent is
+    `var.compartment_ocid`.
+  - Never add other required variables that have no default and no
+    source. Derive values from data sources (availability domains,
+    images, the Object Storage namespace through
+    `data "oci_objectstorage_namespace"`, Oracle Services Network
+    entries) or from resource references.
 
   ## Compartments
   - Every OCI resource belongs to a compartment.
   - Use a dedicated compartment per application or environment.
-  - Reference compartments by OCID via variables, not hardcoded
-    strings.
-  - The root compartment (tenancy) should only contain
-    compartments, not direct resources.
+  - Reference compartments by OCID through variables or resource
+    references, not hardcoded strings.
+  - Do not place workload resources in the root compartment
+    (tenancy). It holds compartments, plus the identity resources
+    that must live there: dynamic groups and policies with
+    tenancy-scope statements.
 
   ## Tagging
-  Every resource that supports `freeform_tags` carries at minimum:
-  - `environment` — `dev`, `staging`, or `prod`.
-  - `owner` — team or individual responsible.
-  - `managed_by` — set to `terraform`.
+  Apply the standard tags (`local.standard_tags`, defined in
+  `standard_tags.tf` as the general Terraform guidelines describe)
+  as freeform tags on every resource that supports them:
+  `freeform_tags = merge(local.standard_tags, { ... })` with any
+  resource-specific tags. Some resources take no tags (DNS record
+  sets, route and security rules defined inline or as separate rule
+  resources, DRG route distribution statements, File Storage exports
+  and export sets, Bastion sessions); never add tag arguments to
+  them.
 
   Use defined tags (tag namespaces) when the organization enforces
-  tag value validation or cost tracking.
+  tag value validation or cost tracking. Tenancy tag defaults often
+  inject defined tags such as `Oracle-Tags.CreatedBy` and
+  `Oracle-Tags.CreatedOn` at creation. On every tagged resource add
 
-  ## Regions
-  - Default to a single primary region per environment.
+  ```hcl
+  lifecycle {
+    ignore_changes = [
+      defined_tags["Oracle-Tags.CreatedBy"],
+      defined_tags["Oracle-Tags.CreatedOn"],
+    ]
+  }
+  ```
+
+  so the plan does not show a permanent diff, and merge it with any
+  other lifecycle arguments the resource needs.
+
+  ## Regions, availability domains and fault domains
+  - Default to a single primary region per environment: the one the
+    engine supplies, or the one the workspace already uses.
   - Use OCI region identifiers (e.g. `eu-frankfurt-1`,
     `eu-madrid-1`, `us-ashburn-1`).
-  - For disaster recovery, use a paired region in the same realm.
+  - Keep data in the region the request or the workspace names;
+    never move it to another region as a side effect. For disaster
+    recovery, use a paired region in the same realm.
+  - Availability domain names are tenancy-specific (e.g.
+    `Uocm:EU-FRANKFURT-1-AD-1`) and many regions have a single AD.
+    Never hardcode AD or fault domain names: read ADs from
+    `data "oci_identity_availability_domains"` (`compartment_id =
+    var.compartment_ocid`; any compartment in the tenancy returns
+    the same list) and fault domains from
+    `data "oci_identity_fault_domains"` for a given AD.
+  - Spread redundant resources across ADs when the region has
+    several, otherwise across the three fault domains of the single
+    AD. Index the data-source lists with `length()`-based modulo
+    arithmetic so the same code works in both kinds of region.
+  - Single-AD resources (block volumes, file systems, mount targets,
+    MySQL DB systems) go in the same AD as their consumers; take it
+    from the consuming resource rather than picking a fixed index.
+  - Prefer regional resources (regional subnets, instance pools and
+    node pools with one placement per AD) for production workloads.
+
+  ## Deletion safeguards
+  - Keep the protective service defaults: MySQL `deletion_policy`
+    with `is_delete_protected = true`, compartments with
+    `enable_delete = false`, automatic database backups on, and
+    customer-managed keys kept once set.
+  - Add `lifecycle { prevent_destroy = true }` to stateful
+    production resources (Autonomous Databases, MySQL DB systems,
+    block and boot volumes, File Storage file systems, Object
+    Storage buckets, vaults and keys, container repositories).
+  - Never retrofit a replacement-forcing setting onto an existing
+    resource without an explicit request. Many OCI arguments cannot
+    change after creation, and changing one turns the plan into a
+    destroy-and-recreate. Each resource template lists the arguments
+    that force its replacement. Most resources move between
+    compartments in place, but a few replace on a `compartment_id`
+    change.
+  - State every replacement and its impact explicitly in the
+    summary.
 
   Replace this body with your organization's authoritative OCI
   resource-creation standards.

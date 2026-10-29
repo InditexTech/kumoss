@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: AWS Bedrock default configuration (model access, guardrails, logging, VPC).
+description: AWS Bedrock default configuration (model use, guardrails, invocation logging, VPC).
 body: |
   # AWS Bedrock
 
@@ -10,11 +10,15 @@ body: |
   otherwise, use the following default configuration:
 
   ## Model access
-  - Request model access only for the specific foundation models
-    the user needs. Do not request access to all available models.
+  - Foundation-model access is not managed in Terraform. It is
+    granted per account and region outside Terraform (Bedrock
+    console or account-level settings, depending on the model);
+    Terraform only references models by ID or ARN. State this in
+    the summary when the request depends on a model being enabled.
   - Prefer on-demand throughput for variable workloads. Use
     Provisioned Throughput only when the user explicitly requests
-    guaranteed capacity or has negotiated commitments.
+    guaranteed capacity or has negotiated commitments (it is billed
+    hourly with a commitment term).
 
   ## Custom models (fine-tuning)
   - Store training data in an S3 bucket following the S3 bucket
@@ -35,16 +39,30 @@ body: |
   - Enable PII detection and redaction when processing user input
     that may contain personal data.
 
-  ## Logging and monitoring
-  - Enable model invocation logging to an S3 bucket and/or
-    CloudWatch Logs for auditability.
+  ## Invocation logging
+  - `aws_bedrock_model_invocation_logging_configuration` is a single
+    setting per account and region: creating it overwrites any
+    existing configuration. Check whether one exists (it may be
+    owned by a platform team) and say so in the summary before
+    adding it.
+  - Deliver logs to an S3 bucket and/or CloudWatch Logs. The S3
+    bucket needs a bucket policy allowing the `bedrock.amazonaws.com`
+    service principal `s3:PutObject` on the log prefix, conditioned
+    on `aws:SourceAccount` and `aws:SourceArn`
+    (`arn:aws:bedrock:<region>:<account-id>:*`). CloudWatch delivery
+    needs an IAM role that Bedrock assumes to write to the log
+    group.
   - Log both input and output data unless privacy requirements
     prohibit it.
-  - Encryption of logs must use KMS.
+  - Logs stay encrypted at rest: the S3 bucket as the S3 bucket
+    template describes, and CloudWatch Logs with its default
+    service-managed encryption. Use a customer-managed KMS key only
+    when the request or the workspace requires one (see
+    `cloudwatch`).
 
   ## Networking
-  - For VPC-isolated access, create a VPC endpoint for Bedrock
-    Runtime so API calls do not traverse the public internet.
+  - For VPC-isolated access, create a VPC interface endpoint for
+    Bedrock Runtime so API calls do not traverse the public internet.
   - Use IAM policies scoped to specific model IDs and actions —
     do not grant bedrock:* wildcard permissions.
 

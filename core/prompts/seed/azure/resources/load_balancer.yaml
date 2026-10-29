@@ -1,0 +1,42 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Load Balancer default configuration (Standard SKU, zone-redundant frontend, probes, rules, outbound).
+body: |
+  # Azure Load Balancer
+
+  For a Load Balancer, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `lbi-<application>-<environment>` for internal
+    and `lbe-<application>-<environment>` for public load balancers.
+  - `azurerm_lb` with `sku = "Standard"` and
+    `location = azurerm_resource_group.<x>.location`. The Basic SKU
+    is retired; never use it. Changing the SKU forces replacement.
+  - Default to an internal load balancer (frontend on a private IP
+    in the workload subnet). Use a public frontend only when the
+    user asks to expose the service to the internet.
+  - Frontend: zone-redundant in regions that support availability
+    zones (state the assumption) — for an internal frontend set
+    `zones = ["1", "2", "3"]`; for a public frontend reference a
+    zone-redundant Standard `public_ip`. Omit zones elsewhere.
+    Frontend zones cannot be changed in place.
+  - Backend: an `azurerm_lb_backend_address_pool`, populated through
+    NIC or scale-set associations.
+  - Health: one `azurerm_lb_probe` per service, preferring HTTP(S)
+    probes on a health endpoint over TCP probes (interval 5 seconds,
+    threshold 2).
+  - Rules: one `azurerm_lb_rule` per exposed port, referencing the
+    probe, with `disable_outbound_snat = true`. Set
+    `floating_ip_enabled` and `tcp_reset_enabled` only when the
+    workload needs them.
+  - Outbound: when the backend subnet has a NAT Gateway, do not add
+    outbound rules; the NAT Gateway handles egress. Add an
+    `azurerm_lb_outbound_rule` with explicit port allocation only on
+    a public load balancer without a NAT Gateway, on request.
+  - NSGs on the backend subnet must allow the `AzureLoadBalancer`
+    service tag for probes and the client sources for each rule.
+  - Enable diagnostic settings (metrics) to a Log Analytics
+    workspace.
+  - Pools, probes, and rules do not support tags.

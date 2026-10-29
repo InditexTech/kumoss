@@ -1,0 +1,36 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Azure Container Registry default configuration (SKU, admin user, private endpoint, identity-based pulls).
+body: |
+  # Azure Container Registry
+
+  For a Container Registry, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  - Naming convention: `acr<application><environment>` — 5-50
+    alphanumeric characters, no hyphens, globally unique. Changing
+    the name forces replacement.
+  - `location = azurerm_resource_group.<x>.location`.
+  - SKU Standard by default. Use Premium only when a private
+    endpoint, disabled public access, geo-replication, or zone
+    redundancy is needed (for production registries reached from
+    private networks it usually is); state the cost in the summary.
+  - `admin_enabled = false`. Never use admin credentials or
+    registry passwords; clients pull with managed identities granted
+    the `AcrPull` role (`AcrPush` for CI) scoped to the registry.
+  - `anonymous_pull_enabled = false`.
+  - Premium: `public_network_access_enabled = false`, a private
+    endpoint in `snet-pe` (subresource `registry`) with a
+    `private_dns_zone_group` to `privatelink.azurecr.io`, and
+    `zone_redundancy_enabled = true` for production in regions that
+    support availability zones (set at creation; changing it forces
+    replacement).
+  - Standard: public access stays on (private endpoints are not
+    available); restrict who can pull through RBAC and say so in the
+    summary.
+  - Enable a retention policy for untagged manifests on Premium
+    (`retention_policy_in_days`, e.g. 7) to control storage cost.
+  - Enable diagnostic settings (login and repository events) to a
+    Log Analytics workspace.

@@ -1,0 +1,38 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: GCP Cloud KMS default configuration (key rings, crypto keys, rotation, service agent access).
+body: |
+  # GCP Cloud KMS
+
+  For Cloud KMS resources, unless explicitly requested otherwise,
+  use the following default configuration:
+
+  ## Key ring
+  - Naming convention: `kr-<application>-<environment>`.
+  - Location matches the resources whose data the keys protect
+    (the same region, or the same multi-region).
+  - Key rings cannot be deleted in GCP and do not support labels.
+
+  ## Crypto key
+  - Naming convention: `kms-<application>-<purpose>-<environment>`.
+  - `purpose = "ENCRYPT_DECRYPT"` for CMEK, with automatic rotation
+    every 90 days (`rotation_period = "7776000s"`).
+  - Protection level `SOFTWARE` by default; `HSM` on request.
+  - Keep the default 30-day `destroy_scheduled_duration`; never
+    shorten it.
+  - Always add `lifecycle { prevent_destroy = true }`: removing a
+    key from Terraform schedules every key version for destruction
+    and makes the data it protects unreadable.
+
+  ## Access
+  - Grant `roles/cloudkms.cryptoKeyEncrypterDecrypter` on the
+    individual key with `google_kms_crypto_key_iam_member`, never at
+    project scope, to the service agent of the consuming service
+    (for example the Cloud Storage service agent read from `data
+    "google_storage_project_service_account"`).
+  - Keep key administration (`roles/cloudkms.admin`) and key use
+    with separate principals.
+  - When the organization uses Cloud KMS Autokey, request keys with
+    `google_kms_key_handle` instead of creating them by hand.

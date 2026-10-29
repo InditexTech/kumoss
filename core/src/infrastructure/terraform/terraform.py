@@ -34,9 +34,12 @@ at the workspace path, which must be visible to the service. ``init``,
 ``scope_id`` (subscription / project / account) together with its
 ``terraform_provider``: generated provider blocks do not name a scope,
 so the service injects it into the engine's environment for those three
-commands where the provider has a variable that names a scope (Azure
-and GCP). ``validate`` and ``show`` reach no cloud API and are
-submitted unscoped.
+commands where the provider has a variable that names a scope (Azure,
+GCP, and the OCI and AWS input variables the generated code declares).
+``validate`` and ``show`` reach no cloud API and are submitted
+unscoped. An OCI compartment is a resource argument, so an OCI ``plan``
+is followed by a ``show`` of its artifact, and a plan that creates
+resources in another compartment fails validation.
 
 Import discovery follows the same planes: a ``state pull`` that exits
 non-zero leaves the managed set unknown, so it is raised, while a
@@ -185,6 +188,13 @@ class Terraform(ITerraform):
                     ),
                     cfg,
                 )
+                # FIXME: ad hoc OCI workaround - AWS, GCP and OCI doesn't bind scope id to terraform scope the same way Azure does (enforced via env variable)
+                scope_feedback = (
+                    await self.__oci_scope_feedback(c, cfg)
+                    if plan_res.exit_code == 0
+                    and self.__terraform_provider is IacTerraformProvider.OCI
+                    else ""
+                )
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
         except httpx.RequestError as e:
@@ -194,6 +204,14 @@ class Terraform(ITerraform):
             return TerraformPlanDTO(
                 ok=False,
                 feedback=plan_res.stderr or "terraform plan failed",
+                stdout=plan_res.stdout,
+                targets=targets,
+                plan=None,
+            )
+        if scope_feedback:
+            return TerraformPlanDTO(
+                ok=False,
+                feedback=scope_feedback,
                 stdout=plan_res.stdout,
                 targets=targets,
                 plan=None,
@@ -388,6 +406,45 @@ class Terraform(ITerraform):
         if init_res is not None:
             return init_res
         return await self.__run_op(client, submit_module, body, cfg)
+
+    async def __oci_scope_feedback(
+        self,
+        client: AuthenticatedClient,
+        cfg: IacServiceConfig,
+    ) -> str:
+        """Feedback naming the resources the session plan creates outside
+        the request's compartment, or "" when there are none.
+
+        The injected ``TF_VAR_compartment_ocid`` only reaches code that
+        uses the variable; this reads the plan itself, so a hardcoded
+        compartment fails validation and goes back to the generator.
+        """
+        show_res = await self.__run_initialized_op(
+            client,
+            show_op,
+            ShowRequest(
+                workspace_path=self.__workspace_path.as_posix(),
+                plan_file=system_config.paths.session_plan_filename,
+            ),
+            cfg,
+        )
+        if show_res.exit_code != 0:
+            return show_res.stderr or "terraform show failed"
+        try:
+            plan_json = json.loads(show_res.stdout)
+        except json.JSONDecodeError as e:
+            raise ExceptionHandler(
+                f"terraform show succeeded but returned unparseable JSON: {e}", 502
+            ) from e
+        outside = TerraformUtils.oci_creations_outside(plan_json, self.__scope_id)
+        if not outside:
+            return ""
+        return (
+            "These resources would be created outside the request's compartment "
+            + f"({self.__scope_id}): {', '.join(outside)}. Set their "
+            + "compartment_id to var.compartment_ocid, or to a compartment this "
+            + "configuration creates under it; never hardcode a compartment OCID."
+        )
 
     @staticmethod
     def __needs_init(res: OperationResult) -> bool:

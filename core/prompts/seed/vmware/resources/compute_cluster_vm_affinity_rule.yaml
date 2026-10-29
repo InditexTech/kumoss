@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere VM affinity rule default configuration (keeping tightly coupled VMs on one host).
+body: |
+  # VMware vSphere VM Affinity Rule
+
+  For a `vsphere_compute_cluster_vm_affinity_rule`, unless
+  explicitly requested otherwise, use the following default
+  configuration:
+
+  - Naming convention: `afr-<application>-<environment>`.
+  - Use an affinity rule only when the user asks to keep VMs
+    together (for example a chatty application and cache pair).
+    Affinity concentrates failure: one host outage takes down every
+    VM in the rule, so never apply it to replicas of the same tier;
+    those need an anti-affinity rule instead.
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `virtual_machine_ids` referencing the virtual machine resources.
+    All VMs must be in that cluster.
+  - `enabled = true` and `mandatory = false` (a preferred rule DRS
+    may break under pressure). A mandatory rule (`mandatory = true`)
+    stops HA and DRS from separating the VMs, which can leave them
+    unable to restart or migrate; use it only when the user asks for
+    a hard rule, and state that risk in the summary.
+  - Never put the same VM in both an affinity and an anti-affinity
+    rule.
+  - Forces replacement: `compute_cluster_id`, `name` — never change
+    these on an existing rule without an explicit request.

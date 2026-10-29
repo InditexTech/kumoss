@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere HA per-VM override default configuration (restart priority, isolation response).
+body: |
+  # VMware vSphere HA VM Override
+
+  For a `vsphere_ha_vm_override`, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Use an override only when a VM needs different HA behaviour
+    from its cluster; otherwise rely on the cluster defaults.
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `virtual_machine_id` referencing the virtual machine resource.
+  - Restart priority: `ha_vm_restart_priority = "high"` for
+    infrastructure dependencies (databases, directory, DNS) that
+    must start first; `"low"` for batch or non-critical VMs.
+    Reserve `"highest"` for a handful of VMs; `"disabled"` only on
+    explicit request, since the VM is then never restarted.
+  - Isolation response: keep `ha_host_isolation_response =
+    "clusterIsolationResponse"`; use `"shutdown"` (clean guest
+    shutdown) for VMs whose data must not be written from two hosts,
+    and avoid `"powerOff"` unless requested.
+  - Leave the other `ha_*` arguments at their cluster defaults
+    unless the user asks for them.
+  - Disabling HA restart for a production VM is high impact; state
+    it in the summary.

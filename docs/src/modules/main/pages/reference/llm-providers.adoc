@@ -106,14 +106,18 @@ must provide:
 * *Long context.* The generator receives the composed conventions, the
   repository excerpts it reads, and the plan output; models with short
   context windows truncate silently.
-* Optional: native `web_search_options` support, which LiteLLM reports
-  per model. Without it the web-search tool falls back to the OpenAI
-  Responses API path, which only works on OpenAI-compatible endpoints.
+Native `web_search_options` support is *not* among them. The web-search
+tool calls a search engine directly and reads the result pages itself,
+so live results need nothing from the provider beyond ordinary
+completions — see
+xref:reference/configuration.adoc#config-web-search[`web_search`].
 
-The shipped models (Claude and Gemini on Vertex AI, `vertex_ai/`, which
-the core's test suite exercises) satisfy all of these, as do the built-in defaults (Anthropic Claude direct,
-`anthropic/`) and the same Claude models on Azure AI Foundry
-(`azure_ai/`). Kumoss has not tested every provider LiteLLM lists.
+The shipped models (Claude Sonnet on Vertex AI for the small role,
+`vertex_ai/`, wired through `llm.model_list`, plus an on-prem
+self-hosted model for the main role — see below) satisfy all of these,
+as do the built-in defaults (Anthropic Claude direct, `anthropic/`) and
+the same Claude models on Azure AI Foundry (`azure_ai/`). Kumoss has
+not tested every provider LiteLLM lists.
 
 == The `provider/model-id` notation
 
@@ -208,9 +212,10 @@ The tables below list the LiteLLM model string format, the environment
 variables LiteLLM reads by default, and the `litellm_params` keys you
 would use instead when writing an `llm.model_list` entry. The lists
 come from LiteLLM's documentation. *Kumoss has not tested every
-provider listed here*; the checked-in `config.yaml` and the code
-defaults both target Anthropic directly (`anthropic/`), and the core's
-test suite
+provider listed here*; the code defaults target Anthropic directly
+(`anthropic/`), while the checked-in `config.yaml` routes the `main`
+alias to a self-hosted OpenAI-compatible endpoint and the `small` alias
+to Vertex AI, and the core's test suite
 (`core/tests/shared/config/test_llm_config.py`) exercises the
 OpenAI-style and Vertex AI validation paths.
 

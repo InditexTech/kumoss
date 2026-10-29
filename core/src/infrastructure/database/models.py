@@ -8,15 +8,15 @@ from datetime import datetime, timezone
 from typing import final, override
 
 from sqlalchemy import (
+    JSON,
+    DateTime,
     ForeignKey,
+    Integer,
     String,
     Text,
-    DateTime,
-    Integer,
-    JSON,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID, ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from src.shared.constants import (
@@ -26,6 +26,8 @@ from src.shared.constants import (
     PanelRole,
     ReportType,
     SessionStatus,
+)
+from src.shared.constants import (
     TerraformProvider as TP,
 )
 
@@ -167,6 +169,7 @@ class History(Base):
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
     first_query: Mapped[str] = mapped_column(Text)
     payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    chat_payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
 
     @override
     def __repr__(self) -> str:

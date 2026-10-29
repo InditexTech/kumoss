@@ -25,4 +25,3 @@ body: |
     specific sources.
   - Never open 0.0.0.0/0 ingress on ports other than 80 and 443.
   - Maximum 5 NSGs per VNIC — plan grouping carefully.
-  - Apply freeform tags: Name.

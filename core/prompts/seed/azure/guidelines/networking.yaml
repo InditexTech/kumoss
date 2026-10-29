@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure networking conventions (VNets, subnets, peering, NSGs).
+description: Azure networking conventions (VNets, subnets, peering, NSGs, private endpoints).
 body: |
   # Azure Networking Guidelines
 
@@ -16,10 +16,17 @@ body: |
   - Allocate `/16` per VNet by default; carve `/24` subnets within.
 
   ## Subnets
-  - Declare subnets as inline `subnet` blocks on the parent
-    `azurerm_virtual_network` resource where the provider allows it.
-  - One subnet per tier: `web`, `app`, `data`, `mgmt`.
-  - Reserve a `/27` for `AzureBastionSubnet` if Bastion is required.
+  - Declare every subnet as a standalone `azurerm_subnet` resource,
+    never as inline `subnet` blocks on `azurerm_virtual_network`.
+    Never mix both styles on the same VNet: the VNet would try to
+    remove the standalone subnets on the next apply.
+  - Attach NSGs and NAT Gateways with
+    `azurerm_subnet_network_security_group_association` and
+    `azurerm_subnet_nat_gateway_association`.
+  - One subnet per tier: `web`, `app`, `data`, `mgmt`, plus a
+    dedicated `snet-pe` for private endpoints.
+  - Reserve a `/26` or larger for `AzureBastionSubnet` if Bastion is
+    required.
 
   ## Network Security Groups
   - One NSG per subnet, named `nsg-<subnet-name>`.
@@ -27,8 +34,27 @@ body: |
   - Outbound `Internet` is allowed only where required.
 
   ## Private endpoints
-  - Prefer private endpoints over service endpoints for PaaS access.
-  - Co-locate the private endpoint in the consumer's subnet.
+  - Use private endpoints for PaaS access by default; add service
+    endpoints only when explicitly requested.
+  - Place private endpoints in a dedicated `snet-pe` subnet.
+    Delegated subnets (App Service, Container Apps, PostgreSQL
+    Flexible Server) cannot host them.
+  - Register each endpoint in DNS through a `private_dns_zone_group`
+    pointing at the matching `privatelink.*` private DNS zone, linked
+    to the VNet (see `private_endpoint` and `private_dns_zone`).
+  - When public network access is disabled, do not also configure
+    IP or VNet firewall rules on the service; they have no effect.
+  - The Kumoss IaC engine runs plan and apply from outside the
+    customer's VNets. When the same configuration writes data-plane
+    objects (Key Vault secrets, keys or certificates, storage
+    containers, blobs or queues), the engine must reach that data
+    plane: either keep public network access enabled behind a
+    default-deny firewall that allows only the engine egress CIDRs
+    the request or workspace provides, or disable it with a private
+    endpoint only when the request or workspace states the engine
+    runs inside the VNet. Never write data-plane objects into a
+    service the engine cannot reach, and state the access path in
+    the summary.
 
   Replace this body with your organization's authoritative networking
   standards.

@@ -16,12 +16,26 @@ body: |
   - Tag naming convention: `cwlog-<application>-<environment>`.
   - Always set a retention period (e.g. 30, 60, or 90 days). The
     default is infinite retention, which accumulates cost over time.
-  - Encrypt log groups with a KMS key. The key policy must grant
-    the CloudWatch Logs service principal (logs.<region>.amazonaws.com)
-    the Encrypt and Decrypt actions.
+  - CloudWatch Logs always encrypts log data at rest with
+    service-managed keys; leave `kms_key_id` unset by default. Use a
+    customer-managed KMS key only when the request or the workspace
+    requires one (reuse an existing logs key rather than creating a
+    new one), in the same region. Its key policy must then allow
+    the CloudWatch Logs service principal
+    (`logs.<region>.amazonaws.com`) `kms:Encrypt*`,
+    `kms:Decrypt*`, `kms:ReEncrypt*`, `kms:GenerateDataKey*`, and
+    `kms:Describe*`, with an `ArnLike` condition on
+    `kms:EncryptionContext:aws:logs:arn` matching
+    `arn:aws:logs:<region>:<account-id>:log-group:<name>` (or a
+    name prefix with `*`). Build the ARNs from the
+    `aws_caller_identity` and `aws_region` data sources
+    (`data.aws_region.current.region` in provider v6).
   - Use STANDARD log group class by default. Use INFREQUENT_ACCESS
     class for log groups that are rarely queried to reduce ingestion
-    costs by approximately 50%.
+    costs by approximately 50%. `name` and `log_group_class` apply at
+    creation; on an existing log group they force replacement and
+    lose the stored logs.
+  - Dashboards take no tags.
 
   ## Metric Alarms
   - Naming convention:

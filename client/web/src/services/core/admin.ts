@@ -4,11 +4,11 @@
 
 import { apiFetch } from "@/services/api";
 import type {
+  AdminSessionDetail,
   AdminUserEntry,
   OperationType,
   PaginatedSessionSummary,
   PaginatedUsers,
-  SessionDetail,
   SessionLockResponse,
   SessionStatus,
   UpdateUserRolesRequest,
@@ -51,14 +51,22 @@ export async function listAdminSessions(
   );
 }
 
-/** GET /api/v1/admin/sessions?id={id} — Any session's full aggregate (panel viewer+) */
+/**
+ * GET /api/v1/admin/sessions?id={id} — Any session's full aggregate
+ * (panel viewer+). `includeChatHistory` populates `chat_history`, the
+ * same conversation the user sees; `includeHistory` populates `history`,
+ * the internal record fed to the LLM, which is debugging material with
+ * no contract. Either flag reads fresh (bypasses the finished-session
+ * cache).
+ */
 export async function getAdminSessionDetail(
   sessionId: string,
-  opts?: { includeHistory?: boolean },
-): Promise<SessionDetail> {
+  opts?: { includeChatHistory?: boolean; includeHistory?: boolean },
+): Promise<AdminSessionDetail> {
   const query = new URLSearchParams({ id: sessionId });
+  if (opts?.includeChatHistory) query.set("include_chat_history", "true");
   if (opts?.includeHistory) query.set("include_history", "true");
-  return apiFetch<SessionDetail>(`${BASE}/sessions?${query}`);
+  return apiFetch<AdminSessionDetail>(`${BASE}/sessions?${query}`);
 }
 
 /** PATCH /api/v1/admin/sessions/{id}/toggle_lock — Lock/unlock apply (panel editor+) */

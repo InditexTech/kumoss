@@ -1,0 +1,46 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: OCI instance configuration default (launch template for instance pools with shape, image, networking, cloud-init).
+body: |
+  # OCI Instance Configuration
+
+  For an instance configuration, unless explicitly requested
+  otherwise, use the following default configuration:
+
+  - Naming convention: `ic-<application>-<role>-<environment>`.
+  - Use `oci_core_instance_configuration` with
+    `instance_details { instance_type = "compute" }` and a
+    `launch_details` block; it is the template an `instance_pool`
+    launches from.
+  - Shape: flexible shapes (`VM.Standard.E5.Flex`, or
+    `VM.Standard.A2.Flex` when the workload supports Arm) with a
+    `shape_config` sized to the workload (1-2 OCPUs for
+    non-production).
+  - Image: the latest Oracle Linux platform image compatible with
+    the shape, read from `data "oci_core_images"` (filtered on
+    operating system, version and shape, sorted by creation time),
+    or the organization's hardened custom image when the workspace
+    references one. Boot volume at least 50 GB.
+  - Networking: `create_vnic_details` with `assign_public_ip =
+    false` and the tier NSG in `nsg_ids`. Availability domain,
+    fault domains and subnet come from the pool's placement
+    configurations.
+  - Disable the legacy IMDSv1 endpoints
+    (`instance_options { are_legacy_imds_endpoints_disabled = true }`)
+    and enable in-transit encryption for the boot volume.
+  - Enable the Oracle Cloud Agent monitoring plugins, and the
+    Bastion plugin when access goes through the `bastion` service.
+  - Configure the guest only through cloud-init in
+    `metadata.user_data` (base64-encoded) — never provisioners.
+    Never put secrets in user data; instances read them from OCI
+    Vault at boot through an instance principal (`dynamic_group`).
+  - Instance configurations are immutable: any change to
+    `instance_details` creates a new configuration. Add
+    `lifecycle { create_before_destroy = true }` so the pool can
+    switch to the new one first. Only instances launched afterwards
+    use it; state in the summary that existing instances keep the
+    old configuration.
+  - Set the standard freeform tags in `launch_details.freeform_tags`
+    too, so the instances it launches carry them.

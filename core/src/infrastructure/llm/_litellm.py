@@ -2,14 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-import asyncio
 import dataclasses
 import json
 
 from typing import Any, cast
 
-import litellm
-from litellm import Choices, Message, ModelResponse, ResponsesAPIResponse, Usage
+from litellm import ModelResponse, Usage
 from litellm.router import Router
 from openai import OpenAIError
 from pydantic import BaseModel
@@ -27,7 +25,6 @@ from src.domains.services.tracer_service import trace_llm
 from src.infrastructure.exceptions import (
     InferenceCallAPIError,
     InferenceCallThinkingToolError,
-    InferenceCallWebSearchTools,
 )
 from src.shared.logger import logging
 
@@ -60,7 +57,6 @@ class LiteLLMAdapter(ILLMProvider):
         tools: list[ToolDefinitionDTO] | None = None,
         history: History = None,
         thinking: bool = False,
-        web_search: bool = False,
         notice: str | None = None,
     ) -> LLMResponseDTO:
         if tools and thinking:
@@ -68,17 +64,6 @@ class LiteLLMAdapter(ILLMProvider):
                 message="Inference cannot be invoked with tools and thinking enabled.",
                 error_code=400,
             )
-        if web_search:
-            if tools:
-                raise InferenceCallWebSearchTools(
-                    message="Inference cannot be invoked with tools and web search enabled.",
-                    error_code=400,
-                )
-            if thinking:
-                raise InferenceCallThinkingToolError(
-                    message="Inference cannot be invoked with thinking and web search enabled.",
-                    error_code=400,
-                )
 
         model_id = self.__model
         max_tokens = self.__max_tokens
@@ -89,55 +74,34 @@ class LiteLLMAdapter(ILLMProvider):
         if system_prompt:
             local_history.insert(0, {"role": "system", "content": system_prompt})
 
-        if web_search and not self.__web_search_is_native():
-            for attempt in range(4):
-                try:
-                    response = await self.__aresponses_web_search(
-                        local_history, max_tokens
-                    )
-                    break
-                except OpenAIError as e:
-                    logging.error(f"LiteLLM aresponses provider error: {e!r}")
+        kwargs: dict[str, Any] = {
+            "model": model_id,
+            "messages": local_history,
+            "max_tokens": max_tokens,
+            "temperature": 1.0 if thinking else self.__temperature,
+            "num_retries": 3,
+            "timeout": self.__timeout,
+        }
 
-                logging.info(f" aresponses retry {attempt + 1}/4 in 30 seconds...")
-                await asyncio.sleep(30)
-            else:
-                raise InferenceCallAPIError(
-                    message=f"Inference calls (aresponses) to {self.__model} have been exhausted.",
-                    error_code=502,
-                )
-        else:
-            kwargs: dict[str, Any] = {
-                "model": model_id,
-                "messages": local_history,
-                "max_tokens": max_tokens,
-                "temperature": 1.0 if thinking else self.__temperature,
-                "num_retries": 3,
-                "timeout": self.__timeout,
-            }
+        if tools:
+            kwargs["tools"] = self.__format_tools(tools)
+            kwargs["tool_choice"] = "auto"
 
-            if tools:
-                kwargs["tools"] = self.__format_tools(tools)
-                kwargs["tool_choice"] = "auto"
+        if thinking:
+            kwargs["reasoning_effort"] = "low"
 
-            if thinking:
-                kwargs["reasoning_effort"] = "low"
-
-            if web_search:
-                kwargs["web_search_options"] = {"search_context_size": "medium"}
-
-            self._last_invocation_params = kwargs
-            try:
-                response = cast(
-                    ModelResponse,
-                    await self.__router.acompletion(**kwargs, drop_params=True),
-                )
-            except OpenAIError as e:
-                logging.error(f"LiteLLM API error: {e!r}")
-                raise InferenceCallAPIError(
-                    message=f"Inference call to {self.__model} failed.",
-                    error_code=getattr(e, "status_code", 502),
-                )
+        self._last_invocation_params = kwargs
+        try:
+            response = cast(
+                ModelResponse,
+                await self.__router.acompletion(**kwargs, drop_params=True),
+            )
+        except OpenAIError as e:
+            logging.error(f"LiteLLM API error: {e!r}")
+            raise InferenceCallAPIError(
+                message=f"Inference call to {self.__model} failed.",
+                error_code=getattr(e, "status_code", 502),
+            )
 
         message = response.choices[0].message
         usage: Usage | None = getattr(response, "usage", None)
@@ -159,65 +123,6 @@ class LiteLLMAdapter(ILLMProvider):
                 for tc in (message.tool_calls or [])
             ],
             thinking=getattr(message, "reasoning_content", None) if thinking else None,
-        )
-
-    def __web_search_is_native(self) -> bool:
-        """Check if the model supports native web search."""
-        model_id = self.__model
-        try:
-            info = litellm.get_model_info(model_id)
-        except Exception:
-            return False
-        params = info.get("supported_openai_params") or []
-        return "web_search_options" in params
-
-    async def __aresponses_web_search(
-        self, messages: list[dict[str, Any]], max_tokens: int
-    ) -> ModelResponse:
-        """Use aresponses to perform web search with models that don't support native web search.
-        Like gpt-5-mini, gpt-5, gpt-4o, gpt-4.1, ...
-        """
-        model_id = self.__model
-
-        aresponses_kwargs: dict[str, Any] = {
-            "model": model_id,
-            "input": messages,
-            "tools": [{"type": "web_search_preview", "search_context_size": "medium"}],
-            "max_output_tokens": max_tokens,
-            "temperature": self.__temperature,
-            "timeout": self.__timeout,
-        }
-        self._last_invocation_params = aresponses_kwargs
-        resp = cast(
-            ResponsesAPIResponse,
-            await self.__router.aresponses(**aresponses_kwargs, drop_params=True),
-        )
-
-        text = ""
-        for item in cast(list[Any], resp.output):
-            content = getattr(item, "content", None)
-            if not isinstance(content, list):
-                continue
-            for block in cast(list[Any], content):
-                block_text = getattr(block, "text", None)
-                if isinstance(block_text, str):
-                    text += block_text
-
-        usage = resp.usage
-        return ModelResponse(
-            model=resp.model or model_id,
-            choices=[
-                Choices(
-                    index=0,
-                    message=Message(content=text, role="assistant"),
-                    finish_reason="stop",
-                )
-            ],
-            usage=Usage(
-                prompt_tokens=usage.input_tokens if usage else 0,
-                completion_tokens=usage.output_tokens if usage else 0,
-                total_tokens=usage.total_tokens if usage else 0,
-            ),
         )
 
     def __format_tools(self, tools: list[ToolDefinitionDTO]) -> list[dict[str, Any]]:

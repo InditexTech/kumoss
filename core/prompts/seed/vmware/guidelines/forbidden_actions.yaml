@@ -31,28 +31,46 @@ body: |
     native VLAN.
 
   ## Identity and access
-  - Provider blocks with `allow_unverified_ssl = true` outside of an
-    explicitly requested lab environment.
+  - Provider blocks with `allow_unverified_ssl = true` (or any
+    `allow_unverified_ssl`, `vsphere_server`, `user` or `password`
+    argument): TLS verification and credentials come from the IaC
+    engine's environment, which enables unverified TLS only in labs.
   - Assigning the built-in `Administrator` role, or a custom role with
     all privileges, to any principal.
   - Entity permissions on the vCenter root folder or a datacenter
     with `propagate = true` without an explicit user request.
+  - `vsphere_entity_permissions` on an object not created in the same
+    workspace: the resource is authoritative and removes permissions
+    granted outside Terraform.
   - Permissions granted to individual users instead of SSO groups.
-  - vCenter credentials, guest OS passwords or private keys in
-    Terraform code, outputs, `extra_config`, `vapp` properties or
-    customization specs. Read them from sensitive variables.
+  - Literal vCenter credentials, guest OS passwords, private keys or
+    tokens in Terraform code, variable defaults, outputs,
+    `extra_config`, `vapp` properties or `customize` blocks. Never
+    declare a required variable for them either: the engine cannot
+    supply it. Generate credentials with `random_password` (for
+    example the Windows `admin_password`; the value lands in the
+    state), mark outputs that carry them `sensitive = true`, and for
+    Linux guests rely on the template's own key-based access with no
+    password. `guestinfo` / `extra_config` values are readable by any
+    vCenter user with read access to the VM.
 
   ## Data
-  - Deleting or replacing stateful resources (virtual machines with
-    data disks, `vsphere_virtual_disk`, datastore clusters, content
-    libraries) without a `lifecycle.prevent_destroy = true` override
-    request from the user.
+  - Changes that force replacement of a virtual machine, a
+    `vsphere_virtual_disk`, a datastore cluster or a content library
+    (see "Deletion safeguards" in the resource creation guidelines)
+    unless the user explicitly asked for the replacement. Standalone
+    deletions are always rejected by the compliance check, even when
+    requested.
+  - Removing `lifecycle.prevent_destroy` from resources that already
+    have it, without an explicit user request.
   - Disabling VM encryption, or removing an encryption storage
-    policy, from an existing virtual machine or disk.
+    policy or vTPM device, from an existing virtual machine or disk
+    without an explicit user request.
   - Disks in `independent_nonpersistent` mode for data that must
     survive a power cycle.
-  - Using snapshots (`vsphere_virtual_machine_snapshot`) as a backup
-    mechanism or keeping them longer than 72 hours.
+  - Managing `vsphere_virtual_machine_snapshot` resources at all.
+    Snapshots are an operational tool, not infrastructure as code,
+    and never a backup mechanism.
 
   ## Cost and capacity
   - Virtual machines above 16 vCPUs or 128 GB of memory without an

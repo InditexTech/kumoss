@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: Kubernetes LimitRange default configuration (default container requests and limits, min/max bounds).
+body: |
+  # Kubernetes LimitRange
+
+  For a LimitRange, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Resource type: `kubernetes_limit_range_v1`.
+  - Naming convention: `<app>-<purpose>-limits`.
+  - Create one when creating a new namespace, or when requested.
+    A LimitRange applies only at pod admission: it does not change
+    running pods, but new pods (including rollout replacements)
+    that violate its `min`/`max` bounds are rejected.
+  - Define a `spec { limit { ... } }` block with
+    `type = "Container"`:
+    - `default_request` — CPU and memory requests applied to
+      containers that declare none.
+    - `default` — CPU and memory limits applied to containers that
+      declare none.
+    - `max` / `min` — optional bounds; set them only when requested
+      and above every existing workload's values.
+  - Add a `type = "PersistentVolumeClaim"` limit with `min` / `max`
+    storage only when requested.
+  - Explicit requests and limits on workloads still win; the
+    LimitRange is a safety net, not a substitute.

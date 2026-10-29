@@ -16,15 +16,25 @@ body: |
   - The execution role must have the AWSLambdaBasicExecutionRole
     managed policy. If the function is VPC-attached, also add
     AWSLambdaVPCAccessExecutionRole.
-  - Set a reserved concurrent execution limit to prevent a single
-    function from consuming the entire account concurrency pool.
-  - Enable AWS X-Ray active tracing for distributed tracing.
-  - Configure a dead-letter queue (SQS or SNS) for failed
-    invocations so no events are silently lost.
+  - Do not set `reserved_concurrent_executions` unless requested.
+    New accounts can have a low concurrency quota, and AWS rejects a
+    reservation that leaves less than the minimum unreserved
+    concurrency. When requested, size it to the downstream limits.
+  - In production, or on request, enable AWS X-Ray active tracing
+    (`tracing_config { mode = "Active" }`) and attach the
+    AWSXRayDaemonWriteAccess managed policy to the execution role.
+  - For asynchronous invocations, configure a dead-letter queue
+    (SQS or SNS) in `dead_letter_config` so no events are silently
+    lost, and grant the execution role `sqs:SendMessage` (or
+    `sns:Publish`) scoped to that queue or topic ARN only. An
+    on-failure destination on `aws_lambda_function_event_invoke_config`
+    is an alternative.
   - Create the CloudWatch log group explicitly in Terraform with a
-    defined retention period (e.g. 30 days) and KMS encryption. If
-    not created explicitly, Lambda auto-creates the log group with
-    infinite retention and no encryption.
+    defined retention period (e.g. 30 days). If not created
+    explicitly, Lambda auto-creates the log group with infinite
+    retention. Log data is always encrypted at rest with
+    service-managed keys; add a customer-managed key only as the
+    `cloudwatch` template describes.
   - Log group naming convention:
     `/aws/lambda/<function-name>`.
   - When the function accesses VPC resources (RDS, ElastiCache,
@@ -35,4 +45,5 @@ body: |
     changes.
   - For container-based Lambda, use image URI and Image package
     type instead of filename, handler, and runtime.
-  - Apply standard tags: Name.
+  - Never put secrets in `environment` variables; read them from
+    Secrets Manager or SSM Parameter Store at runtime.

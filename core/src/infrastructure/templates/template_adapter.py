@@ -121,6 +121,21 @@ class TemplateAdapter(ITemplate):
         return t.render()
 
     @override
+    def render_chat_reply(self) -> str:
+        t = self._get_template(self._message + "chat_reply.jinja")
+        return t.render()
+
+    @override
+    def render_search_summarizer(self, irrelevant_marker: str) -> str:
+        t = self._get_template(self._message + "search_summarizer.jinja")
+        return t.render(IRRELEVANT_MARKER=irrelevant_marker)
+
+    @override
+    def render_search_selector(self) -> str:
+        t = self._get_template(self._message + "search_selector.jinja")
+        return t.render()
+
+    @override
     async def render_import_filter(
         self,
         unmanaged_ids: list[str],

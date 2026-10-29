@@ -445,10 +445,18 @@ artifacts as client-fetchable URLs, oldest first, and its
 `pull_requests`. Each `compliance_checks` entry also carries the audit's
 `passed` verdict; the list is empty when the round was not audited.
 
-Pass `include_history=true` to also populate `history` with the
-session's conversation turns. That variant always reads fresh from the
-database, so status polling should stay on the default. The caller
-must be the owner or hold a panel role; an unknown session is `404`.
+Pass `include_chat_history=true` to also populate `chat_history` with
+the session's conversation: one `{"user": …, "assistant": …}` turn per
+finished round, oldest first. The `user` side is the query as the caller
+typed it; the `assistant` side states how that round turned out and what
+the caller can do next. A round whose reply could not be produced
+contributes no turn, so the list can be shorter than `rounds`. That
+variant always reads fresh from the database, so status polling should
+stay on the default. The caller must be the owner or hold a panel role;
+an unknown session is `404`.
+
+This route never returns the internal conversation the backend feeds to
+the LLM. That record is admin-only — see below.
 
 == Admin
 
@@ -488,9 +496,17 @@ e-mail and accepts up to 254 characters. The response envelope is
 identical.
 
 `GET /api/v1/admin/sessions?id=\{session_id}` is the unrestricted
-counterpart of the session detail route: same `include_history`
-parameter, same response, but no ownership check beyond the panel
-role. An unknown session is `404`.
+counterpart of the session detail route: same response and the same
+`include_chat_history` parameter, but no ownership check beyond the
+panel role. An unknown session is `404`.
+
+It adds one parameter of its own. `include_history=true` populates
+`history` with the internal conversation the backend feeds to the LLM.
+That record carries no contract: its shape follows whatever the
+prompting strategy needs, and it may contain raw tool output, validation
+notes, and status text. Treat it as debugging material, never as the
+caller's conversation. Either history parameter reads fresh from the
+database.
 
 `PATCH /api/v1/admin/sessions/\{session_id}/toggle_lock` takes
 `{"locked": true}` or `{"locked": false}` and answers with the

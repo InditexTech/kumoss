@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere cluster VM group default configuration (membership for VM-host rules).
+body: |
+  # VMware vSphere Cluster VM Group
+
+  For a `vsphere_compute_cluster_vm_group`, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  - Naming convention: `vmg-<application>-<environment>`.
+  - A VM group exists only to be referenced by a
+    `vsphere_compute_cluster_vm_host_rule`; create it together with
+    the rule.
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `virtual_machine_ids` referencing virtual machine resources in
+    that cluster.
+  - The resource owns the full member list: VMs added to the group
+    outside Terraform are removed on the next apply. Only manage
+    groups created in the same workspace.
+  - Changing `name` or `compute_cluster_id` replaces the group and
+    briefly drops the rules that reference it; call that out.

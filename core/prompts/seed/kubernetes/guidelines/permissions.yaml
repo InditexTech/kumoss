@@ -15,7 +15,9 @@ body: |
   Valid levels: `privileged`, `baseline`, `restricted`.
   Default to `restricted` for application namespaces. Use `baseline`
   only when `restricted` is not feasible. Never use `privileged`
-  for application workloads.
+  for application workloads; the only exception is the dedicated
+  namespace of an explicitly requested node-agent DaemonSet (see the
+  node-agent exception in Forbidden Actions).
 
   ## RBAC Principles
   - Apply the principle of least privilege — grant only the minimum
@@ -50,7 +52,8 @@ body: |
     unless the pod explicitly needs API server access.
   - Since K8s 1.24, long-lived ServiceAccount tokens are no longer
     auto-created. Use `TokenRequest` API (projected volumes) for
-    short-lived, automatically rotated tokens.
+    short-lived, automatically rotated tokens. Create a legacy
+    long-lived token Secret only on explicit request.
 
   ## Role Design
   - Group permissions by functional area (e.g., read ConfigMaps,

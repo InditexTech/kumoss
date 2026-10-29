@@ -2,30 +2,42 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: AWS Security Group default configuration (least-privilege, rule separation).
+description: AWS Security Group default configuration (least-privilege, explicit egress, rule resources).
 body: |
   # AWS Security Group
 
   For a Security Group, unless explicitly requested otherwise, use
   the following default configuration:
 
-  - Naming convention: `sg-<purpose>-<environment>`.
+  - Naming convention: `sg-<application>-<tier>-<environment>`.
   - Always provide a meaningful description explaining what the
-    security group protects.
+    security group protects. `name`, `description`, and `vpc_id`
+    apply at creation; on an existing group, changing them forces
+    replacement (which fails while network interfaces still use the
+    group), so never rename or re-describe an existing group unless
+    asked. Use `name_prefix` with `create_before_destroy = true`
+    when a replacement is requested.
   - Must be associated with a specific VPC — never use the default
     VPC security group.
-  - Define ingress and egress rules as separate standalone resources
-    (not inline blocks) to avoid rule conflicts and improve
-    merge-safety.
+  - Define each rule as its own `aws_vpc_security_group_ingress_rule`
+    or `aws_vpc_security_group_egress_rule` resource (one CIDR,
+    prefix list, or source security group per rule). Do not use
+    inline `ingress`/`egress` blocks or the legacy
+    `aws_security_group_rule`, and never mix styles on one group.
   - Every rule must have a description explaining its purpose.
   - Default-deny inbound; allow rules must be explicit and narrow.
-  - Never use source 0.0.0.0/0 for ingress rules unless the
-    resource is explicitly public-facing. Scope to known CIDRs or
-    reference other security groups for intra-VPC traffic.
-  - Prefer referencing other security groups as sources instead of
-    CIDR blocks for communication between AWS resources within the
-    same VPC.
-  - AWS security groups are stateful — return traffic is
-    automatically allowed, so egress rules for response traffic
-    are not needed.
-  - Apply standard tags: Name.
+  - Never use `cidr_ipv4 = "0.0.0.0/0"` or `cidr_ipv6 = "::/0"` for
+    ingress unless the resource is explicitly public-facing (and then
+    only on 80/443). Scope to known CIDRs or reference other security
+    groups (`referenced_security_group_id`) for intra-VPC traffic.
+  - Always declare egress explicitly. The provider removes AWS's
+    default allow-all egress rule from every new `aws_security_group`,
+    so a group without egress rules blocks all outbound traffic.
+    Add only what the workload needs: e.g. TCP 443 to the VPC
+    endpoints' security group, TCP 443 to the S3 gateway endpoint's
+    prefix list (`prefix_list_id`), TCP 443 to `0.0.0.0/0` through
+    the NAT Gateway when the workload calls internet APIs, and the
+    database or cache port to the data tier's security group.
+  - Security groups are stateful — return traffic for allowed
+    connections is allowed automatically, so no rules are needed for
+    responses.

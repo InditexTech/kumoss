@@ -10,17 +10,28 @@ body: |
   following default configuration:
 
   - Naming convention: `vcn-<application>-<environment>`.
-  - CIDR block should be /16 for production, /20 for
-    non-production unless the user specifies otherwise.
+  - Use `cidr_blocks` (a list); `cidr_block` is deprecated. Size
+    /16 for production, /20 for non-production unless the user
+    specifies otherwise.
   - Do not overlap CIDR blocks with other VCNs that may need
     peering or on-premises connectivity.
-  - DNS label must be set to enable DNS hostnames within the VCN.
+  - `dns_label` must be set to enable DNS hostnames within the VCN:
+    at most 15 alphanumeric characters, starting with a letter, no
+    hyphens (e.g. `vcnappprod`). It is immutable — changing it
+    replaces the VCN and everything in it.
   - Create the VCN in the compartment specified by the user; if
     not specified, use the application compartment variable.
   - Do not create an Internet Gateway, NAT Gateway, or Service
     Gateway inline — use separate resources for each.
-  - Do not modify the default security list, default route table,
-    or default DHCP options — create new ones instead.
-  - Enable VCN flow logs for the VCN for audit and
-    troubleshooting.
-  - Apply freeform tags: Name.
+  - Default security list: on a VCN created in the same request,
+    bring it under management with `oci_core_default_security_list`
+    (`manage_default_resource_id =
+    oci_core_vcn.<name>.default_security_list_id`) and define
+    locked-down rules — stateful egress as required, ICMP type 3
+    code 4 for path MTU discovery, and no `0.0.0.0/0` ingress on
+    port 22 (the rule OCI adds by default). On existing VCNs, change
+    it only on explicit request.
+  - Do not attach subnets to the default route table or default
+    DHCP options — create dedicated ones (see `route_table`).
+  - Enable VCN flow logs for audit and troubleshooting (see the
+    `logging` template).

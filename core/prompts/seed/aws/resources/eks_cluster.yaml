@@ -1,0 +1,82 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS EKS cluster default configuration (restricted endpoint access, access entries, secrets encryption, logging, managed node groups, Pod Identity).
+body: |
+  # AWS EKS Cluster
+
+  For an EKS cluster, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  ## Control plane
+  - Naming convention: `eks-<application>-<environment>`; `name`
+    forces replacement.
+  - Pin `version` to a Kubernetes version in standard support and
+    keep `upgrade_policy { support_type = "STANDARD" }` (extended
+    support is billed at a much higher hourly rate). Upgrades go
+    one minor version at a time, cannot be rolled back, and are
+    high impact: state it in the summary.
+  - Cluster role with AmazonEKSClusterPolicy.
+  - `vpc_config` with private subnets in at least two AZs (from the
+    workspace's subnets, never hardcoded AZ names; EKS rejects a
+    few AZs in some regions, such as `use1-az3`).
+  - Endpoint access: later Kubernetes-scope requests run from the
+    Kumoss engine, usually outside the VPC, so by default set
+    `endpoint_private_access = true` and `endpoint_public_access =
+    true` with `public_access_cidrs` restricted to the CIDRs the
+    request or the workspace provides. Never `0.0.0.0/0` in
+    production without an explicit request; when no CIDRs are
+    given in production, say in the summary that the public
+    endpoint needs them. Set `endpoint_public_access = false` only
+    when the request states that the Kubernetes-scope engine runs
+    inside the VPC (or a connected network).
+  - An `access_config` block with `authentication_mode = "API"` and
+    `bootstrap_cluster_creator_admin_permissions = false`. Grant
+    cluster admin through access entries: an `aws_eks_access_entry`
+    for the role the request or the workspace names for operators
+    and automation, plus an `aws_eks_access_policy_association`
+    with `policy_arn =
+    "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"`
+    and an `access_scope` block with `type = "cluster"`. When no
+    role is named, use the engine's own role (`issuer_arn` of
+    `data "aws_iam_session_context"` for
+    `data.aws_caller_identity.current.arn`) so the cluster stays
+    manageable. The mode only moves forward (`CONFIG_MAP` to
+    `API_AND_CONFIG_MAP` to `API`), and changing the bootstrap flag
+    forces replacement.
+  - State in the summary who can reach the API endpoint (private,
+    public CIDRs) and which roles administer the cluster.
+  - `encryption_config` for `secrets` with a customer-managed KMS
+    key; once enabled it cannot be removed.
+  - `enabled_cluster_log_types = ["api", "audit", "authenticator",
+    "controllerManager", "scheduler"]`, with the
+    `/aws/eks/<cluster-name>/cluster` log group created first with
+    retention (default service-managed encryption; a
+    customer-managed key only as the `cloudwatch` template
+    describes).
+
+  ## Managed node groups
+  - Naming convention: `ng-<application>-<role>-<environment>`.
+  - Node role with AmazonEKSWorkerNodePolicy and
+    AmazonEC2ContainerRegistryReadOnly; give the VPC CNI its
+    permissions through Pod Identity rather than the node role.
+  - Private subnets, `ami_type` AL2023 (`AL2023_ARM_64_STANDARD` for
+    Graviton, `AL2023_x86_64_STANDARD` otherwise), a launch template
+    with IMDSv2 required and encrypted gp3 volumes.
+  - `capacity_type = "ON_DEMAND"`; `SPOT` with several instance
+    types only for non-production on request.
+  - `scaling_config` with `ignore_changes` on `desired_size`, and
+    `update_config { max_unavailable_percentage = 33 }`. Node group
+    updates drain and replace nodes; state it in the summary.
+
+  ## Add-ons and workload identity
+  - Managed add-ons (`aws_eks_addon`): `vpc-cni`, `coredns`,
+    `kube-proxy`, `eks-pod-identity-agent`, with
+    `resolve_conflicts_on_create = "OVERWRITE"` and
+    `resolve_conflicts_on_update = "PRESERVE"` (the single
+    `resolve_conflicts` argument was removed in provider v6).
+  - Workload AWS access through EKS Pod Identity
+    (`aws_eks_pod_identity_association`, role trust for
+    `pods.eks.amazonaws.com` with `sts:AssumeRole` and
+    `sts:TagSession`), or IRSA with an OIDC provider on request.

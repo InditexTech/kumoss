@@ -36,7 +36,7 @@ Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variab
 | ECS task role | `AWS_REGION` only |
 | LocalStack | `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_REGION`, `AWS_ENDPOINT_URL` |
 
-`AWS_REGION` is the only universal requirement. Never an account ID — and unlike Azure and GCP, nothing here is injected from `scope_id`, because no environment variable redirects the provider to an account. Every command runs against whatever account the credentials above resolve to, so making them agree with the `scope_id` callers send is the deployment's job (`README.md`, "Scope injection").
+`AWS_REGION` is the only universal requirement. Do not set `TF_VAR_aws_account_id`: no environment variable redirects the provider to an account, so the service injects `scope_id` as `TF_VAR_aws_account_id` for `init`, `plan`, `apply` and `import`, and the generated code passes it to the provider's `allowed_account_ids`. The service also checks the account first: those four commands call STS `GetCallerIdentity` and end with exit code 1, without starting the engine, when the container's credentials belong to another account. One deployment serves one AWS account; for LocalStack the `scope_id` is `000000000000` (`README.md`, "Scope injection").
 
 Import discovery additionally requires AWS Resource Explorer to be enabled for the account, with an aggregator index and a default view. Every row above works for it except LocalStack, which has no Resource Explorer to query, since boto3's default chain resolves the same credentials the provider does. Two details are discovery's alone: it reads the region from `AWS_REGION`/`AWS_DEFAULT_REGION` only, so the region a profile names does not satisfy it, and it does not select the account either — it calls STS and fails if the resolved account is not the requested `scope_id`. See "Import discovery" in `README.md`.
 
@@ -67,7 +67,7 @@ Import discovery reads the *credential* variables through `google-auth`, includi
 | Resource principal (Functions) | `TF_VAR_auth=ResourcePrincipal` — `OCI_RESOURCE_PRINCIPAL_*` injected by runtime |
 | OKE workload identity | `TF_VAR_auth=OkeWorkloadIdentity`, `TF_VAR_region` |
 
-Add `TF_VAR_compartment_ocid` in practice — not a provider setting, but nearly every resource needs it.
+Do not set `TF_VAR_compartment_ocid`: `init`, `plan`, `apply` and `import` carry a `scope_id`, which for OCI is the compartment OCID, and the service injects it as `TF_VAR_compartment_ocid` for that one command, overriding whatever the container has. It is not a provider setting; it fills the `compartment_ocid` input variable the generated code declares. `TF_VAR_tenancy_ocid` stays in the container: it belongs to the credential (API-key auth requires it), and one deployment serves one tenancy. The generated code reads it for root-compartment resources and for the home-region lookup behind every identity write (compartments, policies, dynamic groups, groups, tag namespaces), so set it for the other auth rows too when requests touch identity resources. See "Scope injection" in `README.md`.
 
 ## VMware vSphere — provider minimum
 
@@ -123,7 +123,7 @@ No project or region needed — bucket names are globally unique. Non-env HCL: `
 
 ## Copy-paste: typical CI setups
 
-These are the sets for this service. The scope variable is deliberately absent: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` arrive with each request's `scope_id`. Add them only when you run the engine yourself.
+These are the sets for this service. The scope variable is deliberately absent: `ARM_SUBSCRIPTION_ID`, `GOOGLE_PROJECT`, `TF_VAR_compartment_ocid` and `TF_VAR_aws_account_id` arrive with each request's `scope_id`. Add them only when you run the engine yourself.
 
 Azure, GitHub Actions OIDC, RBAC state access:
 

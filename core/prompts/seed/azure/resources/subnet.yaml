@@ -2,26 +2,40 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Azure Subnet default configuration (addressing, service endpoints, delegation).
+description: Azure Subnet default configuration (standalone resources, addressing, private endpoints, delegation).
 body: |
   # Azure Subnet
 
   For a Subnet, unless explicitly requested otherwise, use the
   following default configuration:
 
-  - Prefer declaring subnets as inline blocks on the parent virtual
-    network resource. Use standalone subnet resources only when the
-    subnet must be referenced from outside the module that owns the
-    VNet.
+  - Always declare subnets as standalone `azurerm_subnet` resources,
+    never as inline `subnet` blocks on the virtual network. Never
+    mix both styles on the same VNet.
   - Naming convention: `snet-<purpose>` (e.g. snet-web, snet-app,
-    snet-data, snet-mgmt).
+    snet-data, snet-mgmt, snet-pe).
   - Address prefix should be carved from the parent VNet CIDR using
     /24 ranges.
-  - Enable service endpoints relevant to the workload (e.g.
-    Microsoft.Storage, Microsoft.Sql, Microsoft.KeyVault).
+  - Associate an NSG to every subnet (except where Azure forbids it)
+    with `azurerm_subnet_network_security_group_association`, and a
+    NAT Gateway with `azurerm_subnet_nat_gateway_association`.
+  - PaaS access goes through private endpoints by default. Do not
+    enable service endpoints unless the user explicitly requests
+    them; then use `service_endpoint` blocks (the
+    `service_endpoints` list is removed in provider 5.x).
+  - Private endpoints live in a dedicated `snet-pe` subnet. Do not
+    place them in delegated subnets, which cannot host them.
+  - Set `default_outbound_access_enabled = false` so the subnet has
+    no implicit internet egress; provide egress through a NAT
+    Gateway or firewall when needed.
+  - Delegated subnets (App Service and Flex Consumption VNet
+    integration, Container Apps, PostgreSQL Flexible Server) are
+    dedicated to that service; add the `delegation` block it needs.
   - For Azure Bastion, the subnet name must be exactly
-    `AzureBastionSubnet` with a minimum /27 prefix.
+    `AzureBastionSubnet` with a /26 or larger prefix.
   - For Azure Application Gateway, the subnet must be dedicated and
     named `snet-agw` or similar — do not share with other resources.
-  - Associate an NSG to every subnet immediately after creation.
-  - Private endpoints should be co-located in the consumer's subnet.
+  - Changing `address_prefixes` of a subnet that has resources in it
+    fails or forces their redeployment — call it out as high impact.
+  - Subnets and their NSG and NAT Gateway associations do not
+    support tags.

@@ -1,0 +1,43 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS VPC endpoint default configuration (gateway for S3/DynamoDB, interface endpoints with private DNS, endpoint policies).
+body: |
+  # AWS VPC Endpoint
+
+  For a VPC endpoint, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention (`Name` tag):
+    `vpce-<service>-<application>-<environment>`.
+  - Build `service_name` from the current region in
+    `data "aws_region" "current"` (e.g.
+    `com.amazonaws.${data.aws_region.current.region}.s3`; the
+    `.name` attribute is deprecated in provider v6); never hardcode
+    the region.
+
+  ## Gateway endpoints (S3, DynamoDB)
+  - `vpc_endpoint_type = "Gateway"`, attached to every private route
+    table with `route_table_ids`. They are free; always create the
+    S3 one for private subnets.
+
+  ## Interface endpoints
+  - `vpc_endpoint_type = "Interface"` with `private_dns_enabled =
+    true`, one private subnet per AZ in `subnet_ids`.
+  - A dedicated security group
+    (`sg-<application>-vpce-<environment>`) allowing TCP 443 from the
+    VPC CIDR or the workload security groups.
+  - Create only the endpoints the workloads use; each one is billed
+    per AZ per hour plus data processed. Common sets: `ssm` and
+    `ssmmessages` for Session Manager; `ecr.api`, `ecr.dkr` (plus the
+    S3 gateway endpoint) and `logs` for containers; `sts`,
+    `secretsmanager`, `kms` as needed.
+  - Non-production may place interface endpoints in a single AZ to
+    reduce cost.
+
+  ## Endpoint policies
+  - Attach a `policy` that restricts access to the organization's or
+    account's resources (e.g. `aws:ResourceAccount` or
+    `aws:PrincipalAccount` conditions) instead of the default full
+    access, when the request allows it.

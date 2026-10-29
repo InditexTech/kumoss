@@ -2,26 +2,36 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: AWS SageMaker default configuration (networking, encryption, endpoints, notebooks).
+description: AWS SageMaker default configuration (domain, notebooks, models, endpoints, model registry, monitoring).
 body: |
   # AWS SageMaker
 
   For SageMaker resources, unless explicitly requested otherwise,
   use the following default configuration:
 
+  ## Scope
+  - Terraform manages long-lived SageMaker infrastructure: the
+    domain (Studio), notebook instances, models, endpoint
+    configurations and endpoints, model package groups, and
+    monitoring schedules.
+  - Training jobs, processing jobs, pipeline runs, and model package
+    approval are not Terraform-managed; they run from SageMaker
+    Pipelines, the SDK, or CI. Terraform provides what they use: the
+    execution role, S3 buckets, KMS key, and networking. Say so in
+    the summary when the request asks for them.
+
   ## General
+  - Naming prefix: `sgm` (`sm` is reserved for Secrets Manager).
   - Use a dedicated IAM execution role for SageMaker workloads
     with least-privilege permissions. Do not reuse roles across
     unrelated workloads.
-  - All data at rest must be encrypted with KMS (training data,
-    model artifacts, notebook volumes).
-  - All inter-container and container-to-S3 traffic must be
-    encrypted in transit by enabling inter-container encryption
-    and network isolation where supported.
-  - Apply standard tags: Name.
+  - All data at rest must be encrypted with KMS (data, model
+    artifacts, notebook and endpoint volumes).
+  - Enable network isolation and inter-container encryption where
+    the resource supports them.
 
   ## SageMaker Domain (Studio)
-  - Naming convention: `sm-domain-<application>-<environment>`.
+  - Naming convention: `sgm-domain-<application>-<environment>`.
   - Network access type set to VPC-only for production. Use
     public internet only for non-production experimentation.
   - Deploy into private subnets with appropriate security groups.
@@ -30,42 +40,55 @@ body: |
   - Default execution role should follow the IAM role template
     defaults with permissions scoped to S3, ECR, and SageMaker
     actions.
+  - Configure idle shutdown for Studio apps to avoid running costs:
+    in `default_user_settings`, set
+    `jupyter_lab_app_settings.app_lifecycle_management.idle_settings`
+    (and the same under `code_editor_app_settings`) with
+    `lifecycle_management = "ENABLED"` and `idle_timeout_in_minutes`
+    (e.g. 60). These are native settings, not scripts; if the
+    provider version or the app type does not support them, say so
+    in the summary instead of adding a lifecycle configuration
+    script.
 
-  ## Notebooks (Studio or Notebook Instances)
-  - Prefer SageMaker Studio notebooks over legacy notebook
-    instances for better collaboration and lifecycle management.
-  - Root access must be disabled on notebook instances.
-  - Direct internet access must be disabled for notebook
-    instances in production — use a NAT Gateway for outbound
-    access.
+  ## Notebook instances
+  - Prefer SageMaker Studio over legacy notebook instances.
+  - Naming convention: `sgm-nb-<application>-<environment>`.
+  - Root access must be disabled.
+  - Direct internet access must be disabled in production — place
+    the instance in a private subnet and use a NAT Gateway or VPC
+    endpoints for outbound access.
   - Volume encryption must be enabled with KMS.
-  - Set auto-stop idle timeout (via lifecycle configuration) to
-    avoid running costs on idle notebooks.
+  - Do not set `accelerator_types` (removed in provider v6; Elastic
+    Inference reached end of life).
+  - Non-production notebook instances get an EventBridge Scheduler
+    stop schedule, as in the `ec2` template, with the target
+    `arn:aws:scheduler:::aws-sdk:sagemaker:stopNotebookInstance`,
+    `input = jsonencode({ NotebookInstanceName =
+    aws_sagemaker_notebook_instance.<name>.name })`, and a scheduler
+    role allowed `sagemaker:StopNotebookInstance` on the notebook
+    ARN. Prefer this schedule (or Studio with idle shutdown) over an
+    idle-stop lifecycle configuration, which is a shell script run
+    on the instance; add one only on request.
 
-  ## Training Jobs
-  - Store training data and model artifacts in S3 buckets
-    following the S3 bucket template defaults.
-  - Enable managed spot training for cost optimization on
-    fault-tolerant training jobs (up to 90% cost reduction).
-  - Set maximum runtime in seconds to prevent runaway jobs.
-  - Enable network isolation when the training job does not
-    need internet access.
-
-  ## Endpoints (inference)
+  ## Models and endpoints (inference)
   - Naming convention:
-    `sm-endpoint-<model>-<environment>`.
+    `sgm-endpoint-<model>-<environment>`.
+  - Models run in private subnets through `vpc_config`, with network
+    isolation enabled when the container needs no outbound access.
   - Use Serverless Inference for intermittent or unpredictable
     traffic (scale to zero). Use Real-Time Inference with
     auto-scaling for sustained production traffic.
-  - Deploy into private subnets with VPC configuration.
-  - Enable data capture for model monitoring and bias detection.
-  - Configure auto-scaling policies based on invocations per
-    instance.
-  - Enable model monitoring (data quality, model quality, bias
-    drift, feature attribution drift) for production endpoints.
+  - Encrypt the endpoint configuration with a KMS key.
+  - Enable data capture to S3 for model monitoring.
+  - Configure Application Auto Scaling on the production variant
+    with target tracking on invocations per instance.
+  - Changing an endpoint configuration redeploys the endpoint; state
+    it in the summary.
 
-  ## Model Registry
-  - Register all production models in the SageMaker Model
-    Registry for versioning and approval workflows.
-  - Use model approval status (Approved, Rejected,
-    PendingManualApproval) to gate production deployments.
+  ## Model registry and monitoring
+  - Create a model package group per model
+    (`sgm-mpg-<model>-<environment>`) to version models; approval of
+    individual packages happens in the pipeline, not in Terraform.
+  - For production endpoints, add monitoring schedules (data
+    quality, model quality, bias, feature attribution) that read the
+    captured data.

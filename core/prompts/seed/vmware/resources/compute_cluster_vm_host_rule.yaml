@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: VMware vSphere VM-host rule default configuration (should vs must, licensing and zone pinning).
+body: |
+  # VMware vSphere VM-Host Rule
+
+  For a `vsphere_compute_cluster_vm_host_rule`, unless explicitly
+  requested otherwise, use the following default configuration:
+
+  - Naming convention: `vhr-<application>-<environment>`.
+  - Typical uses: keeping licensed workloads (for example Oracle or
+    Windows Server datacenter licensing) on the licensed hosts, or
+    pinning VMs to a site or fault zone of a stretched cluster.
+  - `compute_cluster_id` from `data "vsphere_compute_cluster"`;
+    `vm_group_name` from a `vsphere_compute_cluster_vm_group` and
+    either `affinity_host_group_name` (run on these hosts) or
+    `anti_affinity_host_group_name` (never run on these hosts) from a
+    `vsphere_compute_cluster_host_group` — not both.
+  - `enabled = true` and `mandatory = false`: a "should" rule that
+    DRS honours but HA may break to restart VMs after a failure.
+  - A "must" rule (`mandatory = true`) also binds HA: if every host
+    in the group fails, the VMs are not restarted elsewhere. Use it
+    only when the user asks for it (usually licence compliance), and
+    warn in the summary that it can block HA failover.
+  - Reference the groups' `name` attributes so Terraform creates
+    the groups before the rule.
+  - Forces replacement: `compute_cluster_id`, `name` — never change
+    these on an existing rule without an explicit request.
