@@ -8,10 +8,11 @@ SPDX-License-Identifier: Apache-2.0
 
 <img alt="Kumoss" src=".github/assets/kumoss-banner.png" width="720">
 
-### Compliant Infrastructure as Code from plain language
+### AI-powered Infrastructure as Code, governed by your rules
 
-Describe the infrastructure you need. Kumoss returns a validated, compliant<br>
-Terraform/OpenTofu pull request: drift corrected, cost estimated, and gated by human review.
+Turn natural-language requests into validated Opentofu/Terraform pull requests.
+Kumoss generates infrastructure, corrects drift, enforces your policies and keeps
+humans in control of high-impact or not compliant changes.
 
 **[Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/)** ·
 **[Documentation](https://inditextech.github.io/kumoss/stable/)** ·
@@ -75,9 +76,11 @@ The result is **developer autonomy for infrastructure operations**: developers c
 - **A report people can read.** Every session ends with a summary of the proposal, its impact, and a cost estimate.
 - **Several modes of operation.** Generate, remediate drift, or import console-created resources, for part of a project or all of it.
 
-### 🏢 Built to fit your organization
+### 🏢 Designed to integrate with your existing infrastructure ecosystem
 
 - **Works with what you already have.** Use your existing IaC repositories, Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
+- **Authorization is an extension point requiring an implementation. **
+- ** LLM Model and identity provider are configured externally. **
 - **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, Kubernetes, and VMware vSphere.
 - **Your rules, your definition of critical.** You decide what is allowed, what is high risk, and which compliance checks apply. Critical can mean special projects, every production environment, changes above a cost threshold, or any rule you write.
 - **Full traceability.** An admin panel shows users, sessions, and roles, all stored in a database.
@@ -124,7 +127,7 @@ The full documentation is published at **[inditextech.github.io/kumoss](https://
 | [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/)                           | [Configuration reference](https://inditextech.github.io/kumoss/stable/main/reference/configuration/)        |
 | [Make a request](https://inditextech.github.io/kumoss/stable/main/guides/make-a-request/)            | [LLM providers and models](https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/)       |
 | [Merge and apply](https://inditextech.github.io/kumoss/stable/main/guides/merge-and-apply/)          | [Enable authentication](https://inditextech.github.io/kumoss/stable/main/guides/enable-authentication/)     |
-| [Architecture](https://inditextech.github.io/kumoss/stable/main/architecture/)                       | [Configure state backends](https://inditextech.github.io/kumoss/stable/main/guides/configure-state-backends/) |
+| [Explore the architecture](https://inditextech.github.io/kumoss/stable/main/architecture/)                       | [Configure state backends](https://inditextech.github.io/kumoss/stable/main/guides/configure-state-backends/) |
 | [FAQ](https://inditextech.github.io/kumoss/stable/main/faq/)                                         | [Deploy to production](https://inditextech.github.io/kumoss/stable/main/guides/deploy-to-production/)       |
 
 ## Roadmap
