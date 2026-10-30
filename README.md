@@ -26,7 +26,7 @@ Terraform/OpenTofu pull request: drift corrected, cost estimated, and gated by h
 
 </div>
 
-https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
+https://github.com/user-attachments/assets/97be7ff9-5995-4907-8b47-db53cc3a5808
 
 <details>
 <summary><strong>Table of contents</strong></summary>
@@ -35,6 +35,7 @@ https://github.com/user-attachments/assets/ef45c118-5356-4699-bcd2-870a92f2e304
 - [Get started](#get-started)
 - [Features](#features)
 - [How it works](#how-it-works)
+- [Who is Kumoss for?](#who-is-kumoss-for)
 - [Architecture](#architecture)
 - [Documentation](#documentation)
 - [Roadmap](#roadmap)
@@ -109,7 +110,14 @@ Authorization, IaC, and notifications are sidecar services behind [OpenAPI contr
 
 The video below is a real use case, an unscripted cloud session condensed for viewing. For a step-by-step walkthrough, see **[Kumoss in action](https://inditextech.github.io/kumoss/stable/main/see-it-in-action/)**.
 
-https://github.com/user-attachments/assets/2ed5dc7f-4b1a-4273-b9c1-96f63fcc1706
+https://github.com/user-attachments/assets/acccd699-6ddc-4b91-a8a0-a6142a19c0cd
+
+## Who is Kumoss for?
+
+- **Platform engineering teams** turn their standards into guardrails that every request follows, so they stop hand-writing infrastructure for each ticket.
+- **DevOps and SRE teams** keep the cloud and its code in sync, with drift fixed and existing resources imported through reviewed pull requests.
+- **Cloud architects and security teams** get every change audited against their policies, and anything high impact or non-compliant waits for their approval.
+- **Developers** create and maintain the infrastructure they need in plain language, without IaC expertise or waiting in a queue.
 
 ## Architecture
 
@@ -129,16 +137,17 @@ The full documentation is published at **[inditextech.github.io/kumoss](https://
 
 ## Roadmap
 
-- **Continuous operations:** scheduled drift detection and import (in progress).
-- **Deployment and adoption:** Helm chart and installation wizard (in progress).
-- **Cloud and code lifecycle:** from cloud to code, from code to cloud, and infrastructure diagrams.
-- **Operations at scale:** bulk and multiproject requests.
-- **Quality and governance:** evaluation harness, model benchmarking, and policy as code with Open Policy Agent.
-- **Cost management (FinOps):** accurate cost estimates, cost guardrails, and FinOps integrations.
-- **Agent interoperability:** MCP and A2A support.
+| Initiative                                                        | Status      | Community opportunity                                         |
+| ----------------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| **Scheduled drift detection and import**                          | In progress | Run it against your estate and report drift edge cases        |
+| **Helm chart and installation wizard**                            | In progress | Install it on your cluster and share what breaks              |
+| **Cloud to code, code to cloud, and infrastructure diagrams**     | Planned     | Share how you bootstrap and structure IaC repositories        |
+| **Bulk and multiproject requests**                                | Planned     | Describe the changes you roll out across many projects        |
+| **Evaluation harness, model benchmarking, and policy as code**    | Planned     | Contribute test scenarios, model results, and OPA policies    |
+| **Cost estimates, cost guardrails, and FinOps integrations**      | Planned     | Propose integrations with the FinOps tools you use            |
+| **MCP and A2A support**                                           | Planned     | Help design the tools and skills other agents should call     |
 
-
-See the full [roadmap](https://inditextech.github.io/kumoss/stable/main/roadmap/) for details.
+The roadmap states intent, not commitment. See the full [roadmap](https://inditextech.github.io/kumoss/stable/main/roadmap/) for details, and [open an issue](https://github.com/InditexTech/kumoss/issues) to pick up an opportunity.
 
 ## Built with
 
