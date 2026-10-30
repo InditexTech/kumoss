@@ -6,6 +6,8 @@ package tui
 
 import (
 	"io"
+
+	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
 // Mode is what the pipeline does with an existing install.
@@ -26,8 +28,20 @@ const (
 // how to ask. Real runs use the terminal; tests inject a stub.
 type UI interface {
 	SelectStateAction() (Mode, error)
-	// Configure(mode Mode, s *state.State) error
-	// RunDocker() (bool, error)
+	Configure(mode Mode, s *state.State) error
+	// RotateSecrets offers the secrets already present in the env files and
+	// returns the keys the user wants regenerated. An empty return keeps them
+	// all. Only called when an existing install has secrets to offer.
+	RotateSecrets(found []Secret) (rotate []string, err error)
+	RunDocker() (bool, error)
+}
+
+// Secret is one rotatable value: its env-var key and a human label. Defined here
+// (not in render) so the pipeline can pass render.LoadSecrets' result to the UI
+// without tui importing render.
+type Secret struct {
+	Key   string // env-var name, e.g. KUMOSS_IAC_TOKEN
+	Label string // what it is, e.g. "IaC service bearer token"
 }
 
 // Wizard is the terminal implementation. In/Out are the Cobra streams;
