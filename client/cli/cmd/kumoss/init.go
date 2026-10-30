@@ -23,7 +23,7 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			"override and the .env files are produced by their own commands.\n\n" +
 			"Launches the TUI for further interactions.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return pipeline.RunPipeline(pipeline.Options{
+			return pipeline.RunPipeline(cmd.Context(), pipeline.Options{
 				Home:        flags.Home,
 				PersistHome: flags.HomeOverride != "",
 				UI: &tui.Wizard{
