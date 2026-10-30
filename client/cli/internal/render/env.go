@@ -26,18 +26,18 @@ type EnvPaths struct {
 
 // Env renders the three .env files from the answers. Generation is the only
 // secret work it does: the caller reuses the existing files' values (LoadSecrets
-// + Fill) and blanks the ones the user chose to rotate, so Render fills exactly
+// + Fill) and blanks the ones the user chose to rotate, so Write fills exactly
 // the empty ones and writes all three 0600. The vars are fixed (the CLI ships
 // without the repo, so there is no env.sample to read) and mirror core/env.sample
 // and services/*/env.sample.
 type Env struct{}
 
-// Render writes the env files. s.Secrets is filled in place with any values it
+// Write writes the env files. s.Secrets is filled in place with any values it
 // had to generate, so the caller can report them if needed. Every secret that is
 // already set on s is kept as-is: the caller reuses the existing files' values
 // (see LoadSecrets) and blanks only the ones the user chose to rotate, so this
 // method never rotates anything on its own.
-func (e *Env) Render(p EnvPaths, s *state.State) error {
+func (e *Env) Write(p EnvPaths, s *state.State) error {
 	e.generate(s)
 
 	for path, vars := range files(p, s) {
@@ -49,7 +49,7 @@ func (e *Env) Render(p EnvPaths, s *state.State) error {
 }
 
 // LoadSecrets reads the secrets already present in the three env files, so the
-// caller can offer to rotate them before Render. Returns false when none of the
+// caller can offer to rotate them before Write. Returns false when none of the
 // files exist yet (a fresh install).
 func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 	var s state.Secrets
@@ -74,8 +74,8 @@ func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 }
 
 // Fill copies the secrets found in the env files onto s, except the keys in
-// rotate, which are left empty so Render generates fresh ones. Call it with
-// LoadSecrets' result before Render; a fresh install passes found=false and
+// rotate, which are left empty so Write generates fresh ones. Call it with
+// LoadSecrets' result before Write; a fresh install passes found=false and
 // nothing is copied.
 func Fill(s *state.State, existing state.Secrets, rotate []string) {
 	keep := func(key, value string) string {

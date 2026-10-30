@@ -2,15 +2,14 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Package render turns the wizard's answers into the generated files: the
-// system config.yaml mounted into the core, and the kumoss.yaml state.
+// Package render turns the wizard's answers into the generated files: the system
+// config.yaml mounted into the core, the three .env files, and
+// compose.override.yml. One type per artifact, sharing one Download.
 package render
 
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 
@@ -24,18 +23,20 @@ import (
 // (oidc, orchestration, redis, telemetry, paths, …) — survives into the
 // generated file. Only the keys the wizard owns are replaced.
 type Config struct {
-	// Fetch downloads a repo file at the release tag. Required: the caller (the
-	// composition root) injects it, so this package never depends on a concrete
-	// downloader. A function, not a fetcher type, so tests can stub it inline.
-	Fetch func(ctx context.Context, tag, path string) ([]byte, error)
-	// Tag is the release tag to fetch (buildinfo.KumossTag()).
-	Tag string
+	// Download fetches the repo's config.yaml.
+	Download *Download
+	// Path is where the rendered config.yaml is written.
+	Path string
+	// Example is where the fetched file is kept verbatim, comments included. The
+	// overlay drops every comment (YAML marshalling), so this copy is what keeps
+	// the documentation. Refreshed every run so it matches the tag.
+	Example string
 }
 
-// Render fetches the default config.yaml at c.Tag, overlays the answers in s,
-// and writes it to path. Missing parent directories are created.
-func (c *Config) Render(ctx context.Context, path string, s *state.State) error {
-	raw, err := c.Fetch(ctx, c.Tag, "config.yaml")
+// Write fetches the default config.yaml, keeps a verbatim copy at c.Example,
+// overlays the answers in s, and writes the result to c.Path.
+func (c *Config) Write(ctx context.Context, s *state.State) error {
+	raw, err := c.Download.Example(ctx, "config.yaml", c.Example)
 	if err != nil {
 		return err
 	}
@@ -54,10 +55,7 @@ func (c *Config) Render(ctx context.Context, path string, s *state.State) error 
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(path, out, 0o644)
+	return writeFile(c.Path, out, 0o644)
 }
 
 // overlay replaces the keys the wizard owns with the answers. Everything else
