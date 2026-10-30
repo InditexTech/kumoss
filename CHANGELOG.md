@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.4](https://github.com/InditexTech/kumoss/compare/v1.0.3...v1.0.4) (2026-10-30)
+
+
+### Bug Fixes
+
+* **docs:** upgrade docouture to 1.3.2 so search links keep the site path ([21eb786](https://github.com/InditexTech/kumoss/commit/21eb7866ac995f6d6f3159f2ea342e472893638c))
+* **docs:** upgrade docouture to 1.3.2 so search links keep the site path ([34ad0a9](https://github.com/InditexTech/kumoss/commit/34ad0a90c9dc3dde1232937ac5384f042eaaf9d3))
+
+
+### Documentation
+
+* add README audience section and roadmap table ([ee9c1f7](https://github.com/InditexTech/kumoss/commit/ee9c1f74694b571e915dbb018f7d990a5761fe7b))
+* add README audience section and roadmap table ([a153a17](https://github.com/InditexTech/kumoss/commit/a153a173970ed530d98c01591d1c4dfb9d1a65d4))
+* use the white README banner in every theme ([f63c4ef](https://github.com/InditexTech/kumoss/commit/f63c4efba6a164231699bb03349d64e60e32a0cb))
+
 ## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-29)
 
 
