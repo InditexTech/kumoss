@@ -88,8 +88,17 @@ func (h Home) ConfigDir() string { return filepath.Join(h.Root, "config") }
 // ConfigYAML is config/config.yaml.
 func (h Home) ConfigYAML() string { return filepath.Join(h.ConfigDir(), "config.yaml") }
 
+// ConfigExample is config/config.yaml.example — the repo's config.yaml at the
+// release tag, verbatim, so the comments the generated file loses are kept.
+func (h Home) ConfigExample() string { return h.ConfigYAML() + ".example" }
+
 // ComposeOverride is the generated docker compose override.
 func (h Home) ComposeOverride() string { return filepath.Join(h.Root, "compose.override.yml") }
+
+// ComposeFile is src/docker-compose.yml — the downloaded compose project file.
+// It sits in src/ so its ./core/.env and ./services/<name>/.env paths resolve to
+// the generated env files.
+func (h Home) ComposeFile() string { return filepath.Join(h.SrcDir(), "docker-compose.yml") }
 
 // CoreEnv is src/core/.env.
 func (h Home) CoreEnv() string { return filepath.Join(h.SrcDir(), "core", ".env") }

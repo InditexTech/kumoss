@@ -47,8 +47,3 @@ func Save(path string, s *State) error {
 	}
 	return os.WriteFile(path, raw, 0o600)
 }
-
-func resolveEnvRefs(a *State) (warnings []string, err error) {
-	// Implement environment variable resolution logic here
-	return warnings, nil
-}

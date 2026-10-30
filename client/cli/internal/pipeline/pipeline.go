@@ -10,6 +10,7 @@ package pipeline
 
 import (
 	"context"
+	"os"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
@@ -30,10 +31,10 @@ type Options struct {
 	PersistHome bool
 	UI          tui.UI
 
-	// RenderConfig writes config.yaml. nil uses the real renderer (fetch the
-	// repo's config.yaml at the release tag and overlay the answers). Tests
-	// inject a stub so no network is needed.
-	RenderConfig func(ctx context.Context, path string, s *state.State) error
+	// Download fetches the repo files (config.yaml, docker-compose.yml). nil
+	// uses the real fetcher at the release tag; tests inject a stub so no
+	// network is needed.
+	Download *render.Download
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
@@ -50,7 +51,18 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 2. Detect an existing install. When kumoss.yaml is present, load it and
+	dl := opts.Download
+	if dl == nil {
+		dl = &render.Download{Fetch: (&source.Fetcher{}).Fetch, Tag: buildinfo.KumossTag()}
+	}
+
+	// 2. Fetch the compose file into src/. Skipped when it already exists: it
+	// may have been hand-edited, and every later step is idempotent anyway.
+	if err := fetchCompose(ctx, dl, opts.Home.ComposeFile()); err != nil {
+		return err
+	}
+
+	// 3. Detect an existing install. When kumoss.yaml is present, load it and
 	// ask whether to reconfigure or keep it; otherwise start fresh.
 	s := &state.State{SchemaVersion: 1}
 	mode := tui.ModeFresh
@@ -68,30 +80,30 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 3. Collect answers. ModeKeep skips the forms and leaves the existing
+	// 4. Collect answers. ModeKeep skips the forms and leaves the existing
 	// env files untouched (Secrets are not in kumoss.yaml).
 	if err := opts.UI.Configure(mode, s); err != nil {
 		return err
 	}
 
-	// 4. Write the two YAML files. kumoss.yaml is skipped in ModeKeep: the
+	// 5. Write the two YAML files. kumoss.yaml is skipped in ModeKeep: the
 	// stored values did not change. config.yaml is always regenerated, which is
-	// the only file ModeKeep produces.
+	// the only config file ModeKeep produces.
 	if mode != tui.ModeKeep {
 		if err := state.Save(opts.Home.StateFile(), s); err != nil {
 			return err
 		}
 	}
-	renderConfig := opts.RenderConfig
-	if renderConfig == nil {
-		cfg := &render.Config{Fetch: (&source.Fetcher{}).Fetch, Tag: buildinfo.KumossTag()}
-		renderConfig = cfg.Render
+	cfg := &render.Config{
+		Download: dl,
+		Path:     opts.Home.ConfigYAML(),
+		Example:  opts.Home.ConfigExample(),
 	}
-	if err := renderConfig(ctx, opts.Home.ConfigYAML(), s); err != nil {
+	if err := cfg.Write(ctx, s); err != nil {
 		return err
 	}
 
-	// 5. Write the three env files. ModeKeep leaves them alone: they are the
+	// 6. Write the three env files. ModeKeep leaves them alone: they are the
 	// only copy of the secrets, so rewriting could rotate a running stack's
 	// tokens. Otherwise, reuse what exists and offer to rotate any of it first.
 	if mode != tui.ModeKeep {
@@ -105,20 +117,43 @@ func RunPipeline(ctx context.Context, opts Options) error {
 			}
 		}
 		// Reuse what the files hold, minus anything the user chose to rotate;
-		// Render generates fresh values for exactly those.
+		// Write generates fresh values for exactly those.
 		render.Fill(s, existing, rotate)
-		if err := (&render.Env{}).Render(paths, s); err != nil {
+		if err := (&render.Env{}).Write(paths, s); err != nil {
 			return err
 		}
 	}
 
-	// 6. Ask whether to start the stack. Docker pull/up come in the next slice;
+	// 7. Write compose.override.yml. Always regenerated: it is generated, not
+	// user state, and it is what points core's config mount at the file written
+	// above (the compose file's own ./config.yaml resolves to src/config.yaml).
+	override := &render.Compose{
+		Path:       opts.Home.ComposeOverride(),
+		ConfigPath: "../config/config.yaml",
+	}
+	if err := override.Write(); err != nil {
+		return err
+	}
+
+	// 8. Ask whether to start the stack. Docker pull/up come in the next slice;
 	// the answers are collected and carried in s.
 	if _, err := opts.UI.RunDocker(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// fetchCompose downloads docker-compose.yml into src/, unless it is already
+// there. An existing file wins: it may have been hand-edited, and re-downloading
+// would discard that.
+func fetchCompose(ctx context.Context, dl *render.Download, dst string) error {
+	if _, err := os.Stat(dst); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	return dl.Save(ctx, "docker-compose.yml", dst)
 }
 
 // envPaths is where each env file lives under the managed home.
