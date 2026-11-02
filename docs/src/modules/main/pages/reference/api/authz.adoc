@@ -100,7 +100,7 @@ enabled, the core *never* fails open:
 {
   "subject": {
     "type": "user",
-    "id": "42",
+    "id": "https://login.microsoftonline.com/.../v2.0",
     "properties": {
       "issuer": "https://login.microsoftonline.com/.../v2.0",
       "email": "someone@example.com",
@@ -118,10 +118,6 @@ enabled, the core *never* fails open:
       "repo_uri": "https://dev.azure.com/org/project/_git/infra",
       "iac_path": "environments/dev"
     }
-  },
-  "context": {
-    "session_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "iteration": false
   }
 }
 ----
@@ -138,7 +134,7 @@ enabled, the core *never* fails open:
 
 |`id`
 |Yes
-|The application's internal user ID (database primary key), as a string.
+|The OIDC `iss` (issuer) claim from the user's token.
 
 |`properties.issuer`
 |No
@@ -193,26 +189,9 @@ xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 |The IaC path within the repository. Omitted when empty.
 |===
 
-==== Context
-
-[cols="2,1,4",options="header"]
-|===
-|Field |Required |Description
-
-|`session_id`
-|No
-|UUID of the Kumoss session. Present on iteration and session-scoped
-requests.
-
-|`iteration`
-|No
-|`true` when this is a follow-up call within an existing session, not
-the first request.
-|===
-
 `additionalProperties` is `false` on the request envelope, subject,
-action, and resource objects. It is `true` on all `properties` objects
-and on `context`, so PDPs may read custom fields.
+action, and resource objects. It is `true` on all `properties` objects,
+so PDPs may read custom fields.
 
 === Response
 
