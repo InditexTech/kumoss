@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.0.5](https://github.com/InditexTech/kumoss/compare/v1.0.4...v1.0.5) (2026-11-02)
+
+
+### Features
+
+* **helm:** add Kubernetes Helm chart ([df35e14](https://github.com/InditexTech/kumoss/commit/df35e14cacffb625b419b4d26270a6f3eeb04942))
+* **helm:** add Kubernetes Helm chart and core /healthz ([#456](https://github.com/InditexTech/kumoss/issues/456)) ([df851d2](https://github.com/InditexTech/kumoss/commit/df851d20bfb9279c5c1d7918c57bf0c937d5371d))
+
+
+### Bug Fixes
+
+* **core:** add /healthz liveness endpoint ([3429bfe](https://github.com/InditexTech/kumoss/commit/3429bfe67768604f31d94aafb6a71ffe7171e261))
+* **helm:** address review findings ([0227ea3](https://github.com/InditexTech/kumoss/commit/0227ea3c65dfe26aac690ca07a452868afcfc4ed))
+
 ## [1.0.4](https://github.com/InditexTech/kumoss/compare/v1.0.3...v1.0.4) (2026-11-02)
 
 
