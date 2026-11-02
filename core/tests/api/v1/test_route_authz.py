@@ -49,7 +49,6 @@ def _claims() -> TokenClaims:
         email="u1@example.com",
         name="User 1",
         email_verified=True,
-        groups=["team-a"],
     )
 
 

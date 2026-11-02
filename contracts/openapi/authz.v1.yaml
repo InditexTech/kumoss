@@ -153,10 +153,6 @@ components:
           type: string
         email:
           type: string
-        groups:
-          type: array
-          items:
-            type: string
 
     Action:
       type: object

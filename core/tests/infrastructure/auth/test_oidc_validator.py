@@ -181,24 +181,6 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         claims = await self._validator().validate(token)
         self.assertEqual(claims.properties["groups"], ["team-a", "team-b"])
 
-    @patch("src.infrastructure.auth.oidc.system_config")
-    async def test_groups_claim_populates_fixed_field(self, mock_cfg):
-        mock_cfg.oidc.claims = {"groups": "groups"}
-        token = self._token(groups=["team-a", "team-b"])
-        claims = await self._validator().validate(token)
-        self.assertEqual(claims.groups, ["team-a", "team-b"])
-
-    async def test_missing_groups_claim_yields_empty_list(self):
-        claims = await self._validator().validate(self._token())
-        self.assertEqual(claims.groups, [])
-
-    @patch("src.infrastructure.auth.oidc.system_config")
-    async def test_non_list_groups_yields_empty_list(self, mock_cfg):
-        mock_cfg.oidc.claims = {"groups": "groups"}
-        token = self._token(groups="not-a-list")
-        claims = await self._validator().validate(token)
-        self.assertEqual(claims.groups, [])
-
     async def test_none_values_excluded_from_properties(self):
         token = self._token(email=None)
         claims = await self._validator().validate(token)

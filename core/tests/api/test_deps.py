@@ -16,7 +16,6 @@ class TestGetValidatedClaims(unittest.IsolatedAsyncioTestCase):
     async def test_disabled_oidc_returns_dev_claims(self, _mock):
         result = await get_validated_claims(credentials=None)
         self.assertIs(result, DEV_CLAIMS)
-        self.assertEqual(result.groups, [])
 
     @patch("src.api.deps._oidc_enabled", return_value=True)
     async def test_missing_credentials_raises_401(self, _mock):
@@ -35,7 +34,6 @@ class TestGetValidatedClaims(unittest.IsolatedAsyncioTestCase):
             email="a@b.com",
             name="A",
             email_verified=True,
-            groups=["g1"],
         )
         mock_oidc.oidc_validator = AsyncMock()
         mock_oidc.oidc_validator.validate = AsyncMock(return_value=expected)
@@ -43,4 +41,3 @@ class TestGetValidatedClaims(unittest.IsolatedAsyncioTestCase):
         creds = type("C", (), {"credentials": "tok"})()
         result = await get_validated_claims(credentials=creds)
         self.assertEqual(result, expected)
-        self.assertEqual(result.groups, ["g1"])

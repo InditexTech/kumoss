@@ -30,11 +30,9 @@ def _claims(**overrides) -> TokenClaims:
         email="alice@example.com",
         name="Alice",
         email_verified=True,
-        groups=["team-a"],
         properties={
             "issuer": "https://idp.test",
             "email": "alice@example.com",
-            "groups": ["team-a"],
         },
     )
     defaults.update(overrides)
@@ -142,7 +140,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         props_dict = request.subject.properties.to_dict()
         self.assertEqual(props_dict["issuer"], "https://idp.test")
         self.assertEqual(props_dict["email"], "alice@example.com")
-        self.assertEqual(props_dict["groups"], ["team-a"])
 
     @patch("src.api.authz.AuthzServiceClient")
     async def test_authorize_omits_email_when_not_verified(self, mock_cls):
@@ -162,28 +159,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         )
         request = mock_cls.return_value.evaluate.call_args.args[0]
         self.assertIs(request.subject.properties.email, UNSET)
-
-    @patch("src.api.authz.AuthzServiceClient")
-    async def test_authorize_omits_groups_when_empty(self, mock_cls):
-        mock_cls.return_value.evaluate = AsyncMock(
-            return_value=AccessEvaluationResponse(decision=True)
-        )
-        from src.api.authz import authorize
-        from src.clients.authz.types import UNSET
-
-        await authorize(
-            _claims(
-                groups=[],
-                properties={"issuer": "https://idp.test", "email": "alice@example.com"},
-            ),
-            "generate",
-            user_id=1,
-            scope_id="scope-1",
-            provider=TerraformProvider.AZURE,
-            repo_uri="https://dev.azure.com/org/project/_git/repo",
-        )
-        request = mock_cls.return_value.evaluate.call_args.args[0]
-        self.assertIs(request.subject.properties.groups, UNSET)
 
     @patch("src.api.authz.AuthzServiceClient")
     async def test_authorize_omits_iac_path_when_empty(self, mock_cls):
@@ -296,24 +271,3 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         props_dict = request.subject.properties.to_dict()
         self.assertNotIn("email", props_dict)
         self.assertEqual(props_dict["issuer"], "https://idp.test")
-
-    @patch("src.api.authz.AuthzServiceClient")
-    async def test_authorize_normalizes_string_groups_to_list(self, mock_cls):
-        mock_cls.return_value.evaluate = AsyncMock(
-            return_value=AccessEvaluationResponse(decision=True)
-        )
-        from src.api.authz import authorize
-
-        claims = _claims(
-            properties={"issuer": "https://idp.test", "groups": "single-group"},
-        )
-        await authorize(
-            claims,
-            "generate",
-            user_id=42,
-            scope_id="scope-1",
-            provider=TerraformProvider.AZURE,
-            repo_uri="https://dev.azure.com/org/project/_git/repo",
-        )
-        request = mock_cls.return_value.evaluate.call_args.args[0]
-        self.assertEqual(request.subject.properties.groups, ["single-group"])

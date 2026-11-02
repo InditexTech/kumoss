@@ -52,9 +52,6 @@ async def authorize(
     props = dict(claims.properties)
     if not claims.email_verified:
         props.pop("email", None)
-    groups = props.get("groups")
-    if groups is not None and not isinstance(groups, list):
-        props["groups"] = [groups] if isinstance(groups, str) else []
     subject_props = SubjectProperties.from_dict(props)
 
     resource_props = ResourceProperties(

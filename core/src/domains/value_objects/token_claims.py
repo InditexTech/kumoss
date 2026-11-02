@@ -23,7 +23,6 @@ class TokenClaims:
     email: str | None
     name: str | None
     email_verified: bool = False
-    groups: list[str] = field(default_factory=list)
     properties: dict[str, Any] = field(default_factory=dict)
 
 
@@ -33,6 +32,5 @@ DEV_CLAIMS = TokenClaims(
     email="dev@kumoss.local",
     name="Local Developer",
     email_verified=True,
-    groups=[],
     properties={"issuer": "urn:kumoss:dev", "email": "dev@kumoss.local"},
 )
