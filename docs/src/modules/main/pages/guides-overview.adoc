@@ -79,6 +79,11 @@ credentials],
 xref:main:guides/production/networking-and-tls.adoc[networking and TLS],
 xref:main:guides/production/hardening.adoc[hardening], and
 xref:main:guides/production/operations.adoc[operations].
+
+[card]
+.xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]
+Install Kumoss on Kubernetes with the bundled chart, try it on a local
+kind cluster, and bind cloud credentials through workload identity.
 ====
 
 == Develop Kumoss

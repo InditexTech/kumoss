@@ -1,0 +1,130 @@
+{{- $c := .Values.core }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "core") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "core") | nindent 4 }}
+spec:
+  # Single replica: the core creates its tables at startup and owns the
+  # workspaces volume. Recreate keeps two cores from racing on either.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "core") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "core") | nindent 8 }}
+        {{- range $k, $v := .Values.core.podLabels }}
+        {{ $k }}: {{ $v | toString | quote }}
+        {{- end }}
+      annotations:
+        kubectl.kubernetes.io/default-container: core
+        # config.yaml is only read at startup: roll the pod when it changes.
+        checksum/config: {{ include "kumoss.coreConfig" . | sha256sum }}
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "core") }}
+        {{- with $c.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "kumoss.podIdentity" (list . "core") | nindent 6 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if .Values.postgres.core.enabled }}
+      initContainers:
+        {{- include "kumoss.waitForPostgres" (list . "core-db") | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: core
+          image: {{ include "kumoss.image" (list . $c.image) }}
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8000
+          {{- include "kumoss.envFrom" (list . "core" $c) | nindent 10 }}
+          env:
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_IAC_TOKEN" "KUMOSS_IAC_TOKEN") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_NOTIFICATIONS_TOKEN" "KUMOSS_NOTIFICATIONS_TOKEN") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_SQL_DATABASE_URL" "KUMOSS_SQL_DATABASE_URL") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_REDIS_URL" "KUMOSS_REDIS_URL") | nindent 12 }}
+            {{- if .Values.objectStorage.enabled }}
+            {{- include "kumoss.secretKeyRef" (list . "RUSTFS_ACCESS_KEY" "RUSTFS_ACCESS_KEY") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "RUSTFS_SECRET_KEY" "RUSTFS_SECRET_KEY") | nindent 12 }}
+            {{- end }}
+            {{- include "kumoss.extraEnv" $c | nindent 12 }}
+          startupProbe:
+            {{- toYaml $c.startupProbe | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/kumoss/config.yaml
+              subPath: config.yaml
+              readOnly: true
+            - name: workspaces
+              mountPath: /workspaces
+            {{- with $c.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "kumoss.component" (list . "core") }}
+        - name: workspaces
+          persistentVolumeClaim:
+            claimName: {{ include "kumoss.workspacesClaim" . }}
+        {{- with $c.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- include "kumoss.scheduling" $c | nindent 6 }}
+      {{- if $c.affinity }}
+      affinity:
+        {{- toYaml $c.affinity | nindent 8 }}
+      {{- else if ne .Values.workspaces.accessMode "ReadWriteMany" }}
+      # A ReadWriteOnce workspaces volume is attached to one node: return
+      # to the iac pod's node on a rollout. Preferred, not required: iac
+      # already requires the core's node, and two hard rules would leave
+      # neither pod schedulable on a fresh install.
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "kumoss.selectorLabels" (list . "iac") | nindent 20 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.coreHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "core") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "core") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http

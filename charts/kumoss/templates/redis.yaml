@@ -1,0 +1,51 @@
+{{- if .Values.redis.enabled }}
+{{- /* Ephemeral, like docker-compose: the core keeps only transient state here. */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "redis") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "redis") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "redis") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "redis") | nindent 8 }}
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: redis }
+            periodSeconds: 20
+          {{- with .Values.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "redis") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "redis") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "redis") | nindent 4 }}
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+{{- end }}

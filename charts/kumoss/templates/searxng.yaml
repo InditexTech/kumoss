@@ -1,0 +1,82 @@
+{{- if .Values.searxng.enabled }}
+{{- /*
+The upstream image with the repository's settings.yml: SearXNG reads
+SEARXNG_SECRET itself, so the docker-compose image's entrypoint (which
+substitutes it into the file) is not needed here.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "searxng") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "searxng") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "searxng") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "searxng") | nindent 8 }}
+      annotations:
+        checksum/config: {{ .Files.Get "files/searxng-settings.yml" | sha256sum }}
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "searxng") }}
+    spec:
+      containers:
+        - name: searxng
+          image: "{{ .Values.searxng.image.repository }}:{{ .Values.searxng.image.tag }}"
+          imagePullPolicy: {{ .Values.searxng.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8888
+          env:
+            - name: SEARXNG_PORT
+              value: "8888"
+            - name: SEARXNG_BASE_URL
+              value: {{ printf "http://%s:8888" (include "kumoss.component" (list . "searxng")) | quote }}
+            {{- include "kumoss.secretKeyRef" (list . "SEARXNG_SECRET" "SEARXNG_SECRET") | nindent 12 }}
+            {{- with .Values.searxng.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          volumeMounts:
+            - name: settings
+              mountPath: /etc/searxng/settings.yml
+              subPath: settings.yml
+              readOnly: true
+            {{- with .Values.searxng.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.searxng.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: settings
+          configMap:
+            name: {{ include "kumoss.component" (list . "searxng") }}
+        {{- with .Values.searxng.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "searxng") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "searxng") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "searxng") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8888
+      targetPort: http
+{{- end }}

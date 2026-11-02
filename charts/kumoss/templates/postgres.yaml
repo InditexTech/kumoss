@@ -1,0 +1,92 @@
+{{- /*
+One single-instance Postgres per database, like docker-compose. Fine for
+evaluation; use a managed database or an operator (CloudNativePG...) in
+production and set postgres.<db>.externalUrl instead.
+*/ -}}
+{{- range $db := list "core" "phoenix" }}
+{{- $cfg := index $.Values.postgres $db }}
+{{- $component := printf "%s-db" $db }}
+{{- $enabled := and $cfg.enabled (or (eq $db "core") $.Values.phoenix.enabled) }}
+{{- if $enabled }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kumoss.component" (list $ $component) }}
+  labels:
+    {{- include "kumoss.componentLabels" (list $ $component) | nindent 4 }}
+spec:
+  serviceName: {{ include "kumoss.component" (list $ $component) }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list $ $component) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list $ $component) | nindent 8 }}
+    spec:
+      containers:
+        - name: postgres
+          image: "{{ $.Values.postgres.image.repository }}:{{ $.Values.postgres.image.tag }}"
+          imagePullPolicy: {{ $.Values.postgres.image.pullPolicy }}
+          ports:
+            - name: postgres
+              containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_DB
+              value: {{ $cfg.database | quote }}
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "kumoss.internalSecret" $ }}
+                  key: {{ printf "%s_DB_PASSWORD" (upper $db) }}
+            # A subdirectory: a fresh volume's root may hold lost+found,
+            # which initdb refuses.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres", "-d", {{ $cfg.database | quote }}]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "postgres"]
+            periodSeconds: 20
+            failureThreshold: 6
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          {{- with $.Values.postgres.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with $cfg.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $cfg.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list $ $component) }}
+  labels:
+    {{- include "kumoss.componentLabels" (list $ $component) | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list $ $component) | nindent 4 }}
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: postgres
+{{- end }}
+{{- end }}

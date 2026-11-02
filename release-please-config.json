@@ -23,6 +23,7 @@
         { "type": "toml", "path": "core/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "generic", "path": "core/src/main.py" },
         { "type": "generic", "path": "docker-compose.yml" },
+        { "type": "generic", "path": "charts/kumoss/Chart.yaml" },
         { "type": "toml", "path": "core/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss')].version" },
         { "type": "toml", "path": "services/iac/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "services/iac/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-iac')].version" },
