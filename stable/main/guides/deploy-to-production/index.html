@@ -526,6 +526,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-with-helm/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -942,8 +951,10 @@ and upgrades</a></p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The repository ships <strong>no Kubernetes manifests or Helm charts</strong>; the
-Compose file is the reference topology you translate to your platform.</p>
+<p>The Compose file is the reference topology. On Kubernetes, the Helm
+chart in <code>charts/kumoss</code> (<a href="../deploy-with-helm/" class="xref page">Deploy
+with Helm</a>) translates it for you; on any other platform you translate
+it yourself.</p>
 </div>
 </div>
 </div>
@@ -984,8 +995,8 @@ table:</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Platform</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Docker Compose on one host</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A production platform such as Kubernetes, expressed by you from the
-reference topology below</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A production platform such as Kubernetes, with the bundled Helm chart
+or expressed by you from the reference topology below</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Authentication</p></td>
@@ -1030,12 +1041,15 @@ protected Phoenix, a public object-storage endpoint</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The repository does not provide Kubernetes manifests, Helm charts,
-Kustomize overlays, Terraform modules for the platform itself, database
-migrations, or a multi-replica execution model. It provides the container
-images, <code>docker-compose.yml</code> as the reference topology, and the OpenAPI
-contracts and conformance suites for the sidecars; you write the platform
-definition for your environment.</p>
+<p>The repository provides the container images, <code>docker-compose.yml</code> as
+the reference topology, a Helm chart for Kubernetes
+(<a href="../deploy-with-helm/" class="xref page">Deploy with Helm</a>), and the
+OpenAPI contracts and conformance suites for the sidecars. It does not
+provide Kustomize overlays, Terraform modules for the platform itself,
+database migrations, or a multi-replica execution model. The chart wires
+the stack together, but the production decisions on this page (managed
+data services, identity, TLS, hardening) remain yours to make through
+its values.</p>
 </div>
 </div>
 </div>
@@ -1181,8 +1195,9 @@ containers, <code>paths.upload_folder</code>). The core clones repositories ther
 and the IaC sidecar runs the engine against the same paths. It must
 be <strong>one filesystem mounted read-write by both containers at the same
 path</strong>, owned by uid/gid <code>10001</code>. On Kubernetes that means a
-<code>ReadWriteMany</code> volume or the two containers in the same pod sharing a
-volume, with a matching <code>fsGroup</code>/<code>runAsUser</code>. Contents are ephemeral
+<code>ReadWriteMany</code> volume or the two containers on one node sharing a
+<code>ReadWriteOnce</code> volume, with a matching <code>fsGroup</code>/<code>runAsUser</code>; the Helm
+chart sets both up (<code>workspaces.*</code>). Contents are ephemeral
 (each run&#8217;s directory is deleted afterwards), but the pinned plan of
 every session lives there between a generate round and its apply, so
 the volume must survive pod restarts.</p>

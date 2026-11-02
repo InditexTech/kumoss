@@ -1,0 +1,1441 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Deploy with Helm | Kumoss</title>
+
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/deploy-with-helm/">
+    <link rel="prev" href="../production/operations/">
+    <link rel="next" href="../development/">
+    <meta name="description" content="Install Kumoss on Kubernetes with the chart in charts/kumoss, try it on a local kind cluster, and know what the chart changes from the Compose stack.">
+    <meta name="generator" content="Antora 3.2.1">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../../stable/">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--prerelease version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">prerelease</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </span>
+    <a class="version" href="../../../../stable/main/guides/deploy-with-helm/">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </a>
+  </div>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../../stable/">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../see-it-in-action/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">See it in action</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../monitor-with-phoenix/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../roadmap/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--prerelease version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">prerelease</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </span>
+    <a class="version" href="../../../../stable/main/guides/deploy-with-helm/">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </a>
+  </div>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Deploy with Helm</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Deploy with Helm</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Install Kumoss on Kubernetes with the chart in charts/kumoss, try it on a local kind cluster, and know what the chart changes from the Compose stack.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>The chart in <code>charts/kumoss</code> deploys the same stack as
+<code>docker-compose.yml</code> on Kubernetes: the proxy, the core, the IaC and
+notifications sidecars, and the bundled backing services (two
+PostgreSQL databases, Redis, RustFS object storage, Phoenix and
+SearXNG). Every backing service can be switched off and replaced by an
+external one.</p>
+</div>
+<div class="paragraph">
+<p>The chart does not make a deployment production-ready on its own. The
+decisions in <a href="../deploy-to-production/" class="xref page">Deploy to
+production</a> still apply; this page covers only how the chart maps
+them to Kubernetes.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="what-the-chart-deploys"><a class="anchor" href="#what-the-chart-deploys"></a>What the chart deploys</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Component</th>
+<th class="tableblock halign-left valign-top">Kind</th>
+<th class="tableblock halign-left valign-top">Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>proxy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment + Service</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The single entry point, as in Compose: port 80 serves the SPA, <code>/api</code>
+(including the event stream) and <code>/monitoring</code>; port 9000 fronts the
+object store for presigned artifact URLs.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment (1 replica, <code>Recreate</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mounts <code>config.yaml</code> from a ConfigMap and the shared <code>workspaces</code>
+volume. Probed on <code>GET /healthz</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>iac</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment (1 replica, <code>Recreate</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mounts the same <code>workspaces</code> volume as the core.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>notifications</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Off by default: the service refuses to start without
+<code>SLACK_WEBHOOK_URL</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core-db</code>, <code>phoenix-db</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">StatefulSet (<code>postgres:17</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Single instance each. Use a managed database or an operator in
+production.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>redis</code>, <code>object-storage</code>, <code>phoenix</code>, <code>searxng</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment / StatefulSet</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Same images and settings as Compose. SearXNG runs the upstream image
+with the repository&#8217;s <code>settings.yml</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The repository&#8217;s <code>config.yaml</code>, <code>nginx/nginx.conf</code> and
+<code>services/searxng/settings.yml</code> are symlinked into <code>charts/kumoss/files</code>,
+so the chart always ships what Compose ships. At render time the chart
+replaces the Compose hostnames (<code>core</code>, <code>iac</code>, <code>phoenix</code>, &#8230;&#8203;) with the
+release&#8217;s Service names, then applies your <code>config</code> overrides on top.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="values-that-matter"><a class="anchor" href="#values-that-matter"></a>Values that matter</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 71.4286%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Value</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>publicUrl</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">URL the browser uses to reach the proxy. It becomes the core&#8217;s only
+CORS origin (<code>http.cors_origins</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>storagePublicUrl</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">URL the browser uses to reach the proxy&#8217;s port 9000. The core signs
+artifact download links for this host (<code>storage.public_endpoint_url</code>).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>config</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Any <code>config.yaml</code> key, merged over the repository file. See
+<a href="../../reference/configuration/" class="xref page">Configuration</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core.existingSecret</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Secret loaded whole into the core: LLM credentials (see
+<a href="../../reference/llm-providers/" class="xref page">LLM providers and models</a>),
+<code>GIT_USER</code>, <code>GIT_TOKEN</code>. <code>core.secretEnv</code> creates one from values
+instead, for local testing.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>iac.existingSecret</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud provider credentials for plan and apply.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>secrets.*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Service tokens and bundled-service passwords. Leave them blank: the
+chart generates them on first install and reuses them on upgrade. If
+the chart is rendered offline, see <a href="#gitops">Rendering offline (Argo CD, Flux, <code>helm template</code>)</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>workspaces.accessMode</code>, <code>workspaces.storageClass</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The core and the IaC sidecar share this volume. With <code>ReadWriteOnce</code>
+(the default) the IaC pod is required to run on the core&#8217;s node and the
+core prefers the IaC pod&#8217;s node, so a rollout returns to the node that
+holds the volume. Setting <code>iac.affinity</code> or <code>core.affinity</code> replaces
+those rules: keep the equivalent <code>podAffinity</code> in yours. On a
+multi-node cluster, a <code>ReadWriteMany</code> class removes the constraint.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;service&gt;.enabled</code>, <code>&lt;service&gt;.externalUrl</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Replace a bundled backing service. <code>postgres.core.externalUrl</code> and
+<code>redis.externalUrl</code> take connection URLs; for object storage, disable
+it and set <code>config.storage.*</code> instead.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;component&gt;.serviceAccount</code>, <code>&lt;component&gt;.podLabels</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The Kubernetes identity each of <code>proxy</code>, <code>core</code>, <code>iac</code> and
+<code>notifications</code> runs as; see <a href="#workload-identity">Cloud credentials with workload identity</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>notifications.enabled</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Off by default. Turning it on requires <code>SLACK_WEBHOOK_URL</code> in
+<code>notifications.secretEnv</code> or <code>notifications.existingSecret</code>; the chart
+refuses to render without it.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;component&gt;.resources</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">CPU and memory requests and limits. Empty by default; set them for
+production, and on clusters that require them (GKE Autopilot fills in
+its own defaults otherwise).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix.exposeViaProxy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On by default, as in Compose: the proxy serves the Phoenix UI under
+<code>/monitoring/</code>, and so does any Ingress in front of it. Phoenix has no
+authentication and its traces hold full prompts and repository
+content, so in production set it to <code>false</code> and reach Phoenix with
+<code>kubectl port-forward</code> or a separately protected route. The admin
+panel&#8217;s Phoenix link then answers 502.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix.enabled</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">With <code>false</code>, point <code>config.telemetry.collector_url</code> at your own
+Phoenix (the core seeds its prompts there at startup). The proxy does
+not route <code>/monitoring/</code> to an external Phoenix; open it at its own
+URL.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ingress.*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional Ingress in front of the proxy. <code>ingress.storageHost</code> routes
+a second host to port 9000 for downloads; set <code>storagePublicUrl</code> to
+match.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>&lt;component&gt;.extraEnv</code>, <code>extraVolumes</code> and <code>extraVolumeMounts</code> cover
+everything else; <a href="#tls-inspecting-proxy">Behind a TLS-inspecting proxy</a> uses them to trust corporate
+CA roots.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="workload-identity"><a class="anchor" href="#workload-identity"></a>Cloud credentials with workload identity</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>On a managed cluster, prefer workload identity over long-lived keys in
+Secrets: each pod runs as a Kubernetes ServiceAccount that the cloud
+maps to one of its identities, and the pod receives short-lived tokens
+automatically.</p>
+</div>
+<div class="paragraph">
+<p>The chart creates one ServiceAccount per Kumoss component, so
+permissions stay separate. Two of them need cloud access:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>core</code>: the LLM provider (Vertex AI, Azure AI, Bedrock) and, with
+<code>S3</code> storage, the artifacts store: leave the static keys blank and
+the default AWS credential chain picks up the identity.
+<code>STORAGE_ACCOUNT</code> storage does not use the pod identity; it still
+needs <code>STORAGE_ACCOUNT_KEY</code> (for example in <code>core.existingSecret</code>),
+because the core signs download links with the account key.</p>
+</li>
+<li>
+<p><code>iac</code>: the permissions <code>plan</code> and <code>apply</code> need on the target
+infrastructure. This is the most privileged identity in the
+deployment; scope it accordingly.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Bind a ServiceAccount by annotating it (and, on AKS, labelling the
+pods):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># AKS — Azure Workload Identity. The webhook injects AZURE_* variables;</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># the azurerm provider and import discovery read the ARM_* ones.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  serviceAccount</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    annotations</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      azure.workload.identity/client-id</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">&#x3C;managed-identity-client-id></span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  podLabels</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    azure.workload.identity/use</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"true"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    ARM_USE_AKS_WORKLOAD_IDENTITY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"true"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    ARM_CLIENT_ID</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">&#x3C;managed-identity-client-id></span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    ARM_TENANT_ID</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">&#x3C;tenant-id></span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># EKS — IRSA (EKS Pod Identity needs no annotation: associate the</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># ServiceAccount with the role in EKS instead). The webhook injects the</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># role and token; only the region is yours to set.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  serviceAccount</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    annotations</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      eks.amazonaws.com/role-arn</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">arn:aws:iam::&#x3C;account>:role/&#x3C;role></span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  env</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    AWS_REGION</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">&#x3C;region></span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># GKE — Workload Identity Federation, impersonating a service account.</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># The provider finds the identity through the metadata server.</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">iac</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  serviceAccount</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    annotations</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">      iam.gke.io/gcp-service-account</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">&#x3C;name>@&#x3C;project>.iam.gserviceaccount.com</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The per-cloud variables come from <code>services/iac/PROVIDERS.md</code>, which
+lists every supported credential form.</p>
+</div>
+<div class="paragraph">
+<p>The cloud side (the managed identity or role, its permissions, and the
+trust that lets this ServiceAccount assume it) is set up outside the
+chart. The trust is keyed on the namespace and ServiceAccount name:
+<code>&lt;release&gt;-kumoss-&lt;component&gt;</code> by default (<code>kumoss-iac</code> for a release
+named <code>kumoss</code>), or set <code>serviceAccount.name</code>. To use a ServiceAccount
+you manage yourself, set <code>serviceAccount.create: false</code> and
+<code>serviceAccount.name</code>.</p>
+</div>
+<div class="paragraph">
+<p>Kumoss does not call the Kubernetes API, so the pods do not mount a
+Kubernetes API token (<code>serviceAccount.automount: false</code>). The
+workload-identity token is injected separately and is unaffected.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="gitops"><a class="anchor" href="#gitops"></a>Rendering offline (Argo CD, Flux, <code>helm template</code>)</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The chart reads its generated credentials back from the cluster with
+Helm&#8217;s <code>lookup</code>, which only works when Helm talks to the cluster
+(<code>helm install</code> / <code>helm upgrade</code>). Tools that render the chart offline
+get nothing back, so every render would generate new passwords, and
+the databases, initialised with the first ones, would reject them.</p>
+</div>
+<div class="paragraph">
+<p>Manage that Secret yourself instead (with Sealed Secrets, External
+Secrets, SOPS&#8230;&#8203;) and set <code>secrets.existingSecret</code> to its name. The chart
+then renders no credentials of its own. The Secret needs every key the
+generated one has:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_IAC_TOKEN</code>, <code>KUMOSS_NOTIFICATIONS_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer tokens between the core and the sidecars (any random string)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>CORE_DB_PASSWORD</code>, <code>PHOENIX_DB_PASSWORD</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Passwords the bundled databases are initialised with</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_SQL_DATABASE_URL</code>, <code>PHOENIX_SQL_DATABASE_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Connection URLs, e.g.
+<code>postgresql://postgres:&lt;password&gt;@&lt;release&gt;-kumoss-core-db:5432/kumoss</code>.
+Percent-encode the password.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_REDIS_URL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">e.g. <code>redis://&lt;release&gt;-kumoss-redis:6379/0</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>RUSTFS_ACCESS_KEY</code>, <code>RUSTFS_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Credentials of the bundled object store</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>SEARXNG_SECRET</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">SearXNG&#8217;s secret key (any random string)</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Keys for components you disabled can be omitted. Pods do not restart
+when this Secret changes; restart them after rotating it.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="try-it-on-kind"><a class="anchor" href="#try-it-on-kind"></a>Try it on kind</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><a href="https://kind.sigs.k8s.io/">kind</a> runs a Kubernetes cluster as Docker
+containers on your workstation. The steps below give a single-node
+cluster whose host ports 80 and 9000 reach the proxy, so the browser
+uses the same URLs as with Compose and the default <code>publicUrl</code> /
+<code>storagePublicUrl</code> work unchanged. Run them from the repository root.</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Create the cluster. The port mappings forward host ports 80 and 9000
+to the node ports the proxy is exposed on in step 4:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cat</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C;&#x3C;</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">'EOF'</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kind</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> create</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> cluster</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --name</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --config</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> -</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">kind: Cluster</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">apiVersion: kind.x-k8s.io/v1alpha4</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">nodes:</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - role: control-plane</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    extraPortMappings:</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">      - { containerPort: 30080, hostPort: 80 }</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">      - { containerPort: 30900, hostPort: 9000 }</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">EOF</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Make the images available. The chart&#8217;s image tags follow the chart
+version, so a chart from a release pulls that release&#8217;s images and
+nothing needs doing. To run your checkout instead, build the images
+you changed and load them into the node, which has its own image
+store:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> build</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -f</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core/Dockerfile</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --build-context</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> host-certs=docker/certs</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  -t</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss-core:dev</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> .</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kind</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> load</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> docker-image</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss-core:dev</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --name</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then point the component at it with <code>--set
+core.image.repository=kumoss-core,core.image.tag=dev,core.image.pullPolicy=Never</code>.</p>
+</div>
+</li>
+<li>
+<p>Store the LLM credentials the configured models need (here, the
+default Vertex AI models) and, optionally, the Git credentials:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kubectl</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> create</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> namespace</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kubectl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> create</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> secret</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> generic</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss-credentials</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-literal=VERTEXAI_PROJECT=my-project</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-literal=VERTEXAI_LOCATION=europe-west1</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-file=VERTEXAI_CREDENTIALS=./service-account.json</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-literal=GIT_USER=</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">&#x3C;</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">user</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">></span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-literal=GIT_TOKEN=</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">&#x3C;</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">token</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">></span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Install, exposing the proxy on the node ports mapped in step 1:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">helm</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> upgrade</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --install</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> charts/kumoss</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> proxy.service.type=NodePort</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> proxy.service.nodePorts.http=</span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">30080</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> proxy.service.nodePorts.storage=</span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">30900</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --set</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core.existingSecret=kumoss-credentials</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --wait</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --timeout</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> 10m</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">helm</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Open <code>http://localhost</code>. Phoenix is at <code>http://localhost/monitoring/</code>.</p>
+</li>
+</ol>
+</div>
+<div class="sect2">
+<h3 id="tls-inspecting-proxy"><a class="anchor" href="#tls-inspecting-proxy"></a>Behind a TLS-inspecting proxy</h3>
+<div class="paragraph">
+<p>Two things change, matching the
+<a href="../development/#tls-inspecting-proxy" class="xref page">Compose
+setup</a>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Image pulls.</strong> The kind node may not trust the proxy and fail to pull
+(<code>ImagePullBackOff</code>). Pull the images on the host and copy them in.
+Save a single platform first, because <code>kind load docker-image</code> fails
+on multi-platform images:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pull</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> postgres:17</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> save</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --platform</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> linux/amd64</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -o</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /tmp/img.tar</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> postgres:17</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kind</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> load</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> image-archive</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /tmp/img.tar</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --name</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>helm template charts/kumoss | grep 'image:'</code> lists every image the
+release needs.</p>
+</div>
+</li>
+<li>
+<p><strong>Outbound HTTPS from the pods.</strong> Put your corporate roots in a
+ConfigMap and mount them where the core&#8217;s entrypoint looks for them
+(<code>KUMOSS_CA_DIR</code>). SearXNG takes a combined bundle through
+<code>SSL_CERT_FILE</code>:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kubectl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> create</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> configmap</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> host-ca</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-file=/usr/local/share/ca-certificates</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kubectl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> create</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> configmap</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> host-bundle</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --from-file=ca-certificates.crt=/etc/ssl/certs/ca-certificates.crt</span></span></span></code></pre>
+</div>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">core</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  extraEnv</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">KUMOSS_CA_DIR</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">value</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/usr/local/share/ca-certificates/host</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> }</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  extraVolumes</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">host-ca</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">configMap</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">host-ca</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> } }</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  extraVolumeMounts</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">host-ca</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">mountPath</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/usr/local/share/ca-certificates/host</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">readOnly</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> }</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">searxng</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  extraEnv</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">SSL_CERT_FILE</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">value</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/etc/kumoss-ca/ca-certificates.crt</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> }</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  extraVolumes</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">host-bundle</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">configMap</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">host-bundle</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> } }</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  extraVolumeMounts</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    - { </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">host-bundle</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">mountPath</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/etc/kumoss-ca</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">readOnly</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> }</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>When building the core image, pass the same directory as the
+<code>host-certs</code> build context instead of <code>docker/certs</code>.</p>
+</div>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="troubleshooting-kind"><a class="anchor" href="#troubleshooting-kind"></a>Troubleshooting kind</h3>
+<div class="paragraph">
+<p><code>kube-proxy</code> crash-looping with <code>too many open files</code>, followed by
+CoreDNS and the <code>local-path-provisioner</code> failing, means the host ran
+out of inotify instances. Every kind node on the host shares the
+per-user limit, so it shows up with several clusters. Raise it, and
+persist it if your distribution reads <code>/etc/sysctl.d</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">sudo</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> sysctl</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> fs.inotify.max_user_instances=</span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">512</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">echo</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> 'fs.inotify.max_user_instances=512'</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> | </span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">sudo</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tee</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /etc/sysctl.d/99-kind.conf</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Then delete the crashed pods so they restart immediately, for example
+<code>kubectl -n kube-system delete pod -l k8s-app=kube-proxy</code>.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="upgrades-and-removal"><a class="anchor" href="#upgrades-and-removal"></a>Upgrades and removal</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><code>config.yaml</code> changes roll the core automatically (the pod carries a
+checksum of the rendered file). Changes to <code>secrets.*</code>, the external
+service URLs, or a component&#8217;s <code>secretEnv</code> roll every pod that reads
+them the same way. A Secret you reference through <code>existingSecret</code>
+is managed outside the chart: after rotating it, restart its readers
+(<code>kubectl rollout restart deploy/&lt;release&gt;-kumoss-core</code>).</p>
+</li>
+<li>
+<p>Generated passwords and tokens are read back from the existing
+Secret on every upgrade. Changing a database password in values
+after the first install does not change it inside an initialised
+database.</p>
+</li>
+<li>
+<p><code>helm uninstall</code> keeps the data: the <code>workspaces</code> claim, the
+StatefulSets' data claims, and the <code>&lt;release&gt;-kumoss-internal</code> Secret
+holding the passwords that data was initialised with (both carry
+<code>helm.sh/resource-policy: keep</code>). Reinstalling the same release in the
+same namespace picks all three up again. To start from scratch,
+delete them explicitly:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kubectl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> delete</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pvc</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -l</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> app.kubernetes.io/instance=kumoss</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">kubectl</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -n</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> delete</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> secret</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss-internal</span></span></span></code></pre>
+</div>
+</div>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../production/operations/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Operations</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../development/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Development</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/guides/deploy-with-helm.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../../stable/">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>
