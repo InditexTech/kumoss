@@ -19,6 +19,7 @@ spec:
         {{- end }}
       annotations:
         checksum/config: {{ include "kumoss.nginxConf" . | sha256sum }}
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "proxy") }}
         {{- with $c.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

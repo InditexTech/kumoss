@@ -21,10 +21,11 @@ spec:
         {{- range $k, $v := .Values.notifications.podLabels }}
         {{ $k }}: {{ $v | toString | quote }}
         {{- end }}
-      {{- with $c.podAnnotations }}
       annotations:
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "notifications") }}
+        {{- with $c.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
     spec:
       {{- include "kumoss.podIdentity" (list . "notifications") | nindent 6 }}
       {{- with .Values.imagePullSecrets }}

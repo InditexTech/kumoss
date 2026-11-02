@@ -25,6 +25,7 @@ spec:
         kubectl.kubernetes.io/default-container: core
         # config.yaml is only read at startup: roll the pod when it changes.
         checksum/config: {{ include "kumoss.coreConfig" . | sha256sum }}
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "core") }}
         {{- with $c.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -95,9 +96,23 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
       {{- include "kumoss.scheduling" $c | nindent 6 }}
-      {{- with $c.affinity }}
+      {{- if $c.affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml $c.affinity | nindent 8 }}
+      {{- else if ne .Values.workspaces.accessMode "ReadWriteMany" }}
+      # A ReadWriteOnce workspaces volume is attached to one node: return
+      # to the iac pod's node on a rollout. Preferred, not required: iac
+      # already requires the core's node, and two hard rules would leave
+      # neither pod schedulable on a fresh install.
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    {{- include "kumoss.selectorLabels" (list . "iac") | nindent 20 }}
       {{- end }}
 ---
 apiVersion: v1

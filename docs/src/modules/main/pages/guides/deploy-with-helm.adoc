@@ -85,12 +85,16 @@ instead, for local testing.
 
 |`secrets.*`
 |Service tokens and bundled-service passwords. Leave them blank: the
-chart generates them on first install and reuses them on upgrade.
+chart generates them on first install and reuses them on upgrade. If
+the chart is rendered offline, see <<gitops>>.
 
 |`workspaces.accessMode`, `workspaces.storageClass`
 |The core and the IaC sidecar share this volume. With `ReadWriteOnce`
-(the default) the IaC pod is scheduled on the core's node; on a
-multi-node cluster use a `ReadWriteMany` class.
+(the default) the IaC pod is required to run on the core's node and the
+core prefers the IaC pod's node, so a rollout returns to the node that
+holds the volume. Setting `iac.affinity` or `core.affinity` replaces
+those rules: keep the equivalent `podAffinity` in yours. On a
+multi-node cluster, a `ReadWriteMany` class removes the constraint.
 
 |`<service>.enabled`, `<service>.externalUrl`
 |Replace a bundled backing service. `postgres.core.externalUrl` and
@@ -110,6 +114,20 @@ refuses to render without it.
 |CPU and memory requests and limits. Empty by default; set them for
 production, and on clusters that require them (GKE Autopilot fills in
 its own defaults otherwise).
+
+|`phoenix.exposeViaProxy`
+|On by default, as in Compose: the proxy serves the Phoenix UI under
+`/monitoring/`, and so does any Ingress in front of it. Phoenix has no
+authentication and its traces hold full prompts and repository
+content, so in production set it to `false` and reach Phoenix with
+`kubectl port-forward` or a separately protected route. The admin
+panel's Phoenix link then answers 502.
+
+|`phoenix.enabled`
+|With `false`, point `config.telemetry.collector_url` at your own
+Phoenix (the core seeds its prompts there at startup). The proxy does
+not route `/monitoring/` to an external Phoenix; open it at its own
+URL.
 
 |`ingress.*`
 |Optional Ingress in front of the proxy. `ingress.storageHost` routes
@@ -133,9 +151,11 @@ The chart creates one ServiceAccount per Kumoss component, so
 permissions stay separate. Two of them need cloud access:
 
 * `core`: the LLM provider (Vertex AI, Azure AI, Bedrock) and, with
-  `S3` or `STORAGE_ACCOUNT` storage, the artifacts store. With `S3`,
-  leave the static keys blank and the default AWS credential chain
-  picks up the identity.
+  `S3` storage, the artifacts store: leave the static keys blank and
+  the default AWS credential chain picks up the identity.
+  `STORAGE_ACCOUNT` storage does not use the pod identity; it still
+  needs `STORAGE_ACCOUNT_KEY` (for example in `core.existingSecret`),
+  because the core signs download links with the account key.
 * `iac`: the permissions `plan` and `apply` need on the target
   infrastructure. This is the most privileged identity in the
   deployment; scope it accordingly.
@@ -145,27 +165,39 @@ pods):
 
 [source,yaml]
 ----
-# AKS — Azure Workload Identity
+# AKS — Azure Workload Identity. The webhook injects AZURE_* variables;
+# the azurerm provider and import discovery read the ARM_* ones.
 iac:
   serviceAccount:
     annotations:
       azure.workload.identity/client-id: <managed-identity-client-id>
   podLabels:
     azure.workload.identity/use: "true"
+  env:
+    ARM_USE_AKS_WORKLOAD_IDENTITY: "true"
+    ARM_CLIENT_ID: <managed-identity-client-id>
+    ARM_TENANT_ID: <tenant-id>
 
 # EKS — IRSA (EKS Pod Identity needs no annotation: associate the
-# ServiceAccount with the role in EKS instead)
+# ServiceAccount with the role in EKS instead). The webhook injects the
+# role and token; only the region is yours to set.
 iac:
   serviceAccount:
     annotations:
       eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/<role>
+  env:
+    AWS_REGION: <region>
 
-# GKE — Workload Identity Federation, impersonating a service account
+# GKE — Workload Identity Federation, impersonating a service account.
+# The provider finds the identity through the metadata server.
 iac:
   serviceAccount:
     annotations:
       iam.gke.io/gcp-service-account: <name>@<project>.iam.gserviceaccount.com
 ----
+
+The per-cloud variables come from `services/iac/PROVIDERS.md`, which
+lists every supported credential form.
 
 The cloud side (the managed identity or role, its permissions, and the
 trust that lets this ServiceAccount assume it) is set up outside the
@@ -178,6 +210,48 @@ you manage yourself, set `serviceAccount.create: false` and
 Kumoss does not call the Kubernetes API, so the pods do not mount a
 Kubernetes API token (`serviceAccount.automount: false`). The
 workload-identity token is injected separately and is unaffected.
+
+[#gitops]
+== Rendering offline (Argo CD, Flux, `helm template`)
+
+The chart reads its generated credentials back from the cluster with
+Helm's `lookup`, which only works when Helm talks to the cluster
+(`helm install` / `helm upgrade`). Tools that render the chart offline
+get nothing back, so every render would generate new passwords, and
+the databases, initialised with the first ones, would reject them.
+
+Manage that Secret yourself instead (with Sealed Secrets, External
+Secrets, SOPS...) and set `secrets.existingSecret` to its name. The chart
+then renders no credentials of its own. The Secret needs every key the
+generated one has:
+
+[cols="2,4",options="header"]
+|===
+|Key |Value
+
+|`KUMOSS_IAC_TOKEN`, `KUMOSS_NOTIFICATIONS_TOKEN`
+|Bearer tokens between the core and the sidecars (any random string)
+
+|`CORE_DB_PASSWORD`, `PHOENIX_DB_PASSWORD`
+|Passwords the bundled databases are initialised with
+
+|`KUMOSS_SQL_DATABASE_URL`, `PHOENIX_SQL_DATABASE_URL`
+|Connection URLs, e.g.
+`postgresql://postgres:<password>@<release>-kumoss-core-db:5432/kumoss`.
+Percent-encode the password.
+
+|`KUMOSS_REDIS_URL`
+|e.g. `redis://<release>-kumoss-redis:6379/0`
+
+|`RUSTFS_ACCESS_KEY`, `RUSTFS_SECRET_KEY`
+|Credentials of the bundled object store
+
+|`SEARXNG_SECRET`
+|SearXNG's secret key (any random string)
+|===
+
+Keys for components you disabled can be omitted. Pods do not restart
+when this Secret changes; restart them after rotating it.
 
 [#try-it-on-kind]
 == Try it on kind
@@ -325,11 +399,24 @@ Then delete the crashed pods so they restart immediately, for example
 == Upgrades and removal
 
 * `config.yaml` changes roll the core automatically (the pod carries a
-  checksum of the rendered file).
+  checksum of the rendered file). Changes to `secrets.*`, the external
+  service URLs, or a component's `secretEnv` roll every pod that reads
+  them the same way. A Secret you reference through `existingSecret`
+  is managed outside the chart: after rotating it, restart its readers
+  (`kubectl rollout restart deploy/<release>-kumoss-core`).
 * Generated passwords and tokens are read back from the existing
   Secret on every upgrade. Changing a database password in values
   after the first install does not change it inside an initialised
   database.
-* `helm uninstall` keeps the `workspaces` claim
-  (`helm.sh/resource-policy: keep`) and the StatefulSets' data claims.
-  Delete them explicitly to start from scratch.
+* `helm uninstall` keeps the data: the `workspaces` claim, the
+  StatefulSets' data claims, and the `<release>-kumoss-internal` Secret
+  holding the passwords that data was initialised with (both carry
+  `helm.sh/resource-policy: keep`). Reinstalling the same release in the
+  same namespace picks all three up again. To start from scratch,
+  delete them explicitly:
++
+[source,bash]
+----
+kubectl -n kumoss delete pvc -l app.kubernetes.io/instance=kumoss
+kubectl -n kumoss delete secret kumoss-internal
+----

@@ -26,7 +26,7 @@ spec:
           {{- if .Values.notifications.enabled }}
           check "http://{{ include "kumoss.component" (list . "notifications") }}:8080/healthz"
           {{- end }}
-          {{- if .Values.phoenix.enabled }}
+          {{- if and .Values.phoenix.enabled .Values.phoenix.exposeViaProxy }}
           check "http://{{ include "kumoss.component" (list . "proxy") }}:{{ .Values.proxy.service.httpPort }}/monitoring/"
           {{- end }}
           echo OK

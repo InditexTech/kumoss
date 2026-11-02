@@ -16,6 +16,7 @@ spec:
         {{- include "kumoss.selectorLabels" (list . "phoenix") | nindent 8 }}
       annotations:
         kubectl.kubernetes.io/default-container: phoenix
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "phoenix") }}
     spec:
       {{- if .Values.postgres.phoenix.enabled }}
       initContainers:

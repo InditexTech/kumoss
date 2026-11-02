@@ -40,6 +40,13 @@ config: {}
 # first install; they are then reused from the existing Secret on every
 # upgrade.
 secrets:
+  # Name of a Secret you manage yourself, used instead of the generated
+  # one. Needed when the chart is rendered offline (helm template, Argo
+  # CD, Flux): `lookup` cannot read the cluster there, so generated
+  # credentials would change on every render. It must hold every key the
+  # generated Secret has; see the Helm guide. The values below are then
+  # ignored.
+  existingSecret: ""
   # Bearer tokens the core sends to (and each service validates from)
   # iac / notifications.
   iacToken: ""
@@ -57,8 +64,10 @@ secrets:
 # the iac service runs the engine inside those clones, so both pods
 # mount it read-write. With ReadWriteOnce (the default, fine for a
 # single-node cluster such as kind) the iac pod is pinned to the core's
-# node. Use a ReadWriteMany class (EFS, Azure Files, NFS...) in
-# multi-node clusters.
+# node, and the core prefers the iac pod's node on rollouts. Setting
+# core.affinity or iac.affinity replaces these rules; keep an equivalent
+# podAffinity in yours. Use a ReadWriteMany class (EFS, Azure Files,
+# NFS...) in multi-node clusters.
 workspaces:
   size: 10Gi
   storageClass: ""
@@ -298,6 +307,12 @@ objectStorage:
 # config.telemetry.collector_url at your own Phoenix.
 phoenix:
   enabled: true
+  # Serve the Phoenix UI under /monitoring/ on the proxy (and so on any
+  # Ingress in front of it), as docker-compose does. Phoenix has no
+  # authentication of its own and its traces hold full prompts and
+  # repository content: in production, set false and reach it through
+  # kubectl port-forward or a separately protected route.
+  exposeViaProxy: true
   image:
     repository: arizephoenix/phoenix
     tag: "20.12.0"

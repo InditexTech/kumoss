@@ -21,6 +21,7 @@ spec:
         {{- include "kumoss.selectorLabels" (list . "searxng") | nindent 8 }}
       annotations:
         checksum/config: {{ .Files.Get "files/searxng-settings.yml" | sha256sum }}
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "searxng") }}
     spec:
       containers:
         - name: searxng

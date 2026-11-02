@@ -14,9 +14,16 @@
 {{- end }}
 {{- end }}
 
-{{/* Name of a component's resources. Usage: include "kumoss.component" (list . "core") */}}
+{{/*
+Name of a component's resources. The base is truncated, never the
+suffix, so long release names cannot collapse two components (e.g.
+"core" and "core-db") onto one name.
+Usage: include "kumoss.component" (list . "core")
+*/}}
 {{- define "kumoss.component" -}}
-{{- printf "%s-%s" (include "kumoss.fullname" (index . 0)) (index . 1) | trunc 63 | trimSuffix "-" }}
+{{- $suffix := index . 1 }}
+{{- $base := include "kumoss.fullname" (index . 0) | trunc (int (sub 62 (len $suffix))) | trimSuffix "-" }}
+{{- printf "%s-%s" $base $suffix }}
 {{- end }}
 
 {{- define "kumoss.labels" -}}
@@ -48,7 +55,7 @@ app.kubernetes.io/component: {{ index . 1 }}
 
 {{/* Generated-credentials Secret (tokens, passwords, connection URLs). */}}
 {{- define "kumoss.internalSecret" -}}
-{{- include "kumoss.component" (list . "internal") }}
+{{- default (include "kumoss.component" (list . "internal")) .Values.secrets.existingSecret }}
 {{- end }}
 
 {{/* Secret holding a component's secretEnv. Usage: include "kumoss.envSecret" (list . "core") */}}
@@ -139,7 +146,8 @@ wiring, then the user's `config` overrides (each layer wins).
 {{- if .Values.searxng.enabled }}
 {{- $_ := set $wiring "web_search" (dict "provider" "searxng" "endpoint" (printf "http://%s:8888" (include "kumoss.component" (list . "searxng")))) }}
 {{- else }}
-{{- $_ := set $wiring "web_search" (dict "provider" "") }}
+{{- /* Both fields: SearchConfig rejects an endpoint without a provider. */}}
+{{- $_ := set $wiring "web_search" (dict "provider" "" "endpoint" "") }}
 {{- end }}
 {{- if .Values.objectStorage.enabled }}
 {{- $_ := set $wiring "storage" (dict
@@ -159,7 +167,7 @@ to load a config with an unresolvable upstream) and that path answers 502.
 */}}
 {{- define "kumoss.nginxConf" -}}
 {{- $off := "http://127.0.0.1:9" }}
-{{- $phoenix := ternary (printf "http://%s:6006" (include "kumoss.phoenixHost" .)) $off .Values.phoenix.enabled }}
+{{- $phoenix := ternary (printf "http://%s:6006" (include "kumoss.phoenixHost" .)) $off (and .Values.phoenix.enabled .Values.phoenix.exposeViaProxy) }}
 {{- $storage := ternary (printf "http://%s:9000" (include "kumoss.objectStorageHost" .)) $off .Values.objectStorage.enabled }}
 {{- .Files.Get "files/nginx.conf"
   | replace "http://core:8000" (printf "http://%s:8000" (include "kumoss.coreHost" .))
@@ -202,4 +210,22 @@ retrying. Usage: include "kumoss.waitForPostgres" (list . "core-db")
 {{- define "kumoss.podIdentity" -}}
 serviceAccountName: {{ include "kumoss.serviceAccountName" . }}
 automountServiceAccountToken: {{ (index (index . 0).Values (index . 1)).serviceAccount.automount }}
+{{- end }}
+
+{{/*
+Hash of the secret inputs a pod reads: the shared credentials and
+external URLs (all stored in the internal Secret) plus the component's
+own secretEnv. Changing a Secret does not restart its readers, so pods
+carry this to roll when an upgrade changes them. Generated values are
+not inputs: they never change on upgrade. Secrets referenced through
+existingSecret are managed outside the chart; restart after rotating
+them. Usage: include "kumoss.secretsChecksum" (list . "core")
+*/}}
+{{- define "kumoss.secretsChecksum" -}}
+{{- $root := index . 0 }}
+{{- $v := $root.Values }}
+{{- toJson (dict
+  "shared" $v.secrets
+  "externalUrls" (list $v.postgres.core.externalUrl $v.postgres.phoenix.externalUrl $v.redis.externalUrl)
+  "secretEnv" ((index $v (index . 1)).secretEnv | default dict)) | sha256sum }}
 {{- end }}
