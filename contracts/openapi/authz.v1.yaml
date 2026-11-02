@@ -141,8 +141,6 @@ components:
           $ref: "#/components/schemas/Action"
         resource:
           $ref: "#/components/schemas/Resource"
-        context:
-          $ref: "#/components/schemas/RequestContext"
 
     Subject:
       type: object
@@ -202,16 +200,6 @@ components:
           type: string
         iac_path:
           type: string
-
-    RequestContext:
-      type: object
-      additionalProperties: true
-      properties:
-        session_id:
-          type: string
-          format: uuid
-        iteration:
-          type: boolean
 
     AccessEvaluationResponse:
       type: object

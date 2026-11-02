@@ -57,7 +57,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             _claims(),
             "generate",
-            user_id=1,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -74,7 +73,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             await authorize(
                 _claims(),
                 "generate",
-                user_id=1,
                 scope_id="scope-1",
                 provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -96,7 +94,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             await authorize(
                 _claims(),
                 "generate",
-                user_id=1,
                 scope_id="scope-1",
                 provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -119,7 +116,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
                 await authorize(
                     _claims(),
                     "generate",
-                    user_id=1,
                     scope_id="scope-1",
                     provider=TerraformProvider.AZURE,
                     repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -136,14 +132,13 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             _claims(),
             "generate",
-            user_id=1,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
         )
         call_args = mock_cls.return_value.evaluate.call_args
         request = call_args.args[0]
-        self.assertEqual(request.subject.id, "1")
+        self.assertEqual(request.subject.id, "https://idp.test")
         props_dict = request.subject.properties.to_dict()
         self.assertEqual(props_dict["issuer"], "https://idp.test")
         self.assertEqual(props_dict["email"], "alice@example.com")
@@ -159,7 +154,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             _claims(email_verified=False),
             "generate",
-            user_id=1,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -178,7 +172,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             _claims(),
             "generate",
-            user_id=1,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -198,7 +191,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             await authorize(
                 _claims(),
                 "generate",
-                user_id=1,
                 scope_id="scope-1",
                 provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -206,7 +198,7 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.status_code, 502)
 
     @patch("src.api.authz.AuthzServiceClient")
-    async def test_authorize_uses_user_id_as_subject_id(self, mock_cls):
+    async def test_authorize_uses_issuer_as_subject_id(self, mock_cls):
         mock_cls.return_value.evaluate = AsyncMock(
             return_value=AccessEvaluationResponse(decision=True)
         )
@@ -215,13 +207,12 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             _claims(),
             "generate",
-            user_id=42,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
         )
         request = mock_cls.return_value.evaluate.call_args.args[0]
-        self.assertEqual(request.subject.id, "42")
+        self.assertEqual(request.subject.id, "https://idp.test")
 
     @patch("src.api.authz.AuthzServiceClient")
     async def test_authorize_forwards_properties_to_subject(self, mock_cls):
@@ -241,7 +232,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             claims,
             "generate",
-            user_id=42,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -269,7 +259,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             claims,
             "generate",
-            user_id=42,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -288,7 +277,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         await authorize(
             _claims(),
             "generate",
-            user_id=1,
             scope_id="scope-1",
             provider=TerraformProvider.AZURE,
             repo_uri="https://dev.azure.com/org/project/_git/repo",
@@ -305,7 +293,6 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
             await authorize(
                 _claims(),
                 "generate",
-                user_id=1,
                 scope_id="scope-1",
                 provider=TerraformProvider.AZURE,
                 repo_uri="https://dev.azure.com/org/project/_git/repo",

@@ -81,7 +81,6 @@ async def _resolve_or_raise(
             await authorize(
                 claims,
                 action,
-                user_id=user.id,
                 scope_id=request.scope_id,
                 provider=request.terraform_providers,
                 repo_uri=request.repo_uri,
@@ -94,13 +93,10 @@ async def _resolve_or_raise(
             await authorize(
                 claims,
                 ctx.operation.value.lower() if is_iteration else action,
-                user_id=user.id,
                 scope_id=ctx.scope_id,
                 provider=ctx.terraform_prv,
                 repo_uri=ctx.repo_uri,
                 iac_path=ctx.iac_path,
-                session_id=ctx.id,
-                iteration=is_iteration,
             )
         return ctx
     except ExceptionHandler as e:

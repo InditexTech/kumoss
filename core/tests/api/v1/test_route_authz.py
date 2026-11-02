@@ -156,7 +156,6 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
             mock_authz.call_args.kwargs["provider"], TerraformProvider.AZURE
         )
         self.assertEqual(mock_authz.call_args.kwargs["repo_uri"], ctx.repo_uri)
-        self.assertEqual(mock_authz.call_args.kwargs["session_id"], ctx.id)
 
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
@@ -176,7 +175,6 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
         )
         mock_authz.assert_called_once()
         self.assertEqual(mock_authz.call_args[0][1], "generate")
-        self.assertTrue(mock_authz.call_args.kwargs["iteration"])
 
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")

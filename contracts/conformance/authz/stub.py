@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 from enum import Enum
-from uuid import UUID
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -115,18 +114,11 @@ class Resource(BaseModel):
     properties: ResourceProperties | None = None
 
 
-class RequestContext(BaseModel):
-    model_config = {"extra": "allow"}
-    session_id: UUID | None = None
-    iteration: bool | None = None
-
-
 class AccessEvaluationRequest(BaseModel):
     model_config = {"extra": "forbid"}
     subject: Subject
     action: Action
     resource: Resource
-    context: RequestContext | None = None
 
 
 @app.post("/access/v1/evaluation")

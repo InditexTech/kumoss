@@ -5,14 +5,13 @@
 """Policy Enforcement Point (PEP) helper for AuthZEN access evaluation.
 
 Every core write route calls ``authorize`` before mutating state. It
-builds the AuthZEN request from token claims + session/request context,
+builds the AuthZEN request from token claims + request parameters,
 sends it to the PDP, and translates the response into FastAPI exceptions.
 """
 
 from __future__ import annotations
 
 import logging
-from uuid import UUID
 
 from fastapi import HTTPException
 
@@ -21,7 +20,6 @@ from src.clients.authz.models.access_evaluation_request import (
 )
 from src.clients.authz.models.action import Action
 from src.clients.authz.models.action_name import ActionName
-from src.clients.authz.models.request_context import RequestContext
 from src.clients.authz.models.resource import Resource
 from src.clients.authz.models.resource_properties import ResourceProperties
 from src.clients.authz.models.resource_type import ResourceType
@@ -42,13 +40,10 @@ async def authorize(
     claims: TokenClaims,
     action: str,
     *,
-    user_id: int,
     scope_id: str,
     provider: TerraformProvider,
     repo_uri: str,
     iac_path: str | None = None,
-    session_id: UUID | None = None,
-    iteration: bool = False,
 ) -> None:
     cfg = system_config.services.authz
     if not cfg.enabled:
@@ -70,15 +65,10 @@ async def authorize(
         iac_path=iac_path if iac_path else UNSET,
     )
 
-    context = RequestContext(
-        session_id=str(session_id) if session_id else UNSET,
-        iteration=iteration,
-    )
-
     request = AccessEvaluationRequest(
         subject=Subject(
             type_=SubjectType.USER,
-            id=str(user_id),
+            id=claims.issuer,
             properties=subject_props,
         ),
         action=Action(name=ActionName(action)),
@@ -87,7 +77,6 @@ async def authorize(
             id=scope_id,
             properties=resource_props,
         ),
-        context=context,
     )
 
     try:
