@@ -3,6 +3,8 @@
 
 In this quickstart, you install Kumoss on one machine with Docker Compose,
 using the bundled stack as shipped, and open the running web application.
+To see what a session looks like before you install anything, watch
+xref:main:see-it-in-action.adoc[Kumoss in action].
 
 == Prerequisites
 

@@ -87,10 +87,10 @@ indicate priority.
 
 .2+|<<deployment-and-adoption,Deployment and adoption>>
 |<<helm-chart,Helm chart for Kubernetes>>
-|label:grey[Planned]
+|label:blue[In progress]
 
 |<<installation-wizard,Installation wizard>>
-|label:grey[Planned]
+|label:blue[In progress]
 |===
 
 [#continuous-operations]

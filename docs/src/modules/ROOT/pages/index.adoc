@@ -19,6 +19,10 @@ it against the target cloud, and audits it for compliance, then hands
 over a pull request that a developer applies explicitly — every blocking
 decision is computed by application code, never by a model.
 
+Want to see it on a real cloud first? xref:main:see-it-in-action.adoc[Watch a
+real, unscripted session]: a plain-language request becomes an applied pull
+request, and a risky delete waits for an administrator.
+
 == Get started
 
 [cards,columns="1 s:2 m:4"]

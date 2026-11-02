@@ -4,7 +4,7 @@
 
 [project]
 name = "Kumoss"
-version = "1.0.2"
+version = "1.0.4"
 description = "FastAPI-based API with Terraform support"
 requires-python = ">=3.14"
 dependencies = [
@@ -28,7 +28,6 @@ dependencies = [
     "mcp==2.3.0",
     "litellm>=1.103.2",
     "google-cloud-aiplatform>=1.165.1",
-    "playwright>=1.40.0",
     "trafilatura>=2.3.1",
 ]
 
