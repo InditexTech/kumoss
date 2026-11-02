@@ -1,0 +1,24 @@
+Kumoss {{ .Chart.AppVersion }} is deploying as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+Watch it come up (the core waits for its database, buckets and Phoenix):
+
+  kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
+
+{{- if .Values.ingress.enabled }}
+
+Open http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else if eq .Values.proxy.service.type "NodePort" }}
+
+Open {{ .Values.publicUrl }} (proxy NodePort).
+{{- else }}
+
+Reach it locally with:
+
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "kumoss.component" (list . "proxy") }} 8080:{{ .Values.proxy.service.httpPort }}{{ if .Values.objectStorage.enabled }} 9000:{{ .Values.proxy.service.storagePort }}{{ end }}
+
+and set publicUrl=http://localhost:8080 so CORS accepts the browser.
+{{- end }}
+
+The browser must reach Kumoss at publicUrl ({{ .Values.publicUrl }}){{ if .Values.objectStorage.enabled }} and artifact downloads at storagePublicUrl ({{ .Values.storagePublicUrl }}){{ end }}.
+
+Smoke test: helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

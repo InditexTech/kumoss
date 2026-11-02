@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "kumoss.component" (list . "test") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+  containers:
+    - name: smoke
+      image: curlimages/curl:8.17.0
+      command: ["sh", "-ec"]
+      args:
+        - |
+          check() { echo "GET $1"; curl -fsS --max-time 10 -o /dev/null "$1"; }
+          check "http://{{ include "kumoss.component" (list . "proxy") }}:{{ .Values.proxy.service.httpPort }}/"
+          check "http://{{ include "kumoss.component" (list . "proxy") }}:{{ .Values.proxy.service.httpPort }}/api/healthz"
+          check "http://{{ include "kumoss.coreHost" . }}:8000/healthz"
+          check "http://{{ include "kumoss.component" (list . "iac") }}:8082/healthz"
+          {{- if .Values.notifications.enabled }}
+          check "http://{{ include "kumoss.component" (list . "notifications") }}:8080/healthz"
+          {{- end }}
+          {{- if .Values.phoenix.enabled }}
+          check "http://{{ include "kumoss.component" (list . "proxy") }}:{{ .Values.proxy.service.httpPort }}/monitoring/"
+          {{- end }}
+          echo OK

@@ -1,0 +1,69 @@
+{{- if .Values.objectStorage.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kumoss.objectStorageHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "object-storage") | nindent 4 }}
+spec:
+  serviceName: {{ include "kumoss.objectStorageHost" . }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "object-storage") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "object-storage") | nindent 8 }}
+    spec:
+      containers:
+        - name: rustfs
+          image: "{{ .Values.objectStorage.image.repository }}:{{ .Values.objectStorage.image.tag }}"
+          imagePullPolicy: {{ .Values.objectStorage.image.pullPolicy }}
+          ports:
+            - name: s3
+              containerPort: 9000
+          env:
+            - name: RUSTFS_CONSOLE_ENABLE
+              value: "false"
+            {{- include "kumoss.secretKeyRef" (list . "RUSTFS_ACCESS_KEY" "RUSTFS_ACCESS_KEY") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "RUSTFS_SECRET_KEY" "RUSTFS_SECRET_KEY") | nindent 12 }}
+          readinessProbe:
+            tcpSocket: { port: s3 }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: s3 }
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- with .Values.objectStorage.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with .Values.objectStorage.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ .Values.objectStorage.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.objectStorageHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "object-storage") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "object-storage") | nindent 4 }}
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: s3
+{{- end }}

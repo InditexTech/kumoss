@@ -30,6 +30,12 @@ path = [
 SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
 SPDX-License-Identifier = "Apache-2.0"
 
+# Helm templates: a comment header would be rendered into every manifest.
+[[annotations]]
+path = ["charts/**/templates/**"]
+SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
+SPDX-License-Identifier = "Apache-2.0"
+
 [[annotations]]
 path = [
     "docs/**/*.adoc",

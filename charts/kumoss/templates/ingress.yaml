@@ -1,0 +1,43 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "kumoss.component" (list . "proxy") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "proxy") | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with .Values.ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "kumoss.component" (list . "proxy") }}
+                port:
+                  name: http
+    {{- if and .Values.ingress.storageHost .Values.objectStorage.enabled }}
+    - host: {{ .Values.ingress.storageHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "kumoss.component" (list . "proxy") }}
+                port:
+                  name: storage
+    {{- end }}
+{{- end }}

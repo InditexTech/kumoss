@@ -1,0 +1,320 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+# Default values for the Kumoss chart.
+#
+# The chart mirrors docker-compose.yml: the four Kumoss services (proxy,
+# core, iac, notifications) plus the bundled backing services (two
+# Postgres, Redis, RustFS object storage, Phoenix and SearXNG). Every
+# backing service can be switched off and replaced by an external one.
+
+nameOverride: ""
+fullnameOverride: ""
+
+imagePullSecrets: []
+
+# URLs the *browser* uses to reach Kumoss. They feed the core's CORS
+# allow-list (http.cors_origins) and the host baked into presigned
+# artifact URLs (storage.public_endpoint_url). They must match the
+# Ingress hosts / port-forwards / NodePorts you expose.
+publicUrl: "http://localhost"
+# Browser-facing URL of the proxy's object-storage port (9000). Only
+# used with the bundled object storage.
+storagePublicUrl: "http://localhost:9000"
+
+# Overrides merged over the repository's config.yaml (files/config.yaml)
+# before it is mounted at /etc/kumoss/config.yaml. The chart already
+# rewrites the in-cluster endpoints (services.*.endpoint, web_search,
+# telemetry, storage, CORS); anything set here wins over both. Every key
+# is documented at
+#   https://inditextech.github.io/kumoss/stable/main/reference/configuration/
+# Example:
+#   config:
+#     llm:
+#       model: "anthropic/claude-opus-5-5"
+#       small_model: "anthropic/claude-haiku-5-5"
+config: {}
+
+# Shared credentials. Leave blank to have the chart generate them on
+# first install; they are then reused from the existing Secret on every
+# upgrade.
+secrets:
+  # Bearer tokens the core sends to (and each service validates from)
+  # iac / notifications.
+  iacToken: ""
+  notificationsToken: ""
+  # Bundled RustFS credentials (also handed to the core).
+  objectStorageAccessKey: ""
+  objectStorageSecretKey: ""
+  # Bundled Postgres superuser passwords. Changing them after the first
+  # install does not alter an already initialised database.
+  coreDbPassword: ""
+  phoenixDbPassword: ""
+  searxngSecret: ""
+
+# Shared /workspaces volume. The core clones repositories into it and
+# the iac service runs the engine inside those clones, so both pods
+# mount it read-write. With ReadWriteOnce (the default, fine for a
+# single-node cluster such as kind) the iac pod is pinned to the core's
+# node. Use a ReadWriteMany class (EFS, Azure Files, NFS...) in
+# multi-node clusters.
+workspaces:
+  size: 10Gi
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  existingClaim: ""
+
+# Defaults shared by the Kumoss-built pods (core, iac, notifications).
+# The uid/gid match the images: core and iac must share them to write
+# into each other's files on the workspaces volume.
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  seccompProfile:
+    type: RuntimeDefault
+securityContext:
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: ["ALL"]
+
+# --- Kumoss services --------------------------------------------------
+#
+# Each component accepts:
+#   image.repository / image.tag (defaults to the chart appVersion) / image.pullPolicy
+#   env            plain env vars (map)
+#   secretEnv      env vars stored in a chart-managed Secret (map)
+#   existingSecret name of a Secret loaded whole with envFrom
+#   extraEnv / extraVolumes / extraVolumeMounts   raw Kubernetes lists
+#   resources / nodeSelector / tolerations / affinity / podAnnotations / podLabels
+#   serviceAccount  the pod's Kubernetes identity. Each component gets its
+#                   own, so cloud permissions stay least-privilege: the
+#                   core needs LLM + object storage access, the iac service
+#                   needs the infrastructure permissions plan/apply use.
+#                   Bind one to a cloud identity with workload identity:
+#     AKS (Azure Workload Identity):
+#       serviceAccount.annotations: { azure.workload.identity/client-id: <client-id> }
+#       podLabels: { azure.workload.identity/use: "true" }
+#     EKS (IRSA; with EKS Pod Identity no annotation is needed):
+#       serviceAccount.annotations: { eks.amazonaws.com/role-arn: <role-arn> }
+#     GKE (Workload Identity Federation, impersonating a service account):
+#       serviceAccount.annotations: { iam.gke.io/gcp-service-account: <gsa-email> }
+
+proxy:
+  image:
+    repository: ghcr.io/inditextech/kumoss-proxy
+    tag: ""
+    pullPolicy: IfNotPresent
+  replicas: 1
+  service:
+    type: ClusterIP
+    httpPort: 80
+    storagePort: 9000
+    # Only used with type NodePort.
+    nodePorts:
+      http: null
+      storage: null
+  env: {}
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    # Defaults to <release>-kumoss-proxy when create is true, else "default".
+    name: ""
+    # Workload identity binding (see the header of this section).
+    annotations: {}
+    # Kumoss never calls the Kubernetes API: no API token in the pod.
+    automount: false
+
+core:
+  image:
+    repository: ghcr.io/inditextech/kumoss-core
+    tag: ""
+    pullPolicy: IfNotPresent
+  env: {}
+  # LLM provider credentials (LiteLLM variable names), GIT_USER /
+  # GIT_TOKEN, ... See core/env.sample. Prefer existingSecret outside
+  # local testing.
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    # Defaults to <release>-kumoss-core when create is true, else "default".
+    name: ""
+    # Workload identity binding (see the header of this section).
+    annotations: {}
+    # Kumoss never calls the Kubernetes API: no API token in the pod.
+    automount: false
+  # The core creates tables, buckets and Phoenix prompts and validates
+  # the LLM credentials before it answers, so allow a slow first start.
+  startupProbe:
+    httpGet: { path: /healthz, port: http }
+    periodSeconds: 5
+    failureThreshold: 60
+
+iac:
+  image:
+    repository: ghcr.io/inditextech/kumoss-iac
+    tag: ""
+    pullPolicy: IfNotPresent
+  env:
+    IAC_BINARY: tofu
+  # Cloud provider credentials for plan/apply. See services/iac/env.sample.
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    # Defaults to <release>-kumoss-iac when create is true, else "default".
+    name: ""
+    # Workload identity binding (see the header of this section).
+    annotations: {}
+    # Kumoss never calls the Kubernetes API: no API token in the pod.
+    automount: false
+
+# Relays notifications to Slack. Off by default: the service refuses to
+# start without SLACK_WEBHOOK_URL (set it in secretEnv or existingSecret).
+notifications:
+  enabled: false
+  image:
+    repository: ghcr.io/inditextech/kumoss-notifications
+    tag: ""
+    pullPolicy: IfNotPresent
+  env:
+    LOG_LEVEL: INFO
+  # SLACK_WEBHOOK_URL. See services/notifications/env.sample.
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    # Defaults to <release>-kumoss-notifications when create is true, else "default".
+    name: ""
+    # Workload identity binding (see the header of this section).
+    annotations: {}
+    # Kumoss never calls the Kubernetes API: no API token in the pod.
+    automount: false
+
+# Optional Ingress in front of the proxy. The proxy already routes the
+# SPA, /api (including the SSE stream) and /monitoring, so the Ingress
+# only needs to forward everything; with ingress-nginx keep buffering off
+# and timeouts long for the event stream (annotations below).
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  #  nginx.ingress.kubernetes.io/proxy-buffering: "off"
+  #  nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+  #  nginx.ingress.kubernetes.io/proxy-send-timeout: "600"
+  #  nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+  host: kumoss.example.com
+  # Host routed to the proxy's object-storage port, for presigned
+  # artifact URLs. Set storagePublicUrl to match. Empty to skip.
+  storageHost: ""
+  tls: []
+
+# --- Bundled backing services -----------------------------------------
+
+postgres:
+  image:
+    repository: postgres
+    tag: "17"
+    pullPolicy: IfNotPresent
+  resources: {}
+  # Core database. Disable and set externalUrl to use your own server.
+  core:
+    enabled: true
+    database: kumoss
+    persistence: { size: 5Gi, storageClass: "" }
+    # postgresql://user:password@host:5432/db — used when enabled: false.
+    externalUrl: ""
+  # Phoenix database.
+  phoenix:
+    enabled: true
+    database: phoenix
+    persistence: { size: 5Gi, storageClass: "" }
+    externalUrl: ""
+
+redis:
+  enabled: true
+  image:
+    repository: redis
+    tag: "8.8"
+    pullPolicy: IfNotPresent
+  resources: {}
+  # redis://host:6379/0 — used when enabled: false.
+  externalUrl: ""
+
+# Bundled S3-compatible store. When disabled, configure storage.* in
+# `config` (provider S3 / STORAGE_ACCOUNT) and the matching credentials
+# in core.secretEnv / core.existingSecret.
+objectStorage:
+  enabled: true
+  image:
+    repository: rustfs/rustfs
+    tag: "1.0.4"
+    pullPolicy: IfNotPresent
+  resources: {}
+  persistence: { size: 10Gi, storageClass: "" }
+
+# Tracing UI, served by the proxy under /monitoring. The core seeds its
+# prompts into Phoenix at startup, so when disabled point
+# config.telemetry.collector_url at your own Phoenix.
+phoenix:
+  enabled: true
+  image:
+    repository: arizephoenix/phoenix
+    tag: "20.12.0"
+    pullPolicy: IfNotPresent
+  resources: {}
+
+# Backend of the agents' web_search tool. When disabled the tool is off
+# unless config.web_search points elsewhere.
+searxng:
+  enabled: true
+  image:
+    repository: searxng/searxng
+    tag: "2026.10.13-22c64b8d3"
+    pullPolicy: IfNotPresent
+  resources: {}
+  # Behind a TLS-inspecting proxy, mount a CA bundle and point
+  # SSL_CERT_FILE at it so the engines' HTTPS verifies.
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []

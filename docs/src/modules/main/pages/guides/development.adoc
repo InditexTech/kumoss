@@ -16,7 +16,8 @@ proposing a change.
 
 The repository is a monorepo: the FastAPI core in `core/`, the IaC and
 notifications sidecar services in `services/`, the React web application
-in `client/web/`, and the sidecar OpenAPI contracts in `contracts/`. See
+in `client/web/`, the sidecar OpenAPI contracts in `contracts/`, and the
+Helm chart in `charts/kumoss/`. See
 xref:main:architecture.adoc[] for how they fit together.
 
 == Running the stack for development
@@ -163,7 +164,11 @@ Conventional Commits check, and an offline Markdown link and anchor
 check, plus a Verify workflow: frontend type check, tests, and
 production build, and the pytest suite of each sidecar service. *The
 core suite is not run in CI*, so run it locally against the compose
-stack before opening a pull request.
+stack before opening a pull request. *Neither is the Helm chart*: after
+changing it, or the `config.yaml`, `nginx/nginx.conf`, or
+`services/searxng/settings.yml` it renders, run `helm lint
+charts/kumoss` and install it on a kind cluster
+(xref:main:guides/deploy-with-helm.adoc#try-it-on-kind[Try it on kind]).
 
 [#regenerating-clients]
 == Regenerating sidecar clients

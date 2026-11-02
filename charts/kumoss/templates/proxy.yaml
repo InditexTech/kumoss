@@ -1,0 +1,100 @@
+{{- $c := .Values.proxy }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "proxy") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "proxy") | nindent 4 }}
+spec:
+  replicas: {{ $c.replicas }}
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "proxy") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "proxy") | nindent 8 }}
+        {{- range $k, $v := .Values.proxy.podLabels }}
+        {{ $k }}: {{ $v | toString | quote }}
+        {{- end }}
+      annotations:
+        checksum/config: {{ include "kumoss.nginxConf" . | sha256sum }}
+        {{- with $c.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "kumoss.podIdentity" (list . "proxy") | nindent 6 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: proxy
+          image: {{ include "kumoss.image" (list . $c.image) }}
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+            - name: storage
+              containerPort: 9000
+          {{- include "kumoss.envFrom" (list . "proxy" $c) | nindent 10 }}
+          {{- with (include "kumoss.extraEnv" $c) }}
+          env:
+            {{- . | nindent 12 }}
+          {{- end }}
+          livenessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nginx/conf.d/default.conf
+              subPath: default.conf
+              readOnly: true
+            {{- with $c.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "kumoss.component" (list . "proxy") }}
+        {{- with $c.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- include "kumoss.scheduling" $c | nindent 6 }}
+      {{- with $c.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "proxy") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "proxy") | nindent 4 }}
+spec:
+  type: {{ $c.service.type }}
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "proxy") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ $c.service.httpPort }}
+      targetPort: http
+      {{- if and (eq $c.service.type "NodePort") $c.service.nodePorts.http }}
+      nodePort: {{ $c.service.nodePorts.http }}
+      {{- end }}
+    {{- if .Values.objectStorage.enabled }}
+    - name: storage
+      port: {{ $c.service.storagePort }}
+      targetPort: storage
+      {{- if and (eq $c.service.type "NodePort") $c.service.nodePorts.storage }}
+      nodePort: {{ $c.service.nodePorts.storage }}
+      {{- end }}
+    {{- end }}

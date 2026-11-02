@@ -46,8 +46,9 @@ provider code from generated HCL.
 == Operational notes
 
 The Compose stack described here is the *local/non-production*
-deployment model and the reference topology for production; the
-repository ships no Kubernetes manifests or Helm charts.
+deployment model and the reference topology for production. The Helm
+chart in `charts/kumoss` maps the same topology onto Kubernetes; see
+xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
 
 === Topology
 

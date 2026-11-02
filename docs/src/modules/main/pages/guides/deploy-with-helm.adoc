@@ -1,0 +1,335 @@
+= Deploy with Helm
+:description: Install Kumoss on Kubernetes with the chart in charts/kumoss, try it on a local kind cluster, and know what the chart changes from the Compose stack.
+
+The chart in `charts/kumoss` deploys the same stack as
+`docker-compose.yml` on Kubernetes: the proxy, the core, the IaC and
+notifications sidecars, and the bundled backing services (two
+PostgreSQL databases, Redis, RustFS object storage, Phoenix and
+SearXNG). Every backing service can be switched off and replaced by an
+external one.
+
+The chart does not make a deployment production-ready on its own. The
+decisions in xref:main:guides/deploy-to-production.adoc[Deploy to
+production] still apply; this page covers only how the chart maps
+them to Kubernetes.
+
+== What the chart deploys
+
+[cols="2,2,4",options="header"]
+|===
+|Component |Kind |Notes
+
+|`proxy`
+|Deployment + Service
+|The single entry point, as in Compose: port 80 serves the SPA, `/api`
+(including the event stream) and `/monitoring`; port 9000 fronts the
+object store for presigned artifact URLs.
+
+|`core`
+|Deployment (1 replica, `Recreate`)
+|Mounts `config.yaml` from a ConfigMap and the shared `workspaces`
+volume. Probed on `GET /healthz`.
+
+|`iac`
+|Deployment (1 replica, `Recreate`)
+|Mounts the same `workspaces` volume as the core.
+
+|`notifications`
+|Deployment
+|Off by default: the service refuses to start without
+`SLACK_WEBHOOK_URL`.
+
+|`core-db`, `phoenix-db`
+|StatefulSet (`postgres:17`)
+|Single instance each. Use a managed database or an operator in
+production.
+
+|`redis`, `object-storage`, `phoenix`, `searxng`
+|Deployment / StatefulSet
+|Same images and settings as Compose. SearXNG runs the upstream image
+with the repository's `settings.yml`.
+|===
+
+The repository's `config.yaml`, `nginx/nginx.conf` and
+`services/searxng/settings.yml` are symlinked into `charts/kumoss/files`,
+so the chart always ships what Compose ships. At render time the chart
+replaces the Compose hostnames (`core`, `iac`, `phoenix`, ...) with the
+release's Service names, then applies your `config` overrides on top.
+
+== Values that matter
+
+[cols="2,5",options="header"]
+|===
+|Value |Purpose
+
+|`publicUrl`
+|URL the browser uses to reach the proxy. It becomes the core's only
+CORS origin (`http.cors_origins`).
+
+|`storagePublicUrl`
+|URL the browser uses to reach the proxy's port 9000. The core signs
+artifact download links for this host (`storage.public_endpoint_url`).
+
+|`config`
+|Any `config.yaml` key, merged over the repository file. See
+xref:main:reference/configuration.adoc[Configuration].
+
+|`core.existingSecret`
+|Secret loaded whole into the core: LLM credentials (see
+xref:main:reference/llm-providers.adoc[LLM providers and models]),
+`GIT_USER`, `GIT_TOKEN`. `core.secretEnv` creates one from values
+instead, for local testing.
+
+|`iac.existingSecret`
+|Cloud provider credentials for plan and apply.
+
+|`secrets.*`
+|Service tokens and bundled-service passwords. Leave them blank: the
+chart generates them on first install and reuses them on upgrade.
+
+|`workspaces.accessMode`, `workspaces.storageClass`
+|The core and the IaC sidecar share this volume. With `ReadWriteOnce`
+(the default) the IaC pod is scheduled on the core's node; on a
+multi-node cluster use a `ReadWriteMany` class.
+
+|`<service>.enabled`, `<service>.externalUrl`
+|Replace a bundled backing service. `postgres.core.externalUrl` and
+`redis.externalUrl` take connection URLs; for object storage, disable
+it and set `config.storage.*` instead.
+
+|`<component>.serviceAccount`, `<component>.podLabels`
+|The Kubernetes identity each of `proxy`, `core`, `iac` and
+`notifications` runs as; see <<workload-identity>>.
+
+|`notifications.enabled`
+|Off by default. Turning it on requires `SLACK_WEBHOOK_URL` in
+`notifications.secretEnv` or `notifications.existingSecret`; the chart
+refuses to render without it.
+
+|`<component>.resources`
+|CPU and memory requests and limits. Empty by default; set them for
+production, and on clusters that require them (GKE Autopilot fills in
+its own defaults otherwise).
+
+|`ingress.*`
+|Optional Ingress in front of the proxy. `ingress.storageHost` routes
+a second host to port 9000 for downloads; set `storagePublicUrl` to
+match.
+|===
+
+`<component>.extraEnv`, `extraVolumes` and `extraVolumeMounts` cover
+everything else; <<tls-inspecting-proxy>> uses them to trust corporate
+CA roots.
+
+[#workload-identity]
+== Cloud credentials with workload identity
+
+On a managed cluster, prefer workload identity over long-lived keys in
+Secrets: each pod runs as a Kubernetes ServiceAccount that the cloud
+maps to one of its identities, and the pod receives short-lived tokens
+automatically.
+
+The chart creates one ServiceAccount per Kumoss component, so
+permissions stay separate. Two of them need cloud access:
+
+* `core`: the LLM provider (Vertex AI, Azure AI, Bedrock) and, with
+  `S3` or `STORAGE_ACCOUNT` storage, the artifacts store. With `S3`,
+  leave the static keys blank and the default AWS credential chain
+  picks up the identity.
+* `iac`: the permissions `plan` and `apply` need on the target
+  infrastructure. This is the most privileged identity in the
+  deployment; scope it accordingly.
+
+Bind a ServiceAccount by annotating it (and, on AKS, labelling the
+pods):
+
+[source,yaml]
+----
+# AKS — Azure Workload Identity
+iac:
+  serviceAccount:
+    annotations:
+      azure.workload.identity/client-id: <managed-identity-client-id>
+  podLabels:
+    azure.workload.identity/use: "true"
+
+# EKS — IRSA (EKS Pod Identity needs no annotation: associate the
+# ServiceAccount with the role in EKS instead)
+iac:
+  serviceAccount:
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::<account>:role/<role>
+
+# GKE — Workload Identity Federation, impersonating a service account
+iac:
+  serviceAccount:
+    annotations:
+      iam.gke.io/gcp-service-account: <name>@<project>.iam.gserviceaccount.com
+----
+
+The cloud side (the managed identity or role, its permissions, and the
+trust that lets this ServiceAccount assume it) is set up outside the
+chart. The trust is keyed on the namespace and ServiceAccount name:
+`<release>-kumoss-<component>` by default (`kumoss-iac` for a release
+named `kumoss`), or set `serviceAccount.name`. To use a ServiceAccount
+you manage yourself, set `serviceAccount.create: false` and
+`serviceAccount.name`.
+
+Kumoss does not call the Kubernetes API, so the pods do not mount a
+Kubernetes API token (`serviceAccount.automount: false`). The
+workload-identity token is injected separately and is unaffected.
+
+[#try-it-on-kind]
+== Try it on kind
+
+https://kind.sigs.k8s.io/[kind] runs a Kubernetes cluster as Docker
+containers on your workstation. The steps below give a single-node
+cluster whose host ports 80 and 9000 reach the proxy, so the browser
+uses the same URLs as with Compose and the default `publicUrl` /
+`storagePublicUrl` work unchanged. Run them from the repository root.
+
+. Create the cluster. The port mappings forward host ports 80 and 9000
+  to the node ports the proxy is exposed on in step 4:
++
+[source,bash]
+----
+cat <<'EOF' | kind create cluster --name kumoss --config -
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - { containerPort: 30080, hostPort: 80 }
+      - { containerPort: 30900, hostPort: 9000 }
+EOF
+----
+
+. Make the images available. The chart's image tags follow the chart
+  version, so a chart from a release pulls that release's images and
+  nothing needs doing. To run your checkout instead, build the images
+  you changed and load them into the node, which has its own image
+  store:
++
+[source,bash]
+----
+docker build -f core/Dockerfile --build-context host-certs=docker/certs \
+  -t kumoss-core:dev .
+kind load docker-image kumoss-core:dev --name kumoss
+----
++
+Then point the component at it with `--set
+core.image.repository=kumoss-core,core.image.tag=dev,core.image.pullPolicy=Never`.
+
+. Store the LLM credentials the configured models need (here, the
+  default Vertex AI models) and, optionally, the Git credentials:
++
+[source,bash]
+----
+kubectl create namespace kumoss
+kubectl -n kumoss create secret generic kumoss-credentials \
+  --from-literal=VERTEXAI_PROJECT=my-project \
+  --from-literal=VERTEXAI_LOCATION=europe-west1 \
+  --from-file=VERTEXAI_CREDENTIALS=./service-account.json \
+  --from-literal=GIT_USER=<user> \
+  --from-literal=GIT_TOKEN=<token>
+----
+
+. Install, exposing the proxy on the node ports mapped in step 1:
++
+[source,bash]
+----
+helm upgrade --install kumoss charts/kumoss -n kumoss \
+  --set proxy.service.type=NodePort \
+  --set proxy.service.nodePorts.http=30080 \
+  --set proxy.service.nodePorts.storage=30900 \
+  --set core.existingSecret=kumoss-credentials \
+  --wait --timeout 10m
+helm test kumoss -n kumoss
+----
+
+. Open `\http://localhost`. Phoenix is at `\http://localhost/monitoring/`.
+
+[#tls-inspecting-proxy]
+=== Behind a TLS-inspecting proxy
+
+Two things change, matching the
+xref:main:guides/development.adoc#tls-inspecting-proxy[Compose
+setup]:
+
+* *Image pulls.* The kind node may not trust the proxy and fail to pull
+  (`ImagePullBackOff`). Pull the images on the host and copy them in.
+  Save a single platform first, because `kind load docker-image` fails
+  on multi-platform images:
++
+[source,bash]
+----
+docker pull postgres:17
+docker save --platform linux/amd64 -o /tmp/img.tar postgres:17
+kind load image-archive /tmp/img.tar --name kumoss
+----
++
+`helm template charts/kumoss | grep 'image:'` lists every image the
+release needs.
+
+* *Outbound HTTPS from the pods.* Put your corporate roots in a
+  ConfigMap and mount them where the core's entrypoint looks for them
+  (`KUMOSS_CA_DIR`). SearXNG takes a combined bundle through
+  `SSL_CERT_FILE`:
++
+[source,bash]
+----
+kubectl -n kumoss create configmap host-ca \
+  --from-file=/usr/local/share/ca-certificates
+kubectl -n kumoss create configmap host-bundle \
+  --from-file=ca-certificates.crt=/etc/ssl/certs/ca-certificates.crt
+----
++
+[source,yaml]
+----
+core:
+  extraEnv:
+    - { name: KUMOSS_CA_DIR, value: /usr/local/share/ca-certificates/host }
+  extraVolumes:
+    - { name: host-ca, configMap: { name: host-ca } }
+  extraVolumeMounts:
+    - { name: host-ca, mountPath: /usr/local/share/ca-certificates/host, readOnly: true }
+searxng:
+  extraEnv:
+    - { name: SSL_CERT_FILE, value: /etc/kumoss-ca/ca-certificates.crt }
+  extraVolumes:
+    - { name: host-bundle, configMap: { name: host-bundle } }
+  extraVolumeMounts:
+    - { name: host-bundle, mountPath: /etc/kumoss-ca, readOnly: true }
+----
++
+When building the core image, pass the same directory as the
+`host-certs` build context instead of `docker/certs`.
+
+=== Troubleshooting kind
+
+`kube-proxy` crash-looping with `too many open files`, followed by
+CoreDNS and the `local-path-provisioner` failing, means the host ran
+out of inotify instances. Every kind node on the host shares the
+per-user limit, so it shows up with several clusters. Raise it, and
+persist it if your distribution reads `/etc/sysctl.d`:
+
+[source,bash]
+----
+sudo sysctl fs.inotify.max_user_instances=512
+echo 'fs.inotify.max_user_instances=512' | sudo tee /etc/sysctl.d/99-kind.conf
+----
+
+Then delete the crashed pods so they restart immediately, for example
+`kubectl -n kube-system delete pod -l k8s-app=kube-proxy`.
+
+== Upgrades and removal
+
+* `config.yaml` changes roll the core automatically (the pod carries a
+  checksum of the rendered file).
+* Generated passwords and tokens are read back from the existing
+  Secret on every upgrade. Changing a database password in values
+  after the first install does not change it inside an initialised
+  database.
+* `helm uninstall` keeps the `workspaces` claim
+  (`helm.sh/resource-policy: keep`) and the StatefulSets' data claims.
+  Delete them explicitly to start from scratch.
