@@ -912,10 +912,8 @@ continue the conversation. Failed sessions cannot be resumed; start a
 new one.</p>
 </div>
 <div class="paragraph">
-<p>The detail panel also shows the session&#8217;s <strong>Conversation</strong>: every request
-you made and the answer that closed each round. A round whose answer
-could not be produced contributes nothing, so the conversation can be
-shorter than the timeline.</p>
+<p>The conversation history is not shown in this view; it is available in
+the admin panel.</p>
 </div>
 </div>
 </div>
@@ -961,18 +959,10 @@ session; search by session id in Phoenix. See
 </ul>
 </div>
 <div class="paragraph">
-<p>The detail panel shows everything the owner sees — including the
-<strong>Conversation</strong> — plus the <strong>Internal history</strong> and, for editors and
-admins, the "Apply Locked" or "Apply Open" toggle. "Reload Session" is
-available here too and opens the session in the wizard.</p>
-</div>
-<div class="paragraph">
-<p><strong>Internal history</strong> is the record the backend feeds to the LLM, shown
-only here. It is not the user&#8217;s conversation: it holds whatever the
-prompting strategy needs, so expect raw tool output, validation notes,
-and internal status text, and expect its shape to change without
-notice. Read it to understand why a round produced what it did; for what
-the user was actually told, read the <strong>Conversation</strong>.</p>
+<p>The detail panel shows everything the owner sees plus the conversation
+<strong>History</strong> (every user request and answer in the session) and, for
+editors and admins, the "Apply Locked" or "Apply Open" toggle. "Reload
+Session" is available here too and opens the session in the wizard.</p>
 </div>
 </div>
 <div class="sect2">

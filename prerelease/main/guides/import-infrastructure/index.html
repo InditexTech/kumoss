@@ -910,9 +910,7 @@ Terraform address with its listed cloud resource ID, then build the
 import ID in the format the "Import" section of the provider&#8217;s
 documentation gives for that resource type and provider version
 (the full ID, a name, a short ID or a composite, depending on the
-type), read once per resource type from the Terraform Registry with
-<code>terraform_docs</code>, falling back to <code>web_search</code> when the registry
-cannot answer;</p>
+type), looked up with <code>web_search</code> once per resource type;</p>
 </li>
 <li>
 <p>runs <code>terraform import</code> for each pair, one address at a time, through

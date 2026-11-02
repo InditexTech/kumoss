@@ -1628,11 +1628,13 @@ loses detail the agent cannot get back.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>Each search starts the same way: the engine returns ranked hits, and
-every hit&#8217;s page is fetched over HTTP and reduced to markdown with
-<a href="https://trafilatura.readthedocs.io/">trafilatura</a>, so the agent works from
-the pages themselves rather than the engine&#8217;s snippets. The pages are
-read concurrently over one shared client. A page that will not fetch or
-extract — a <code>403</code> from bot protection, a PDF, a JavaScript-only page —
+every hit&#8217;s page is rendered in headless Chromium through Playwright and
+reduced to markdown with <a href="https://trafilatura.readthedocs.io/">trafilatura</a>,
+so the agent works from the pages themselves — including
+JavaScript-rendered ones — rather than the engine&#8217;s snippets. The pages
+are read concurrently from one shared browser, and Chromium presents the
+fingerprint bot protection expects, so blogs and forums answer <code>200</code>
+where a bare HTTP client would get <code>403</code>. A page that will not render
 falls back to its snippet, so a partial failure costs detail rather than
 the whole search.</p>
 </div>

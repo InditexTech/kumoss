@@ -1409,19 +1409,10 @@ artifacts as client-fetchable URLs, oldest first, and its
 <code>passed</code> verdict; the list is empty when the round was not audited.</p>
 </div>
 <div class="paragraph">
-<p>Pass <code>include_chat_history=true</code> to also populate <code>chat_history</code> with
-the session&#8217;s conversation: one <code>{"user": …, "assistant": …}</code> turn per
-finished round, oldest first. The <code>user</code> side is the query as the caller
-typed it; the <code>assistant</code> side states how that round turned out and what
-the caller can do next. A round whose reply could not be produced
-contributes no turn, so the list can be shorter than <code>rounds</code>. That
-variant always reads fresh from the database, so status polling should
-stay on the default. The caller must be the owner or hold a panel role;
-an unknown session is <code>404</code>.</p>
-</div>
-<div class="paragraph">
-<p>This route never returns the internal conversation the backend feeds to
-the LLM. That record is admin-only — see below.</p>
+<p>Pass <code>include_history=true</code> to also populate <code>history</code> with the
+session&#8217;s conversation turns. That variant always reads fresh from the
+database, so status polling should stay on the default. The caller
+must be the owner or hold a panel role; an unknown session is <code>404</code>.</p>
 </div>
 </div>
 </div>
@@ -1483,18 +1474,9 @@ identical.</p>
 </div>
 <div class="paragraph">
 <p><code>GET /api/v1/admin/sessions?id={session_id}</code> is the unrestricted
-counterpart of the session detail route: same response and the same
-<code>include_chat_history</code> parameter, but no ownership check beyond the
-panel role. An unknown session is <code>404</code>.</p>
-</div>
-<div class="paragraph">
-<p>It adds one parameter of its own. <code>include_history=true</code> populates
-<code>history</code> with the internal conversation the backend feeds to the LLM.
-That record carries no contract: its shape follows whatever the
-prompting strategy needs, and it may contain raw tool output, validation
-notes, and status text. Treat it as debugging material, never as the
-caller&#8217;s conversation. Either history parameter reads fresh from the
-database.</p>
+counterpart of the session detail route: same <code>include_history</code>
+parameter, same response, but no ownership check beyond the panel
+role. An unknown session is <code>404</code>.</p>
 </div>
 <div class="paragraph">
 <p><code>PATCH /api/v1/admin/sessions/{session_id}/toggle_lock</code> takes
