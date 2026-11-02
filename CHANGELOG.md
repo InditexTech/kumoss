@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.4](https://github.com/InditexTech/kumoss/compare/v1.0.3...v1.0.4) (2026-11-02)
+
+
+### Bug Fixes
+
+* **deps:** bump graphql-core to 3.3.1 ([GHSA-mpqx-q82w-9x46](https://osv.dev/GHSA-mpqx-q82w-9x46)) ([b5e416a](https://github.com/InditexTech/kumoss/commit/b5e416afe558d8b0daf438fc3b9102e279c735dc))
+* **deps:** bump pyasn1 to 0.6.5 in core and iac ([GHSA-2qm8-x737-gmw5](https://osv.dev/GHSA-2qm8-x737-gmw5), [GHSA-9m75-vc3g-4x39](https://osv.dev/GHSA-9m75-vc3g-4x39), [GHSA-fm9c-5rcf-2q5p](https://osv.dev/GHSA-fm9c-5rcf-2q5p), [GHSA-mm57-4v3p-rchx](https://osv.dev/GHSA-mm57-4v3p-rchx)) ([b5e416a](https://github.com/InditexTech/kumoss/commit/b5e416afe558d8b0daf438fc3b9102e279c735dc))
+* **docs:** upgrade docouture to 1.3.2 so search links keep the site path ([34ad0a9](https://github.com/InditexTech/kumoss/commit/34ad0a90c9dc3dde1232937ac5384f042eaaf9d3))
+
+
+### Documentation
+
+* add README audience section and roadmap table ([a153a17](https://github.com/InditexTech/kumoss/commit/a153a173970ed530d98c01591d1c4dfb9d1a65d4))
+* use the white README banner in every theme ([f63c4ef](https://github.com/InditexTech/kumoss/commit/f63c4efba6a164231699bb03349d64e60e32a0cb))
+
 ## [1.0.3](https://github.com/InditexTech/kumoss/compare/v1.0.2...v1.0.3) (2026-10-29)
 
 
