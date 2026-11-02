@@ -3104,7 +3104,8 @@ prompts fetched from Phoenix, given a fixed tool set, and ended by a
 <td class="tableblock halign-left valign-top"><p class="tableblock">Infrastructure Generation Agent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">main</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>write_to_file</code>, <code>replace_in_file</code>, <code>delete_file</code>, <code>read_file</code>,
-<code>list_dir</code>, <code>bulk_grep_search</code>, <code>diff_history</code>, <code>web_search</code></p></td>
+<code>list_dir</code>, <code>bulk_grep_search</code>, <code>diff_history</code>, <code>web_search</code>,
+<code>terraform_docs</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>task_complete</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 5; re-entered by drift batches in Phase 6 and by dedicated drift
 sessions</p></td>
@@ -3160,7 +3161,7 @@ or <code>generate_terraform_apply_report</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Drift Task Splitter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">main</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>read_file</code>, <code>list_dir</code>, <code>bulk_grep_search</code>, <code>diff_history</code>,
-<code>web_search</code></p></td>
+<code>web_search</code>, <code>terraform_docs</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_decomposed_task_operations</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 6 and dedicated drift sessions</p></td>
 </tr>
@@ -3830,7 +3831,7 @@ generate round pins a plan.</p></td>
 <p><strong>How the DRIFT report is written.</strong> The drift report is the one report the
 generator does not receive as a text to summarise: it reads the branch for
 itself. The report service gives the drift report the workspace-inspection
-tool set instead of <code>web_search</code>, and the drift branch of the report
+tool set instead of <code>web_search</code> and <code>terraform_docs</code>, and the drift branch of the report
 layout makes <code>diff_history</code> a required first call and the sole source of
 truth for the remediation. That works because every reconciliation group
 commits and pushes inside the validation loop before the report runs, so
