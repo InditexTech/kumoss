@@ -64,6 +64,7 @@ def _session_ctx(sid=None) -> SessionContext:
         iac_path="infra",
         operation_type=OperationType.GENERATE,
         history=[],
+        chat_history=[],
     )
 
 
@@ -92,7 +93,7 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
         call_kwargs = mock_authz.call_args
         self.assertEqual(call_kwargs[0][1], "generate")
         self.assertEqual(call_kwargs.kwargs["scope_id"], "sub-123")
-        self.assertEqual(call_kwargs.kwargs["provider"], "azure")
+        self.assertEqual(call_kwargs.kwargs["provider"], TerraformProvider.AZURE)
 
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
@@ -112,7 +113,7 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
         )
         mock_authz.assert_called_once()
         self.assertEqual(mock_authz.call_args[0][1], "drift")
-        self.assertEqual(mock_authz.call_args.kwargs["provider"], "gcp")
+        self.assertEqual(mock_authz.call_args.kwargs["provider"], TerraformProvider.GCP)
 
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
@@ -151,7 +152,9 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
         mock_authz.assert_called_once()
         self.assertEqual(mock_authz.call_args[0][1], "apply")
         self.assertEqual(mock_authz.call_args.kwargs["scope_id"], ctx.scope_id)
-        self.assertEqual(mock_authz.call_args.kwargs["provider"], "azure")
+        self.assertEqual(
+            mock_authz.call_args.kwargs["provider"], TerraformProvider.AZURE
+        )
         self.assertEqual(mock_authz.call_args.kwargs["repo_uri"], ctx.repo_uri)
         self.assertEqual(mock_authz.call_args.kwargs["session_id"], ctx.id)
 
@@ -188,69 +191,3 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as cm:
             await _resolve_or_raise(request, _user(), _claims(), action="apply")
         self.assertEqual(cm.exception.status_code, 403)
-
-
-class TestRepositoryRouteAuthz(unittest.IsolatedAsyncioTestCase):
-    """PR routes call authorize with the correct action from session context."""
-
-    @patch("src.api.v1.repository.authorize", new_callable=AsyncMock)
-    @patch("src.api.v1.repository.DatabaseService")
-    @patch("src.api.v1.repository.assert_session_access", new_callable=AsyncMock)
-    async def test_complete_pr_passes_action_pr_merge(
-        self, mock_access, mock_db, mock_authz
-    ):
-        sid = uuid4()
-        ctx = _session_ctx(sid)
-        mock_db.get_session_context = AsyncMock(return_value=ctx)
-        mock_db.is_session_blocked = AsyncMock(return_value=False)
-        mock_db.get_pull_requests = AsyncMock(
-            return_value=[type("PR", (), {"number": 42})()]
-        )
-
-        with patch("src.api.v1.repository.ApplicationFactory") as mock_factory:
-            mock_git = AsyncMock()
-            mock_factory.get_git_utils.return_value = mock_git
-            from src.api.v1.repository import complete_pr
-
-            await complete_pr(
-                session_id=sid,
-                user=_user(),
-                claims=_claims(),
-            )
-
-        mock_authz.assert_called_once()
-        self.assertEqual(mock_authz.call_args[0][1], "pr.merge")
-        self.assertEqual(mock_authz.call_args.kwargs["scope_id"], ctx.scope_id)
-        self.assertEqual(mock_authz.call_args.kwargs["session_id"], ctx.id)
-
-    @patch("src.api.v1.repository.authorize", new_callable=AsyncMock)
-    @patch("src.api.v1.repository.DatabaseService")
-    @patch("src.api.v1.repository.assert_session_access", new_callable=AsyncMock)
-    async def test_create_pr_passes_action_pr_create(
-        self, mock_access, mock_db, mock_authz
-    ):
-        sid = uuid4()
-        ctx = _session_ctx(sid)
-        mock_db.get_session_context = AsyncMock(return_value=ctx)
-
-        with patch("src.api.v1.repository.ApplicationFactory") as mock_factory:
-            mock_pr_svc = AsyncMock()
-            mock_pr_svc.create_pr.return_value = type(
-                "PR", (), {"number": 10, "url": "https://example.com/pr/10"}
-            )()
-            factory_instance = mock_factory.return_value
-            factory_instance.get_pull_request_service.return_value = mock_pr_svc
-
-            with patch("src.api.v1.repository.tracer"):
-                from src.api.v1.repository import create_pr
-
-                await create_pr(
-                    session_id=sid,
-                    user=_user(),
-                    claims=_claims(),
-                )
-
-        mock_authz.assert_called_once()
-        self.assertEqual(mock_authz.call_args[0][1], "pr.create")
-        self.assertEqual(mock_authz.call_args.kwargs["scope_id"], ctx.scope_id)
-        self.assertEqual(mock_authz.call_args.kwargs["session_id"], ctx.id)

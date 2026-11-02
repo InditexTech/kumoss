@@ -30,6 +30,7 @@ from src.clients.authz.models.subject_properties import SubjectProperties
 from src.clients.authz.models.subject_type import SubjectType
 from src.clients.authz.types import UNSET, Unset
 from src.domains.value_objects.token_claims import TokenClaims
+from src.shared.config import system_config
 from src.shared.constants import TerraformProvider
 from src.infrastructure.external.authz_service import AuthzServiceClient
 from src.shared.exceptions import ExceptionHandler
@@ -49,6 +50,15 @@ async def authorize(
     session_id: UUID | None = None,
     iteration: bool = False,
 ) -> None:
+    cfg = system_config.services.authz
+    if not cfg.enabled:
+        return
+    if not cfg.endpoint:
+        raise HTTPException(
+            status_code=503,
+            detail="Authorization service is enabled but no endpoint is configured.",
+        )
+
     props = dict(claims.properties)
     if not claims.email_verified:
         props.pop("email", None)

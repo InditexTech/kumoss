@@ -35,12 +35,17 @@ class AuthzServiceClient:
         self, request: AccessEvaluationRequest
     ) -> AccessEvaluationResponse:
         cfg = system_config.services.authz
-        if not cfg.enabled or not cfg.endpoint:
+        if not cfg.enabled:
             logging.warning(
-                "authz service is disabled or unconfigured; defaulting to "
-                "decision=True. Enable services.authz to enforce."
+                "authz service is disabled; defaulting to decision=True. "
+                "Enable services.authz to enforce."
             )
             return AccessEvaluationResponse(decision=True)
+        if not cfg.endpoint:
+            raise ExceptionHandler(
+                "Authorization service is enabled but no endpoint is configured.",
+                503,
+            )
 
         client = AuthenticatedClient(
             base_url=cfg.endpoint,

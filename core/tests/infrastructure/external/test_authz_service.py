@@ -50,6 +50,15 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
         result = await AuthzServiceClient().evaluate(_minimal_request())
         self.assertTrue(result.decision)
 
+    @patch("src.infrastructure.external.authz_service.system_config")
+    async def test_evaluate_enabled_without_endpoint_raises_503(self, mock_cfg):
+        mock_cfg.services.authz = _mock_authz_config(enabled=True, endpoint="")
+        from src.infrastructure.external.authz_service import AuthzServiceClient
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await AuthzServiceClient().evaluate(_minimal_request())
+        self.assertEqual(ctx.exception.error_code, 503)
+
     @patch("src.infrastructure.external.authz_service.evaluate_op")
     @patch("src.infrastructure.external.authz_service.system_config")
     async def test_evaluate_returns_decision_true(self, mock_cfg, mock_eval):

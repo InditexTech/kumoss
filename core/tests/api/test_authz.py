@@ -40,6 +40,13 @@ def _claims(**overrides) -> TokenClaims:
 
 
 class TestAuthorize(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        patcher = patch("src.api.authz.system_config")
+        self.mock_config = patcher.start()
+        self.mock_config.services.authz.enabled = True
+        self.mock_config.services.authz.endpoint = "http://test:8083"
+        self.addCleanup(patcher.stop)
+
     @patch("src.api.authz.AuthzServiceClient")
     async def test_authorize_allow_passes_silently(self, mock_cls):
         mock_cls.return_value.evaluate = AsyncMock(
@@ -271,3 +278,37 @@ class TestAuthorize(unittest.IsolatedAsyncioTestCase):
         props_dict = request.subject.properties.to_dict()
         self.assertNotIn("email", props_dict)
         self.assertEqual(props_dict["issuer"], "https://idp.test")
+
+    @patch("src.api.authz.AuthzServiceClient")
+    async def test_authorize_skips_when_disabled(self, mock_cls):
+        self.mock_config.services.authz.enabled = False
+        self.mock_config.services.authz.endpoint = ""
+        from src.api.authz import authorize
+
+        await authorize(
+            _claims(),
+            "generate",
+            user_id=1,
+            scope_id="scope-1",
+            provider=TerraformProvider.AZURE,
+            repo_uri="https://dev.azure.com/org/project/_git/repo",
+        )
+        mock_cls.return_value.evaluate.assert_not_called()
+
+    @patch("src.api.authz.AuthzServiceClient")
+    async def test_authorize_raises_503_when_enabled_without_endpoint(self, mock_cls):
+        self.mock_config.services.authz.enabled = True
+        self.mock_config.services.authz.endpoint = ""
+        from src.api.authz import authorize
+
+        with self.assertRaises(HTTPException) as ctx:
+            await authorize(
+                _claims(),
+                "generate",
+                user_id=1,
+                scope_id="scope-1",
+                provider=TerraformProvider.AZURE,
+                repo_uri="https://dev.azure.com/org/project/_git/repo",
+            )
+        self.assertEqual(ctx.exception.status_code, 503)
+        mock_cls.return_value.evaluate.assert_not_called()
