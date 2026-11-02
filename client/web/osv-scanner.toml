@@ -1,0 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-02
+reason = "minimatch 3.x/10.x (fixed only in 11.x, which eslint 9, eslint-plugin-react and typescript-eslint do not allow yet): DoS via globparts amplification. Dev-only lint tooling run on repository-controlled patterns; never shipped in the built bundle or exposed to untrusted input."
