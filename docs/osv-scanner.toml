@@ -5,3 +5,13 @@
 id = "GHSA-vfj7-8cjw-p6xm"
 ignoreUntil = 2027-01-05
 reason = "braces <= 3.0.3 (no fixed release yet): stack-exhaustion DoS from deeply nested patterns. Dev-only, reached through antora and asciidoctor at docs build time on repository-controlled globs; never shipped or exposed to untrusted input."
+
+[[IgnoredVulns]]
+id = "GHSA-g3hv-75wg-m249"
+ignoreUntil = 2027-02-02
+reason = "minimatch 10.x (fixed only in 11.x, which linkinator does not allow yet): DoS via globparts amplification. Dev-only, reached through linkinator in the docs link check on repository-controlled patterns; never shipped or exposed to untrusted input."
+
+[[IgnoredVulns]]
+id = "GHSA-3g3m-2fjr-6pw4"
+ignoreUntil = 2027-02-02
+reason = "glob 13.x (fixed only in 14.x; linkinator, latest 8.1.0, requires glob ^13): AbortSignal cancellation bypass. Dev-only, used by linkinator in the docs link check over the locally built site; never shipped or exposed to untrusted input."
