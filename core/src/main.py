@@ -158,3 +158,14 @@ app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
+
+
+@app.get("/healthz", tags=["ops"], include_in_schema=False)
+async def healthz() -> dict[str, str]:
+    """Liveness probe for container orchestrators.
+
+    Answers once the lifespan startup (database, redis, buckets, prompt
+    seeding) has completed, without touching any dependency, so a slow
+    backing service does not get the core restarted.
+    """
+    return {"status": "ok"}
