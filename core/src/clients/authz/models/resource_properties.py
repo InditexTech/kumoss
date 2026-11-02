@@ -1,14 +1,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
-from typing_extensions import Self
 
-from src.shared.constants import TerraformProvider
-
+from ..models.resource_properties_provider import ResourcePropertiesProvider
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="ResourceProperties")
@@ -18,12 +16,12 @@ T = TypeVar("T", bound="ResourceProperties")
 class ResourceProperties:
     """
     Attributes:
-        provider (TerraformProvider | Unset):
+        provider (ResourcePropertiesProvider | Unset):
         repo_uri (str | Unset):
         iac_path (str | Unset):
     """
 
-    provider: TerraformProvider | Unset = UNSET
+    provider: ResourcePropertiesProvider | Unset = UNSET
     repo_uri: str | Unset = UNSET
     iac_path: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
@@ -53,11 +51,11 @@ class ResourceProperties:
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
         _provider = d.pop("provider", UNSET)
-        provider: TerraformProvider | Unset
+        provider: ResourcePropertiesProvider | Unset
         if isinstance(_provider, Unset):
             provider = UNSET
         else:
-            provider = TerraformProvider(_provider)
+            provider = ResourcePropertiesProvider(_provider)
 
         repo_uri = d.pop("repo_uri", UNSET)
 

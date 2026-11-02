@@ -70,8 +70,20 @@ paths:
                 $ref: "#/components/schemas/Problem"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: The PDP itself denied the caller (e.g. PDP-level ACL).
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
         "422":
           description: Request body failed schema validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: "#/components/schemas/Problem"
+        "500":
+          description: Internal PDP error.
           content:
             application/problem+json:
               schema:
@@ -162,6 +174,9 @@ components:
         name:
           type: string
           enum: [generate, drift, import, apply, pr.create, pr.merge]
+        properties:
+          type: object
+          additionalProperties: true
 
     Resource:
       type: object

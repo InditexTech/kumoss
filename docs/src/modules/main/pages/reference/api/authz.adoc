@@ -64,15 +64,11 @@ repository state. The `action.name` value maps to the operation:
 |`POST /v1/iac/apply`
 |`apply`
 |Apply trigger
-
-|`POST /v1/repository/complete_pr`
-|`pr.merge`
-|After block-check
-
-|`POST /v1/repository/pr`
-|`pr.create`
-|After session load
 |===
+
+NOTE: PR routes (`PUT /repository/pr` and `PUT /repository/pr/merge`) are
+governed by Kumoss's own operation roles, not by the authz PDP. See
+xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
 
 When `services.authz.enabled` is `false` (the default), the core does
 not call out at all and treats every operation as authorized. When
@@ -167,8 +163,7 @@ xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 
 |`name`
 |Yes
-|One of: `generate`, `drift`, `import`, `apply`, `pr.create`,
-`pr.merge`.
+|One of: `generate`, `drift`, `import`, `apply`.
 |===
 
 ==== Resource

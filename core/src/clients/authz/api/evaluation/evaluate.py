@@ -49,10 +49,20 @@ def _parse_response(
 
         return response_401
 
+    if response.status_code == 403:
+        response_403 = Problem.from_dict(response.json())
+
+        return response_403
+
     if response.status_code == 422:
         response_422 = Problem.from_dict(response.json())
 
         return response_422
+
+    if response.status_code == 500:
+        response_500 = Problem.from_dict(response.json())
+
+        return response_500
 
     if response.status_code == 502:
         response_502 = Problem.from_dict(response.json())
