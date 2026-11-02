@@ -2095,11 +2095,11 @@ wheels = [
 
 [[package]]
 name = "openinference-semantic-conventions"
-version = "0.1.41"
+version = "0.1.42"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/be/e1fe52e3ae242695101144e058edfdd8e412a58ce04e2e2b410268683b05/openinference_semantic_conventions-0.1.41.tar.gz", hash = "sha256:78d4ffd9d1f2f89cb4bd58a0afe5a460475ce3d76a4d993f50fb0ce8bf4129a3", size = 15789, upload-time = "2026-10-01T18:22:33.408Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e8/69/c5b78dacc2c8afcdfd47322cc50a10be87b00fe6692b2ce35c5fb9170e6c/openinference_semantic_conventions-0.1.42.tar.gz", hash = "sha256:d64c37a910b6212d097954b13cd50c551a0b935b53627fda8dc51b278d34856d", size = 16125, upload-time = "2026-10-23T20:49:57.775Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/74/fa/a5197690b860f8a5b43e56aba4a34e0b42db6548b45dd6ceda9ab8980c63/openinference_semantic_conventions-0.1.41-py3-none-any.whl", hash = "sha256:4c55f59427436da842c7aae871965399ef92b8909b41e02c076e1092b4c12e51", size = 12678, upload-time = "2026-10-01T18:22:32.275Z" },
+    { url = "https://files.pythonhosted.org/packages/56/ce/badf538da4eea8aa590f7c3c99d3a7fbe9b29399afa1e84f0cfa5f1ab7a0/openinference_semantic_conventions-0.1.42-py3-none-any.whl", hash = "sha256:1deaf0b0fdfa74d020240ff25d909741fd5f1a27383339d88b5a508f45953454", size = 12974, upload-time = "2026-10-23T20:49:56.532Z" },
 ]
 
 [[package]]
