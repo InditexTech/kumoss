@@ -90,6 +90,11 @@ async def _resolve_or_raise(
         ctx = await _orchestration.resolve(request, operation, user.id)
 
         if not is_first_call:
+            if is_iteration and ctx.operation is not operation:
+                raise HTTPException(
+                    status_code=409,
+                    detail="The requested operation does not match the session operation.",
+                )
             await authorize(
                 claims,
                 ctx.operation.value.lower() if is_iteration else action,
