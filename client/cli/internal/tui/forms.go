@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 
+	"charm.land/bubbles/v2/key"
 	"charm.land/huh/v2"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
@@ -70,6 +71,18 @@ func (w *Wizard) Configure(mode Mode, s *state.State) error {
 	return nil
 }
 
+// multiSelectKeyMap is huh's default keymap with the toggle help renamed to
+// "space". huh labels it "x" by default, which hides that space works too — the
+// obvious key on a list of checkboxes. Both keys stay bound.
+func multiSelectKeyMap() *huh.KeyMap {
+	km := huh.NewDefaultKeyMap()
+	km.MultiSelect.Toggle = key.NewBinding(
+		key.WithKeys("space", "x"),
+		key.WithHelp("space", "toggle"),
+	)
+	return km
+}
+
 // RotateSecrets offers the secrets already in the env files and returns the keys
 // to regenerate. Multi-select: nothing selected keeps every secret, which is the
 // safe default for a running stack. Rotating a token breaks any client still
@@ -84,11 +97,13 @@ func (w *Wizard) RotateSecrets(found []Secret) ([]string, error) {
 		huh.NewGroup(
 			huh.NewMultiSelect[string]().
 				Title("Secrets already present in the env files").
-				Description("Select any to regenerate. Leave all unselected to keep the running stack working.").
+				Description("Space (or x) toggles a secret, enter confirms. Select any to regenerate; leave all unselected to keep the running stack working.").
 				Options(opts...).
+				// One line per secret, plus the title, description and help bar.
+				Height(len(opts) + 5).
 				Value(&rotate),
 		),
-	)
+	).WithKeyMap(multiSelectKeyMap())
 	if err := w.run(form); err != nil {
 		return nil, err
 	}
@@ -393,8 +408,10 @@ func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 		huh.NewGroup(
 			huh.NewMultiSelect[string]().
 				Title("Cloud providers").
-				Description("Which clouds your Terraform modules target. Skip if none.").
+				Description("Which clouds your Terraform modules target? Space (or x) toggles a cloud, enter confirms. Skip if none.").
 				Options(cloudOptions()...).
+				// One line per cloud, plus the title, description and help bar.
+				Height(len(clouds) + 5).
 				Value(&picked),
 		).Title("Clouds"),
 	}
@@ -421,7 +438,7 @@ func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 			s.Cloud.Kubernetes = nil
 		}
 	}
-	return huh.NewForm(groups...), commit
+	return huh.NewForm(groups...).WithKeyMap(multiSelectKeyMap()), commit
 }
 
 // engineStep selects the IaC engine and, for Terraform, gates on its license.

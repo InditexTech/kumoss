@@ -3,13 +3,13 @@ module github.com/InditexTech/kumoss/client/cli
 go 1.27.3
 
 require (
+	charm.land/bubbles/v2 v2.0.0
 	charm.land/huh/v2 v2.0.3
 	github.com/spf13/cobra v1.10.2
 	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
-	charm.land/bubbles/v2 v2.0.0 // indirect
 	charm.land/bubbletea/v2 v2.0.2 // indirect
 	charm.land/lipgloss/v2 v2.0.1 // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
