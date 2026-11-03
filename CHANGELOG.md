@@ -1,5 +1,26 @@
 # Changelog
 
+## [1.0.6](https://github.com/InditexTech/kumoss/compare/v1.0.5...v1.0.6) (2026-11-03)
+
+
+### Features
+
+* **helm:** add caBundle to trust extra CA roots in every outbound pod ([d5280d3](https://github.com/InditexTech/kumoss/commit/d5280d3759467ce49048cef74304f726ca63c31d))
+* **helm:** add kind-up.sh to bring the chart up on kind in one command ([15141ea](https://github.com/InditexTech/kumoss/commit/15141eafcde3cb9a8903ee2eaa491bf7b06475cf))
+* **helm:** caBundle for all outbound pods, kind-up.sh, and OCI chart publishing ([605f4c3](https://github.com/InditexTech/kumoss/commit/605f4c33386160cc8c84484da37456446466dc1e))
+
+
+### Bug Fixes
+
+* **core:** trust every certificate in multi-certificate CA files ([636331d](https://github.com/InditexTech/kumoss/commit/636331d54956fc1ccac92f4fde47ac6676907574))
+* **helm:** keep glued certificates in caBundle and set AWS_CA_BUNDLE ([6170f03](https://github.com/InditexTech/kumoss/commit/6170f03d476c1bb10a8fff16e829e438f4519369))
+* **helm:** validate the chart before kind-up.sh touches the cluster ([81c49a8](https://github.com/InditexTech/kumoss/commit/81c49a8bf0c20a4b2400d06ae1faa4d746ee8c5b))
+
+
+### Documentation
+
+* **helm:** document caBundle, kind-up.sh and the OCI chart ([bcb0fcb](https://github.com/InditexTech/kumoss/commit/bcb0fcb34c5c22f2182aa40db865593871cbe34a))
+
 ## [1.0.5](https://github.com/InditexTech/kumoss/compare/v1.0.4...v1.0.5) (2026-11-02)
 
 
