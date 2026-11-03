@@ -27,10 +27,18 @@ type EnvPaths struct {
 // Env renders the three .env files from the answers. Generation is the only
 // secret work it does: the caller reuses the existing files' values (LoadSecrets
 // + Fill) and blanks the ones the user chose to rotate, so Write fills exactly
-// the empty ones and writes all three 0600. The vars are fixed (the CLI ships
-// without the repo, so there is no env.sample to read) and mirror core/env.sample
-// and services/*/env.sample.
-type Env struct{}
+// the empty ones and writes all three 0600.
+//
+// The key set comes from the repo's env.sample files when Samples is set: the
+// wizard fills the keys it owns, the sample supplies the rest, and keys the
+// sample leaves empty are asked for and carried in Extra. With Samples nil (the
+// fetch failed) it falls back to the built-in key list, which may lag the repo.
+type Env struct {
+	Samples *Samples
+	// Extra holds the values the user supplied for sample keys with no value and
+	// no wizard owner (e.g. SLACK_WEBHOOK_URL).
+	Extra map[string]string
+}
 
 // Write writes the env files. s.Secrets is filled in place with any values it
 // had to generate, so the caller can report them if needed. Every secret that is
@@ -40,7 +48,7 @@ type Env struct{}
 func (e *Env) Write(p EnvPaths, s *state.State) error {
 	e.generate(s)
 
-	for path, vars := range files(p, s) {
+	for path, vars := range e.files(p, s) {
 		if err := writeEnv(path, vars); err != nil {
 			return err
 		}
@@ -99,51 +107,129 @@ func Fill(s *state.State, existing state.Secrets, rotate []string) {
 // of entropy hex-encoded, matching the `openssl rand -hex 32` the samples
 // recommend. Tokens must be non-empty: the generated clients reject an empty
 // bearer.
+//
+// The Postgres password and the RustFS keys are NOT generated: docker-compose.yml
+// hardcodes them (POSTGRES_PASSWORD=postgres; RustFS's built-in rustfsadmin), so
+// a random value could never match the running containers. They come from the
+// env sample instead.
 func (e *Env) generate(s *state.State) {
 	s.Secrets.IACToken = first(s.Secrets.IACToken, randomHex())
 	s.Secrets.NotificationsToken = first(s.Secrets.NotificationsToken, randomHex())
-	s.Secrets.RustFSAccessKey = first(s.Secrets.RustFSAccessKey, randomHex())
-	s.Secrets.RustFSSecretKey = first(s.Secrets.RustFSSecretKey, randomHex())
-	s.Secrets.CoreDBPassword = first(s.Secrets.CoreDBPassword, randomHex())
 	// Mapping and authz are contracts-only and disabled by default; leave them
 	// empty unless the user set them, so the core does not try to use them.
 }
 
-// files maps each env file to its vars. The order of the map values is fixed by
-// writeEnv's sort, so the output is stable across runs.
-func files(p EnvPaths, s *state.State) map[string]map[string]string {
-	core := map[string]string{
+// files maps each env file to its vars. With samples, each file carries exactly
+// the sample's keys, resolved in this order: the wizard's value, then the
+// sample's value, then what the user typed for an empty sample key. Without
+// samples it falls back to the built-in key list.
+func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
+	if e.Samples == nil {
+		return e.fallbackFiles(p, s)
+	}
+	return map[string]map[string]string{
+		p.Core:          resolveSample(e.Samples.Core, e.owned(s), e.Extra),
+		p.IAC:           resolveSample(e.Samples.IAC, e.owned(s), e.Extra),
+		p.Notifications: resolveSample(e.Samples.Notifications, e.owned(s), e.Extra),
+	}
+}
+
+// resolveSample builds one env file's vars from its sample: wizard-owned value
+// first, then the sample's own value, then the user's Extra value.
+func resolveSample(sample *Sample, owned, extra map[string]string) map[string]string {
+	vars := make(map[string]string, len(sample.Vars))
+	for _, v := range sample.Vars {
+		switch {
+		case owned[v.Key] != "":
+			vars[v.Key] = owned[v.Key]
+		case v.Value != "":
+			vars[v.Key] = v.Value
+		default:
+			vars[v.Key] = extra[v.Key]
+		}
+	}
+	return vars
+}
+
+// owned maps every env key the wizard collects to its value. A key here wins
+// over whatever the sample says; a blank value still marks the key as owned, so
+// resolveSample never falls back to a sample placeholder for it.
+//
+// KUMOSS_SQL_DATABASE_URL and the RUSTFS keys are deliberately absent: the
+// wizard does not collect them, and their sample values are the ones that match
+// the containers docker-compose.yml starts.
+func (e *Env) owned(s *state.State) map[string]string {
+	owned := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
 		"KUMOSS_IAC_TOKEN":           s.Secrets.IACToken,
+		"KUMOSS_MAPPING_TOKEN":       s.Secrets.MappingToken,
+		"KUMOSS_AUTHZ_TOKEN":         s.Secrets.AuthzToken,
 		"GIT_USER":                   s.Git.User,
 		"GIT_TOKEN":                  s.Git.Token,
-		"KUMOSS_SQL_DATABASE_URL":    databaseURL(s.Secrets.CoreDBPassword),
+		"IAC_BINARY":                 s.Engine.Binary,
 	}
 	// Provider credentials collected by the LLM step, keyed by env-var name.
 	for k, v := range s.LLM.Credentials {
-		core[k] = v
+		owned[k] = v
 	}
 	// Object-storage credentials, keyed by env-var name (STORAGE_ACCOUNT_KEY).
-	// Blank for provider S3.
+	// Blank entries are skipped: an empty map value must not shadow the sample's
+	// default for a key the user did not actually set.
 	for k, v := range s.Storage.Credentials {
+		if v != "" {
+			owned[k] = v
+		}
+	}
+	for k, v := range cloudVars(s.Cloud) {
+		owned[k] = v
+	}
+	for k, v := range s.Storage.BackendCredentials {
+		owned[k] = v
+	}
+	return owned
+}
+
+// OwnedKeys returns the env keys the wizard collects, for Sample.NeedsAsking.
+func (e *Env) OwnedKeys(s *state.State) map[string]bool {
+	keys := make(map[string]bool)
+	for k := range e.owned(s) {
+		keys[k] = true
+	}
+	return keys
+}
+
+// fallbackFiles is the built-in key list, used only when the samples could not
+// be fetched. It mirrors the samples at the time of writing and can lag them.
+func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]string {
+	owned := e.owned(s)
+	core := map[string]string{
+		"KUMOSS_NOTIFICATIONS_TOKEN": owned["KUMOSS_NOTIFICATIONS_TOKEN"],
+		"KUMOSS_IAC_TOKEN":           owned["KUMOSS_IAC_TOKEN"],
+		"GIT_USER":                   owned["GIT_USER"],
+		"GIT_TOKEN":                  owned["GIT_TOKEN"],
+		// These two match docker-compose.yml, which is what the containers
+		// actually use; they are not generated.
+		"RUSTFS_ACCESS_KEY":       first(s.Secrets.RustFSAccessKey, "rustfsadmin"),
+		"RUSTFS_SECRET_KEY":       first(s.Secrets.RustFSSecretKey, "rustfsadmin"),
+		"KUMOSS_SQL_DATABASE_URL": databaseURL(first(s.Secrets.CoreDBPassword, "postgres")),
+	}
+	for k, v := range s.LLM.Credentials {
 		core[k] = v
 	}
-	// RustFS keys are generated, not typed: they must match the object-storage
-	// container's own credentials, and the form does not ask for them.
-	if s.Storage.Provider == "RUSTFS" {
-		core["RUSTFS_ACCESS_KEY"] = s.Secrets.RustFSAccessKey
-		core["RUSTFS_SECRET_KEY"] = s.Secrets.RustFSSecretKey
+	// Blank storage credentials must not overwrite the defaults set above.
+	for k, v := range s.Storage.Credentials {
+		if v != "" {
+			core[k] = v
+		}
 	}
 
 	iac := map[string]string{
 		"KUMOSS_IAC_TOKEN": s.Secrets.IACToken,
 		"IAC_BINARY":       s.Engine.Binary,
 	}
-	// Cloud credentials for the engine's providers.
 	for k, v := range cloudVars(s.Cloud) {
 		iac[k] = v
 	}
-	// Backend credentials for the repository-declared storage model.
 	for k, v := range s.Storage.BackendCredentials {
 		iac[k] = v
 	}
@@ -151,7 +237,6 @@ func files(p EnvPaths, s *state.State) map[string]map[string]string {
 	notifications := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
 	}
-
 	return map[string]map[string]string{
 		p.Core:          core,
 		p.IAC:           iac,

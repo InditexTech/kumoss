@@ -10,6 +10,8 @@ package pipeline
 
 import (
 	"context"
+	"fmt"
+	"io"
 	"os"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
@@ -35,6 +37,10 @@ type Options struct {
 	// uses the real fetcher at the release tag; tests inject a stub so no
 	// network is needed.
 	Download *render.Download
+
+	// Warn receives non-fatal warnings (the env samples could not be fetched).
+	// nil discards them.
+	Warn io.Writer
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
@@ -80,13 +86,21 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 4. Collect answers. ModeKeep skips the forms and leaves the existing
+	// 4. Fetch the env samples. They define which keys each env file carries,
+	// so a failure is warned about, not fatal: the built-in key list still
+	// produces a usable file set.
+	samples, err := render.FetchSamples(ctx, dl)
+	if err != nil {
+		warn(opts.Warn, "could not fetch the env samples (%v); falling back to the built-in key list. Review the generated .env files against core/env.sample and services/*/env.sample in the repo, or the documentation.", err)
+	}
+
+	// 5. Collect answers. ModeKeep skips the forms and leaves the existing
 	// env files untouched (Secrets are not in kumoss.yaml).
 	if err := opts.UI.Configure(mode, s); err != nil {
 		return err
 	}
 
-	// 5. Write the two YAML files. kumoss.yaml is skipped in ModeKeep: the
+	// 6. Write the two YAML files. kumoss.yaml is skipped in ModeKeep: the
 	// stored values did not change. config.yaml is always regenerated, which is
 	// the only config file ModeKeep produces.
 	if mode != tui.ModeKeep {
@@ -103,7 +117,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	// 6. Write the three env files. ModeKeep leaves them alone: they are the
+	// 7. Write the three env files. ModeKeep leaves them alone: they are the
 	// only copy of the secrets, so rewriting could rotate a running stack's
 	// tokens. Otherwise, reuse what exists and offer to rotate any of it first.
 	if mode != tui.ModeKeep {
@@ -119,12 +133,22 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		// Reuse what the files hold, minus anything the user chose to rotate;
 		// Write generates fresh values for exactly those.
 		render.Fill(s, existing, rotate)
-		if err := (&render.Env{}).Write(paths, s); err != nil {
+
+		env := &render.Env{Samples: samples}
+		if samples != nil {
+			// Sample keys with no value and no wizard owner are the ones only
+			// the user can supply (e.g. SLACK_WEBHOOK_URL).
+			env.Extra, err = opts.UI.ExtraVars(askList(samples, env.OwnedKeys(s)))
+			if err != nil {
+				return err
+			}
+		}
+		if err := env.Write(paths, s); err != nil {
 			return err
 		}
 	}
 
-	// 7. Write compose.override.yml. Always regenerated: it is generated, not
+	// 8. Write compose.override.yml. Always regenerated: it is generated, not
 	// user state, and it is what points core's config mount at the file written
 	// above (the compose file's own ./config.yaml resolves to src/config.yaml).
 	override := &render.Compose{
@@ -135,13 +159,32 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	// 8. Ask whether to start the stack. Docker pull/up come in the next slice;
+	// 9. Ask whether to start the stack. Docker pull/up come in the next slice;
 	// the answers are collected and carried in s.
 	if _, err := opts.UI.RunDocker(); err != nil {
 		return err
 	}
 
 	return nil
+}
+
+// askList flattens the samples' unanswered keys into the form's list. The label
+// is the key itself: the wizard does not know what an unknown sample key means.
+func askList(samples *render.Samples, owned map[string]bool) []tui.Secret {
+	var out []tui.Secret
+	for _, s := range []*render.Sample{samples.Core, samples.IAC, samples.Notifications} {
+		for _, v := range s.NeedsAsking(owned) {
+			out = append(out, tui.Secret{Key: v.Key, Label: v.Key})
+		}
+	}
+	return out
+}
+
+// warn writes a non-fatal warning to w.
+func warn(w io.Writer, format string, args ...any) {
+	if w != nil {
+		fmt.Fprintf(w, "warning: "+format+"\n", args...)
+	}
 }
 
 // fetchCompose downloads docker-compose.yml into src/, unless it is already
@@ -166,17 +209,15 @@ func envPaths(h home.Home) render.EnvPaths {
 }
 
 // existingSecretList names the secrets found in the env files, for the rotation
-// prompt. Only the generated ones are offered; mapping/authz stay empty unless
-// the user set them by hand.
+// prompt. Only the generated ones are offered: the Postgres password and the
+// RustFS keys come from the sample because docker-compose.yml fixes them, so
+// rotating them here would only break the connection.
 func existingSecretList(s state.Secrets) []tui.Secret {
 	candidates := []struct {
 		key, label, value string
 	}{
 		{"KUMOSS_IAC_TOKEN", "IaC service bearer token", s.IACToken},
 		{"KUMOSS_NOTIFICATIONS_TOKEN", "Notifications service bearer token", s.NotificationsToken},
-		{"KUMOSS_SQL_DATABASE_URL", "Postgres password (embedded in the database URL)", s.CoreDBPassword},
-		{"RUSTFS_ACCESS_KEY", "RustFS access key", s.RustFSAccessKey},
-		{"RUSTFS_SECRET_KEY", "RustFS secret key", s.RustFSSecretKey},
 	}
 	var out []tui.Secret
 	for _, c := range candidates {

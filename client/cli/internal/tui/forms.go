@@ -110,6 +110,30 @@ func (w *Wizard) RotateSecrets(found []Secret) ([]string, error) {
 	return rotate, nil
 }
 
+// ExtraVars asks for the env keys the samples leave empty and the wizard does
+// not collect. One masked input per key; empty answers are allowed, since a
+// blank env var is how the stack says "not configured".
+func (w *Wizard) ExtraVars(keys []Secret) (map[string]string, error) {
+	// huh binds to addresses, so collect into a slice and zip it back by index.
+	answers := make([]string, len(keys))
+	fields := make([]huh.Field, len(keys))
+	for i, k := range keys {
+		fields[i] = huh.NewInput().
+			Title(k.Label).
+			Description(k.Key).
+			EchoMode(huh.EchoModePassword).
+			Value(&answers[i])
+	}
+	if err := w.run(huh.NewForm(huh.NewGroup(fields...).Title("Additional settings"))); err != nil {
+		return nil, err
+	}
+	values := make(map[string]string, len(keys))
+	for i, k := range keys {
+		values[k.Key] = answers[i]
+	}
+	return values, nil
+}
+
 // RunDocker asks whether to pull and start the stack now.
 func (w *Wizard) RunDocker() (bool, error) {
 	run := true

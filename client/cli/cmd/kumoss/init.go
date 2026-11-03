@@ -31,6 +31,7 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 					Out:        cmd.OutOrStdout(),
 					Accessible: false,
 				},
+				Warn: cmd.ErrOrStderr(),
 			})
 		},
 	}

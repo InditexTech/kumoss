@@ -33,6 +33,9 @@ type UI interface {
 	// returns the keys the user wants regenerated. An empty return keeps them
 	// all. Only called when an existing install has secrets to offer.
 	RotateSecrets(found []Secret) (rotate []string, err error)
+	// ExtraVars asks for the env keys the samples leave empty and the wizard
+	// does not collect, and returns their values keyed by env-var name.
+	ExtraVars(keys []Secret) (map[string]string, error)
 	RunDocker() (bool, error)
 }
 
