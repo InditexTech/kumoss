@@ -61,6 +61,28 @@ trap 'rm -rf "${tmp}"' EXIT
 # Apply a manifest generated with --dry-run, so re-runs update in place.
 apply() { kubectl apply -f - >/dev/null; }
 
+# --- Helm arguments ----------------------------------------------------
+
+port_suffix() { [ "$1" = "$2" ] && echo "" || echo ":$1"; }
+helm_args=(
+    --namespace "${NAMESPACE}"
+    --set proxy.service.type=NodePort
+    --set proxy.service.nodePorts.http=30080
+    --set proxy.service.nodePorts.storage=30900
+    --set "publicUrl=http://localhost$(port_suffix "${HTTP_PORT}" 80)"
+    --set "storagePublicUrl=http://localhost:${STORAGE_PORT}"
+)
+[ -z "${CHART_VERSION}" ] || helm_args+=(--version "${CHART_VERSION}")
+
+[ -z "${ENV_FILE}" ] || helm_args+=(--set "core.existingSecret=${release}-credentials")
+[ -z "${CA_DIR}" ] || helm_args+=(--set "caBundle.existingConfigMap=${release}-host-ca")
+helm_args+=("$@")
+
+# Render before touching any cluster, so a chart error (a missing
+# required value...) stops the run with Helm's message.
+helm template "${release}" "${CHART}" "${helm_args[@]}" > "${tmp}/rendered.yaml" \
+    || die "helm template failed (see above)"
+
 # --- Cluster -----------------------------------------------------------
 
 if kind get clusters 2>/dev/null | grep -qx "${CLUSTER}"; then
@@ -78,19 +100,6 @@ nodes:
 EOF
 fi
 kubectl config use-context "kind-${CLUSTER}" >/dev/null
-
-# --- Helm arguments ----------------------------------------------------
-
-port_suffix() { [ "$1" = "$2" ] && echo "" || echo ":$1"; }
-helm_args=(
-    --namespace "${NAMESPACE}"
-    --set proxy.service.type=NodePort
-    --set proxy.service.nodePorts.http=30080
-    --set proxy.service.nodePorts.storage=30900
-    --set "publicUrl=http://localhost$(port_suffix "${HTTP_PORT}" 80)"
-    --set "storagePublicUrl=http://localhost:${STORAGE_PORT}"
-)
-[ -z "${CHART_VERSION}" ] || helm_args+=(--version "${CHART_VERSION}")
 
 kubectl create namespace "${NAMESPACE}" --dry-run=client -o yaml | apply
 
@@ -114,26 +123,30 @@ if [ -n "${ENV_FILE}" ]; then
                 PHOENIX_SQL_DATABASE_URL | KUMOSS_REDIS_URL | RUSTFS_ACCESS_KEY | RUSTFS_SECRET_KEY)
                 continue ;;
         esac
-        if [[ "${value}" =~ ^\"(.*)\"[[:space:]]*$ || "${value}" =~ ^\'(.*)\'[[:space:]]*$ ]]; then
+        # Compose dotenv: a quoted value may be followed by a comment; an
+        # unquoted one ends at " #". A '#' inside quotes or not preceded
+        # by whitespace is part of the value.
+        if [[ "${value}" =~ ^\'([^\']*)\'[[:space:]]*(#.*)?$ \
+            || "${value}" =~ ^\"([^\"]*)\"[[:space:]]*(#.*)?$ \
+            || "${value}" =~ ^\"(.*)\"[[:space:]]*$ ]]; then
             value="${BASH_REMATCH[1]}"
+        else
+            value="${value%%[[:space:]]#*}"
+            value="${value%"${value##*[![:space:]]}"}"
         fi
         printf '%s=%s\n' "${key}" "${value}" >> "${clean}"
     done < "${ENV_FILE}"
     kubectl -n "${NAMESPACE}" create secret generic "${release}-credentials" \
         --from-env-file="${clean}" --dry-run=client -o yaml | apply
-    helm_args+=(--set "core.existingSecret=${release}-credentials")
 fi
 
 # --- Corporate CA roots ------------------------------------------------
 
 if [ -n "${CA_DIR}" ]; then
-    log "Loading CA roots from ${CA_DIR} into ConfigMap ${release}-ca-roots"
-    kubectl -n "${NAMESPACE}" create configmap "${release}-ca-roots" \
+    log "Loading CA roots from ${CA_DIR} into ConfigMap ${release}-host-ca"
+    kubectl -n "${NAMESPACE}" create configmap "${release}-host-ca" \
         --from-file="${CA_DIR}" --dry-run=client -o yaml | apply
-    helm_args+=(--set "caBundle.existingConfigMap=${release}-ca-roots")
 fi
-
-helm_args+=("$@")
 
 # --- Images ------------------------------------------------------------
 
@@ -141,8 +154,7 @@ if [ "${LOAD_IMAGES}" = "1" ]; then
     node="${CLUSTER}-control-plane"
     platform="linux/$(docker version --format '{{.Server.Arch}}')"
     mapfile -t images < <(
-        helm template "${release}" "${CHART}" "${helm_args[@]}" 2>/dev/null \
-            | sed -n 's/^[[:space:]]*image:[[:space:]]*"\{0,1\}\([^"[:space:]]*\)"\{0,1\}.*/\1/p' \
+        sed -n 's/^[[:space:]]*image:[[:space:]]*"\{0,1\}\([^"[:space:]]*\)"\{0,1\}.*/\1/p' "${tmp}/rendered.yaml" \
             | sort -u
     )
     [ "${#images[@]}" -gt 0 ] || die "helm template rendered no images"
