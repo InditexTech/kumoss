@@ -391,17 +391,18 @@ Render with the same `--set` flags you install with: enabling
 +
 [source,bash]
 ----
-kubectl -n kumoss create configmap kumoss-ca-roots \
+kubectl -n kumoss create configmap corporate-ca-roots \
   --from-file=/usr/local/share/ca-certificates
 helm upgrade --install kumoss charts/kumoss -n kumoss ... \
-  --set caBundle.existingConfigMap=kumoss-ca-roots
+  --set caBundle.existingConfigMap=corporate-ca-roots
 ----
 +
 Or pass the certificates inline with
 `--set-file caBundle.certificates=corp-root.pem` and the chart creates
 the ConfigMap. Every pod that calls out gets an init container that
 combines its image's public roots with yours into one bundle, pointed
-at by `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS`:
+at by `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE`, `NODE_EXTRA_CA_CERTS` and
+`AWS_CA_BUNDLE`. A file may hold several PEM certificates:
 +
 [cols="1,3",options="header"]
 |===

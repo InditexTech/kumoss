@@ -236,7 +236,8 @@ proxy. Each pod that calls out (core, iac, notifications, searxng) gets
 an init container that writes its image's public roots plus these into
 one bundle on an emptyDir; the clients are pointed at it through
 SSL_CERT_FILE (Python, OpenSSL, curl, git, Go/OpenTofu),
-REQUESTS_CA_BUNDLE and NODE_EXTRA_CA_CERTS. The roots are also mounted
+REQUESTS_CA_BUNDLE (requests, and boto3's fallback), NODE_EXTRA_CA_CERTS
+and AWS_CA_BUNDLE (boto3's own variable, set explicitly). The roots are also mounted
 at the core entrypoint's KUMOSS_CA_DIR, which imports them into
 Chromium's NSS database.
 */}}
@@ -257,8 +258,9 @@ checksum/ca-bundle: {{ toJson .Values.caBundle | sha256sum }}
 
 {{/*
 Init container building the bundle with the component's own image, so
-the public roots are the ones that image ships. Roots must be PEM; a
-newline after each file keeps concatenated PEM blocks parseable.
+the public roots are the ones that image ships. Roots must be PEM, a
+file may hold several; breaking the line after every END keeps
+certificates glued by a missing newline parseable.
 Usage: include "kumoss.caBundle.initContainer" (dict "root" . "image" "<ref>" "pullPolicy" "<policy>" "securityContext" <map or nil>)
 */}}
 {{- define "kumoss.caBundle.initContainer" -}}
@@ -274,8 +276,7 @@ Usage: include "kumoss.caBundle.initContainer" (dict "root" . "image" "<ref>" "p
       out=/etc/kumoss-ca/ca-certificates.crt
       cat /etc/ssl/certs/ca-certificates.crt > "$out"
       for f in /usr/local/share/ca-certificates/host/*; do
-        cat "$f" >> "$out"
-        echo >> "$out"
+        sed 's/-----END CERTIFICATE-----/&\n/g' "$f" >> "$out"
       done
   {{- with .securityContext }}
   securityContext:
@@ -296,6 +297,8 @@ Usage: include "kumoss.caBundle.initContainer" (dict "root" . "image" "<ref>" "p
 - name: REQUESTS_CA_BUNDLE
   value: /etc/kumoss-ca/ca-certificates.crt
 - name: NODE_EXTRA_CA_CERTS
+  value: /etc/kumoss-ca/ca-certificates.crt
+- name: AWS_CA_BUNDLE
   value: /etc/kumoss-ca/ca-certificates.crt
 {{- end }}
 {{- end }}

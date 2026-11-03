@@ -19,13 +19,16 @@ imagePullSecrets: []
 # core (LLM providers, Git, web pages), iac (OpenTofu registry and
 # providers), notifications (Slack) and searxng (search engines). Each
 # gets its image's public roots plus these in one bundle, pointed at by
-# SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS. Certificates
-# must be PEM. Leave both empty on a normal network.
+# SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS /
+# AWS_CA_BUNDLE. Certificates must be PEM; a file may hold several. Leave both empty on a normal network.
 caBundle:
   # A ConfigMap you create, every key a PEM certificate, e.g.
-  #   kubectl create configmap kumoss-ca-roots \
+  #   kubectl create configmap corporate-ca-roots \
   #     --from-file=/usr/local/share/ca-certificates
   # Pods do not restart when it changes; restart them after editing it.
+  # Do not name it <release>-kumoss-ca-roots (<release>-ca-roots for a
+  # release named kumoss): that is the ConfigMap the chart creates for
+  # `certificates` and deletes when they are unset.
   existingConfigMap: ""
   # Or the PEM certificates inline; the chart creates the ConfigMap.
   certificates: ""
