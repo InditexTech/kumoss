@@ -85,7 +85,6 @@ class SubjectProperties(BaseModel):
     model_config = {"extra": "allow"}
     issuer: str | None = None
     email: str | None = None
-    groups: list[str] | None = None
 
 
 class Subject(BaseModel):
