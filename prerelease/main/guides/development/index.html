@@ -1029,8 +1029,11 @@ core suite is not run in CI</strong>, so run it locally against the compose
 stack before opening a pull request. <strong>Neither is the Helm chart</strong>: after
 changing it, or the <code>config.yaml</code>, <code>nginx/nginx.conf</code>, or
 <code>services/searxng/settings.yml</code> it renders, run <code>helm lint
-charts/kumoss</code> and install it on a kind cluster
-(<a href="../deploy-with-helm/#try-it-on-kind" class="xref page">Try it on kind</a>).</p>
+charts/kumoss</code> and install it on a kind cluster with
+<code>charts/kind-up.sh</code>
+(<a href="../deploy-with-helm/#try-it-on-kind" class="xref page">Try it on kind</a>).
+Publishing a release lints the chart and pushes it to
+<code>oci://ghcr.io/inditextech/charts/kumoss</code>.</p>
 </div>
 </div>
 </div>
