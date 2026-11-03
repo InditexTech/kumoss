@@ -167,8 +167,11 @@ core suite is not run in CI*, so run it locally against the compose
 stack before opening a pull request. *Neither is the Helm chart*: after
 changing it, or the `config.yaml`, `nginx/nginx.conf`, or
 `services/searxng/settings.yml` it renders, run `helm lint
-charts/kumoss` and install it on a kind cluster
+charts/kumoss` and install it on a kind cluster with
+`charts/kind-up.sh`
 (xref:main:guides/deploy-with-helm.adoc#try-it-on-kind[Try it on kind]).
+Publishing a release lints the chart and pushes it to
+`oci://ghcr.io/inditextech/charts/kumoss`.
 
 [#regenerating-clients]
 == Regenerating sidecar clients

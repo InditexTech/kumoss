@@ -289,7 +289,8 @@ deployment.
 
 An official Helm chart deploys Kumoss and its sidecars on Kubernetes,
 with production-oriented defaults for configuration, secrets, and
-scaling. A first version lives in `charts/kumoss`
+scaling. A first version lives in `charts/kumoss`, published with each
+release to `oci://ghcr.io/inditextech/charts/kumoss`
 (xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]): it runs the
 Compose topology, takes external databases, Redis, and object storage,
 and binds cloud credentials through workload identity. It complements

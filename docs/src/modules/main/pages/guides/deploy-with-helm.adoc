@@ -1,5 +1,5 @@
 = Deploy with Helm
-:description: Install Kumoss on Kubernetes with the chart in charts/kumoss, try it on a local kind cluster, and know what the chart changes from the Compose stack.
+:description: Install Kumoss on Kubernetes with the published Helm chart, try it on a local kind cluster, and know what the chart changes from the Compose stack.
 
 The chart in `charts/kumoss` deploys the same stack as
 `docker-compose.yml` on Kubernetes: the proxy, the core, the IaC and
@@ -7,6 +7,21 @@ notifications sidecars, and the bundled backing services (two
 PostgreSQL databases, Redis, RustFS object storage, Phoenix and
 SearXNG). Every backing service can be switched off and replaced by an
 external one.
+
+Each release publishes the chart as an OCI artifact,
+`oci://ghcr.io/inditextech/charts/kumoss`, with the same version as the
+release; its Kumoss image tags default to that version. Install it
+without a checkout:
+
+[source,bash]
+----
+helm upgrade --install kumoss oci://ghcr.io/inditextech/charts/kumoss \
+  --version <version> -n kumoss --create-namespace \
+  --set core.existingSecret=<secret with LLM / Git credentials>
+----
+
+The examples below use `charts/kumoss` from a checkout; the OCI
+reference works in its place everywhere.
 
 The chart does not make a deployment production-ready on its own. The
 decisions in xref:main:guides/deploy-to-production.adoc[Deploy to
@@ -83,6 +98,11 @@ instead, for local testing.
 |`iac.existingSecret`
 |Cloud provider credentials for plan and apply.
 
+|`caBundle.existingConfigMap`, `caBundle.certificates`
+|Extra CA roots (PEM) trusted for outbound HTTPS by every pod that
+calls out: the core, the IaC and notifications sidecars, and SearXNG.
+Needed behind a TLS-inspecting proxy; see <<tls-inspecting-proxy>>.
+
 |`secrets.*`
 |Service tokens and bundled-service passwords. Leave them blank: the
 chart generates them on first install and reuses them on upgrade. If
@@ -136,8 +156,7 @@ match.
 |===
 
 `<component>.extraEnv`, `extraVolumes` and `extraVolumeMounts` cover
-everything else; <<tls-inspecting-proxy>> uses them to trust corporate
-CA roots.
+everything else.
 
 [#workload-identity]
 == Cloud credentials with workload identity
@@ -262,6 +281,25 @@ cluster whose host ports 80 and 9000 reach the proxy, so the browser
 uses the same URLs as with Compose and the default `publicUrl` /
 `storagePublicUrl` work unchanged. Run them from the repository root.
 
+`charts/kind-up.sh` runs all of them in one idempotent command; re-run
+it to upgrade. It reads the credentials from a Compose-style `.env`
+(stripping the quotes `kubectl --from-env-file` would keep), and with
+`CA_DIR` set it also does the <<tls-inspecting-proxy,TLS-inspecting
+proxy>> steps:
+
+[source,bash]
+----
+ENV_FILE=core/.env charts/kind-up.sh
+# Behind a TLS-inspecting proxy:
+ENV_FILE=core/.env CA_DIR=/usr/local/share/ca-certificates charts/kind-up.sh
+# Other host ports, or the published chart instead of the checkout:
+HTTP_PORT=8080 STORAGE_PORT=9900 charts/kind-up.sh
+CHART=oci://ghcr.io/inditextech/charts/kumoss CHART_VERSION=<version> charts/kind-up.sh
+----
+
+Its header lists every setting; arguments after them go to `helm
+upgrade --install`. The manual steps:
+
 . Create the cluster. The port mappings forward host ports 80 and 9000
   to the node ports the proxy is exposed on in step 4:
 +
@@ -326,55 +364,70 @@ helm test kumoss -n kumoss
 [#tls-inspecting-proxy]
 === Behind a TLS-inspecting proxy
 
-Two things change, matching the
+The proxy re-signs HTTPS with a corporate root that neither the kind
+node nor the images trust. Two things change, matching the
 xref:main:guides/development.adoc#tls-inspecting-proxy[Compose
-setup]:
+setup]; `charts/kind-up.sh` does both when `CA_DIR` is set.
 
-* *Image pulls.* The kind node may not trust the proxy and fail to pull
-  (`ImagePullBackOff`). Pull the images on the host and copy them in.
-  Save a single platform first, because `kind load docker-image` fails
-  on multi-platform images:
+* *Image pulls.* The node fails to pull with `x509: certificate signed
+  by unknown authority` (`ImagePullBackOff`). Pull the images on the
+  host and copy them in, all in one archive. Save a single platform,
+  because `kind load docker-image` fails on multi-platform images:
 +
 [source,bash]
 ----
-docker pull postgres:17
-docker save --platform linux/amd64 -o /tmp/img.tar postgres:17
-kind load image-archive /tmp/img.tar --name kumoss
+images=$(helm template kumoss charts/kumoss | sed -n 's/^ *image: *"\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' | sort -u)
+for i in $images; do docker pull -q "$i"; done
+docker save --platform linux/amd64 -o /tmp/kumoss-images.tar $images
+kind load image-archive /tmp/kumoss-images.tar --name kumoss
 ----
 +
-`helm template charts/kumoss | grep 'image:'` lists every image the
-release needs.
+Render with the same `--set` flags you install with: enabling
+`notifications` adds its image. The list includes the
+`curlimages/curl` image `helm test` runs.
 
-* *Outbound HTTPS from the pods.* Put your corporate roots in a
-  ConfigMap and mount them where the core's entrypoint looks for them
-  (`KUMOSS_CA_DIR`). SearXNG takes a combined bundle through
-  `SSL_CERT_FILE`:
+* *Outbound HTTPS from the pods.* Put your corporate roots (PEM) in a
+  ConfigMap and point `caBundle.existingConfigMap` at it:
 +
 [source,bash]
 ----
-kubectl -n kumoss create configmap host-ca \
+kubectl -n kumoss create configmap kumoss-ca-roots \
   --from-file=/usr/local/share/ca-certificates
-kubectl -n kumoss create configmap host-bundle \
-  --from-file=ca-certificates.crt=/etc/ssl/certs/ca-certificates.crt
+helm upgrade --install kumoss charts/kumoss -n kumoss ... \
+  --set caBundle.existingConfigMap=kumoss-ca-roots
 ----
 +
-[source,yaml]
-----
-core:
-  extraEnv:
-    - { name: KUMOSS_CA_DIR, value: /usr/local/share/ca-certificates/host }
-  extraVolumes:
-    - { name: host-ca, configMap: { name: host-ca } }
-  extraVolumeMounts:
-    - { name: host-ca, mountPath: /usr/local/share/ca-certificates/host, readOnly: true }
-searxng:
-  extraEnv:
-    - { name: SSL_CERT_FILE, value: /etc/kumoss-ca/ca-certificates.crt }
-  extraVolumes:
-    - { name: host-bundle, configMap: { name: host-bundle } }
-  extraVolumeMounts:
-    - { name: host-bundle, mountPath: /etc/kumoss-ca, readOnly: true }
-----
+Or pass the certificates inline with
+`--set-file caBundle.certificates=corp-root.pem` and the chart creates
+the ConfigMap. Every pod that calls out gets an init container that
+combines its image's public roots with yours into one bundle, pointed
+at by `SSL_CERT_FILE`, `REQUESTS_CA_BUNDLE` and `NODE_EXTRA_CA_CERTS`:
++
+[cols="1,3",options="header"]
+|===
+|Pod |Outbound HTTPS
+
+|`core`
+|LLM providers, Git hosts, web pages read by `web_search`. The roots
+are also mounted at `KUMOSS_CA_DIR`, so the entrypoint imports them
+into Chromium's store.
+
+|`iac`
+|The OpenTofu registry and provider downloads (`tofu init`).
+Without the roots, the pod starts and passes its probes, but every
+plan fails.
+
+|`notifications`
+|Slack.
+
+|`searxng`
+|The search engines.
+|===
++
+Pods do not restart when an `existingConfigMap` changes; restart them
+after editing it. Earlier versions of this guide mounted the roots
+through `core.extraVolumes` and `searxng.extraVolumes`; remove those
+when switching to `caBundle`.
 +
 When building the core image, pass the same directory as the
 `host-certs` build context instead of `docker/certs`.
@@ -403,7 +456,9 @@ Then delete the crashed pods so they restart immediately, for example
   service URLs, or a component's `secretEnv` roll every pod that reads
   them the same way. A Secret you reference through `existingSecret`
   is managed outside the chart: after rotating it, restart its readers
-  (`kubectl rollout restart deploy/<release>-kumoss-core`).
+  (`kubectl rollout restart deploy/<release>-kumoss-core`). The same
+  goes for `caBundle.existingConfigMap`; inline
+  `caBundle.certificates` roll the pods on change.
 * Generated passwords and tokens are read back from the existing
   Secret on every upgrade. Changing a database password in values
   after the first install does not change it inside an initialised

@@ -9,10 +9,19 @@ SPDX-License-Identifier: Apache-2.0
 Deploys Kumoss and its bundled services on Kubernetes, mirroring
 `docker-compose.yml`.
 
+Each release publishes it to `oci://ghcr.io/inditextech/charts/kumoss`
+with the release's version:
+
 ```bash
-helm upgrade --install kumoss charts/kumoss -n kumoss --create-namespace \
+helm upgrade --install kumoss oci://ghcr.io/inditextech/charts/kumoss \
+  --version <version> -n kumoss --create-namespace \
   --set core.existingSecret=<secret with LLM / git credentials>
 ```
+
+From a checkout, use `charts/kumoss` instead of the OCI reference.
+`charts/kind-up.sh` brings it up on a local kind cluster in one command.
+Behind a TLS-inspecting proxy, set `caBundle.existingConfigMap` to a
+ConfigMap of your corporate PEM roots.
 
 `files/` holds symlinks to the repository's `config.yaml`,
 `nginx/nginx.conf` and `services/searxng/settings.yml`; the chart
