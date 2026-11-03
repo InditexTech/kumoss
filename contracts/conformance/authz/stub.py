@@ -97,6 +97,7 @@ class Subject(BaseModel):
 class Action(BaseModel):
     model_config = {"extra": "forbid"}
     name: ActionName
+    properties: dict[str, object] = {}
 
 
 class ResourceProperties(BaseModel):
