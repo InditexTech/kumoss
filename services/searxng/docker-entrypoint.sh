@@ -33,10 +33,17 @@ if [ -d "${CA_DIR}" ] && [ -n "$(ls -A "${CA_DIR}" 2>/dev/null)" ]; then
     echo "Trusting extra CA roots from ${CA_DIR}"
     bundle=/tmp/ca-certificates.crt
     cat /etc/ssl/certs/ca-certificates.crt > "${bundle}"
+    # A PEM file may hold several certificates (a bundle), so append it
+    # whole rather than through `openssl x509`, which keeps only the
+    # first; DER files hold one and are converted. Breaking the line
+    # after every END keeps certificates glued by a missing newline.
     for f in "${CA_DIR}"/*; do
-        { openssl x509 -in "$f" -out - 2>/dev/null \
-            || openssl x509 -inform DER -in "$f" -out - 2>/dev/null; } \
-            >> "${bundle}" || continue
+        [ -f "$f" ] || continue
+        if grep -q -- "-----BEGIN CERTIFICATE-----" "$f"; then
+            sed 's/-----END CERTIFICATE-----/&\n/g' "$f" >> "${bundle}"
+        else
+            openssl x509 -inform DER -in "$f" -out - 2>/dev/null >> "${bundle}" || continue
+        fi
     done
     export SSL_CERT_FILE="${bundle}"
     export REQUESTS_CA_BUNDLE="${bundle}"

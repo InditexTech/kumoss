@@ -26,6 +26,7 @@ spec:
         # config.yaml is only read at startup: roll the pod when it changes.
         checksum/config: {{ include "kumoss.coreConfig" . | sha256sum }}
         checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "core") }}
+        {{- include "kumoss.caBundle.checksum" . | nindent 8 }}
         {{- with $c.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -37,9 +38,12 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
-      {{- if .Values.postgres.core.enabled }}
+      {{- if or .Values.postgres.core.enabled (include "kumoss.caBundle.enabled" .) }}
       initContainers:
+        {{- if .Values.postgres.core.enabled }}
         {{- include "kumoss.waitForPostgres" (list . "core-db") | nindent 8 }}
+        {{- end }}
+        {{- include "kumoss.caBundle.initContainer" (dict "root" . "image" (include "kumoss.image" (list . $c.image)) "pullPolicy" $c.image.pullPolicy "securityContext" .Values.securityContext) | nindent 8 }}
       {{- end }}
       containers:
         - name: core
@@ -60,6 +64,7 @@ spec:
             {{- include "kumoss.secretKeyRef" (list . "RUSTFS_ACCESS_KEY" "RUSTFS_ACCESS_KEY") | nindent 12 }}
             {{- include "kumoss.secretKeyRef" (list . "RUSTFS_SECRET_KEY" "RUSTFS_SECRET_KEY") | nindent 12 }}
             {{- end }}
+            {{- include "kumoss.caBundle.env" . | nindent 12 }}
             {{- include "kumoss.extraEnv" $c | nindent 12 }}
           startupProbe:
             {{- toYaml $c.startupProbe | nindent 12 }}
@@ -78,6 +83,7 @@ spec:
               readOnly: true
             - name: workspaces
               mountPath: /workspaces
+            {{- include "kumoss.caBundle.mounts" . | nindent 12 }}
             {{- with $c.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -92,6 +98,7 @@ spec:
         - name: workspaces
           persistentVolumeClaim:
             claimName: {{ include "kumoss.workspacesClaim" . }}
+        {{- include "kumoss.caBundle.volumes" . | nindent 8 }}
         {{- with $c.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

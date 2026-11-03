@@ -229,3 +229,102 @@ them. Usage: include "kumoss.secretsChecksum" (list . "core")
   "externalUrls" (list $v.postgres.core.externalUrl $v.postgres.phoenix.externalUrl $v.redis.externalUrl)
   "secretEnv" ((index $v (index . 1)).secretEnv | default dict)) | sha256sum }}
 {{- end }}
+
+{{/*
+Extra CA roots (caBundle.*), for outbound HTTPS behind a TLS-inspecting
+proxy. Each pod that calls out (core, iac, notifications, searxng) gets
+an init container that writes its image's public roots plus these into
+one bundle on an emptyDir; the clients are pointed at it through
+SSL_CERT_FILE (Python, OpenSSL, curl, git, Go/OpenTofu),
+REQUESTS_CA_BUNDLE (requests, and boto3's fallback), NODE_EXTRA_CA_CERTS
+and AWS_CA_BUNDLE (boto3's own variable, set explicitly). The roots are also mounted
+at the core entrypoint's KUMOSS_CA_DIR, which imports them into
+Chromium's NSS database.
+*/}}
+{{- define "kumoss.caBundle.enabled" -}}
+{{- if or .Values.caBundle.existingConfigMap .Values.caBundle.certificates }}true{{ end }}
+{{- end }}
+
+{{- define "kumoss.caBundle.configMap" -}}
+{{- default (include "kumoss.component" (list . "ca-roots")) .Values.caBundle.existingConfigMap }}
+{{- end }}
+
+{{/* Pod annotation rolling the readers when inline roots change. */}}
+{{- define "kumoss.caBundle.checksum" -}}
+{{- if include "kumoss.caBundle.enabled" . }}
+checksum/ca-bundle: {{ toJson .Values.caBundle | sha256sum }}
+{{- end }}
+{{- end }}
+
+{{/*
+Init container building the bundle with the component's own image, so
+the public roots are the ones that image ships. Roots must be PEM, a
+file may hold several; breaking the line after every END keeps
+certificates glued by a missing newline parseable.
+Usage: include "kumoss.caBundle.initContainer" (dict "root" . "image" "<ref>" "pullPolicy" "<policy>" "securityContext" <map or nil>)
+*/}}
+{{- define "kumoss.caBundle.initContainer" -}}
+{{- if include "kumoss.caBundle.enabled" .root }}
+- name: ca-bundle
+  image: {{ .image | quote }}
+  imagePullPolicy: {{ .pullPolicy }}
+  command:
+    - sh
+    - -c
+    - |
+      set -e
+      out=/etc/kumoss-ca/ca-certificates.crt
+      cat /etc/ssl/certs/ca-certificates.crt > "$out"
+      for f in /usr/local/share/ca-certificates/host/*; do
+        sed 's/-----END CERTIFICATE-----/&\n/g' "$f" >> "$out"
+      done
+  {{- with .securityContext }}
+  securityContext:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  volumeMounts:
+    {{- include "kumoss.caBundle.volumeMounts" .root | nindent 4 }}
+    - name: ca-bundle
+      mountPath: /etc/kumoss-ca
+{{- end }}
+{{- end }}
+
+{{/* Env entries pointing the clients at the bundle (no "env:" key). */}}
+{{- define "kumoss.caBundle.env" -}}
+{{- if include "kumoss.caBundle.enabled" . }}
+- name: SSL_CERT_FILE
+  value: /etc/kumoss-ca/ca-certificates.crt
+- name: REQUESTS_CA_BUNDLE
+  value: /etc/kumoss-ca/ca-certificates.crt
+- name: NODE_EXTRA_CA_CERTS
+  value: /etc/kumoss-ca/ca-certificates.crt
+- name: AWS_CA_BUNDLE
+  value: /etc/kumoss-ca/ca-certificates.crt
+{{- end }}
+{{- end }}
+
+{{/* Main-container mounts: the roots (for the core entrypoint) and the bundle. */}}
+{{- define "kumoss.caBundle.mounts" -}}
+{{- if include "kumoss.caBundle.enabled" . }}
+{{- include "kumoss.caBundle.volumeMounts" . }}
+- name: ca-bundle
+  mountPath: /etc/kumoss-ca
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{- define "kumoss.caBundle.volumeMounts" -}}
+- name: ca-roots
+  mountPath: /usr/local/share/ca-certificates/host
+  readOnly: true
+{{- end }}
+
+{{- define "kumoss.caBundle.volumes" -}}
+{{- if include "kumoss.caBundle.enabled" . }}
+- name: ca-roots
+  configMap:
+    name: {{ include "kumoss.caBundle.configMap" . }}
+- name: ca-bundle
+  emptyDir: {}
+{{- end }}
+{{- end }}
