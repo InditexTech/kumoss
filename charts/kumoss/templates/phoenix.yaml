@@ -1,0 +1,69 @@
+{{- if .Values.phoenix.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.phoenixHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "phoenix") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "phoenix") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "phoenix") | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: phoenix
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "phoenix") }}
+    spec:
+      {{- if .Values.postgres.phoenix.enabled }}
+      initContainers:
+        {{- include "kumoss.waitForPostgres" (list . "phoenix-db") | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: phoenix
+          image: "{{ .Values.phoenix.image.repository }}:{{ .Values.phoenix.image.tag }}"
+          imagePullPolicy: {{ .Values.phoenix.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 6006
+            - name: otlp-grpc
+              containerPort: 4317
+          env:
+            {{- include "kumoss.secretKeyRef" (list . "PHOENIX_SQL_DATABASE_URL" "PHOENIX_SQL_DATABASE_URL") | nindent 12 }}
+            # Served by the proxy under /monitoring.
+            - name: PHOENIX_HOST_ROOT_PATH
+              value: /monitoring
+            - name: PHOENIX_ENABLE_MCP_SERVER
+              value: "false"
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          {{- with .Values.phoenix.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.phoenixHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "phoenix") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "phoenix") | nindent 4 }}
+  ports:
+    - name: http
+      port: 6006
+      targetPort: http
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+{{- end }}

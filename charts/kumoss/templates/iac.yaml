@@ -1,0 +1,108 @@
+{{- $c := .Values.iac }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "iac") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "iac") | nindent 4 }}
+spec:
+  # Jobs run in-process against the shared workspaces: one replica.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "iac") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "iac") | nindent 8 }}
+        {{- range $k, $v := .Values.iac.podLabels }}
+        {{ $k }}: {{ $v | toString | quote }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "iac") }}
+        {{- include "kumoss.caBundle.checksum" . | nindent 8 }}
+        {{- with $c.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "kumoss.podIdentity" (list . "iac") | nindent 6 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if include "kumoss.caBundle.enabled" . }}
+      initContainers:
+        {{- include "kumoss.caBundle.initContainer" (dict "root" . "image" (include "kumoss.image" (list . $c.image)) "pullPolicy" $c.image.pullPolicy "securityContext" .Values.securityContext) | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: iac
+          image: {{ include "kumoss.image" (list . $c.image) }}
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8082
+          {{- include "kumoss.envFrom" (list . "iac" $c) | nindent 10 }}
+          env:
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_IAC_TOKEN" "KUMOSS_IAC_TOKEN") | nindent 12 }}
+            {{- include "kumoss.caBundle.env" . | nindent 12 }}
+            {{- include "kumoss.extraEnv" $c | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          volumeMounts:
+            - name: workspaces
+              mountPath: /workspaces
+            {{- include "kumoss.caBundle.mounts" . | nindent 12 }}
+            {{- with $c.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      volumes:
+        - name: workspaces
+          persistentVolumeClaim:
+            claimName: {{ include "kumoss.workspacesClaim" . }}
+        {{- include "kumoss.caBundle.volumes" . | nindent 8 }}
+        {{- with $c.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- include "kumoss.scheduling" $c | nindent 6 }}
+      {{- if $c.affinity }}
+      affinity:
+        {{- toYaml $c.affinity | nindent 8 }}
+      {{- else if ne .Values.workspaces.accessMode "ReadWriteMany" }}
+      # A ReadWriteOnce workspaces volume can only be mounted on one node:
+      # run next to the core.
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  {{- include "kumoss.selectorLabels" (list . "core") | nindent 18 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "iac") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "iac") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "iac") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http

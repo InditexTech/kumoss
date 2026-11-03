@@ -30,6 +30,7 @@
 ** xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
 ** xref:main:guides/production/hardening.adoc[Hardening]
 ** xref:main:guides/production/operations.adoc[Operations]
+* xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]
 * xref:main:guides/development.adoc[Development]
 * Reference
 * xref:main:reference-overview.adoc[Overview]

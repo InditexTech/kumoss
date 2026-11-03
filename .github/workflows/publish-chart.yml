@@ -1,0 +1,80 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+# SPDX-License-Identifier: Apache-2.0
+
+# Publishes the Helm chart to oci://ghcr.io/inditextech/charts/kumoss when a
+# GitHub Release is published, alongside publish-images.yml. release-please
+# bumps the chart version and appVersion with every other version field, and
+# the chart's Kumoss image tags default to its appVersion, so the chart of
+# release X.Y.Z pulls the X.Y.Z images.
+#
+# workflow_dispatch republishes an existing release's chart (for releases cut
+# before this workflow existed): the workflow runs from the default branch and
+# checks out the given tag.
+#
+# A new GHCR package is private: after the first push, make
+# ghcr.io/inditextech/charts/kumoss public in the package settings.
+name: Publish Chart
+permissions: {}
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to publish (e.g. v1.0.5)
+        required: true
+        type: string
+
+concurrency:
+  group: publish-chart-${{ github.event.release.tag_name || inputs.tag }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package and push chart
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write # Push to GHCR with GITHUB_TOKEN.
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+      REGISTRY: oci://ghcr.io/inditextech/charts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+
+      - name: Set up Helm
+        uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310 # v5.0.1
+        with:
+          version: v4.3.1
+
+      - name: Check the chart version matches the release
+        run: |
+          chart_version="$(sed -n 's/^version: *\([^ #]*\).*/\1/p' charts/kumoss/Chart.yaml)"
+          if [ "v${chart_version}" != "${TAG}" ]; then
+            echo "::error::charts/kumoss/Chart.yaml version ${chart_version} does not match release ${TAG}"
+            exit 1
+          fi
+          echo "CHART_VERSION=${chart_version}" >> "${GITHUB_ENV}"
+
+      - name: Lint
+        run: helm lint charts/kumoss
+
+      # files/ holds symlinks to the repository's config.yaml, nginx.conf and
+      # SearXNG settings; helm package follows them into the archive.
+      - name: Package
+        run: helm package charts/kumoss --destination dist
+
+      - name: Log in to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: printf '%s' "${GHCR_TOKEN}" | helm registry login ghcr.io --username "${GHCR_USER}" --password-stdin
+
+      - name: Push
+        run: helm push "dist/kumoss-${CHART_VERSION}.tgz" "${REGISTRY}"

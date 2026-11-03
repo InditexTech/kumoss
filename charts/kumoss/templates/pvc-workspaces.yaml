@@ -1,0 +1,20 @@
+{{- if not .Values.workspaces.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "kumoss.workspacesClaim" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "workspaces") | nindent 4 }}
+  annotations:
+    # Cloned repositories and Terraform working dirs outlive a reinstall.
+    helm.sh/resource-policy: keep
+spec:
+  accessModes:
+    - {{ .Values.workspaces.accessMode }}
+  {{- with .Values.workspaces.storageClass }}
+  storageClassName: {{ . }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.workspaces.size }}
+{{- end }}

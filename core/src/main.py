@@ -125,7 +125,7 @@ app = FastAPI(
     title="Kumoss",
     summary="Browser-facing orchestration API of the Kumoss core engine.",
     description="Generate compliant Infrastructure as Code with a couple of clicks",
-    version=os.getenv("APP_VERSION", "1.0.4"),  # x-release-please-version
+    version=os.getenv("APP_VERSION", "1.0.6"),  # x-release-please-version
     contact={
         "name": "Kumoss maintainers",
         "url": "https://github.com/InditexTech/kumoss",
@@ -158,3 +158,14 @@ app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
+
+
+@app.get("/healthz", tags=["ops"], include_in_schema=False)
+async def healthz() -> dict[str, str]:
+    """Liveness probe for container orchestrators.
+
+    Answers once the lifespan startup (database, redis, buckets, prompt
+    seeding) has completed, without touching any dependency, so a slow
+    backing service does not get the core restarted.
+    """
+    return {"status": "ok"}
