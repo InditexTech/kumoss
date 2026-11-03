@@ -79,8 +79,14 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claims.name, "Alice")
         self.assertTrue(claims.email_verified)
 
-    async def test_missing_email_claim_yields_none(self):
+    async def test_missing_email_falls_back_to_preferred_username(self):
         token = self._token(email=None, preferred_username="alice@corp.example")
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.email, "alice@corp.example")
+        self.assertFalse(claims.email_verified)
+
+    async def test_missing_email_and_preferred_username_yields_none(self):
+        token = self._token(email=None)
         claims = await self._validator().validate(token)
         self.assertIsNone(claims.email)
         self.assertFalse(claims.email_verified)
@@ -169,6 +175,17 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         token = self._token(email="formal@example.com", preferred_username="alice@corp")
         claims = await self._validator().validate(token)
         self.assertEqual(claims.properties["email"], "alice@corp")
+
+    @patch("src.infrastructure.auth.oidc.system_config")
+    async def test_claim_remap_does_not_affect_identity_email(self, mock_cfg):
+        mock_cfg.oidc.claims = {"email": "preferred_username"}
+        token = self._token(
+            email="real@example.com",
+            preferred_username="impersonated@example.com",
+        )
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.email, "real@example.com")
+        self.assertEqual(claims.properties["email"], "impersonated@example.com")
 
     async def test_missing_claim_excluded_from_properties(self):
         claims = await self._validator().validate(self._token())

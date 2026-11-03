@@ -77,14 +77,16 @@ class OidcTokenValidator:
         )
         properties = self._extract_properties(payload, system_config.oidc.claims)
 
-        email = properties.get("email")
+        standard_email = payload.get("email")
+        email = standard_email or payload.get("preferred_username")
 
         return TokenClaims(
             issuer=payload["iss"],
             subject=payload["sub"],
             email=email,
             name=payload.get("name"),
-            email_verified=email is not None and payload.get("email_verified") is True,
+            email_verified=standard_email is not None
+            and payload.get("email_verified") is True,
             properties=properties,
         )
 
