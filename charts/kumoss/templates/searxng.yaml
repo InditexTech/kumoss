@@ -22,7 +22,12 @@ spec:
       annotations:
         checksum/config: {{ .Files.Get "files/searxng-settings.yml" | sha256sum }}
         checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "searxng") }}
+        {{- include "kumoss.caBundle.checksum" . | nindent 8 }}
     spec:
+      {{- if include "kumoss.caBundle.enabled" . }}
+      initContainers:
+        {{- include "kumoss.caBundle.initContainer" (dict "root" . "image" (printf "%s:%s" .Values.searxng.image.repository .Values.searxng.image.tag) "pullPolicy" .Values.searxng.image.pullPolicy) | nindent 8 }}
+      {{- end }}
       containers:
         - name: searxng
           image: "{{ .Values.searxng.image.repository }}:{{ .Values.searxng.image.tag }}"
@@ -36,6 +41,7 @@ spec:
             - name: SEARXNG_BASE_URL
               value: {{ printf "http://%s:8888" (include "kumoss.component" (list . "searxng")) | quote }}
             {{- include "kumoss.secretKeyRef" (list . "SEARXNG_SECRET" "SEARXNG_SECRET") | nindent 12 }}
+            {{- include "kumoss.caBundle.env" . | nindent 12 }}
             {{- with .Values.searxng.extraEnv }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -51,6 +57,7 @@ spec:
               mountPath: /etc/searxng/settings.yml
               subPath: settings.yml
               readOnly: true
+            {{- include "kumoss.caBundle.mounts" . | nindent 12 }}
             {{- with .Values.searxng.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -62,6 +69,7 @@ spec:
         - name: settings
           configMap:
             name: {{ include "kumoss.component" (list . "searxng") }}
+        {{- include "kumoss.caBundle.volumes" . | nindent 8 }}
         {{- with .Values.searxng.extraVolumes }}
         {{- toYaml . | nindent 8 }}
         {{- end }}

@@ -23,6 +23,7 @@ spec:
         {{- end }}
       annotations:
         checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "notifications") }}
+        {{- include "kumoss.caBundle.checksum" . | nindent 8 }}
         {{- with $c.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
@@ -34,6 +35,10 @@ spec:
       {{- end }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- if include "kumoss.caBundle.enabled" . }}
+      initContainers:
+        {{- include "kumoss.caBundle.initContainer" (dict "root" . "image" (include "kumoss.image" (list . $c.image)) "pullPolicy" $c.image.pullPolicy "securityContext" .Values.securityContext) | nindent 8 }}
+      {{- end }}
       containers:
         - name: notifications
           image: {{ include "kumoss.image" (list . $c.image) }}
@@ -46,6 +51,7 @@ spec:
           {{- include "kumoss.envFrom" (list . "notifications" $c) | nindent 10 }}
           env:
             {{- include "kumoss.secretKeyRef" (list . "KUMOSS_NOTIFICATIONS_TOKEN" "KUMOSS_NOTIFICATIONS_TOKEN") | nindent 12 }}
+            {{- include "kumoss.caBundle.env" . | nindent 12 }}
             {{- include "kumoss.extraEnv" $c | nindent 12 }}
           livenessProbe:
             httpGet: { path: /healthz, port: http }
@@ -53,17 +59,23 @@ spec:
           readinessProbe:
             httpGet: { path: /healthz, port: http }
             periodSeconds: 10
-          {{- with $c.extraVolumeMounts }}
+          {{- if or $c.extraVolumeMounts (include "kumoss.caBundle.enabled" .) }}
           volumeMounts:
+            {{- include "kumoss.caBundle.mounts" . | nindent 12 }}
+            {{- with $c.extraVolumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- with $c.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-      {{- with $c.extraVolumes }}
+      {{- if or $c.extraVolumes (include "kumoss.caBundle.enabled" .) }}
       volumes:
+        {{- include "kumoss.caBundle.volumes" . | nindent 8 }}
+        {{- with $c.extraVolumes }}
         {{- toYaml . | nindent 8 }}
+        {{- end }}
       {{- end }}
       {{- include "kumoss.scheduling" $c | nindent 6 }}
       {{- with $c.affinity }}

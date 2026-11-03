@@ -14,6 +14,22 @@ fullnameOverride: ""
 
 imagePullSecrets: []
 
+# Extra CA roots to trust for outbound HTTPS, e.g. behind a
+# TLS-inspecting corporate proxy. Applied to every pod that calls out:
+# core (LLM providers, Git, web pages), iac (OpenTofu registry and
+# providers), notifications (Slack) and searxng (search engines). Each
+# gets its image's public roots plus these in one bundle, pointed at by
+# SSL_CERT_FILE / REQUESTS_CA_BUNDLE / NODE_EXTRA_CA_CERTS. Certificates
+# must be PEM. Leave both empty on a normal network.
+caBundle:
+  # A ConfigMap you create, every key a PEM certificate, e.g.
+  #   kubectl create configmap kumoss-ca-roots \
+  #     --from-file=/usr/local/share/ca-certificates
+  # Pods do not restart when it changes; restart them after editing it.
+  existingConfigMap: ""
+  # Or the PEM certificates inline; the chart creates the ConfigMap.
+  certificates: ""
+
 # URLs the *browser* uses to reach Kumoss. They feed the core's CORS
 # allow-list (http.cors_origins) and the host baked into presigned
 # artifact URLs (storage.public_endpoint_url). They must match the
@@ -328,8 +344,7 @@ searxng:
     tag: "2026.10.13-22c64b8d3"
     pullPolicy: IfNotPresent
   resources: {}
-  # Behind a TLS-inspecting proxy, mount a CA bundle and point
-  # SSL_CERT_FILE at it so the engines' HTTPS verifies.
+  # Behind a TLS-inspecting proxy, set caBundle (top of this file).
   extraEnv: []
   extraVolumes: []
   extraVolumeMounts: []

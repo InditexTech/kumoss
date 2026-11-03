@@ -29,3 +29,15 @@ data:
   settings.yml: |
     {{- .Files.Get "files/searxng-settings.yml" | nindent 4 }}
 {{- end }}
+{{- if and .Values.caBundle.certificates (not .Values.caBundle.existingConfigMap) }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "kumoss.caBundle.configMap" . }}
+  labels:
+    {{- include "kumoss.labels" . | nindent 4 }}
+data:
+  extra-roots.crt: |
+    {{- .Values.caBundle.certificates | nindent 4 }}
+{{- end }}
