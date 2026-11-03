@@ -97,7 +97,7 @@ async def _resolve_or_raise(
                 )
             await authorize(
                 claims,
-                ctx.operation.value.lower() if is_iteration else action,
+                action,
                 scope_id=ctx.scope_id,
                 provider=ctx.terraform_prv,
                 repo_uri=ctx.repo_uri,
