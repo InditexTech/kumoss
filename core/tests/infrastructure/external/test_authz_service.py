@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import json
 import unittest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -103,6 +104,30 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ExceptionHandler) as ctx:
             await AuthzServiceClient().evaluate(_minimal_request())
         self.assertEqual(ctx.exception.error_code, 502)
+
+    @patch("src.infrastructure.external.authz_service.evaluate_op")
+    @patch("src.infrastructure.external.authz_service.system_config")
+    async def test_evaluate_missing_decision_raises_502(self, mock_cfg, mock_eval):
+        mock_cfg.services.authz = _mock_authz_config(enabled=True)
+        mock_eval.asyncio = AsyncMock(side_effect=KeyError("decision"))
+        from src.infrastructure.external.authz_service import AuthzServiceClient
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await AuthzServiceClient().evaluate(_minimal_request())
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertIn("unparseable", ctx.exception.message)
+
+    @patch("src.infrastructure.external.authz_service.evaluate_op")
+    @patch("src.infrastructure.external.authz_service.system_config")
+    async def test_evaluate_non_json_body_raises_502(self, mock_cfg, mock_eval):
+        mock_cfg.services.authz = _mock_authz_config(enabled=True)
+        mock_eval.asyncio = AsyncMock(side_effect=json.JSONDecodeError("bad", "", 0))
+        from src.infrastructure.external.authz_service import AuthzServiceClient
+
+        with self.assertRaises(ExceptionHandler) as ctx:
+            await AuthzServiceClient().evaluate(_minimal_request())
+        self.assertEqual(ctx.exception.error_code, 502)
+        self.assertIn("unparseable", ctx.exception.message)
 
     @patch("src.infrastructure.external.authz_service.evaluate_op")
     @patch("src.infrastructure.external.authz_service.AuthenticatedClient")

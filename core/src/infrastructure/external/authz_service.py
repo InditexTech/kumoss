@@ -59,6 +59,10 @@ class AuthzServiceClient:
             raise ExceptionHandler(f"authz PDP timed out: {e}", 504) from e
         except httpx.RequestError as e:
             raise ExceptionHandler(f"authz PDP unreachable: {e}", 502) from e
+        except (ValueError, TypeError, KeyError) as e:
+            raise ExceptionHandler(
+                f"authz PDP returned an unparseable response: {e!r}", 502
+            ) from e
 
         if (
             not isinstance(response, AccessEvaluationResponse)
