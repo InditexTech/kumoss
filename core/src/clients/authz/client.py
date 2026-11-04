@@ -1,3 +1,7 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
 import ssl
 from typing import Any, Self
 
@@ -49,7 +53,7 @@ class Client:
     _client: httpx.Client | None = field(default=None, init=False)
     _async_client: httpx.AsyncClient | None = field(default=None, init=False)
 
-    def with_headers(self, headers: dict[str, str]) -> Client:
+    def with_headers(self, headers: dict[str, str]) -> Self:
         """Get a new client matching this one with additional headers"""
         if self._client is not None:
             self._client.headers.update(headers)
@@ -57,7 +61,7 @@ class Client:
             self._async_client.headers.update(headers)
         return evolve(self, headers={**self._headers, **headers})
 
-    def with_cookies(self, cookies: dict[str, str]) -> Client:
+    def with_cookies(self, cookies: dict[str, str]) -> Self:
         """Get a new client matching this one with additional cookies"""
         if self._client is not None:
             self._client.cookies.update(cookies)
@@ -65,7 +69,7 @@ class Client:
             self._async_client.cookies.update(cookies)
         return evolve(self, cookies={**self._cookies, **cookies})
 
-    def with_timeout(self, timeout: httpx.Timeout) -> Client:
+    def with_timeout(self, timeout: httpx.Timeout) -> Self:
         """Get a new client matching this one with a new timeout configuration"""
         if self._client is not None:
             self._client.timeout = timeout
@@ -187,7 +191,7 @@ class AuthenticatedClient:
     prefix: str = "Bearer"
     auth_header_name: str = "Authorization"
 
-    def with_headers(self, headers: dict[str, str]) -> AuthenticatedClient:
+    def with_headers(self, headers: dict[str, str]) -> Self:
         """Get a new client matching this one with additional headers"""
         if self._client is not None:
             self._client.headers.update(headers)
@@ -195,7 +199,7 @@ class AuthenticatedClient:
             self._async_client.headers.update(headers)
         return evolve(self, headers={**self._headers, **headers})
 
-    def with_cookies(self, cookies: dict[str, str]) -> AuthenticatedClient:
+    def with_cookies(self, cookies: dict[str, str]) -> Self:
         """Get a new client matching this one with additional cookies"""
         if self._client is not None:
             self._client.cookies.update(cookies)
@@ -203,7 +207,7 @@ class AuthenticatedClient:
             self._async_client.cookies.update(cookies)
         return evolve(self, cookies={**self._cookies, **cookies})
 
-    def with_timeout(self, timeout: httpx.Timeout) -> AuthenticatedClient:
+    def with_timeout(self, timeout: httpx.Timeout) -> Self:
         """Get a new client matching this one with a new timeout configuration"""
         if self._client is not None:
             self._client.timeout = timeout
