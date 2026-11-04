@@ -32,14 +32,21 @@ jobs:
       matrix:
         include:
           - image: core
+            context: .
             dockerfile: core/Dockerfile
           - image: iac
+            context: .
             dockerfile: services/iac/Dockerfile
           - image: notifications
+            context: .
             dockerfile: services/notifications/Dockerfile
           - image: proxy
+            context: .
             dockerfile: nginx/Dockerfile
           - image: searxng
+            # Copies settings.yml and docker-entrypoint.sh by bare name,
+            # so it builds from its own directory (as Compose does).
+            context: ./services/searxng
             dockerfile: services/searxng/Dockerfile
     steps:
       - name: Checkout
@@ -75,8 +82,7 @@ jobs:
       - name: Build and push
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          # Every Dockerfile copies paths relative to the repository root.
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           build-contexts: host-certs=docker/certs
           platforms: linux/amd64,linux/arm64

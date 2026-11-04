@@ -1,8 +1,8 @@
 {{- if .Values.searxng.enabled }}
 {{- /*
-The upstream image with the repository's settings.yml: SearXNG reads
-SEARXNG_SECRET itself, so the docker-compose image's entrypoint (which
-substitutes it into the file) is not needed here.
+The Kumoss image, which already ships the repository's settings.yml and
+resolves SEARXNG_SECRET at start; the ConfigMap below re-applies the same
+file so a chart-only edit lands without republishing the image.
 */}}
 apiVersion: apps/v1
 kind: Deployment
@@ -26,11 +26,11 @@ spec:
     spec:
       {{- if include "kumoss.caBundle.enabled" . }}
       initContainers:
-        {{- include "kumoss.caBundle.initContainer" (dict "root" . "image" (printf "%s:%s" .Values.searxng.image.repository .Values.searxng.image.tag) "pullPolicy" .Values.searxng.image.pullPolicy) | nindent 8 }}
+        {{- include "kumoss.caBundle.initContainer" (dict "root" . "image" (include "kumoss.image" (list . .Values.searxng.image)) "pullPolicy" .Values.searxng.image.pullPolicy) | nindent 8 }}
       {{- end }}
       containers:
         - name: searxng
-          image: "{{ .Values.searxng.image.repository }}:{{ .Values.searxng.image.tag }}"
+          image: {{ include "kumoss.image" (list . .Values.searxng.image) }}
           imagePullPolicy: {{ .Values.searxng.image.pullPolicy }}
           ports:
             - name: http
