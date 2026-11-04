@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.0.7](https://github.com/InditexTech/kumoss/compare/v1.0.6...v1.0.7) (2026-11-04)
+
+
+### Features
+
+* **ci:** publish the SearXNG image to GHCR ([540120b](https://github.com/InditexTech/kumoss/commit/540120b25d969abc58b1a7db0ad8f3b240a05aa5))
+
+
+### Bug Fixes
+
+* **ci:** build searxng from its own context and resolve its image tag ([f5fd25c](https://github.com/InditexTech/kumoss/commit/f5fd25c4a74ffac9120489e2f1a28edd0adcdaf5))
+* **searxng:** honour a supplied settings path and escape the secret ([e9ff814](https://github.com/InditexTech/kumoss/commit/e9ff814f73578d81ac1d6b5d217ac115026b4ec5))
+
 ## [1.0.6](https://github.com/InditexTech/kumoss/compare/v1.0.5...v1.0.6) (2026-11-03)
 
 
