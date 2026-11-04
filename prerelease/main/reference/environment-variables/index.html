@@ -1593,8 +1593,13 @@ rate-limit the shared container IP, suspending an engine for 180s — hence
 the <code>Too many requests</code> lines in <code>docker compose logs searxng</code>.</p>
 </div>
 <div class="paragraph">
-<p>Edit <code>keep_only</code> and restart the sidecar (<code>docker compose restart
-searxng</code>). Two caveats, verified against the pinned build:</p>
+<p>Edit <code>keep_only</code>, then rebuild and recreate the sidecar so the image
+picks the file up: <code>docker compose up -d --build searxng</code>. A plain
+<code>docker compose restart searxng</code> does not apply the edit, because the
+file is baked into the image. To iterate without rebuilding, mount the
+file over the image&#8217;s copy — see the custom-settings section of
+<code>docker-compose.override.example.yml</code>. Two caveats, verified against the
+pinned build:</p>
 </div>
 <div class="ulist">
 <ul>
