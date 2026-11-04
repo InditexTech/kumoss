@@ -13,8 +13,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
+	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
 	"github.com/InditexTech/kumoss/client/cli/internal/render"
 	"github.com/InditexTech/kumoss/client/cli/internal/source"
@@ -41,6 +43,10 @@ type Options struct {
 	// Warn receives non-fatal warnings (the env samples could not be fetched).
 	// nil discards them.
 	Warn io.Writer
+
+	// Docker starts the stack. nil builds the real `docker compose` runner;
+	// tests inject a stub so no daemon is needed.
+	Docker docker.Runner
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
@@ -159,13 +165,45 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	// 9. Ask whether to start the stack. Docker pull/up come in the next slice;
-	// the answers are collected and carried in s.
-	if _, err := opts.UI.RunDocker(); err != nil {
+	// 9. Ask whether to start the stack, then pull what is missing and start it.
+	// The recreate is what makes a reconfigure take effect: compose compares the
+	// service definition, not the bytes of the mounted config.yaml or .env, so a
+	// plain `up -d` would leave the old containers running with the old files.
+	run, err := opts.UI.RunDocker()
+	if err != nil {
 		return err
+	}
+	if run {
+		runner := opts.Docker
+		if runner == nil {
+			runner = &docker.Compose{
+				ProjectDir: opts.Home.Root,
+				Files: []string{
+					rel(opts.Home.Root, opts.Home.ComposeFile()),
+					rel(opts.Home.Root, opts.Home.ComposeOverride()),
+				},
+			}
+		}
+		if _, err := runner.Pull(ctx); err != nil {
+			return fmt.Errorf("pull images: %w", err)
+		}
+		if err := runner.Up(ctx, mode != tui.ModeFresh); err != nil {
+			return fmt.Errorf("start the stack: %w", err)
+		}
 	}
 
 	return nil
+}
+
+// rel makes path relative to base, for the compose -f arguments. compose is run
+// with the home root as its working directory, so absolute paths would work too;
+// relative ones keep the command line readable and the project name derived from
+// the directory rather than overridden by it.
+func rel(base, path string) string {
+	if r, err := filepath.Rel(base, path); err == nil {
+		return r
+	}
+	return path
 }
 
 // askList flattens the samples' unanswered keys into the form's list. The label
