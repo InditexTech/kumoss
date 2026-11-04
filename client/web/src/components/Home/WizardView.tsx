@@ -29,7 +29,8 @@ type WizardProps = Pick<
   | "handlePath"
   | "handleProvider"
   | "retry"
-  | "reset"
+  | "restart"
+  | "data"
 >;
 
 export default function WizardView({
@@ -43,7 +44,8 @@ export default function WizardView({
   handlePath,
   handleProvider,
   retry,
-  reset,
+  restart,
+  data,
 }: WizardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [hintIndex, setHintIndex] = useState(0);
@@ -94,7 +96,7 @@ export default function WizardView({
             <button className={styles.retryBtn} onClick={retry}>
               {STRINGS.wizard.tryAgain}
             </button>
-            <button className={styles.startOverBtn} onClick={reset}>
+            <button className={styles.startOverBtn} onClick={restart}>
               {STRINGS.wizard.startOver}
             </button>
           </div>
@@ -111,6 +113,7 @@ export default function WizardView({
             autoComplete="off"
             autoFocus
             className={styles.input}
+            defaultValue={step === "query" ? data.query : ""}
             onKeyDown={handleKeyDown}
             maxLength={step === "scope" ? 64 : 500}
             placeholder={placeholder()}

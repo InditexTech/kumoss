@@ -203,6 +203,21 @@ export function useHomeWizard() {
     }
   }, [terraform, mapper, navigation, navigate]);
 
+  const restart = useCallback(() => {
+    const preservedQuery = navigation.data.query;
+    navigation.setStep("query");
+    navigation.setData({
+      query: preservedQuery,
+      repositoryUrl: "",
+      provider: "",
+      scope: "",
+      iacPath: "",
+    });
+    mapper.resetMapper();
+    terraform.reset();
+    navigate("/home", { replace: true });
+  }, [navigation, mapper, terraform, navigate]);
+
   const reset = useCallback(() => {
     navigation.resetNavigation();
     mapper.resetMapper();
@@ -246,6 +261,7 @@ export function useHomeWizard() {
     iterate,
     applyAfterPr,
     retry,
+    restart,
     reset,
   } as const;
 }

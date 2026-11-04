@@ -771,6 +771,57 @@ describe("useHomeWizard — retry", () => {
   });
 });
 
+describe("useHomeWizard — restart", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTerraformState.mockReturnValue({ status: "idle" });
+    mockScanPathsValue.mockReturnValue([]);
+    mockMapperLoadingValue.mockReturnValue(false);
+    mockMapperErrorValue.mockReturnValue(null);
+  });
+
+  it("restart after full wizard completion clears all fields except query", async () => {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "azure",
+      scopeId: "sub-from-catalogue",
+      paths: ["environments/dev"],
+    });
+
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput("my-project"); });
+
+    expect(mockTerraformRun).toHaveBeenCalled();
+    expect(result.current.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
+    expect(result.current.data.provider).toBe("azure");
+    expect(result.current.data.scope).toBe("sub-from-catalogue");
+    expect(result.current.data.iacPath).toBe("environments/dev");
+
+    act(() => { result.current.restart(); });
+
+    expect(result.current.step).toBe("query");
+    expect(result.current.data.query).toBe("deploy a VM");
+    expect(result.current.data.repositoryUrl).toBe("");
+    expect(result.current.data.provider).toBe("");
+    expect(result.current.data.scope).toBe("");
+    expect(result.current.data.iacPath).toBe("");
+    expect(mockResetMapper).toHaveBeenCalled();
+    expect(mockTerraformReset).toHaveBeenCalled();
+  });
+
+  it("restart with no prior query resets to empty query step", () => {
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    act(() => { result.current.restart(); });
+
+    expect(result.current.step).toBe("query");
+    expect(result.current.data.query).toBe("");
+  });
+});
+
 describe("useHomeWizard — aggregated isLoading & error", () => {
   beforeEach(() => {
     vi.clearAllMocks();
