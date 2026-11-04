@@ -60,7 +60,10 @@ class AuthzServiceClient:
         except httpx.RequestError as e:
             raise ExceptionHandler(f"authz PDP unreachable: {e}", 502) from e
 
-        if not isinstance(response, AccessEvaluationResponse):
+        if (
+            not isinstance(response, AccessEvaluationResponse)
+            or type(response.decision) is not bool
+        ):
             raise ExceptionHandler(
                 f"authz PDP returned an off-contract response: {response!r}",
                 502,
