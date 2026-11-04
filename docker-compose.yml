@@ -103,7 +103,7 @@ services:
       - bridge-network
 
   searxng:
-    image: kumoss-searxng:latest
+    image: ghcr.io/inditextech/kumoss-searxng:1.0.6 # x-release-please-version
     build:
       context: ./services/searxng
       dockerfile: Dockerfile
@@ -121,8 +121,6 @@ services:
     environment:
       - SEARXNG_PORT=8888
       - SEARXNG_BASE_URL=http://searxng:8888
-    volumes:
-      - ./services/searxng/settings.yml:/etc/searxng/settings.yml:ro
     expose:
       - 8888
     networks:

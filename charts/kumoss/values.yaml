@@ -343,8 +343,8 @@ phoenix:
 searxng:
   enabled: true
   image:
-    repository: searxng/searxng
-    tag: "2026.10.13-22c64b8d3"
+    repository: ghcr.io/inditextech/kumoss-searxng
+    tag: ""
     pullPolicy: IfNotPresent
   resources: {}
   # Behind a TLS-inspecting proxy, set caBundle (top of this file).

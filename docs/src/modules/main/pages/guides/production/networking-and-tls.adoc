@@ -95,7 +95,8 @@ sidecar to `hooks.slack.com` (or your channel).
 
 * Each release publishes every Kumoss-built image to
   `ghcr.io/inditextech/kumoss-<image>`: `core`, `iac`,
-  `notifications`, and `proxy` (nginx with the web application),
+  `notifications`, `proxy` (nginx with the web application) and
+  `searxng` (upstream SearXNG plus the repository's `settings.yml`),
   tagged `X.Y.Z`, `X.Y`, `X` and `latest`, for `linux/amd64` and
   `linux/arm64`. They are built with the default
   `KUMOSS_UID`/`KUMOSS_GID` (`10001`), and the core image carries the

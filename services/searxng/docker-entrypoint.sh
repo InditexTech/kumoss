@@ -11,6 +11,10 @@
 # entrypoint. When SEARXNG_SECRET is unset a random key is generated —
 # good enough for a throwaway local stack, but it rotates on every
 # container start; set a real key via services/searxng/.env.
+#
+# A caller-provided SEARXNG_SETTINGS_PATH wins: rewrite that file instead
+# of the built-in one, so a chart/compose override that points at its own
+# settings is honoured rather than silently replaced.
 set -eu
 
 if [ -z "${SEARXNG_SECRET:-}" ]; then
@@ -18,9 +22,36 @@ if [ -z "${SEARXNG_SECRET:-}" ]; then
     export SEARXNG_SECRET
 fi
 
+# settings.yml is YAML, and secret_key sits in a double-quoted scalar: a
+# `"` or `\` in the secret must be escaped or the file stops parsing.
+yaml_escape() {
+    printf '%s' "$1" | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g'
+}
+
+# Substitute with index/substr rather than a regex replacement: in both
+# sed's s/// and awk's gsub() a `&` in the replacement means "the matched
+# text", and `|` breaks sed's delimiter, so either would corrupt or reject
+# a valid secret. This splices the literal value in verbatim.
+substitute_secret() {
+    secret="$(yaml_escape "$1")" awk '
+        BEGIN {
+            secret = ENVIRON["secret"]
+            needle = "${SEARXNG_SECRET}"
+        }
+        {
+            out = ""
+            while ((i = index($0, needle)) > 0) {
+                out = out substr($0, 1, i - 1) secret
+                $0 = substr($0, i + length(needle))
+            }
+            print out $0
+        }
+    ' "$2"
+}
+
+src="${SEARXNG_SETTINGS_PATH:-/etc/searxng/settings.yml}"
 mkdir -p /tmp/searxng-config
-sed "s|\${SEARXNG_SECRET}|${SEARXNG_SECRET}|g" \
-    /etc/searxng/settings.yml > /tmp/searxng-config/settings.yml
+substitute_secret "${SEARXNG_SECRET}" "${src}" > /tmp/searxng-config/settings.yml
 export SEARXNG_SETTINGS_PATH=/tmp/searxng-config/settings.yml
 
 # Behind a TLS-inspecting proxy the override mounts the host's corporate
