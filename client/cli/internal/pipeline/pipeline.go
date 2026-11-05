@@ -47,6 +47,11 @@ type Options struct {
 	// Docker starts the stack. nil builds the real `docker compose` runner;
 	// tests inject a stub so no daemon is needed.
 	Docker docker.Runner
+
+	// Foreground keeps `docker compose up` attached: logs stream until Ctrl-C,
+	// which also stops the stack. Useful when debugging a start-up. The default
+	// is detached (`up -d`), which is what an installer wants.
+	Foreground bool
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
@@ -184,10 +189,10 @@ func RunPipeline(ctx context.Context, opts Options) error {
 				},
 			}
 		}
-		if _, err := runner.Pull(ctx); err != nil {
+		if err := runner.Pull(ctx); err != nil {
 			return fmt.Errorf("pull images: %w", err)
 		}
-		if err := runner.Up(ctx, mode != tui.ModeFresh); err != nil {
+		if err := runner.Up(ctx, mode != tui.ModeFresh, !opts.Foreground); err != nil {
 			return fmt.Errorf("start the stack: %w", err)
 		}
 	}
