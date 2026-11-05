@@ -60,7 +60,7 @@ reasoning-enabled models require it, together with
 fixed `0.5`.
 
 |`llm.max_output_tokens`
-|`32000`
+|`64000`
 |Sent as `max_tokens` (or `max_output_tokens` for the web-search path)
 on every call. Lower it if your provider caps completions below this
 value.
@@ -94,7 +94,7 @@ must provide:
   the status/summary text calls (`generate_text`) send no tools at all.
   Models without reliable function calling (many small self-hosted
   models) fail every agent session.
-* *A completion cap of at least `llm.max_output_tokens`* (32000 by
+* *A completion cap of at least `llm.max_output_tokens`* (`64000` by
   default), or lower that setting to what the provider allows.
 * *A finish reason of `tool_use` or `end_turn`.* Any other finish reason
   — `length` (the completion was truncated), `content_filter`, and so
@@ -438,7 +438,7 @@ llm:
   model: "anthropic/claude-sonnet-5"
   small_model: "anthropic/claude-haiku-4-5"
   temperature: 0.1
-  max_output_tokens: 32000
+  max_output_tokens: 64000
 ----
 
 [source,dotenv]
@@ -655,8 +655,8 @@ trusted by the core image.
 
 *Provider rejects `temperature` or `max_tokens`.* The core sends
 `drop_params=True`, so unsupported parameters are dropped. If the
-provider still rejects a value (for example a completion cap below
-`32000`), lower `llm.max_output_tokens`.
+provider still rejects a value (for example its completion cap is below
+`64000`, the default), lower `llm.max_output_tokens`.
 
 == Running outside Docker
 
