@@ -136,9 +136,16 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 
 // resolveSample builds one env file's vars from its sample: wizard-owned value
 // first, then the sample's own value, then the user's Extra value.
+//
+// Credentials the wizard actually collected are then appended even when the
+// sample does not list them. LLM and cloud credentials are provider-specific and
+// appear in core/env.sample only as commented examples, so iterating the sample
+// alone silently dropped every one of them (VERTEXAI_*, ANTHROPIC_API_KEY, …).
 func resolveSample(sample *Sample, owned, extra map[string]string) map[string]string {
 	vars := make(map[string]string, len(sample.Vars))
+	seen := make(map[string]bool, len(sample.Vars))
 	for _, v := range sample.Vars {
+		seen[v.Key] = true
 		switch {
 		case owned[v.Key] != "":
 			vars[v.Key] = owned[v.Key]
@@ -146,6 +153,11 @@ func resolveSample(sample *Sample, owned, extra map[string]string) map[string]st
 			vars[v.Key] = v.Value
 		default:
 			vars[v.Key] = extra[v.Key]
+		}
+	}
+	for k, v := range owned {
+		if !seen[k] && v != "" {
+			vars[k] = v
 		}
 	}
 	return vars
@@ -261,8 +273,8 @@ func cloudVars(c state.Cloud) map[string]string {
 		vars["ARM_TENANT_ID"] = a.TenantID
 		vars["ARM_CLIENT_ID"] = a.ClientID
 		vars["ARM_CLIENT_SECRET"] = a.ClientSecret
-		// ARM_SUBSCRIPTION_ID is injected per request from the scope, never set
-		// here; the wizard still collects it for display, so drop it.
+		// ARM_SUBSCRIPTION_ID is deliberately absent: the frontend supplies it
+		// per request from the scope, so it never belongs in the env file.
 	}
 	if a := c.GCP; a != nil {
 		vars["GOOGLE_APPLICATION_CREDENTIALS"] = a.KeyFile
