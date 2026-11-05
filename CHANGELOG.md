@@ -1,5 +1,16 @@
 # Changelog
 
+## [1.0.8](https://github.com/InditexTech/kumoss/compare/v1.0.7...v1.0.8) (2026-11-05)
+
+
+### Bug Fixes
+
+* **config:** raise the default llm.max_output_tokens from 32000 to 64000 ([46c20f3](https://github.com/InditexTech/kumoss/commit/46c20f34f5983847d4745d41af6f81f30f965e29))
+* **nginx:** revalidate index.html and return 404 for missing hashed assets instead of HTML ([e4a2fce](https://github.com/InditexTech/kumoss/commit/e4a2fceb76dd2addfefcb4fa8c6b21f1c922b0f6))
+* **pr_service:** stop the PR service crashing on creation; web_search moves to the workspace tool registry ([611268a](https://github.com/InditexTech/kumoss/commit/611268a4dc5467ddd33b1bdfe5be6d5610c997b9))
+* **pr_service:** stop the PR service crashing on creation; web_search moves to the workspace tool registry ([4d1ab9f](https://github.com/InditexTech/kumoss/commit/4d1ab9ff33d8c6e675f7401bdcc694118cd8e9cc))
+* **pr_service:** stop the PR service crashing on creation; web_search moves to the workspace tool registry ([01648ce](https://github.com/InditexTech/kumoss/commit/01648ce1e1444010a7cf7d9447028a46f9d72ce5))
+
 ## [1.0.7](https://github.com/InditexTech/kumoss/compare/v1.0.6...v1.0.7) (2026-11-04)
 
 
