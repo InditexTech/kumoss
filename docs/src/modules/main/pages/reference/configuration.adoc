@@ -475,8 +475,8 @@ thinking).
 
 |`llm.max_output_tokens`
 |integer
-|`32000`
-|`32000`
+|`64000`
+|`64000`
 |Optional
 |Completion cap sent on every call.
 
