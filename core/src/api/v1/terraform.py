@@ -9,6 +9,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from src.api.authz import authorize
+from src.clients.authz.models.action_name import ActionName
 from src.api.deps import (
     assert_session_access,
     get_validated_claims,
@@ -57,9 +58,7 @@ async def _resolve_or_raise(
     request: BaseIacRequest | SessionRequest,
     user: User,
     claims: TokenClaims,
-    operation: OperationType | None = None,
-    *,
-    action: str,
+    operation: OperationType,
 ) -> SessionContext:
     """Validate URI, authorize via PDP, and resolve to a SessionContext.
 
@@ -69,13 +68,12 @@ async def _resolve_or_raise(
     ``SessionContext``).
     """
     is_first_call = isinstance(request, BaseIacRequest) and request.repo_uri is not None
-    is_iteration = (
-        isinstance(request, BaseIacRequest) and request.session_id is not None
-    )
 
     if request.session_id is not None:
         await assert_session_access(user, request.session_id, write=True)
     try:
+        action = ActionName(operation.value)
+
         if is_first_call:
             await _workspace.validate_uri(request.repo_uri)
             await authorize(
@@ -90,7 +88,7 @@ async def _resolve_or_raise(
         ctx = await _orchestration.resolve(request, operation, user.id)
 
         if not is_first_call:
-            if is_iteration and ctx.operation is not operation:
+            if ctx.operation is not operation:
                 raise HTTPException(
                     status_code=409,
                     detail="The requested operation does not match the session operation.",
@@ -185,9 +183,7 @@ async def generate_infrastructure(
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(
-        request, user, claims, OperationType.GENERATE, action="generate"
-    )
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.GENERATE)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -211,9 +207,7 @@ async def drift_detection_remediation(
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(
-        request, user, claims, OperationType.DRIFT, action="drift"
-    )
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.DRIFT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -241,7 +235,7 @@ async def apply_infrastructure(
     drift round — exactly the reviewed changes, with no re-plan at apply time.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, claims, action="apply")
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.APPLY)
     if await DatabaseService.is_session_blocked(ctx.id):
         raise HTTPException(
             status_code=409,
@@ -270,9 +264,7 @@ async def import_infrastructure(
     """Imports, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(
-        request, user, claims, OperationType.IMPORT, action="import"
-    )
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.IMPORT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()

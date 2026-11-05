@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Verify every write route calls ``authorize`` with the correct action.
+"""Verify every write route calls ``authorize`` with the correct ActionName.
 
 These tests patch ``authorize`` (the PEP helper) at its call site and
-confirm each route invokes it with the expected ``action`` string and
+confirm each route invokes it with the expected ``ActionName`` and
 that authorization parameters come from the session context for
 session-scoped routes, not from user input.
 """
@@ -20,6 +20,7 @@ from src.application.iac_requests import (
     GenerateRequest,
     ImportRequest,
 )
+from src.clients.authz.models.action_name import ActionName
 from src.domains.entities import SessionContext, User
 from src.domains.value_objects.token_claims import TokenClaims
 from src.shared.constants import OperationType, TerraformProvider
@@ -52,7 +53,7 @@ def _claims() -> TokenClaims:
     )
 
 
-def _session_ctx(sid=None) -> SessionContext:
+def _session_ctx(sid=None, operation=OperationType.GENERATE) -> SessionContext:
     return SessionContext(
         id=sid or uuid4(),
         user_id="1",
@@ -62,7 +63,7 @@ def _session_ctx(sid=None) -> SessionContext:
         branch_name="Kumoss/x",
         scope_id="sub-123",
         iac_path="infra",
-        operation_type=OperationType.GENERATE,
+        operation_type=operation,
         history=[],
         chat_history=[],
     )
@@ -86,12 +87,10 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
             iac_path="infra",
             q="create a resource group",
         )
-        await _resolve_or_raise(
-            request, _user(), _claims(), OperationType.GENERATE, action="generate"
-        )
+        await _resolve_or_raise(request, _user(), _claims(), OperationType.GENERATE)
         mock_authz.assert_called_once()
         call_kwargs = mock_authz.call_args
-        self.assertEqual(call_kwargs[0][1], "generate")
+        self.assertEqual(call_kwargs[0][1], ActionName.GENERATE)
         self.assertEqual(call_kwargs.kwargs["scope_id"], "sub-123")
         self.assertEqual(call_kwargs.kwargs["provider"], TerraformProvider.AZURE)
 
@@ -108,11 +107,9 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
             iac_path="",
             q="check drift",
         )
-        await _resolve_or_raise(
-            request, _user(), _claims(), OperationType.DRIFT, action="drift"
-        )
+        await _resolve_or_raise(request, _user(), _claims(), OperationType.DRIFT)
         mock_authz.assert_called_once()
-        self.assertEqual(mock_authz.call_args[0][1], "drift")
+        self.assertEqual(mock_authz.call_args[0][1], ActionName.DRIFT)
         self.assertEqual(mock_authz.call_args.kwargs["provider"], TerraformProvider.GCP)
 
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
@@ -128,11 +125,9 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
             iac_path="modules/vpc",
             q="import vpc",
         )
-        await _resolve_or_raise(
-            request, _user(), _claims(), OperationType.IMPORT, action="import"
-        )
+        await _resolve_or_raise(request, _user(), _claims(), OperationType.IMPORT)
         mock_authz.assert_called_once()
-        self.assertEqual(mock_authz.call_args[0][1], "import")
+        self.assertEqual(mock_authz.call_args[0][1], ActionName.IMPORT)
 
 
 class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
@@ -145,12 +140,12 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
         self, mock_access, mock_orch, mock_authz
     ):
         sid = uuid4()
-        ctx = _session_ctx(sid)
+        ctx = _session_ctx(sid, operation=OperationType.APPLY)
         mock_orch.resolve = AsyncMock(return_value=ctx)
         request = ApplyRequest(session_id=sid)
-        await _resolve_or_raise(request, _user(), _claims(), action="apply")
+        await _resolve_or_raise(request, _user(), _claims(), OperationType.APPLY)
         mock_authz.assert_called_once()
-        self.assertEqual(mock_authz.call_args[0][1], "apply")
+        self.assertEqual(mock_authz.call_args[0][1], ActionName.APPLY)
         self.assertEqual(mock_authz.call_args.kwargs["scope_id"], ctx.scope_id)
         self.assertEqual(
             mock_authz.call_args.kwargs["provider"], TerraformProvider.AZURE
@@ -170,11 +165,9 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
             session_id=sid,
             q="continue",
         )
-        await _resolve_or_raise(
-            request, _user(), _claims(), OperationType.GENERATE, action="generate"
-        )
+        await _resolve_or_raise(request, _user(), _claims(), OperationType.GENERATE)
         mock_authz.assert_called_once()
-        self.assertEqual(mock_authz.call_args[0][1], "generate")
+        self.assertEqual(mock_authz.call_args[0][1], ActionName.GENERATE)
 
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
@@ -183,9 +176,11 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
         from fastapi import HTTPException
 
         sid = uuid4()
-        mock_orch.resolve = AsyncMock(return_value=_session_ctx(sid))
+        mock_orch.resolve = AsyncMock(
+            return_value=_session_ctx(sid, operation=OperationType.APPLY)
+        )
         mock_authz.side_effect = HTTPException(status_code=403, detail="Denied")
         request = ApplyRequest(session_id=sid)
         with self.assertRaises(HTTPException) as cm:
-            await _resolve_or_raise(request, _user(), _claims(), action="apply")
+            await _resolve_or_raise(request, _user(), _claims(), OperationType.APPLY)
         self.assertEqual(cm.exception.status_code, 403)
