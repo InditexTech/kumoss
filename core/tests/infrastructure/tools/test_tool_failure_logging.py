@@ -21,7 +21,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.domains.dto import ToolCallDTO
 from src.infrastructure.exceptions import PageReadError
-from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
+from src.infrastructure.tools.tool_registry_workspace import ToolRegistryWorkspace
 
 _LOGGER = "src.shared.logger._logger"
 
@@ -41,12 +41,14 @@ class TestToolFailureLogging(unittest.IsolatedAsyncioTestCase):
     async def _failing_tool(self, error: BaseException):
         config = self._config()
         with patch(
-            "src.infrastructure.tools.tool_registry_static.system_config", config
+            "src.infrastructure.tools.tool_registry_workspace.system_config", config
         ):
-            registry = ToolRegistryStatic(summarizer=MagicMock())
+            registry = ToolRegistryWorkspace(
+                filesystem=MagicMock(), git=MagicMock(), summarizer=MagicMock()
+            )
             with (
                 patch(
-                    "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                    "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
                 ) as client_cls,
                 self.assertLogs(_LOGGER, level="ERROR") as logs,
             ):
