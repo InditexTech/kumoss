@@ -75,7 +75,7 @@ class OidcTokenValidator:
             leeway=self._leeway,
             options={"require": ["exp", "iss", "sub"]},
         )
-        properties = self._extract_properties(payload, system_config.oidc.claims)
+        properties = self._extract_properties(payload, system_config.oidc.custom_claims)
 
         standard_email = payload.get("email")
         email = standard_email or payload.get("preferred_username")

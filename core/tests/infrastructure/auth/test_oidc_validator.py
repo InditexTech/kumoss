@@ -158,7 +158,7 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
 
     @patch("src.infrastructure.auth.oidc.system_config")
     async def test_extra_claims_merged_into_properties(self, mock_cfg):
-        mock_cfg.oidc.claims = {"identifier": "oid", "tenant_id": "tid"}
+        mock_cfg.oidc.custom_claims = {"identifier": "oid", "tenant_id": "tid"}
         mock_cfg.oidc.issuer_url = _ISSUER
         mock_cfg.oidc.client_id = _CLIENT_ID
         mock_cfg.oidc.audience = ""
@@ -171,14 +171,14 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
 
     @patch("src.infrastructure.auth.oidc.system_config")
     async def test_extra_claims_override_universal_defaults(self, mock_cfg):
-        mock_cfg.oidc.claims = {"email": "preferred_username"}
+        mock_cfg.oidc.custom_claims = {"email": "preferred_username"}
         token = self._token(email="formal@example.com", preferred_username="alice@corp")
         claims = await self._validator().validate(token)
         self.assertEqual(claims.properties["email"], "alice@corp")
 
     @patch("src.infrastructure.auth.oidc.system_config")
     async def test_claim_remap_does_not_affect_identity_email(self, mock_cfg):
-        mock_cfg.oidc.claims = {"email": "preferred_username"}
+        mock_cfg.oidc.custom_claims = {"email": "preferred_username"}
         token = self._token(
             email="real@example.com",
             preferred_username="impersonated@example.com",
@@ -193,7 +193,7 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
 
     @patch("src.infrastructure.auth.oidc.system_config")
     async def test_groups_in_properties_when_configured(self, mock_cfg):
-        mock_cfg.oidc.claims = {"groups": "groups"}
+        mock_cfg.oidc.custom_claims = {"groups": "groups"}
         token = self._token(groups=["team-a", "team-b"])
         claims = await self._validator().validate(token)
         self.assertEqual(claims.properties["groups"], ["team-a", "team-b"])

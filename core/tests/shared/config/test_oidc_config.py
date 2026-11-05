@@ -80,18 +80,18 @@ class TestOidcConfig(unittest.TestCase):
         cfg = OidcConfig(issuer_url="https://idp.example.com", client_id="kumoss-spa")
         self.assertEqual(cfg.audience, "")
 
-    def test_claims_defaults_to_empty_dict(self):
+    def test_custom_claims_defaults_to_empty_dict(self):
         cfg = OidcConfig(issuer_url="https://idp.test", client_id="app")
-        self.assertEqual(cfg.claims, {})
+        self.assertEqual(cfg.custom_claims, {})
 
-    def test_claims_accepts_arbitrary_mapping(self):
+    def test_custom_claims_accepts_arbitrary_mapping(self):
         cfg = OidcConfig(
             issuer_url="https://idp.test",
             client_id="app",
-            claims={"identifier": "oid", "groups": "groups", "tenant_id": "tid"},
+            custom_claims={"identifier": "oid", "groups": "groups", "tenant_id": "tid"},
         )
         self.assertEqual(
-            cfg.claims,
+            cfg.custom_claims,
             {"identifier": "oid", "groups": "groups", "tenant_id": "tid"},
         )
 

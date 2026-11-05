@@ -45,7 +45,7 @@ oidc:
   #   Azure:  {identifier: "oid", groups: "groups", tenant_id: "tid"}
   #   AWS:    {groups: "cognito:groups"}
   #   GCP:    {} (defaults suffice)
-  claims: {}
+  custom_claims: {}
 
 # Bootstrap administrator. The user whose access token carries an `email`
 # claim matching this address together with `email_verified: true` is
