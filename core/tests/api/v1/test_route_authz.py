@@ -140,7 +140,7 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
         self, mock_access, mock_orch, mock_authz
     ):
         sid = uuid4()
-        ctx = _session_ctx(sid, operation=OperationType.APPLY)
+        ctx = _session_ctx(sid, operation=OperationType.GENERATE)
         mock_orch.resolve = AsyncMock(return_value=ctx)
         request = ApplyRequest(session_id=sid)
         await _resolve_or_raise(request, _user(), _claims(), OperationType.APPLY)
@@ -177,7 +177,7 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
 
         sid = uuid4()
         mock_orch.resolve = AsyncMock(
-            return_value=_session_ctx(sid, operation=OperationType.APPLY)
+            return_value=_session_ctx(sid, operation=OperationType.GENERATE)
         )
         mock_authz.side_effect = HTTPException(status_code=403, detail="Denied")
         request = ApplyRequest(session_id=sid)
