@@ -6,14 +6,18 @@ from pathlib import Path
 from typing import Any, Callable, override
 
 from src.domains.interfaces import IFileSystem, IGit
+from src.domains.value_objects import SearchResult
 from src.infrastructure.exceptions import (
     CustomFileNotFoundError,
+    SearchEngineError,
     ToolInferenceParamsError,
 )
+from src.infrastructure.external.search_service import SearchServiceClient
 from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
 )
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
+from src.shared.config import system_config
 from src.shared.constants import ToolContext
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -26,9 +30,10 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
         git: IGit,
         summarizer: SearchResultsSummarizer,
     ):
+        self.__summarizer = summarizer
         self.__filesystem = filesystem
         self.__git = git
-        super().__init__(summarizer)
+        super().__init__()
 
     @override
     def _tool_files(self) -> dict[str, ToolContext]:
@@ -51,6 +56,8 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "list_dir": self.__handle_list_dir,
             "bulk_grep_search": self.__handle_grep_search,
             "diff_history": self.__handle_diff_history,
+            # External information
+            "web_search": self.__handle_web_search,
         }
 
     def __handle_write_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
@@ -178,6 +185,87 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "history_available": True,
             "changes": result,
         }
+
+    async def __handle_web_search(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        query = parameters["query"]
+        if not system_config.web_search.provider:
+            return {
+                "query": query,
+                "result": "Web search is unavailable: no provider configured. Do NOT retry web_search.",
+            }
+        try:
+            results = await SearchServiceClient().search(query)
+        except SearchEngineError as e:
+            return {
+                "query": query,
+                "result": f"Web search is unavailable: {e.message}. Do NOT retry web_search.",
+            }
+        if not results:
+            return self.__no_results(
+                query, f"Web search with query '{query}' returned no content."
+            )
+        summaries = await self.__summarized_search_results(query, results)
+        if summaries is None:
+            return self.__no_results(
+                query,
+                f"Web search with query '{query}' returned no relevant content.",
+            )
+        return {"query": query, "result": summaries}
+
+    def __no_results(self, query: str, reason: str) -> dict[str, Any]:
+        """Answer a search that found nothing with a nudge to rephrase.
+
+        The retry budget is the agent loop's own
+        (``orchestration.max_tool_agent_executions``); this tool only
+        reports what happened and asks for a better query. Only
+        query-shaped failures come through here — a missing provider or a
+        broken engine answers immediately, since no rephrasing fixes
+        either.
+        """
+        return {
+            "query": query,
+            "result": (
+                f"{reason} Search again with a different query — other "
+                + "keywords, synonyms, or a broader or narrower scope. Do "
+                + "not repeat this query."
+            ),
+        }
+
+    async def __summarized_search_results(
+        self, query: str, results: list[SearchResult]
+    ) -> str | None:
+        """Condense every hit, rank them, return the top summaries.
+
+        ``None`` means the pages were read and none answers the query,
+        which the caller turns into a dead end. Every summarizer
+        *failure* instead degrades to the raw, unfiltered results, so
+        the tool call never fails on account of the reduction.
+        """
+        try:
+            selected, discarded = await self.__summarizer.best(query, results)
+        except Exception as e:
+            logging.warning(
+                f"Search result summarization failed, returning raw results: {e!r}"
+            )
+            return "\n".join(f"- {r.title}: {r.content} ({r.url})" for r in results)
+        if not selected:
+            logging.debug(
+                f"web_search '{query}' found no relevant page among "
+                + f"{len(results)} result(s)."
+            )
+            return None
+        if discarded:
+            logging.debug(
+                "web_search '"
+                + query
+                + "' discarded "
+                + str(len(discarded))
+                + " source(s) considered less relevant: "
+                + "; ".join(f"{s.result.title} ({s.result.url})" for s in discarded)
+            )
+        return "\n".join(
+            f"- {s.result.title}: {s.summary} ({s.result.url})" for s in selected
+        )
 
     def __limit_workspace_boundaries(self, path: str) -> str:
         """Normalize a tool path to one relative to the working directory.
