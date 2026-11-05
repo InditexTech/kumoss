@@ -14,18 +14,23 @@ import (
 func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "init",
-		Short: "Create the Kumoss home directory skeleton",
-		Long: "Create the Kumoss home directory skeleton.\n\n" +
+		Short: "Install or reconfigure the Kumoss stack, and run it if desired",
+		Long: "Install or reconfigure the Kumoss stack.\n\n" +
 			"Ensures the managed directories exist (the home root, src/, src/services/\n" +
 			"and config/) and, when --home is given, persists that choice so later\n" +
 			"invocations resolve it without repeating the flag.\n\n" +
-			"Files are not written here: kumoss.yaml, config/config.yaml, the compose\n" +
-			"override and the .env files are produced by their own commands.\n\n" +
-			"Launches the TUI for further interactions.",
+			"Then it fetches docker-compose.yml at the release tag, launches the TUI,\n" +
+			"and writes kumoss.yaml, config/config.yaml, compose.override.yml and the\n" +
+			".env files. Every step is idempotent: an existing install is offered a\n" +
+			"reconfigure or keep, and running again fixes a failed run.\n\n" +
+			"Finally it offers to pull the missing images and start the stack. That is\n" +
+			"detached (`docker compose up -d`) unless --foreground is given, which\n" +
+			"streams the logs until Ctrl-C also stops the stack.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return pipeline.RunPipeline(cmd.Context(), pipeline.Options{
 				Home:        flags.Home,
 				PersistHome: flags.HomeOverride != "",
+				Foreground:  flags.Foreground,
 				UI: &tui.Wizard{
 					In:         cmd.InOrStdin(),
 					Out:        cmd.OutOrStdout(),

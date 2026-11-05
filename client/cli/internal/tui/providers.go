@@ -45,6 +45,9 @@ var otherProvider = llmProvider{Name: "Other (enter credentials manually)", Free
 // docs/src/modules/main/pages/reference/llm-providers.adoc. Only the default
 // env var names are carried: model_list's custom `os.environ/...` names are an
 // advanced escape hatch and stay hand-edited in config.yaml.
+//
+// The default model ids are seeds for a new install, not a claim that they are
+// the newest: edit them in the form, or later in config.yaml.
 var llmProviders = []llmProvider{
 	{
 		Name: "Anthropic", Prefix: "anthropic",
@@ -135,7 +138,8 @@ func llmProviderByName(prefix string) *llmProvider {
 }
 
 // llmProviderOptions is the Select's option list: every known provider plus the
-// free-text "Other" row. The value is the row's index into allProviders.
+// free-text "Other" row. The value is the row's index into llmProviders; -1
+// means the Other row.
 func llmProviderOptions() []huh.Option[int] {
 	opts := make([]huh.Option[int], 0, len(llmProviders)+1)
 	for i, p := range llmProviders {
@@ -215,8 +219,8 @@ func storageModelByName(model string) *storageModel {
 	return nil
 }
 
-// cloud is one row of the Cloud MultiSelect. Field holds the form group that
-// collects its credentials, added by cloudForms.
+// cloud is one row of the Cloud MultiSelect. Key is the state.Cloud field
+// selector used by cloudPicked, ensureCloud and the commit in cloudStep.
 type cloud struct {
 	Name string
 	Key  string

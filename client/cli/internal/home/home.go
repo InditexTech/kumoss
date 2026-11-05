@@ -79,7 +79,7 @@ func defaultRoot() string {
 // StateFile is ~/.kumoss/kumoss.yaml — the persisted, non-secret state.
 func (h Home) StateFile() string { return filepath.Join(h.Root, "kumoss.yaml") }
 
-// SrcDir is the shallow clone of InditexTech/kumoss.
+// SrcDir is src/, which holds the downloaded compose project file.
 func (h Home) SrcDir() string { return filepath.Join(h.Root, "src") }
 
 // ConfigDir holds the generated system config mounted into the core.
@@ -116,14 +116,18 @@ func (h Home) ServiceEnv(service string) string {
 	return filepath.Join(h.ServicesDir(service), ".env")
 }
 
-// Services needing a generated .env. Hardcoded because the CLI ships without
-// the repo, so there is no src/services/ or env.sample to read: these are the
-// bundled sidecars plus the search backend. mapping and authz are
-// contracts-only and take no .env. Keep in sync when the stack gains a service.
+// Services are the sidecar directories created under src/services/. Hardcoded
+// because the CLI ships without the repo, so there is no src/services/ listing
+// to read: these are the bundled sidecars plus the search backend. mapping and
+// authz are contracts-only and get no directory. Keep in sync when the stack
+// gains a service.
+//
+// Only iac and notifications get a generated .env (see pipeline.envPaths); the
+// searxng directory is created for layout parity and stays empty.
 var Services = []string{"iac", "notifications", "searxng"}
 
 // Ensure creates the empty skeleton directories. File contents are written by
-// their producers (stack.Clone for src/, render + Write for the rest).
+// their producers (render.Download for src/, render + Write for the rest).
 func (h Home) Ensure() error {
 	dirs := []string{h.Root, h.SrcDir(), h.CoreDir(), h.ConfigDir()}
 	for _, name := range Services {

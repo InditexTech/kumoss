@@ -19,6 +19,18 @@ type Flags struct {
 	// HomeOverride is the raw --home value: "" when the user did not pass it.
 	// Only init and home consult it, to decide whether to persist the choice.
 	HomeOverride string
+
+	// Foreground keeps `docker compose up` attached instead of detached: logs
+	// stream until Ctrl-C, which also stops the stack. Only init reads it.
+	Foreground bool
+}
+
+// RegisterForeground adds the --foreground flag to the root command. It is
+// persistent so it reads as a global toggle; commands that never start the
+// stack ignore it.
+func (f *Flags) RegisterForeground(root *cobra.Command) {
+	root.PersistentFlags().BoolVar(&f.Foreground, "foreground", false,
+		"stream the stack's logs instead of detaching; Ctrl-C also stops it")
 }
 
 // RegisterHome adds the --home flag to a command that honours it. Only init

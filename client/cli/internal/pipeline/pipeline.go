@@ -4,8 +4,9 @@
 
 // Package pipeline runs the `kumoss init` flow: prepare the home skeleton,
 // fetch the compose stack, collect configuration, write the state, config and
-// env files, and start the containers. It is a plain function so the steps are
-// testable without a terminal and reusable outside the Cobra command.
+// env files, and optionally pull and start the containers. It is a plain
+// function so the steps run without Cobra, and every side effect (the terminal,
+// the network, docker) goes through an injected seam the caller can stub.
 package pipeline
 
 import (
@@ -24,7 +25,7 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/tui"
 )
 
-// Options is the resolved input to Run.
+// Options is the resolved input to RunPipeline.
 type Options struct {
 	// Home is the resolved managed directory layout.
 	Home home.Home
@@ -50,13 +51,15 @@ type Options struct {
 
 	// Foreground keeps `docker compose up` attached: logs stream until Ctrl-C,
 	// which also stops the stack. Useful when debugging a start-up. The default
-	// is detached (`up -d`), which is what an installer wants.
+	// is detached (`up -d`), which is what an installer wants. Set by the
+	// --foreground flag.
 	Foreground bool
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
 // failed run is fixed by running it again. ctx comes from the caller (Cobra's
-// command context), so an interrupt aborts the network steps.
+// command context), so an interrupt aborts the network steps and a foreground
+// `docker compose up`.
 func RunPipeline(ctx context.Context, opts Options) error {
 	// 1. Ensure the directory skeleton exists.
 	if err := opts.Home.Ensure(); err != nil {
@@ -174,6 +177,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 	// The recreate is what makes a reconfigure take effect: compose compares the
 	// service definition, not the bytes of the mounted config.yaml or .env, so a
 	// plain `up -d` would leave the old containers running with the old files.
+	// Foreground replaces the detach, not the recreate.
 	run, err := opts.UI.RunDocker()
 	if err != nil {
 		return err

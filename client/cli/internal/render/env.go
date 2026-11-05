@@ -25,14 +25,15 @@ type EnvPaths struct {
 }
 
 // Env renders the three .env files from the answers. Generation is the only
-// secret work it does: the caller reuses the existing files' values (LoadSecrets
-// + Fill) and blanks the ones the user chose to rotate, so Write fills exactly
-// the empty ones and writes all three 0600.
+// secret work it does: the caller copies the existing files' values onto the
+// state (LoadSecrets + Fill) and clears the ones the user chose to rotate, so
+// Write fills exactly the empty ones and writes all three 0600.
 //
 // The key set comes from the repo's env.sample files when Samples is set: the
 // wizard fills the keys it owns, the sample supplies the rest, and keys the
-// sample leaves empty are asked for and carried in Extra. With Samples nil (the
-// fetch failed) it falls back to the built-in key list, which may lag the repo.
+// sample leaves empty are asked for and carried in Extra. Wizard credentials the
+// sample does not list at all are appended. With Samples nil (the fetch failed)
+// it falls back to the built-in key list, which may lag the repo.
 type Env struct {
 	Samples *Samples
 	// Extra holds the values the user supplied for sample keys with no value and
@@ -42,9 +43,9 @@ type Env struct {
 
 // Write writes the env files. s.Secrets is filled in place with any values it
 // had to generate, so the caller can report them if needed. Every secret that is
-// already set on s is kept as-is: the caller reuses the existing files' values
-// (see LoadSecrets) and blanks only the ones the user chose to rotate, so this
-// method never rotates anything on its own.
+// already set on s is kept as-is: the caller copies the existing files' values
+// with LoadSecrets and Fill and clears only the ones the user chose to rotate,
+// so this method never rotates anything on its own.
 func (e *Env) Write(p EnvPaths, s *state.State) error {
 	e.generate(s)
 
@@ -103,7 +104,7 @@ func Fill(s *state.State, existing state.Secrets, rotate []string) {
 	s.Secrets.CoreDBPassword = keep("KUMOSS_SQL_DATABASE_URL", existing.CoreDBPassword)
 }
 
-// generate fills every secret still empty with a fresh random value. 32 bytes
+// generate fills every token still empty with a fresh random value. 32 bytes
 // of entropy hex-encoded, matching the `openssl rand -hex 32` the samples
 // recommend. Tokens must be non-empty: the generated clients reject an empty
 // bearer.
@@ -119,10 +120,11 @@ func (e *Env) generate(s *state.State) {
 	// empty unless the user set them, so the core does not try to use them.
 }
 
-// files maps each env file to its vars. With samples, each file carries exactly
-// the sample's keys, resolved in this order: the wizard's value, then the
-// sample's value, then what the user typed for an empty sample key. Without
-// samples it falls back to the built-in key list.
+// files maps each env file to its vars. With samples, each file carries the
+// sample's keys, resolved in this order: the wizard's value, then the sample's
+// value, then what the user typed for an empty sample key, plus the wizard
+// credentials the sample does not list. Without samples it falls back to the
+// built-in key list.
 func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 	if e.Samples == nil {
 		return e.fallbackFiles(p, s)
@@ -135,7 +137,8 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 }
 
 // resolveSample builds one env file's vars from its sample: wizard-owned value
-// first, then the sample's own value, then the user's Extra value.
+// first, then the sample's own value, then the user's Extra value. Every sample
+// key appears in the result, even when all three sources are empty.
 //
 // Credentials the wizard actually collected are then appended even when the
 // sample does not list them. LLM and cloud credentials are provider-specific and
@@ -163,9 +166,14 @@ func resolveSample(sample *Sample, owned, extra map[string]string) map[string]st
 	return vars
 }
 
-// owned maps every env key the wizard collects to its value. A key here wins
-// over whatever the sample says; a blank value still marks the key as owned, so
-// resolveSample never falls back to a sample placeholder for it.
+// owned maps every env key the wizard collects to its value. A non-blank value
+// here wins over whatever the sample says.
+//
+// LLM and object-storage credentials drop their blank entries: an empty map
+// value must not shadow the sample's default for a key the user did not set.
+// The secrets and cloud fields are kept even when blank, because the sample
+// has no value for them and an empty var is how the stack says "not
+// configured". Blank LLM credentials therefore stay out of the env file too.
 //
 // KUMOSS_SQL_DATABASE_URL and the RUSTFS keys are deliberately absent: the
 // wizard does not collect them, and their sample values are the ones that match
@@ -181,8 +189,11 @@ func (e *Env) owned(s *state.State) map[string]string {
 		"IAC_BINARY":                 s.Engine.Binary,
 	}
 	// Provider credentials collected by the LLM step, keyed by env-var name.
+	// Blank entries are skipped, same reason as storage below.
 	for k, v := range s.LLM.Credentials {
-		owned[k] = v
+		if v != "" {
+			owned[k] = v
+		}
 	}
 	// Object-storage credentials, keyed by env-var name (STORAGE_ACCOUNT_KEY).
 	// Blank entries are skipped: an empty map value must not shadow the sample's

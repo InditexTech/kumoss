@@ -19,12 +19,12 @@ import (
 )
 
 // Runner is the seam the pipeline talks to. Tests stub it so no Docker daemon
-// is needed; RunCompose is the real implementation.
+// is needed; Compose is the real implementation.
 type Runner interface {
 	// Pull fetches every image the stack references that is not already
 	// present. A re-run with every image present does no network work.
 	// Progress streams to the terminal: a large pull is otherwise a silent
-	// wait.
+	// wait. Returns only an error; the pulled count is not reported.
 	Pull(ctx context.Context) error
 	// Up starts the stack. detach runs it in the background; otherwise compose
 	// stays in the foreground and streams logs until the context is cancelled.
@@ -57,10 +57,10 @@ func (c *Compose) args(sub ...string) []string {
 	return append(args, sub...)
 }
 
-// run executes docker compose in the project directory and returns its output.
-// Output is captured rather than streamed: the commands are short and a failure
-// needs its message attached to the error. On failure the output is wrapped into
-// the error — `exit status 1` alone tells the user nothing, which reads as
+// run executes docker compose in the project directory and captures its
+// combined output. Only the detached Up uses it, which is short; anything
+// long-running goes through stream. On failure the output is wrapped into the
+// error — `exit status 1` alone tells the user nothing, which reads as
 // "nothing happened".
 func (c *Compose) run(ctx context.Context, sub ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "docker", c.args(sub...)...)
@@ -84,8 +84,9 @@ func pullArgs() []string {
 }
 
 // stream runs docker compose with its output attached to this process, so a
-// long-running foreground command shows its logs as they arrive. Used by Up when
-// not detached: buffering there would show nothing until Ctrl-C.
+// long-running command shows its progress as it arrives instead of nothing
+// until it exits. Both stdout and stderr go to this process's stderr, which is
+// where logs belong. Used by Pull and by Up when not detached.
 func (c *Compose) stream(ctx context.Context, sub ...string) error {
 	cmd := exec.CommandContext(ctx, "docker", c.args(sub...)...)
 	cmd.Dir = c.ProjectDir
@@ -104,8 +105,8 @@ func (c *Compose) Pull(ctx context.Context) error {
 	return c.stream(ctx, pullArgs()...)
 }
 
-// upArgs is Up's argument list, split out so the recreate decision is testable
-// without a Docker daemon.
+// upArgs is Up's argument list, split out so the recreate and detach decisions
+// are testable without a Docker daemon.
 func upArgs(recreate, detach bool) []string {
 	args := []string{"up"}
 	if detach {

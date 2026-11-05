@@ -25,6 +25,7 @@ type Var struct {
 }
 
 // Lookup returns the sample value for key and whether the key is in the sample.
+// Unused by the pipeline today; kept as the sample's read accessor.
 func (s *Sample) Lookup(key string) (string, bool) {
 	for _, v := range s.Vars {
 		if v.Key == key {
@@ -34,7 +35,7 @@ func (s *Sample) Lookup(key string) (string, bool) {
 	return "", false
 }
 
-// Keys returns the sample's keys in file order.
+// Keys returns the sample's keys in file order. Unused by the pipeline today.
 func (s *Sample) Keys() []string {
 	keys := make([]string, len(s.Vars))
 	for i, v := range s.Vars {

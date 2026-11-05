@@ -37,8 +37,8 @@ func (w *Wizard) SelectStateAction() (Mode, error) {
 // Configure runs the interactive forms and fills s. In ModeReconfigure s
 // arrives pre-filled from kumoss.yaml and the forms open on those values; in
 // ModeFresh s is zero-valued and the forms open empty. ModeKeep never reaches
-// here. Secrets collected by the forms live in the yaml:"-" maps on s, so they
-// reach the .env files and never kumoss.yaml.
+// here. Credentials collected by the forms live in the yaml:"-" maps on s, so
+// they reach the .env files and never kumoss.yaml.
 func (w *Wizard) Configure(mode Mode, s *state.State) error {
 	if mode == ModeKeep {
 		return nil
@@ -134,14 +134,15 @@ func (w *Wizard) ExtraVars(keys []Secret) (map[string]string, error) {
 	return values, nil
 }
 
-// RunDocker asks whether to pull and start the stack now.
+// RunDocker asks whether to pull and start the stack now. The pipeline then
+// decides detached vs foreground from --foreground.
 func (w *Wizard) RunDocker() (bool, error) {
 	run := true
 	form := huh.NewForm(
 		huh.NewGroup(
 			huh.NewConfirm().
 				Title("Start the Kumoss stack now?").
-				Description("Yes pulls the images and runs `docker compose up -d`.").
+				Description("Yes pulls the missing images and starts the stack: `docker compose up -d`, or in the foreground with --foreground.").
 				Affirmative("Start it").
 				Negative("Not now").
 				Value(&run),

@@ -81,11 +81,13 @@ type KubernetesAuth struct {
 	KubeconfigPath string `yaml:"-" json:"-"`
 }
 
-// IAC_BINARY env var in services/iac/.env (tofu | terraform).
+// Engine is the IaC engine the stack runs.
 type Engine struct {
-	Binary string `yaml:"-" json:"-"` // → services/iac/.env IAC_BINARY
+	Binary string `yaml:"-" json:"-"` // → services/iac/.env IAC_BINARY (tofu | terraform)
 
-	// Wizard-only consent gate for Terraform's BUSL-1.1 license. Not persisted anywhere.
+	// Wizard-only consent gate for Terraform's BUSL-1.1 license. Not persisted
+	// anywhere and not consulted by the pipeline: picking "terraform" is the
+	// only gate the generated env file carries.
 	BUSLAcknowledged bool `yaml:"-" json:"-"`
 }
 
@@ -128,7 +130,9 @@ type Secrets struct {
 	MappingToken       string // KUMOSS_MAPPING_TOKEN
 	AuthzToken         string // KUMOSS_AUTHZ_TOKEN
 
-	// → core/.env, only generated on a fresh install; reused when the volumes exist.
+	// → core/.env. The DB password and the RustFS keys are never generated:
+	// docker-compose.yml fixes them, so render takes them from the env sample
+	// (or the existing file) and Fill carries them over on reconfigure.
 	CoreDBPassword  string // embedded in KUMOSS_SQL_DATABASE_URL
 	RustFSAccessKey string // RUSTFS_ACCESS_KEY
 	RustFSSecretKey string // RUSTFS_SECRET_KEY
