@@ -557,8 +557,6 @@ func azureGroup(s *state.State) *huh.Group {
 		huh.NewInput().Title("Client id").Description("ARM_CLIENT_ID").Value(&a.ClientID),
 		huh.NewInput().Title("Client secret").Description("ARM_CLIENT_SECRET").
 			EchoMode(huh.EchoModePassword).Value(&a.ClientSecret),
-		huh.NewInput().Title("Subscription id").
-			Description("ARM_SUBSCRIPTION_ID (overwritten per request by the scope)").Value(&a.SubscriptionID),
 	).Title("Azure")
 }
 

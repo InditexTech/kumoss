@@ -59,12 +59,10 @@ type AWSAuth struct {
 }
 
 // AzureAuth → services/iac/.env ARM_TENANT_ID / ARM_CLIENT_ID / ARM_CLIENT_SECRET.
-// (ARM_SUBSCRIPTION_ID is injected per request from the scope, never set here.)
 type AzureAuth struct {
-	TenantID       string `yaml:"-" json:"-"` // → ARM_TENANT_ID
-	ClientID       string `yaml:"-" json:"-"` // → ARM_CLIENT_ID
-	ClientSecret   string `yaml:"-" json:"-"` // → ARM_CLIENT_SECRET (secret)
-	SubscriptionID string `yaml:"-" json:"-"` // → ARM_SUBSCRIPTION_ID
+	TenantID     string `yaml:"-" json:"-"` // → ARM_TENANT_ID
+	ClientID     string `yaml:"-" json:"-"` // → ARM_CLIENT_ID
+	ClientSecret string `yaml:"-" json:"-"` // → ARM_CLIENT_SECRET (secret)
 }
 
 // GCPAuth → services/iac/.env GOOGLE_APPLICATION_CREDENTIALS (key-file path mounted
