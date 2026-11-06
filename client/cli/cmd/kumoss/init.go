@@ -31,6 +31,7 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 				Home:        flags.Home,
 				PersistHome: flags.HomeOverride != "",
 				Foreground:  flags.Foreground,
+				HostCerts:   flags.HostCerts,
 				UI: &tui.Wizard{
 					In:         cmd.InOrStdin(),
 					Out:        cmd.OutOrStdout(),
@@ -42,5 +43,6 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 	}
 	root.AddCommand(cmd)
 	flags.RegisterHome(cmd)
+	flags.RegisterInit(cmd)
 	return cmd
 }

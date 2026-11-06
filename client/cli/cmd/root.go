@@ -44,7 +44,6 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	AddChildCommands(root, &envFlags)
-	envFlags.RegisterForeground(root)
 
 	return root
 }

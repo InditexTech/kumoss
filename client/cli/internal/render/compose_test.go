@@ -43,6 +43,75 @@ func TestComposeOverrideRemapsTheConfigVolume(t *testing.T) {
 	}
 }
 
+func TestComposeOverrideHostCerts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compose.override.yml")
+	c := &Compose{Path: path, ConfigPath: "../config/config.yaml", HostCerts: true}
+	if err := c.Write(); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	// core keeps its config remap and gains the CA mount, which is what the
+	// entrypoints read; losing the config mount would silently unconfigure it.
+	core := doc["services"].(map[string]any)["core"].(map[string]any)
+	volumes := core["volumes"].([]any)
+	if len(volumes) != 2 {
+		t.Fatalf("core volumes = %v, want config plus CA", volumes)
+	}
+	if volumes[0] != "../config/config.yaml:/etc/kumoss/config.yaml:ro" {
+		t.Errorf("config volume lost: %v", volumes[0])
+	}
+	if volumes[1] != hostCADir+":"+containerCADir+":ro" {
+		t.Errorf("CA volume = %v", volumes[1])
+	}
+	env := core["environment"].([]any)
+	if len(env) != 2 || env[0] != "KUMOSS_CONFIG="+ContainerConfigPath || env[1] != "KUMOSS_CA_DIR="+containerCADir {
+		t.Errorf("core environment = %v", env)
+	}
+	build := core["build"].(map[string]any)["additional_contexts"].(map[string]any)
+	if build["host-certs"] != hostCADir {
+		t.Errorf("host-certs context = %v", build)
+	}
+
+	// searxng only needs the CA wiring.
+	searxng := doc["services"].(map[string]any)["searxng"].(map[string]any)
+	if got := searxng["volumes"].([]any); len(got) != 1 || got[0] != hostCADir+":"+containerCADir+":ro" {
+		t.Errorf("searxng volumes = %v", got)
+	}
+}
+
+// Without the flag the override must stay exactly as before: the default CA
+// directory does not exist on a normal network, and mounting it would break the
+// stack.
+func TestComposeOverrideOmitsHostCertsByDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compose.override.yml")
+	c := &Compose{Path: path, ConfigPath: "../config/config.yaml"}
+	if err := c.Write(); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if _, ok := doc["x-host-ca"]; ok {
+		t.Error("x-host-ca present without --host-certs")
+	}
+	if _, ok := doc["services"].(map[string]any)["searxng"]; ok {
+		t.Error("searxng override present without --host-certs")
+	}
+}
+
 func TestDownloadSave(t *testing.T) {
 	dst := filepath.Join(t.TempDir(), "src", "docker-compose.yml")
 	d := &Download{Fetch: stubFetch("services: {}\n"), Tag: "v1.0.0"}

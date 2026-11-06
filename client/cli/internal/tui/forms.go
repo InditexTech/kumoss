@@ -134,6 +134,26 @@ func (w *Wizard) ExtraVars(keys []Secret) (map[string]string, error) {
 	return values, nil
 }
 
+// ConfirmRegenerate asks whether to rewrite an existing generated file. The
+// default is no: a hand-edited file is the user's, and losing it is silent.
+func (w *Wizard) ConfirmRegenerate(what string) (bool, error) {
+	regenerate := false
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title(what + " already exists. Regenerate it?").
+				Description("Regenerating discards any manual edits to the file.").
+				Affirmative("Regenerate").
+				Negative("Keep it").
+				Value(&regenerate),
+		),
+	)
+	if err := w.run(form); err != nil {
+		return false, err
+	}
+	return regenerate, nil
+}
+
 // RunDocker asks whether to pull and start the stack now. The pipeline then
 // decides detached vs foreground from --foreground.
 func (w *Wizard) RunDocker() (bool, error) {

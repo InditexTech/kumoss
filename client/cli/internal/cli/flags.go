@@ -23,14 +23,10 @@ type Flags struct {
 	// Foreground keeps `docker compose up` attached instead of detached: logs
 	// stream until Ctrl-C, which also stops the stack. Only init reads it.
 	Foreground bool
-}
 
-// RegisterForeground adds the --foreground flag to the root command. It is
-// persistent so it reads as a global toggle; commands that never start the
-// stack ignore it.
-func (f *Flags) RegisterForeground(root *cobra.Command) {
-	root.PersistentFlags().BoolVar(&f.Foreground, "foreground", false,
-		"stream the stack's logs instead of detaching; Ctrl-C also stops it")
+	// HostCerts makes the generated compose override trust this host's CA roots,
+	// for a TLS-inspecting proxy. Only init reads it.
+	HostCerts bool
 }
 
 // RegisterHome adds the --home flag to a command that honours it. Only init
@@ -38,4 +34,13 @@ func (f *Flags) RegisterForeground(root *cobra.Command) {
 // that ignore it, silently doing nothing.
 func (f *Flags) RegisterHome(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.HomeOverride, "home", "", "managed home directory (default ~/.kumoss)")
+}
+
+// RegisterInit adds the flags only `kumoss init` acts on: the docker start
+// behaviour and the CA wiring. Local, for the same reason as RegisterHome.
+func (f *Flags) RegisterInit(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&f.Foreground, "foreground", false,
+		"stream the stack's logs instead of detaching; Ctrl-C also stops it")
+	cmd.Flags().BoolVar(&f.HostCerts, "host-certs", false,
+		"trust this host's CA roots in core and searxng (TLS-inspecting proxy)")
 }

@@ -20,7 +20,8 @@ const (
 	// open pre-filled with the current values.
 	ModeReconfigure
 	// ModeKeep is an existing install the user chose to leave as-is: the forms
-	// are skipped and only config.yaml is regenerated.
+	// are skipped and no file is written. The pipeline still offers to start
+	// the stack.
 	ModeKeep
 )
 
@@ -36,6 +37,10 @@ type UI interface {
 	// ExtraVars asks for the env keys the samples leave empty and the wizard
 	// does not collect, and returns their values keyed by env-var name.
 	ExtraVars(keys []Secret) (map[string]string, error)
+	// ConfirmRegenerate asks whether to rewrite an existing generated file, and
+	// returns false to leave it untouched. Used for compose.override.yml, which
+	// a user may have hand-edited.
+	ConfirmRegenerate(what string) (bool, error)
 	RunDocker() (bool, error)
 }
 

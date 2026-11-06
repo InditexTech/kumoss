@@ -54,6 +54,12 @@ type Options struct {
 	// is detached (`up -d`), which is what an installer wants. Set by the
 	// --foreground flag.
 	Foreground bool
+
+	// HostCerts writes the corporate CA wiring into compose.override.yml, so core
+	// and searxng trust the host's roots behind a TLS-inspecting proxy. Set by
+	// the --host-certs flag; off by default, as the default root directory does
+	// not exist on a normal network.
+	HostCerts bool
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
@@ -114,21 +120,20 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		return err
 	}
 
-	// 6. Write the two YAML files. kumoss.yaml is skipped in ModeKeep: the
-	// stored values did not change. config.yaml is always regenerated, which is
-	// the only config file ModeKeep produces.
+	// 6. Write the two YAML files. ModeKeep writes neither: it keeps every file
+	// as-is, which is what "Keep it as is" promises.
 	if mode != tui.ModeKeep {
 		if err := state.Save(opts.Home.StateFile(), s); err != nil {
 			return err
 		}
-	}
-	cfg := &render.Config{
-		Download: dl,
-		Path:     opts.Home.ConfigYAML(),
-		Example:  opts.Home.ConfigExample(),
-	}
-	if err := cfg.Write(ctx, s); err != nil {
-		return err
+		cfg := &render.Config{
+			Download: dl,
+			Path:     opts.Home.ConfigYAML(),
+			Example:  opts.Home.ConfigExample(),
+		}
+		if err := cfg.Write(ctx, s); err != nil {
+			return err
+		}
 	}
 
 	// 7. Write the three env files. ModeKeep leaves them alone: they are the
@@ -162,15 +167,30 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 8. Write compose.override.yml. Always regenerated: it is generated, not
-	// user state, and it is what points core's config mount at the file written
-	// above (the compose file's own ./config.yaml resolves to src/config.yaml).
-	override := &render.Compose{
-		Path:       opts.Home.ComposeOverride(),
-		ConfigPath: "../config/config.yaml",
-	}
-	if err := override.Write(); err != nil {
-		return err
+	// 8. Write compose.override.yml. Regenerated unless the user kept the
+	// install: it is generated, not user state, and it is what points core's
+	// config mount at the file written above (the compose file's own
+	// ./config.yaml resolves to src/config.yaml). An existing file is only
+	// replaced with consent, since it may have been hand-edited; a fresh
+	// install has nothing to ask about.
+	if mode != tui.ModeKeep {
+		path := opts.Home.ComposeOverride()
+		write := true
+		if _, err := os.Stat(path); err == nil {
+			if write, err = opts.UI.ConfirmRegenerate("compose.override.yml"); err != nil {
+				return err
+			}
+		}
+		if write {
+			override := &render.Compose{
+				Path:       path,
+				ConfigPath: "../config/config.yaml",
+				HostCerts:  opts.HostCerts,
+			}
+			if err := override.Write(); err != nil {
+				return err
+			}
+		}
 	}
 
 	// 9. Ask whether to start the stack, then pull what is missing and start it.
