@@ -50,4 +50,21 @@ services:
   # Reads result pages for `web_search` and clones repositories.
   core: *host-ca
   # Answers the core's web searches, reaching the engines over HTTPS.
-  searxng: *host-ca
+  searxng:
+    <<: *host-ca
+    # --- Custom SearXNG settings (optional) -----------------------------
+    # The image ships services/searxng/settings.yml baked in, so editing
+    # that file only takes effect after a rebuild:
+    #
+    #   docker compose up -d --build searxng
+    #
+    # To iterate without rebuilding, uncomment this mount: the entrypoint
+    # honours a caller-provided SEARXNG_SETTINGS_PATH, and the volume
+    # below shadows the built-in file so edits apply on restart.
+    #
+    #   docker compose restart searxng
+    #
+    # Keep the file at that path — the stack stays runnable without the
+    # checkout only when nothing is mounted here.
+    # volumes:
+    #   - ./services/searxng/settings.yml:/etc/searxng/settings.yml:ro

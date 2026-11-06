@@ -135,28 +135,19 @@ class ApplicationFactory:
             ),
         )
 
-    def _get_tool_registry_workspace(
-        self, file_utils: IFileSystem, git_utils: IGit
-    ) -> ToolRegistryWorkspace:
-        return ToolRegistryWorkspace(
-            filesystem=file_utils,
-            git=git_utils,
-            summarizer=self._get_search_summarizer(),
-        )
-
     def _get_tool_service_workspace(
         self, file_utils: IFileSystem, git_utils: IGit
     ) -> ToolOrchestrationService:
         return ToolOrchestrationService(
-            tool_registry=self._get_tool_registry_workspace(file_utils, git_utils)
-        )
-
-    def _get_tool_service_static(self) -> ToolOrchestrationService:
-        return ToolOrchestrationService(
-            tool_registry=ToolRegistryStatic(
+            tool_registry=ToolRegistryWorkspace(
+                filesystem=file_utils,
+                git=git_utils,
                 summarizer=self._get_search_summarizer(),
             )
         )
+
+    def _get_tool_service_static(self) -> ToolOrchestrationService:
+        return ToolOrchestrationService(tool_registry=ToolRegistryStatic())
 
     def _get_session_service(
         self,
