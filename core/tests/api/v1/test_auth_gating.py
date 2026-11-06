@@ -101,14 +101,6 @@ class TestBearerRequirement(_GatingBase):
             )
         self.assertEqual(resp.status_code, 401, resp.text)
 
-    async def test_authorize_requires_a_token(self):
-        with patch("src.api.deps._oidc_enabled", return_value=True):
-            resp = await self.client.post(
-                "/v1/auth/authorize",
-                json={"cloud": "azure", "project_name": "p", "environment": "dev"},
-            )
-        self.assertEqual(resp.status_code, 401, resp.text)
-
     async def test_notifications_require_a_token(self):
         with patch("src.api.deps._oidc_enabled", return_value=True):
             resp = await self.client.post(

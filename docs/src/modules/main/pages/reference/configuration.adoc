@@ -169,6 +169,19 @@ the default and the issuer host is `login.microsoftonline.com`,
 |`60`
 |Optional
 |Leeway applied to `exp`, `iat`, and `nbf` validation.
+
+|`oidc.claims`
+|map (string → string)
+|`{}`
+|Optional
+|Extra JWT claims to extract and forward to the authorization PDP as
+`subject.properties`. Keys are the property names sent to the PDP;
+values are the JWT claim names to read from the token. These merge with
+the universal defaults (`issuer` ← `iss`, `email` ← `email`); extras
+override a default on collision. Example for Azure Entra ID:
+`{ groups: "groups", identifier: "oid", tenant_id: "tid" }`.
+Entra ID caveat: group claims are object IDs; users with >200 groups
+receive an overage indicator instead of the list.
 |===
 
 Related environment variables: none. The SPA is a public PKCE client
@@ -271,9 +284,8 @@ enabled: false (services.iac cannot — it is mandatory).`
 |Optional
 |Per-request HTTP budget. Every sidecar call returns promptly (long
 work runs as jobs the core polls), so this covers one round trip only.
-Honoured by the IaC and notifications clients; the mapping and
-authorization clients currently use fixed budgets of 10 and 15 seconds
-and ignore this field.
+Honoured by the IaC, notifications, and authorization clients; the
+mapping client uses a fixed budget of 10 seconds.
 |===
 
 Fields specific to the IaC sidecar:
@@ -1114,6 +1126,8 @@ oidc:
   issuer_url: "https://login.example.invalid/realms/platform"
   client_id: "kumoss-web"
   clock_skew_seconds: 60
+  claims:
+    groups: "groups"
 
 admin:
   default_root_email: "platform-admin@example.invalid"

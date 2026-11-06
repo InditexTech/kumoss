@@ -8,7 +8,24 @@ SPDX-License-Identifier: Apache-2.0
 
 Implementation-agnostic check that any service claiming to satisfy
 [`contracts/openapi/authz.v1.yaml`](../../openapi/authz.v1.yaml)
-actually does.
+actually does. The contract defines two endpoints:
+
+| Path | Method | Description |
+|------|--------|-------------|
+| `/access/v1/evaluation` | POST | AuthZEN 1.0 Access Evaluation |
+| `/healthz` | GET | Liveness probe |
+
+## Stub PDP
+
+A minimal always-allow (or always-deny) stub is included for testing:
+
+```bash
+cd contracts/conformance/authz
+uv sync
+STUB_DECISION=true uv run uvicorn stub:app --port 8083
+```
+
+Set `STUB_TOKEN=mysecret` to require bearer auth on the stub.
 
 ## Running
 
@@ -16,9 +33,8 @@ Point `--service-url` at any running implementation of the contract:
 
 ```bash
 cd contracts/conformance/authz
-uv sync
 uv run pytest \
-  --service-url=https://authz.your.example \
+  --service-url=http://localhost:8083 \
   --service-token=$YOUR_TOKEN
 ```
 
@@ -28,12 +44,3 @@ URL and token may also be supplied via `KUMOSS_AUTHZ_URL` /
 
 Kumoss does not bundle an authz implementation; this suite is how you
 check your own before pointing `services.authz.endpoint` at it.
-
-## Notes
-
-- The suite drives the API as a black box; it does NOT exercise OIDC
-  semantics (the contract assumes the caller — typically the core —
-  has already validated OIDC and forwards identity in headers).
-- Admin endpoints are reachable only when the test caller has the
-  `admin` role; without admin role assignments, those endpoints return
-  the documented 403.

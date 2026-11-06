@@ -57,6 +57,7 @@ class OperationType(Enum):
     GENERATE = "generate"
     DRIFT = "drift"
     IMPORT = "import"
+    APPLY = "apply"
 
 
 @unique

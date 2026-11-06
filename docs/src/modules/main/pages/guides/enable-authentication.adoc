@@ -218,9 +218,8 @@ user — see link:#bootstrap-admin[Grant the first administrator access].
 
 `admin.default_root_email` elevates a user to the top role of both role
 groups only when the access token carries a matching `email` claim and
-`email_verified: true`. A `preferred_username` fallback or a missing
-`email_verified` never elevates. Of the providers above only Keycloak
-emits both claims in access tokens.
+`email_verified: true`. A missing `email_verified` never elevates. Of
+the providers above only Keycloak emits both claims in access tokens.
 
 The elevation is re-applied on every authenticated request, not only at
 login: demoting that user in the admin panel reverts on their next
