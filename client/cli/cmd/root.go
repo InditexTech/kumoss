@@ -44,6 +44,7 @@ func NewRootCmd() *cobra.Command {
 	}
 
 	AddChildCommands(root, &envFlags)
+	SetHelpCommand(root)
 
 	return root
 }
