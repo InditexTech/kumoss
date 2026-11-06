@@ -32,7 +32,7 @@ from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
-from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
+from src.infrastructure.tools.tool_registry_workspace import ToolRegistryWorkspace
 from src.shared.constants import TerraformProvider
 
 
@@ -60,9 +60,11 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                 llm or MagicMock(inference=AsyncMock()),
                 TemplateAdapter(template_provider=TerraformProvider.AWS, cwd="."),
             )
-            return ToolRegistryStatic(summarizer=summarizer)
+            return ToolRegistryWorkspace(
+                filesystem=MagicMock(), git=MagicMock(), summarizer=summarizer
+            )
 
-    async def _run(self, registry: ToolRegistryStatic, query: str):
+    async def _run(self, registry: ToolRegistryWorkspace, query: str):
         return await registry.execute_tool(
             ToolCallDTO(id="call_1", name="web_search", parameters={"query": query})
         )
@@ -86,7 +88,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         config.web_search.summarize_max_chars = 1200
         with (
             patch(
-                "src.infrastructure.tools.tool_registry_static.system_config",
+                "src.infrastructure.tools.tool_registry_workspace.system_config",
                 config,
             ),
             patch(
@@ -118,7 +120,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng", summarize_top=len(results) or 1),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -136,7 +138,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng"),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -169,7 +171,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng", summarize_top=3),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -204,7 +206,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch(""),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             result = await self._run(registry, "q")
@@ -244,7 +246,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng"),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -271,7 +273,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng"),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -300,7 +302,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng", summarize_top=3),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -332,7 +334,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng"),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
             self.assertLogs("src.shared.logger._logger", level="DEBUG") as logs,
         ):
@@ -360,7 +362,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with (
             self._tool_module_patch("searxng"),
             patch(
-                "src.infrastructure.tools.tool_registry_static.SearchServiceClient"
+                "src.infrastructure.tools.tool_registry_workspace.SearchServiceClient"
             ) as client_cls,
         ):
             client_cls.return_value.search = AsyncMock(
@@ -368,7 +370,9 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
                     ("First", "https://one", "a"), ("Second", "https://two", "b")
                 )
             )
-            registry = ToolRegistryStatic(summarizer=summarizer)
+            registry = ToolRegistryWorkspace(
+                filesystem=MagicMock(), git=MagicMock(), summarizer=summarizer
+            )
             result = await self._run(registry, "q")
 
         self.assertTrue(result.success, result.error_message)

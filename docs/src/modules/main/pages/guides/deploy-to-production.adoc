@@ -178,7 +178,7 @@ each row below is a deployment decision; the mapping and authorization
 rows are services you provide yourself, because Kumoss ships only their
 contracts. Every image built from a Dockerfile in this repository is
 also published for each release as `ghcr.io/inditextech/kumoss-<image>`
-(`core`, `iac`, `notifications`, `proxy`); see
+(`core`, `iac`, `notifications`, `proxy`, `searxng`); see
 xref:main:guides/production/networking-and-tls.adoc#images-and-config-delivery[Images
 and configuration delivery].
 

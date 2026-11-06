@@ -47,6 +47,12 @@ search:
    docker compose up -d searxng
    ```
 
+   `settings.yml` is baked into the image. To apply an edit to it,
+   rebuild: `docker compose up -d --build searxng`. To skip the rebuild
+   while iterating, copy `docker-compose.override.example.yml` to
+   `docker-compose.override.yml` and uncomment the `searxng` settings
+   mount; edits then apply on `docker compose restart searxng`.
+
 3. **Access SearxNG**:
 
    The Compose service uses `expose` rather than `ports`, so the engine
