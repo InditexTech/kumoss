@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 
 [[package]]
@@ -155,9 +155,10 @@ wheels = [
 
 [[package]]
 name = "arize-phoenix-client"
-version = "3.5.0"
+version = "3.6.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "certifi" },
     { name = "httpx" },
     { name = "openinference-instrumentation" },
     { name = "openinference-semantic-conventions" },
@@ -166,9 +167,9 @@ dependencies = [
     { name = "tqdm" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a5/43/564a6250a64a8dbd05239fca547fac74f47ef003c3d2284cb86edc05ff61/arize_phoenix_client-3.5.0.tar.gz", hash = "sha256:6f9013457f6f56d56db65f61877369eae7bd23460212030b54da68cb0a4d8047", size = 311114, upload-time = "2026-09-08T22:24:52.577Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6b/f3/350ee5e56455f0813bf93bbd351c8be2d159babcb74cef46af058582a5b6/arize_phoenix_client-3.6.0.tar.gz", hash = "sha256:096733f0b95ac3456e1bd99ae639c2ae3b0b395ac1c651eefd050fd1ecb9c215", size = 310293, upload-time = "2026-10-30T03:39:40.179Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/e6/ce7d4acb909595d215a81effd1af1ee33e7ce09f1d53b095d8441afeed17/arize_phoenix_client-3.5.0-py3-none-any.whl", hash = "sha256:db7d05b692db0389d8d3306d59579793264f8ec3b2f7e9e5d724e9160ac78f72", size = 263582, upload-time = "2026-09-08T22:24:50.833Z" },
+    { url = "https://files.pythonhosted.org/packages/1a/bb/0add971fcf095ca2f0ea9bdd73599db1abb52a4482eae6015debba6e3cca/arize_phoenix_client-3.6.0-py3-none-any.whl", hash = "sha256:6ab26e95fb2cc57d5e289471a4aa12095fee44e930531320c2be0cbdcd5dd3f6", size = 268352, upload-time = "2026-10-30T03:39:38.672Z" },
 ]
 
 [[package]]
