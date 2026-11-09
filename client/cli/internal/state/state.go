@@ -4,15 +4,18 @@
 
 package state
 
+// State is kumoss.yaml: the answers that survive a run. Secrets, the
+// cloud/engine structs and every credential map are yaml:"-" and never reach
+// the file.
 type State struct {
-	SchemaVersion int     `yaml:"schema_version" json:"schema_version"`
-	LLM           LLM     `yaml:"llm"            json:"llm"`
-	Git           Git     `yaml:"git"            json:"git"`
-	Cloud         Cloud   `yaml:"-"              json:"-"`
-	Engine        Engine  `yaml:"-"              json:"-"`
-	Storage       Storage `yaml:"storage"        json:"storage"`
-	// Notifications Notifications `yaml:"notifications"  json:"notifications"`
-	Secrets Secrets `yaml:"-"              json:"-"`
+	SchemaVersion int           `yaml:"schema_version" json:"schema_version"`
+	LLM           LLM           `yaml:"llm"            json:"llm"`
+	Git           Git           `yaml:"git"            json:"git"`
+	Cloud         Cloud         `yaml:"-"              json:"-"`
+	Engine        Engine        `yaml:"-"              json:"-"`
+	Storage       Storage       `yaml:"storage"        json:"storage"`
+	Notifications Notifications `yaml:"notifications"  json:"notifications"`
+	Secrets       Secrets       `yaml:"-"              json:"-"`
 }
 
 type LLM struct {
@@ -39,7 +42,7 @@ type Git struct {
 	Token string `yaml:"-" json:"-"`
 }
 
-// Exists only to feed the renderer.
+// Cloud exists only to feed the renderer.
 type Cloud struct {
 	AWS        *AWSAuth        `yaml:"-" json:"-"`
 	Azure      *AzureAuth      `yaml:"-" json:"-"`
@@ -114,14 +117,15 @@ type Storage struct {
 	BackendCredentials map[string]string `yaml:"-" json:"-"`
 }
 
-// type Notifications struct {
-// 	Enabled bool `yaml:"enabled" json:"enabled"` // → config.yaml services.notifications.enabled
+type Notifications struct {
+	Enabled bool `yaml:"enabled" json:"enabled"` // → config.yaml services.notifications.enabled
 
-// 	// → services/notifications/.env SLACK_WEBHOOK_URL (secret).
-// 	SlackWebhookURL string `yaml:"-" json:"-"`
-// }
+	// → services/notifications/.env SLACK_WEBHOOK_URL (secret). The service
+	// refuses to start without it, so the wizard only writes Enabled when it is set.
+	SlackWebhookURL string `yaml:"-" json:"-"`
+}
 
-// Generated, never user-supplied, never serialised. Every value
+// Secrets are generated, never user-supplied, never serialised: every value
 // is an env var in core/.env or a sidecar .env.
 type Secrets struct {
 	// → core/.env and the matching sidecar .env (must be byte-identical).

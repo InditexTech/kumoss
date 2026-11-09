@@ -10,6 +10,7 @@ package render
 import (
 	"context"
 	"fmt"
+	"reflect"
 
 	"gopkg.in/yaml.v3"
 
@@ -40,40 +41,60 @@ func (c *Config) Write(ctx context.Context, s *state.State) error {
 	if err != nil {
 		return err
 	}
-
-	var doc map[string]any
-	if err := yaml.Unmarshal(raw, &doc); err != nil {
-		return fmt.Errorf("parse fetched config.yaml: %w", err)
-	}
-	if doc == nil {
-		doc = map[string]any{}
-	}
-
-	overlay(doc, s)
-
-	out, err := yaml.Marshal(doc)
+	out, err := RenderConfig(raw, s)
 	if err != nil {
 		return err
 	}
 	return writeFile(c.Path, out, 0o644)
 }
 
+// RenderConfig overlays the answers in s onto a fetched config.yaml and returns
+// the bytes, so `init --dry-run` can show what Write would produce.
+func RenderConfig(raw []byte, s *state.State) ([]byte, error) {
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil, fmt.Errorf("parse fetched config.yaml: %w", err)
+	}
+	if doc == nil {
+		doc = map[string]any{}
+	}
+	overlay(doc, s)
+	return yaml.Marshal(doc)
+}
+
 // overlay replaces the keys the wizard owns with the answers. Everything else
 // in doc is left as the repo shipped it.
 func overlay(doc map[string]any, s *state.State) {
-	doc["llm"] = map[string]any{
-		"model":             s.LLM.Model,
-		"small_model":       s.LLM.SmallModel,
+	// Merge into the fetched llm: block, not replace it, or a key the wizard
+	// leaves unset would be dropped along with the fetched value.
+	llm := map[string]any{}
+	if existing, ok := doc["llm"].(map[string]any); ok {
+		for k, v := range existing {
+			llm[k] = v
+		}
+	}
+	llm["model"] = s.LLM.Model
+	llm["small_model"] = s.LLM.SmallModel
+	// The tuning knobs have no wizard default: zero means the form never asked
+	// (ModeKeep, a stub UI, an older kumoss.yaml), so the fetched value wins.
+	// Writing a zero would make the core's pydantic model reject the file.
+	for key, v := range map[string]any{
 		"temperature":       s.LLM.Temperature,
 		"max_output_tokens": s.LLM.MaxOutputTokens,
 		"timeout":           s.LLM.Timeout,
+	} {
+		if !reflect.ValueOf(v).IsZero() {
+			llm[key] = v
+		}
 	}
+	doc["llm"] = llm
 	doc["git"] = map[string]any{
 		"provider":     s.Git.Provider,
 		"author_name":  s.Git.AuthorName,
 		"author_email": s.Git.AuthorEmail,
 	}
 	doc["storage"] = storageBlock(doc, s)
+	doc["services"] = servicesBlock(doc, s)
 }
 
 // storageBlock builds storage:, preserving the keys the forms do not own
@@ -99,5 +120,26 @@ func storageBlock(doc map[string]any, s *state.State) map[string]any {
 	if s.Storage.PublicEndpointURL != "" {
 		block["public_endpoint_url"] = s.Storage.PublicEndpointURL
 	}
+	return block
+}
+
+// servicesBlock sets notifications.enabled and preserves everything else under
+// services: (each sidecar's endpoint, token_env, timeout; mapping and authz are
+// contracts-only and stay as the repo ships them).
+func servicesBlock(doc map[string]any, s *state.State) map[string]any {
+	block := map[string]any{}
+	if existing, ok := doc["services"].(map[string]any); ok {
+		for k, v := range existing {
+			block[k] = v
+		}
+	}
+	notifications := map[string]any{}
+	if existing, ok := block["notifications"].(map[string]any); ok {
+		for k, v := range existing {
+			notifications[k] = v
+		}
+	}
+	notifications["enabled"] = s.Notifications.Enabled
+	block["notifications"] = notifications
 	return block
 }

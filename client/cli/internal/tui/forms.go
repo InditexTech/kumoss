@@ -60,6 +60,7 @@ func (w *Wizard) Configure(mode Mode, s *state.State) error {
 		w.storageStep,
 		w.cloudStep,
 		w.engineStep,
+		w.notificationsStep,
 	}
 	for _, step := range steps {
 		form, commit := step(s)
@@ -210,15 +211,9 @@ func (w *Wizard) llmDetailsStep(s *state.State, provider llmProvider) error {
 	if s.LLM.SmallModel == "" {
 		s.LLM.SmallModel = provider.DefaultSmallModel
 	}
-	if s.LLM.Temperature == 0 {
-		s.LLM.Temperature = 0.1
-	}
-	if s.LLM.MaxOutputTokens == 0 {
-		s.LLM.MaxOutputTokens = 32000
-	}
-	if s.LLM.Timeout == 0 {
-		s.LLM.Timeout = 600
-	}
+	// temperature, max_output_tokens and timeout have no default here: a zero
+	// leaves the fetched config.yaml's value in place (see render.overlay), so
+	// the repo stays the single source of truth for the tuning knobs.
 	if s.LLM.Credentials == nil {
 		s.LLM.Credentials = map[string]string{}
 	}
@@ -257,7 +252,7 @@ func (w *Wizard) llmDetailsStep(s *state.State, provider llmProvider) error {
 			Validate(floatRange(0, 1)),
 		huh.NewInput().
 			Title("Max output tokens").
-			Description("Completion cap per call (default 32000).").
+			Description("Completion cap per call (default 64000).").
 			Value(&maxTokens).
 			Validate(intMin(1)),
 		huh.NewInput().
@@ -510,6 +505,36 @@ func (w *Wizard) engineStep(s *state.State) (*huh.Form, func()) {
 				Negative("Cancel").
 				Value(&s.Engine.BUSLAcknowledged),
 		).WithHideFunc(func() bool { return s.Engine.Binary != "terraform" }),
+	)
+	return form, func() {}
+}
+
+// notificationsStep asks whether the stack sends Slack notifications and for the
+// webhook to send them to. The notifications service refuses to start without a
+// webhook, so the pipeline only writes enabled=true when one was given: asking
+// for both in one form keeps the two from disagreeing.
+func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewConfirm().
+				Title("Send Slack notifications?").
+				Description("services.notifications.enabled. Off leaves the notifications service idle; the core answers 503 on its endpoint.").
+				Affirmative("Yes").
+				Negative("No").
+				Value(&s.Notifications.Enabled),
+			huh.NewInput().
+				Title("Slack webhook URL").
+				Description("SLACK_WEBHOOK_URL. Required to enable: anyone holding it can post to the channel.").
+				EchoMode(huh.EchoModePassword).
+				Value(&s.Notifications.SlackWebhookURL).
+				// Validated only when enabling, or "No" would still demand a webhook.
+				Validate(func(v string) error {
+					if s.Notifications.Enabled {
+						return required(v)
+					}
+					return nil
+				}),
+		).Title("Notifications"),
 	)
 	return form, func() {}
 }

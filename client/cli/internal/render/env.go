@@ -47,14 +47,42 @@ type Env struct {
 // with LoadSecrets and Fill and clears only the ones the user chose to rotate,
 // so this method never rotates anything on its own.
 func (e *Env) Write(p EnvPaths, s *state.State) error {
-	e.generate(s)
-
-	for path, vars := range e.files(p, s) {
+	// generate allocates the missing tokens onto s, and Files would generate
+	// them again if called after; call it once and write what it returned.
+	files := e.Files(p, s)
+	for path, vars := range files {
 		if err := writeEnv(path, vars); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// Files returns the env files Write would produce, keyed by path, without
+// touching the disk. It generates the same missing tokens Write does, onto s,
+// so a dry run can show the real content.
+func (e *Env) Files(p EnvPaths, s *state.State) map[string]map[string]string {
+	e.generate(s)
+	return e.files(p, s)
+}
+
+// RenderEnvFile returns the bytes writeEnv would put in one file, without
+// writing.
+func RenderEnvFile(vars map[string]string) []byte {
+	keys := make([]string, 0, len(vars))
+	for k := range vars {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k)
+		b.WriteByte('=')
+		b.WriteString(vars[k])
+		b.WriteByte('\n')
+	}
+	return []byte(b.String())
 }
 
 // LoadSecrets reads the secrets already present in the three env files, so the
@@ -207,7 +235,15 @@ func (e *Env) owned(s *state.State) map[string]string {
 		owned[k] = v
 	}
 	for k, v := range s.Storage.BackendCredentials {
-		owned[k] = v
+		if v != "" {
+			owned[k] = v
+		}
+	}
+	// The webhook is asked for in the notifications step, so it is owned here:
+	// blank is skipped, or the notifications .env would carry an empty value the
+	// service refuses to boot with.
+	if v := s.Notifications.SlackWebhookURL; v != "" {
+		owned["SLACK_WEBHOOK_URL"] = v
 	}
 	return owned
 }
@@ -259,6 +295,12 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 
 	notifications := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
+	}
+	// The sample leaves SLACK_WEBHOOK_URL empty and asks for it in Extra; the
+	// fallback list has to carry the wizard's answer too, or a failed sample
+	// fetch would write the notifications file without its one required var.
+	if v := s.Notifications.SlackWebhookURL; v != "" {
+		notifications["SLACK_WEBHOOK_URL"] = v
 	}
 	return map[string]map[string]string{
 		p.Core:          core,
@@ -327,23 +369,10 @@ func dbPassword(url string) string {
 // whole and a missing key behaves differently from an empty one. 0600: the file
 // holds secrets.
 func writeEnv(path string, vars map[string]string) error {
-	keys := make([]string, 0, len(vars))
-	for k := range vars {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var b strings.Builder
-	for _, k := range keys {
-		b.WriteString(k)
-		b.WriteByte('=')
-		b.WriteString(vars[k])
-		b.WriteByte('\n')
-	}
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o600)
+	return os.WriteFile(path, RenderEnvFile(vars), 0o600)
 }
 
 // readEnv parses KEY=value lines, ignoring blanks and comments. A malformed line
