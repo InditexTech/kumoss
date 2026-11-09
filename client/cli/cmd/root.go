@@ -56,5 +56,6 @@ func AddChildCommands(rootCmd *cobra.Command, env *cli.Flags) {
 	cmd.NewConfigCmd(rootCmd, env)
 	cmd.NewDoctorCmd(rootCmd, env)
 	cmd.NewHomeCmd(rootCmd, env)
+	cmd.NewSelfInstallCmd(rootCmd, env)
 	cmd.NewHelpCmd(rootCmd, env)
 }

@@ -27,6 +27,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions: {}
+    # The CLI job below needs to know whether this run cut a release, and its tag.
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
     steps:
       - name: Git app token
         id: app-token
@@ -42,8 +46,42 @@ jobs:
           permission-issues: write
 
       - name: Release Please
+        id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+  # Attaches the CLI archives to the Release release-please already published.
+  # Append mode: no second release, no new version field. The tag drives the
+  # version, so nothing here reads the manifest.
+  cli-binaries:
+    name: CLI binaries
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write # Upload assets to the Release.
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+          fetch-depth: 0 # goreleaser reads the tag from the git history.
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: client/cli/go.mod
+          cache-dependency-path: client/cli/go.sum
+
+      - name: GoReleaser
+        uses: goreleaser/goreleaser-action@e435ccd777264be153ace6237001ef4d979d3a7a # v6.4.0
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean --config client/cli/.goreleaser.yaml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

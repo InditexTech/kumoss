@@ -20,6 +20,7 @@ func newTestRoot() *cobra.Command {
 	root := &cobra.Command{Use: "kumoss"}
 	NewInitCmd(root, &flags)
 	NewHomeCmd(root, &flags)
+	NewSelfInstallCmd(root, &flags)
 	NewVersionCmd(root, &flags)
 	NewStatusCmd(root, &flags)
 	NewLogsCmd(root, &flags)
@@ -55,7 +56,7 @@ func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
 		"--home string",
 		"\nhome\n",
 		"--reset",
-		"config, doctor, logs, status, version",
+		"config, doctor, logs, self-install, status, version",
 		"(no flags)",
 	} {
 		if !strings.Contains(got, want) {
