@@ -2,10 +2,10 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from enum import Enum
+from enum import StrEnum
 
 
-class HealthStatus(str, Enum):
+class HealthStatus(StrEnum):
     OK = "ok"
 
     def __str__(self) -> str:

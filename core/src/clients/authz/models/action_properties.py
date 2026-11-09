@@ -5,18 +5,16 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any, TypeVar
+from typing import Any, Self, TypeVar
 
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="CheckResponse400")
+T = TypeVar("T", bound="ActionProperties")
 
 
 @_attrs_define
-class CheckResponse400:
-    """ """
-
+class ActionProperties:
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -27,12 +25,12 @@ class CheckResponse400:
         return field_dict
 
     @classmethod
-    def from_dict(cls: type[T], src_dict: Mapping[str, Any]) -> T:
+    def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        check_response_400 = cls()
+        action_properties = cls()
 
-        check_response_400.additional_properties = d
-        return check_response_400
+        action_properties.additional_properties = d
+        return action_properties
 
     @property
     def additional_keys(self) -> list[str]:

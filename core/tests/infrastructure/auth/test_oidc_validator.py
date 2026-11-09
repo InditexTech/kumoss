@@ -11,7 +11,7 @@ validation semantics are under test here.
 import json
 import time
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import jwt
 from cryptography.hazmat.primitives import serialization
@@ -79,10 +79,16 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(claims.name, "Alice")
         self.assertTrue(claims.email_verified)
 
-    async def test_email_falls_back_to_preferred_username_unverified(self):
+    async def test_missing_email_falls_back_to_preferred_username(self):
         token = self._token(email=None, preferred_username="alice@corp.example")
         claims = await self._validator().validate(token)
         self.assertEqual(claims.email, "alice@corp.example")
+        self.assertFalse(claims.email_verified)
+
+    async def test_missing_email_and_preferred_username_yields_none(self):
+        token = self._token(email=None)
+        claims = await self._validator().validate(token)
+        self.assertIsNone(claims.email)
         self.assertFalse(claims.email_verified)
 
     async def test_explicitly_unverified_email_is_flagged(self):
@@ -144,3 +150,55 @@ class TestOidcTokenValidator(unittest.IsolatedAsyncioTestCase):
     async def test_garbage_token_is_rejected(self):
         with self.assertRaises(TokenValidationError):
             await self._validator().validate("not-a-jwt")
+
+    async def test_universal_claims_extracted_into_properties(self):
+        claims = await self._validator().validate(self._token())
+        self.assertEqual(claims.properties["issuer"], _ISSUER)
+        self.assertEqual(claims.properties["email"], "alice@example.com")
+
+    @patch("src.infrastructure.auth.oidc.system_config")
+    async def test_extra_claims_merged_into_properties(self, mock_cfg):
+        mock_cfg.oidc.custom_claims = {"identifier": "oid", "tenant_id": "tid"}
+        mock_cfg.oidc.issuer_url = _ISSUER
+        mock_cfg.oidc.client_id = _CLIENT_ID
+        mock_cfg.oidc.audience = ""
+        mock_cfg.oidc.clock_skew_seconds = 60
+        token = self._token(oid="obj-id-123", tid="tenant-abc")
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.properties["identifier"], "obj-id-123")
+        self.assertEqual(claims.properties["tenant_id"], "tenant-abc")
+        self.assertEqual(claims.properties["issuer"], _ISSUER)
+
+    @patch("src.infrastructure.auth.oidc.system_config")
+    async def test_extra_claims_override_universal_defaults(self, mock_cfg):
+        mock_cfg.oidc.custom_claims = {"email": "preferred_username"}
+        token = self._token(email="formal@example.com", preferred_username="alice@corp")
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.properties["email"], "alice@corp")
+
+    @patch("src.infrastructure.auth.oidc.system_config")
+    async def test_claim_remap_does_not_affect_identity_email(self, mock_cfg):
+        mock_cfg.oidc.custom_claims = {"email": "preferred_username"}
+        token = self._token(
+            email="real@example.com",
+            preferred_username="impersonated@example.com",
+        )
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.email, "real@example.com")
+        self.assertEqual(claims.properties["email"], "impersonated@example.com")
+
+    async def test_missing_claim_excluded_from_properties(self):
+        claims = await self._validator().validate(self._token())
+        self.assertNotIn("groups", claims.properties)
+
+    @patch("src.infrastructure.auth.oidc.system_config")
+    async def test_groups_in_properties_when_configured(self, mock_cfg):
+        mock_cfg.oidc.custom_claims = {"groups": "groups"}
+        token = self._token(groups=["team-a", "team-b"])
+        claims = await self._validator().validate(token)
+        self.assertEqual(claims.properties["groups"], ["team-a", "team-b"])
+
+    async def test_none_values_excluded_from_properties(self):
+        token = self._token(email=None)
+        claims = await self._validator().validate(token)
+        self.assertNotIn("email", claims.properties)

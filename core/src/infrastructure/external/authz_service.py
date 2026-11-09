@@ -2,148 +2,146 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Authz microservice client used by core.
+"""Authz microservice client — AuthZEN 1.0 Access Evaluation.
 
-Wraps the generated `src.clients.authz` HTTP client behind a small,
-async-friendly facade. Mirrors the pattern used by
-`Terraform`: read endpoint+token from system_config,
-construct a fresh `AuthenticatedClient` per call, degrade gracefully
-when the service is disabled or unconfigured.
-
-Surface:
-
-- `AuthzServiceClient.check(cloud, project, environment, user_id)` →
-  `CheckResult(authorized, portal_url, reason)`. Returns a permissive
-  default when authz is disabled so existing callers keep working.
+Wraps the generated ``src.clients.authz`` HTTP client behind an
+async-friendly adapter that accepts domain-level parameters, builds the
+AuthZEN request, and returns a clean ``AuthzDecision``.  Follows the
+``MappingServiceClient`` pattern: callers never touch wire-format types.
 """
-
-from __future__ import annotations
 
 from dataclasses import dataclass
 
 import httpx
 
-from src.clients.authz.api.check import check as check_op
-from src.clients.authz.api.users import get_current_user as get_current_user_op
+from src.clients.authz.api.evaluation import evaluate as evaluate_op
 from src.clients.authz.client import AuthenticatedClient
-from src.clients.authz.models.check_request import CheckRequest
-from src.clients.authz.models.check_response import CheckResponse
-from src.clients.authz.models.user import User
+from src.clients.authz.models.access_evaluation_request import (
+    AccessEvaluationRequest,
+)
+from src.clients.authz.models.access_evaluation_response import (
+    AccessEvaluationResponse,
+)
+from src.clients.authz.models.action import Action
+from src.clients.authz.models.action_name import ActionName
+from src.clients.authz.models.resource import Resource
+from src.clients.authz.models.resource_properties import ResourceProperties
+from src.clients.authz.models.resource_properties_provider import (
+    ResourcePropertiesProvider,
+)
+from src.clients.authz.models.resource_type import ResourceType
+from src.clients.authz.models.subject import Subject
+from src.clients.authz.models.subject_properties import SubjectProperties
+from src.clients.authz.models.subject_type import SubjectType
 from src.clients.authz.types import UNSET, Unset
+from src.domains.value_objects.token_claims import TokenClaims
 from src.shared.config import system_config
+from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
 
 @dataclass(frozen=True)
-class CheckResult:
-    authorized: bool
-    portal_url: str | None
-    reason: str | None
+class AuthzDecision:
+    allowed: bool
+    reason_user: str | None = None
+    reason_admin: str | None = None
 
 
-def _from_unset(value: str | None | Unset) -> str | None:
-    return None if isinstance(value, Unset) else value
+def _unwrap_reason(context, attr: str) -> str | None:
+    if isinstance(context, Unset) or context is None:
+        return None
+    reason_obj = getattr(context, attr, None)
+    if isinstance(reason_obj, Unset) or reason_obj is None:
+        return None
+    return reason_obj.additional_properties.get("en")
 
 
 class AuthzServiceClient:
-    """Call the authz microservice via the generated HTTP client."""
+    """Call the authz PDP via the generated HTTP client."""
 
-    async def check(
+    async def evaluate(
         self,
+        claims: TokenClaims,
+        action: ActionName,
         *,
-        cloud: str,
-        project: str,
-        environment: str | None = None,
-        user_id: str | None = None,
-    ) -> CheckResult:
+        scope_id: str,
+        provider: TerraformProvider,
+        repo_uri: str,
+        iac_path: str | None = None,
+    ) -> AuthzDecision:
         cfg = system_config.services.authz
-        if not cfg.enabled or not cfg.endpoint:
+        if not cfg.enabled:
             logging.warning(
-                "authz service is disabled or unconfigured; defaulting to "
-                "authorized=True. Enable services.authz to enforce."
+                "authz service is disabled; defaulting to decision=True. "
+                "Enable services.authz to enforce."
             )
-            return CheckResult(
-                authorized=True,
-                portal_url=None,
-                reason="authz service disabled in system config",
-            )
-
-        body = CheckRequest(
-            cloud=cloud,
-            project=project,
-            environment=environment if environment else UNSET,
-            user_id=user_id if user_id else UNSET,
-        )
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(15.0),
-        )
-        try:
-            async with client as c:
-                response = await check_op.asyncio(client=c, body=body)
-        except httpx.TimeoutException as e:
-            raise ExceptionHandler(f"authz service timed out: {e}", 504) from e
-        except httpx.RequestError as e:
-            raise ExceptionHandler(f"authz service unreachable: {e}", 502) from e
-
-        if not isinstance(response, CheckResponse):
+            return AuthzDecision(allowed=True)
+        if not cfg.endpoint:
             raise ExceptionHandler(
-                f"authz service returned an unexpected response: {response!r}", 502
+                "Authorization service is enabled but no endpoint is configured.",
+                503,
             )
 
-        return CheckResult(
-            authorized=response.authorized,
-            portal_url=_from_unset(response.portal_url),
-            reason=_from_unset(response.reason),
+        props = dict(claims.properties)
+        if not claims.email_verified:
+            props.pop("email", None)
+        subject_props = SubjectProperties.from_dict(props)
+
+        resource_props = ResourceProperties(
+            provider=ResourcePropertiesProvider(provider.value),
+            repo_uri=repo_uri,
+            iac_path=iac_path if iac_path else UNSET,
         )
 
-    async def get_current_user(
-        self,
-        *,
-        user_id: str | None,
-        user_email: str | None = None,
-    ) -> User | None:
-        """Fetch the user record + roles for the caller from /v1/users/me.
-
-        Returns ``None`` when authz is disabled/unconfigured or the call
-        fails. Anonymous calls (``user_id`` is ``None``) reach the service
-        too and may return an anonymous user record per the contract.
-        """
-        cfg = system_config.services.authz
-        if not cfg.enabled or not cfg.endpoint:
-            return None
+        request = AccessEvaluationRequest(
+            subject=Subject(
+                type_=SubjectType.USER,
+                id=claims.issuer,
+                properties=subject_props,
+            ),
+            action=Action(name=action),
+            resource=Resource(
+                type_=ResourceType.SCOPE,
+                id=scope_id,
+                properties=resource_props,
+            ),
+        )
 
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
-            timeout=httpx.Timeout(15.0),
+            timeout=httpx.Timeout(cfg.timeout),
         )
         try:
             async with client as c:
-                response = await get_current_user_op.asyncio(
-                    client=c,
-                    x_user_id=user_id if user_id else UNSET,
-                    x_user_email=user_email if user_email else UNSET,
-                )
+                response = await evaluate_op.asyncio(client=c, body=request)
         except httpx.TimeoutException as e:
-            raise ExceptionHandler(f"authz service timed out: {e}", 504) from e
+            raise ExceptionHandler(f"authz PDP timed out: {e}", 504) from e
         except httpx.RequestError as e:
-            raise ExceptionHandler(f"authz service unreachable: {e}", 502) from e
-
-        if not isinstance(response, User):
+            raise ExceptionHandler(f"authz PDP unreachable: {e}", 502) from e
+        except (ValueError, TypeError, KeyError) as e:
             raise ExceptionHandler(
-                f"authz get_current_user returned an unexpected response: {response!r}",
+                f"authz PDP returned an unparseable response: {e!r}", 502
+            ) from e
+
+        if (
+            not isinstance(response, AccessEvaluationResponse)
+            or type(response.decision) is not bool
+        ):
+            raise ExceptionHandler(
+                f"authz PDP returned an off-contract response: {response!r}",
                 502,
             )
-        return response
 
-    async def is_admin(self, user_id: str | None) -> bool:
-        """Convenience: True iff the caller holds the 'admin' role."""
-        if not user_id:
-            return False
-        user = await self.get_current_user(user_id=user_id)
-        if user is None:
-            return False
-        return "admin" in user.roles
+        reason_user = _unwrap_reason(response.context, "reason_user")
+        reason_admin = _unwrap_reason(response.context, "reason_admin")
+
+        if reason_admin:
+            logging.warning("PDP deny reason (admin): %s", reason_admin)
+
+        return AuthzDecision(
+            allowed=response.decision,
+            reason_user=reason_user,
+            reason_admin=reason_admin,
+        )

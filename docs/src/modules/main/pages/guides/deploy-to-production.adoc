@@ -314,9 +314,9 @@ Common rules for every *enabled* sidecar:
   time, but they remain simple reference services. Keep every sidecar on
   a private network segment reachable only by the core, and never expose
   one through the ingress.
-* The `services.<name>.timeout` field is honoured by the IaC and
-  notifications clients; the mapping and authorization clients use fixed
-  budgets of 10 and 15 seconds.
+* The `services.<name>.timeout` field is honoured by the IaC,
+  notifications, and authorization clients; the mapping client uses a
+  fixed budget of 10 seconds.
 * Every sidecar exposes `GET /healthz` for liveness probes.
 
 [#iac-mandatory]
@@ -438,27 +438,26 @@ failure is logged and never fails a session.
 [#authorization-optional]
 === Authorization (optional, bring your own)
 
-Kumoss ships no authorization implementation: the contract is an
-extension point for your own cloud-project policy. Leave it disabled
-until you provide your own implementation.
+Kumoss ships no PDP (policy decision point): the contract is an
+extension point for your organization's access policy. Leave it disabled
+until you deploy your own AuthZEN-compliant PDP.
 
 Understand what this integration is and is not:
 
-* It is consulted only by the wizard's preflight `POST
-  /api/v1/auth/authorize`, which sends the cloud, project name,
-  environment, and the caller's e-mail (or OIDC subject) to `POST
-  /v1/check`. It answers whether that user may work on that cloud
-  project.
+* It is consulted on *every write route* — IaC generation, drift,
+  import, apply, PR creation, and PR merge. The core sends an AuthZEN
+  Access Evaluation request (`POST /access/v1/evaluation`) with the
+  caller's identity, the action, and the target scope.
 * It is *not* Kumoss's own access control. Who can log in, which
   operations a user may run, and who can see or act on a session are
   decided by OIDC plus the operation and panel roles stored in the core
   database (xref:main:guides/administer-users-and-locks.adoc[]).
-* While disabled, the core answers "authorized" without calling
-  anything. Once enabled, an unreachable sidecar produces a `502`/`504`
-  error in the wizard, not an allow.
+* While disabled, the core treats every operation as authorized without
+  calling anything. Once enabled, an unreachable PDP produces a
+  `502`/`504` error, not an allow — the core never fails open.
 
-Implement the contract in
-xref:main:reference/api/authz.adoc[`contracts/openapi/authz.v1.yaml`]
+Implement the
+xref:main:reference/api/authz.adoc[AuthZEN contract]
 against your entitlement source, point `services.authz.endpoint` at it,
 and enable it.
 
