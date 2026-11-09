@@ -1,0 +1,19 @@
+README.md
+  s_decb99dc66d967::t_88c1f91f6c3c47 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "0d9e2aecde23eb72a45f2e745f6ce227a22acba7",
+  "prompts": {},
+  "sessions": {
+    "s_decb99dc66d967": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d12277ba-127c-41c2-989b-e9e8ed5b6210",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
