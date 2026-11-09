@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
@@ -141,4 +142,167 @@ func noFetch(_ context.Context, _, path string) ([]byte, error) {
 		return []byte("llm:\n  model: repo/default\n"), nil
 	}
 	return nil, os.ErrNotExist
+}
+
+// The notifications service refuses to boot without a webhook, so enabling it
+// with none must downgrade the flag rather than write a stack that cannot start.
+func TestNotificationsEnabledWithoutWebhookIsDowngraded(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		webhook string
+		want    bool
+	}{
+		{"no webhook", "", false},
+		{"with webhook", "https://hooks.slack.com/services/x", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, _ := install(t)
+			ui := &stubUI{mode: tui.ModeReconfigure}
+			var warned strings.Builder
+			opts := Options{
+				Home: h,
+				UI: &notifyUI{
+					stubUI:  ui,
+					enabled: true,
+					webhook: c.webhook,
+				},
+				Docker:   stubDocker{},
+				Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+				Warn:     &warned,
+			}
+			if err := RunPipeline(context.Background(), opts); err != nil {
+				t.Fatalf("RunPipeline: %v", err)
+			}
+
+			saved, err := state.Load(h.StateFile())
+			if err != nil {
+				t.Fatalf("load state: %v", err)
+			}
+			if saved.Notifications.Enabled != c.want {
+				t.Errorf("enabled = %v, want %v", saved.Notifications.Enabled, c.want)
+			}
+			if got := strings.Contains(warned.String(), "notifications disabled"); got == c.want {
+				t.Errorf("warning = %q, want warned=%v", warned.String(), !c.want)
+			}
+
+			cfg, err := os.ReadFile(h.ConfigYAML())
+			if err != nil {
+				t.Fatalf("read config: %v", err)
+			}
+			want := "enabled: false"
+			if c.want {
+				want = "enabled: true"
+			}
+			if !strings.Contains(string(cfg), want) {
+				t.Errorf("config does not carry %q:\n%s", want, cfg)
+			}
+		})
+	}
+}
+
+// notifyUI answers the notifications question the way the real wizard does.
+type notifyUI struct {
+	*stubUI
+	enabled bool
+	webhook string
+}
+
+func (n *notifyUI) Configure(_ tui.Mode, s *state.State) error {
+	s.Notifications.Enabled = n.enabled
+	s.Notifications.SlackWebhookURL = n.webhook
+	return nil
+}
+
+// A dry run asks everything and writes nothing: no home directory, no file, no
+// pointer, no container. The report shows what a real run would produce.
+func TestDryRunWritesNothing(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "never-created")
+	h := home.Home{Root: root}
+	var out strings.Builder
+
+	opts := Options{
+		Home:        h,
+		PersistHome: true, // would normally write the pointer file
+		UI:          &stubUI{mode: tui.ModeFresh},
+		Docker:      stubDocker{},
+		Download:    &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		DryRun:      true,
+		Out:         &out,
+	}
+	if err := RunPipeline(context.Background(), opts); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Errorf("dry run created %s", root)
+	}
+	if got := out.String(); !strings.Contains(got, "dry run: no file would be written") {
+		t.Errorf("report missing the header:\n%s", got)
+	}
+
+	// Every file a real run would write is reported, in order.
+	for _, path := range []string{
+		h.StateFile(),
+		h.ConfigYAML(),
+		h.CoreEnv(),
+		h.ServiceEnv("iac"),
+		h.ServiceEnv("notifications"),
+		h.ComposeOverride(),
+	} {
+		if !strings.Contains(out.String(), "==> "+path+" <==") {
+			t.Errorf("report does not mention %s", path)
+		}
+	}
+}
+
+// The preview must match the real run: same state, same env keys. A dry run
+// that shows something the real run would not write is worse than none.
+func TestDryRunPreviewMatchesTheRealRun(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "home")
+	h := home.Home{Root: root}
+	dl := &render.Download{Fetch: noFetch, Tag: "v1.0.0"}
+
+	var preview strings.Builder
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: stubDocker{},
+		Download: dl, DryRun: true, Out: &preview,
+	}); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: stubDocker{},
+		Download: dl,
+	}); err != nil {
+		t.Fatalf("real run: %v", err)
+	}
+
+	for _, path := range []string{h.ConfigYAML(), h.ComposeOverride()} {
+		written, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		// printSection indents every line by two spaces.
+		for _, line := range strings.Split(strings.TrimRight(string(written), "\n"), "\n") {
+			if !strings.Contains(preview.String(), "\n  "+line+"\n") {
+				t.Errorf("%s line %q is not in the preview", path, line)
+			}
+		}
+	}
+}
+
+// Keep writes nothing, so the report says so instead of listing files.
+func TestDryRunInKeepModeReportsNothingToWrite(t *testing.T) {
+	h, _ := install(t)
+	var out strings.Builder
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep}, Docker: stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		DryRun:   true,
+		Out:      &out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if !strings.Contains(out.String(), "nothing would be written") {
+		t.Errorf("report = %q", out.String())
+	}
 }

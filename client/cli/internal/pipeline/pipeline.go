@@ -15,6 +15,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
@@ -60,13 +61,28 @@ type Options struct {
 	// the --host-certs flag; off by default, as the default root directory does
 	// not exist on a normal network.
 	HostCerts bool
+
+	// DryRun prints the files the run would write to Out and writes nothing.
+	// Set by the --dry-run flag.
+	DryRun bool
+
+	// Out receives the dry-run report. nil discards it.
+	Out io.Writer
 }
 
 // RunPipeline executes the pipeline top to bottom. Every step is idempotent, so a
 // failed run is fixed by running it again. ctx comes from the caller (Cobra's
 // command context), so an interrupt aborts the network steps and a foreground
 // `docker compose up`.
+//
+// With opts.DryRun nothing is written: no directory, no pointer, no file, no
+// container. The same wizard runs and the files it would write are printed to
+// opts.Out, so a run can be inspected without touching the install.
 func RunPipeline(ctx context.Context, opts Options) error {
+	if opts.DryRun {
+		return dryRun(ctx, opts)
+	}
+
 	// 1. Ensure the directory skeleton exists.
 	if err := opts.Home.Ensure(); err != nil {
 		return err
@@ -77,10 +93,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	dl := opts.Download
-	if dl == nil {
-		dl = &render.Download{Fetch: (&source.Fetcher{}).Fetch, Tag: buildinfo.KumossTag()}
-	}
+	dl := opts.download()
 
 	// 2. Fetch the compose file into src/. Skipped when it already exists: it
 	// may have been hand-edited, and every later step is idempotent anyway.
@@ -123,6 +136,13 @@ func RunPipeline(ctx context.Context, opts Options) error {
 	// 6. Write the two YAML files. ModeKeep writes neither: it keeps every file
 	// as-is, which is what "Keep it as is" promises.
 	if mode != tui.ModeKeep {
+		// The notifications service refuses to boot without a webhook, so an
+		// enabled flag without one would break the stack on start. Downgrade
+		// instead, with the one warning that says why.
+		if s.Notifications.Enabled && s.Notifications.SlackWebhookURL == "" {
+			s.Notifications.Enabled = false
+			warn(opts.Warn, "notifications disabled: no Slack webhook URL given")
+		}
 		if err := state.Save(opts.Home.StateFile(), s); err != nil {
 			return err
 		}
@@ -221,6 +241,128 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
+	return nil
+}
+
+// download returns the fetcher for the repo files: the injected one, or the real
+// fetcher at the release tag.
+func (o Options) download() *render.Download {
+	if o.Download != nil {
+		return o.Download
+	}
+	return &render.Download{Fetch: (&source.Fetcher{}).Fetch, Tag: buildinfo.KumossTag()}
+}
+
+// dryRun is RunPipeline with every write replaced by a report. It runs the same
+// wizard on the same state, so the answers and the fetched defaults are
+// identical to a real run; only the side effects differ. The state file is read
+// when present, so an existing install previews a reconfigure.
+func dryRun(ctx context.Context, opts Options) error {
+	dl := opts.download()
+	out := opts.Out
+	if out == nil {
+		out = io.Discard
+	}
+
+	s := &state.State{SchemaVersion: 1}
+	mode := tui.ModeFresh
+	exists, err := state.StateFileExist(opts.Home.StateFile())
+	if err != nil {
+		return err
+	}
+	if exists {
+		if s, err = state.Load(opts.Home.StateFile()); err != nil {
+			return err
+		}
+		if mode, err = opts.UI.SelectStateAction(); err != nil {
+			return err
+		}
+	}
+
+	samples, err := render.FetchSamples(ctx, dl)
+	if err != nil {
+		warn(opts.Warn, "could not fetch the env samples (%v); falling back to the built-in key list. Review the generated .env files against core/env.sample and services/*/env.sample in the repo, or the documentation.", err)
+	}
+	if err := opts.UI.Configure(mode, s); err != nil {
+		return err
+	}
+	if mode == tui.ModeKeep {
+		// Keep writes nothing, so there is nothing to preview.
+		_, err := fmt.Fprintf(out, "dry run: keeping %s as is; nothing would be written\n", opts.Home.StateFile())
+		return err
+	}
+
+	// The same gate as the real run, or the preview would show a stack that
+	// cannot start.
+	if s.Notifications.Enabled && s.Notifications.SlackWebhookURL == "" {
+		s.Notifications.Enabled = false
+		warn(opts.Warn, "notifications disabled: no Slack webhook URL given")
+	}
+
+	raw, err := dl.File(ctx, "config.yaml")
+	if err != nil {
+		return err
+	}
+	config, err := render.RenderConfig(raw, s)
+	if err != nil {
+		return err
+	}
+
+	paths := envPaths(opts.Home)
+	existing, found := render.LoadSecrets(paths)
+	var rotate []string
+	if found {
+		if rotate, err = opts.UI.RotateSecrets(existingSecretList(existing)); err != nil {
+			return err
+		}
+	}
+	render.Fill(s, existing, rotate)
+	env := &render.Env{Samples: samples}
+	if samples != nil {
+		if env.Extra, err = opts.UI.ExtraVars(askList(samples, env.OwnedKeys(s))); err != nil {
+			return err
+		}
+	}
+
+	override, err := (&render.Compose{ConfigPath: "../config/config.yaml", HostCerts: opts.HostCerts}).Render()
+	if err != nil {
+		return err
+	}
+
+	// Secrets are generated onto s by Files, so print what was generated or the
+	// preview would show the run's real tokens redacted to nothing.
+	if _, err := fmt.Fprintf(out, "dry run: no file would be written under %s\n\n", opts.Home.Root); err != nil {
+		return err
+	}
+	stateYAML, err := state.Render(s)
+	if err != nil {
+		return err
+	}
+	if err := printSection(out, opts.Home.StateFile(), stateYAML); err != nil {
+		return err
+	}
+	if err := printSection(out, opts.Home.ConfigYAML(), config); err != nil {
+		return err
+	}
+	for _, path := range []string{paths.Core, paths.IAC, paths.Notifications} {
+		if err := printSection(out, path, render.RenderEnvFile(env.Files(paths, s)[path])); err != nil {
+			return err
+		}
+	}
+	return printSection(out, opts.Home.ComposeOverride(), override)
+}
+
+// printSection prints one would-be file: its path, then its content indented so
+// a multi-line file cannot be mistaken for the next path.
+func printSection(w io.Writer, path string, content []byte) error {
+	if _, err := fmt.Fprintf(w, "==> %s <==\n", path); err != nil {
+		return err
+	}
+	for line := range strings.SplitSeq(strings.TrimRight(string(content), "\n"), "\n") {
+		if _, err := fmt.Fprintf(w, "  %s\n", line); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

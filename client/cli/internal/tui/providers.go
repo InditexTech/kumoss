@@ -73,7 +73,7 @@ var llmProviders = []llmProvider{
 		DefaultModel: "openai/gpt-5", DefaultSmallModel: "openai/gpt-5-mini",
 		Credentials: []credential{
 			{"OPENAI_API_KEY", "OpenAI API key"},
-			{"OPENAI_API_BASE", "API base (blank = https://api.openai.com/v1)"},
+			{"OPENAI_API_BASE", "API base; blank means the default https://api.openai.com/v1. Point it at your server for LM Studio/LocalAI."},
 		},
 	},
 	{
@@ -120,21 +120,9 @@ var llmProviders = []llmProvider{
 		DefaultModel: "openai/your-model", DefaultSmallModel: "openai/your-small-model",
 		Credentials: []credential{
 			{"OPENAI_API_KEY", "API key (use a placeholder such as `none` if the server ignores it)"},
-			{"OPENAI_API_BASE", "Server base URL (http://<host>:<port>/v1)"},
+			{"OPENAI_API_BASE", "Server base URL, e.g. http://<host>:<port>/v1. Reconfiguring an openai/ model reopens this as OpenAI; the same variable."},
 		},
 	},
-}
-
-// llmProviderByName returns the provider row for a stored llm.model prefix, or
-// nil when the prefix is unknown (hand-edited config). Reconfigure uses it to
-// preselect the provider row and to name the credential fields.
-func llmProviderByName(prefix string) *llmProvider {
-	for i := range llmProviders {
-		if llmProviders[i].Prefix == prefix {
-			return &llmProviders[i]
-		}
-	}
-	return nil
 }
 
 // llmProviderOptions is the Select's option list: every known provider plus the
@@ -158,7 +146,10 @@ func providerAt(idx int) llmProvider {
 }
 
 // providerIndex returns the Select index preselecting the row matching prefix,
-// or the Other index (-1) when the prefix is unknown.
+// or the Other index (-1) when the prefix is unknown. openai covers both the
+// cloud API and any self-hosted OpenAI-compatible server (LM Studio, LocalAI,
+// vLLM), so the two rows share the prefix and the first wins: they write the
+// same OPENAI_* variables, only the hint text differs.
 func providerIndex(prefix string) int {
 	for i := range llmProviders {
 		if llmProviders[i].Prefix == prefix {

@@ -49,6 +49,18 @@ git:
   provider: "GITHUB"
   author_name: "Kumoss"
   author_email: "kumoss@noreply.invalid"
+services:
+  notifications:
+    enabled: true
+    endpoint: "http://notifications:8080"
+    token_env: "KUMOSS_NOTIFICATIONS_TOKEN"
+    timeout: 30.0
+  mapping:
+    enabled: false
+    endpoint: ""
+  iac:
+    endpoint: "http://iac:8082"
+    token_env: "KUMOSS_IAC_TOKEN"
 `
 
 func stubFetch(body string) func(context.Context, string, string) ([]byte, error) {
@@ -184,5 +196,61 @@ func TestRenderFetchError(t *testing.T) {
 	}
 	if err := c.Write(context.Background(), &state.State{}); err == nil {
 		t.Fatal("Render accepted a failed fetch")
+	}
+}
+
+// The tuning knobs come from the fetched config.yaml when the wizard never set
+// them. Writing a zero would make the core's pydantic model reject the file
+// (temperature has no 0 default, timeout must be positive).
+func TestConfigKeepsFetchedTuningKnobsWhenUnset(t *testing.T) {
+	raw := "llm:\n  model: repo/model\n  temperature: 0.2\n  max_output_tokens: 64000\n  timeout: 900\n"
+	out, err := RenderConfig([]byte(raw), &state.State{LLM: state.LLM{Model: "chosen/model"}})
+	if err != nil {
+		t.Fatalf("RenderConfig: %v", err)
+	}
+
+	llm := configDoc(t, out)["llm"].(map[string]any)
+	if llm["model"] != "chosen/model" {
+		t.Errorf("model not overlaid: %v", llm["model"])
+	}
+	if llm["temperature"] != 0.2 {
+		t.Errorf("temperature = %v, want the fetched 0.2", llm["temperature"])
+	}
+	if llm["max_output_tokens"] != 64000 {
+		t.Errorf("max_output_tokens = %v, want the fetched 64000", llm["max_output_tokens"])
+	}
+	if llm["timeout"] != 900 {
+		t.Errorf("timeout = %v, want the fetched 900", llm["timeout"])
+	}
+}
+
+// An explicit answer still wins over the fetched value.
+func TestConfigAnswersOverrideFetchedTuningKnobs(t *testing.T) {
+	raw := "llm:\n  temperature: 0.2\n  max_output_tokens: 64000\n  timeout: 900\n"
+	s := &state.State{LLM: state.LLM{Temperature: 0.7, MaxOutputTokens: 1024, Timeout: 30}}
+	out, err := RenderConfig([]byte(raw), s)
+	if err != nil {
+		t.Fatalf("RenderConfig: %v", err)
+	}
+
+	llm := configDoc(t, out)["llm"].(map[string]any)
+	if llm["temperature"] != 0.7 || llm["max_output_tokens"] != 1024 || llm["timeout"] != 30 {
+		t.Errorf("answers did not win: %v", llm)
+	}
+}
+
+// With nothing fetched and nothing answered, the keys are omitted rather than
+// written as zeros: the core's defaults then apply.
+func TestConfigOmitsUnsetTuningKnobs(t *testing.T) {
+	out, err := RenderConfig([]byte("llm:\n  model: x\n"), &state.State{})
+	if err != nil {
+		t.Fatalf("RenderConfig: %v", err)
+	}
+
+	llm := configDoc(t, out)["llm"].(map[string]any)
+	for _, key := range []string{"temperature", "max_output_tokens", "timeout"} {
+		if _, ok := llm[key]; ok {
+			t.Errorf("%s written as %v, want omitted", key, llm[key])
+		}
 	}
 }
