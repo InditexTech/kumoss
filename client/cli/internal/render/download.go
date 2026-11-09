@@ -52,10 +52,29 @@ func (d *Download) Example(ctx context.Context, repoPath, example string) ([]byt
 	return raw, nil
 }
 
-// writeFile creates the parent directory then writes the bytes with mode.
+// writeFile creates the parent directory then writes the bytes with mode,
+// atomically: a temp file in the same directory, then a rename. A crash mid-write
+// would otherwise leave a truncated .env — the only copy of the stack's tokens.
 func writeFile(path string, data []byte, mode os.FileMode) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, mode)
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(path)+".*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name()) // no-op once the rename succeeded
+	if err := tmp.Chmod(mode); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }

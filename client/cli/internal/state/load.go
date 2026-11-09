@@ -6,6 +6,7 @@ package state
 
 import (
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -45,7 +46,25 @@ func Save(path string, s *State) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, raw, 0o600)
+	// Same temp-then-rename as render.writeFile, which is unexported: a torn
+	// kumoss.yaml would lose every non-secret answer.
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".kumoss.yaml.*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(tmp.Name())
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return err
+	}
+	if _, err := tmp.Write(raw); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmp.Name(), path)
 }
 
 // Render returns the bytes Save would write, without writing them, so a dry run
