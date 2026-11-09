@@ -322,7 +322,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "9.1.1"
+version = "9.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
@@ -331,9 +331,9 @@ dependencies = [
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/79/42/bb4641652e58dedeac2ec51abc1f8cae4fee4ec63899a0999016229a0f2a/pytest-9.2.0.tar.gz", hash = "sha256:97c4f3b1f3c7414aa36465e09b8220f1d03627993bd51b1282e193753c80557b", size = 1797555, upload-time = "2026-10-27T21:30:20.728Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
+    { url = "https://files.pythonhosted.org/packages/51/39/1f5d8c8877a0fa327db959c19341d4be61660de1ab6b7391f9eb805bcd67/pytest-9.2.0-py3-none-any.whl", hash = "sha256:07acdcf88ec174f907dc01af70bf52d49b014bbab03faeeade31c96b18c2e588", size = 411776, upload-time = "2026-10-27T21:30:19.131Z" },
 ]
 
 [[package]]
@@ -402,7 +402,7 @@ wheels = [
 
 [[package]]
 name = "schemathesis"
-version = "4.32.5"
+version = "4.33.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -419,9 +419,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "werkzeug" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/20/50/0149a7be4db5a5b7fab41e3781aabbee0e5f9d72ad57d87243b6db9fa627/schemathesis-4.32.5.tar.gz", hash = "sha256:641fddfef22120f263b60616935f125fa9b71bd32cb3175c6210f38e5ed1cb2f", size = 3805283, upload-time = "2026-10-25T23:01:17.5Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/23/1b/a8762062188992bf6c07396c40dedbe2a9ed600f09f600d23e3adfce1061/schemathesis-4.33.0.tar.gz", hash = "sha256:44b08505da5ae7f313562b63e6219559071327a0a33df9205424d5a54d839c88", size = 4017000, upload-time = "2026-11-01T17:16:38.385Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/52/cd/e603f5243e5016c960974b8f0c6105407bc18a20fed08af58c7466308c41/schemathesis-4.32.5-py3-none-any.whl", hash = "sha256:5ec7e532ebdf9b0e0239a943df2a565174aecda513b61e564d8ad2a3ac801f22", size = 1168235, upload-time = "2026-10-25T23:01:15.163Z" },
+    { url = "https://files.pythonhosted.org/packages/76/22/1738c60f79e5e40e21791909f266b10fc72827f649e00fd10b55f8e05d27/schemathesis-4.33.0-py3-none-any.whl", hash = "sha256:74474467b884a00b55d38dfd2abfba6053ce183b35ce05a8fac20547be09fe36", size = 1255212, upload-time = "2026-11-01T17:16:36.256Z" },
 ]
 
 [[package]]
