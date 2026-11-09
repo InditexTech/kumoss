@@ -28,3 +28,9 @@ class RequestFilterException(ExceptionHandler):
     """Raised when the request filter service has flagged a query as incorrect"""
 
     pass
+
+
+class ManifestReadError(ExceptionHandler):
+    """Raised when the manifest couldn't be read or loaded"""
+
+    pass
