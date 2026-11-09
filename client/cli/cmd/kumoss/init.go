@@ -12,6 +12,7 @@ import (
 )
 
 func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
+	var dryRun bool
 	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Install or reconfigure the Kumoss stack, and run it if desired",
@@ -25,22 +26,29 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			"reconfigure or keep, and running again fixes a failed run.\n\n" +
 			"Finally it offers to pull the missing images and start the stack. That is\n" +
 			"detached (`docker compose up -d`) unless --foreground is given, which\n" +
-			"streams the logs until Ctrl-C also stops the stack.",
+			"streams the logs until Ctrl-C also stops the stack.\n\n" +
+			"With --dry-run the same questions are asked but nothing is written: no\n" +
+			"directory, no file, no container. The files a real run would write are\n" +
+			"printed instead, so a run can be reviewed before it touches the machine.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return pipeline.RunPipeline(cmd.Context(), pipeline.Options{
 				Home:        flags.Home,
 				PersistHome: flags.HomeOverride != "",
 				Foreground:  flags.Foreground,
 				HostCerts:   flags.HostCerts,
+				DryRun:      dryRun,
 				UI: &tui.Wizard{
 					In:         cmd.InOrStdin(),
 					Out:        cmd.OutOrStdout(),
 					Accessible: false,
 				},
+				Out:  cmd.OutOrStdout(),
 				Warn: cmd.ErrOrStderr(),
 			})
 		},
 	}
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false,
+		"ask everything, write nothing: print the files a real run would write")
 	root.AddCommand(cmd)
 	flags.RegisterHome(cmd)
 	flags.RegisterInit(cmd)

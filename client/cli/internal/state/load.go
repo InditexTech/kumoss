@@ -41,9 +41,15 @@ func Load(path string) (*State, error) {
 // file never carries a secret. Written 0600: it is configuration, not a secret,
 // but it names the buckets and providers of this install.
 func Save(path string, s *State) error {
-	raw, err := yaml.Marshal(s)
+	raw, err := Render(s)
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(path, raw, 0o600)
+}
+
+// Render returns the bytes Save would write, without writing them, so a dry run
+// shows exactly what would land on disk.
+func Render(s *State) ([]byte, error) {
+	return yaml.Marshal(s)
 }

@@ -58,6 +58,16 @@ const containerCADir = "/usr/local/share/ca-certificates/host"
 // Write writes the override. It is a whole-file write, so a hand-edited
 // override is replaced: the file is generated, not user state.
 func (c *Compose) Write() error {
+	out, err := c.Render()
+	if err != nil {
+		return err
+	}
+	return writeFile(c.Path, out, 0o644)
+}
+
+// Render returns the override's bytes without writing them, so `init --dry-run`
+// shows exactly what Write would put on disk.
+func (c *Compose) Render() ([]byte, error) {
 	core := map[string]any{
 		"volumes": []string{c.ConfigPath + ":" + ContainerConfigPath + ":ro"},
 		// SystemConfig.load reads this before falling back to its default
@@ -82,9 +92,9 @@ func (c *Compose) Write() error {
 	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
-		return fmt.Errorf("marshal compose override: %w", err)
+		return nil, fmt.Errorf("marshal compose override: %w", err)
 	}
-	return writeFile(c.Path, out, 0o644)
+	return out, nil
 }
 
 // hostCA is the shared CA block: the roots at build time (the images fetch
