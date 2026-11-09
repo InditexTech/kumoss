@@ -52,9 +52,9 @@ your platform team configured.
   xref:main:reference/repository-layout.adoc#terraform-roots[Repository
   layout]). This is the step that takes a few seconds ("Resolving
   repository...").
-. *"Which IaC path?"* If the repository has more than one Terraform root,
+. *"Which root module?"* If the repository has more than one Terraform root,
   pick the directory to work in. With exactly one root this step is
-  skipped. If none is found you see "No IaC paths found in this
+  skipped. If none is found you see "No root modules found in this
   repository. Please check the repository and try again." — usually
   because the `.tf` files are not committed on the default branch or live
   under a `modules` or `examples` directory. Top-level `.tf` files are
@@ -78,7 +78,7 @@ your platform team configured.
   directly.
 . *Permissions check.* Kumoss asks your organization's authorization
   service whether you may work there, sending the cloud, the repository
-  URL, and the IaC path — not the scope you just typed ("Checking
+  URL, and the root module path — not the scope you just typed ("Checking
   permissions on ..."). If the answer is no, the reason is shown with two
   buttons: *Try again* (back to the scope) and *Start over*. In a
   deployment that has not connected such a service, which is the shipped

@@ -5,14 +5,14 @@
 from .file_system import FileSystemUtils
 from .git.git_credentials import configure_git_credentials
 from .git.git_utils import GitUtils
-from .iac_root_detector import IacRootDetector
+from .root_module_detector import RootModuleDetector
 from .workspace import RepositoryUnreachable, WorkspaceService
 
 __all__ = [
     "FileSystemUtils",
     "GitUtils",
-    "IacRootDetector",
     "RepositoryUnreachable",
+    "RootModuleDetector",
     "WorkspaceService",
     "configure_git_credentials",
 ]

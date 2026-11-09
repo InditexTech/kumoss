@@ -140,12 +140,12 @@ export const STRINGS = {
     startOver: "Start over",
     ariaQuery: "Describe your infrastructure request",
     ariaRepositoryUrl: "Repository URL",
-    ariaIacPath: "IaC path",
+    ariaRootModulePath: "Root module path",
     ariaProvider: "Cloud provider",
     ariaScope: "Cloud scope",
     promptQuery: "What do you need?",
     promptRepository: "What is the repository URL?",
-    promptIacPath: "Which IaC path?",
+    promptRootModulePath: "Which root module?",
     promptProvider: "Which cloud provider?",
     promptScope: "What is the cloud scope?",
     placeholderQuery: "Type your request...",
@@ -185,9 +185,9 @@ export const STRINGS = {
       },
     },
     resolveError: "Could not resolve repository. Please try again.",
-    scanError: "Could not scan repository for IaC paths. Please try again.",
-    noIacPaths:
-      "No IaC paths found in this repository. Please check the repository and try again.",
+    scanError: "Could not scan repository for root modules. Please try again.",
+    noRootModulePaths:
+      "No root modules found in this repository. Please check the repository and try again.",
   },
 
   sessions: {

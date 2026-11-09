@@ -119,7 +119,7 @@ class _RoundBase(unittest.IsolatedAsyncioTestCase):
             scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
         self.round_id = await DatabaseService.create_round(self.sid, "add a vnet")
 

@@ -35,7 +35,7 @@ export interface ModeActionParams {
   repoUri?: string;
   terraformProviders?: TerraformProvider;
   scopeId?: string;
-  iacPath?: string;
+  rootModulePath?: string;
   sessionId?: string;
 }
 
@@ -83,7 +83,7 @@ export async function runTerraformActionWorkflow(
         q: params.query,
         terraform_providers: params.terraformProviders,
         scope_id: params.scopeId,
-        iac_path: params.iacPath ?? null,
+        root_module_path: params.rootModulePath ?? null,
       };
 
   switch (params.mode) {

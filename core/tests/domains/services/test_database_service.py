@@ -58,7 +58,7 @@ class _SessionBase(unittest.IsolatedAsyncioTestCase):
             scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
 
     async def asyncTearDown(self):
@@ -106,7 +106,7 @@ class TestSessionContextFreshness(_SessionBase):
         self.assertEqual(ctx.scope_id, "sub-123")
         self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
         self.assertEqual(ctx.branch_name, "Kumoss/x")
-        self.assertEqual(ctx.iac_path, "infra")
+        self.assertEqual(ctx.root_module_path, "infra")
         self.assertEqual(len(ctx.history), 0)
 
         # Second read is served from the cache and must agree.
@@ -135,7 +135,7 @@ class TestSessionContextFreshness(_SessionBase):
             scope_id="sub-456",
             branch_name="Kumoss/y",
             query="another one",
-            iac_path="infra",
+            root_module_path="infra",
         )
 
         ctx = await DatabaseService.get_session_context(self.sid)

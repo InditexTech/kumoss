@@ -86,7 +86,7 @@ another generate round that passes cleanly clears the lock.
 == Example
 
 Repository `\https://git.example.invalid/platform/demo-iac.git`, cloud
-`aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a
+`aws`, scope `123456789012`, root module path `envs/dev`. Request: "Create a
 private S3 bucket named `demo-platform-logs` with versioning and default
 encryption for application logs." The round produces `s3_logs.tf` on
 branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a

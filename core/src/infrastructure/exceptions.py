@@ -153,8 +153,8 @@ class RepositoryUnreachable(ExceptionHandler):
         )
 
 
-class InvalidIacPath(ExceptionHandler):
-    """Raised when the IaC root does not resolve to a directory inside the clone."""
+class InvalidRootModulePath(ExceptionHandler):
+    """Raised when the root module does not resolve to a directory inside the clone."""
 
     pass
 

@@ -44,7 +44,7 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
         self.client = AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"

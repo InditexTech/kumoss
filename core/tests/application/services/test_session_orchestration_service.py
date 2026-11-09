@@ -41,7 +41,7 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
             "repo_uri": "https://example.com/foo.git",
             "terraform_providers": "azure",
             "scope_id": "sub-123",
-            "iac_path": "infra",
+            "root_module_path": "infra",
             "q": "hi",
         }
         payload.update(overrides)
@@ -67,14 +67,14 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx2.repo_uri, "https://example.com/foo.git")
         self.assertEqual(ctx2.branch_name, ctx1.branch_name)
 
-    async def test_iac_path_persisted_and_loaded(self):
+    async def test_root_module_path_persisted_and_loaded(self):
         ctx1 = await self.svc.resolve(
-            self._first_request(iac_path="environments/dev"),
+            self._first_request(root_module_path="environments/dev"),
             OperationType.GENERATE,
             self.user_pk,
         )
-        self.assertEqual(ctx1.iac_path, "environments/dev")
+        self.assertEqual(ctx1.root_module_path, "environments/dev")
 
         iter_req = GenerateRequest(session_id=str(ctx1.id), q="iterate")
         ctx2 = await self.svc.resolve(iter_req)
-        self.assertEqual(ctx2.iac_path, "environments/dev")
+        self.assertEqual(ctx2.root_module_path, "environments/dev")

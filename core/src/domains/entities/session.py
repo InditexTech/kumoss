@@ -21,7 +21,7 @@ class SessionContext:
         scope_id: str,
         terraform_prv: TerraformProvider,
         branch_name: str,
-        iac_path: str,
+        root_module_path: str,
         operation_type: OperationType,
         history: list[dict[str, str]],
         chat_history: list[dict[str, str]],
@@ -33,7 +33,7 @@ class SessionContext:
         self.__scope_id = scope_id
         self.__terraform_prv = terraform_prv
         self.__branch_name = branch_name
-        self.__iac_path = iac_path
+        self.__root_module_path = root_module_path
         self.__operation = operation_type
         self.__history: History = History(history)
         self.__chat_history: History = History(chat_history)
@@ -71,8 +71,8 @@ class SessionContext:
         return self.__branch_name
 
     @property
-    def iac_path(self) -> str:
-        return self.__iac_path
+    def root_module_path(self) -> str:
+        return self.__root_module_path
 
     @property
     def operation(self) -> OperationType:

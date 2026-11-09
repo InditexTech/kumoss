@@ -48,7 +48,7 @@ def _make_tracer(**overrides) -> PhoenixTracer:
         user_id="test-user",
         cloud=TerraformProvider.AZURE,
         repo_uri="https://example.com/repo.git",
-        iac_path="/workspaces/test",
+        root_module_path="/workspaces/test",
         operation=OperationType.GENERATE,
         branch_name="feat/test",
     )

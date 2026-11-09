@@ -43,7 +43,7 @@ class PhoenixTracer(ITracer):
         user_id: str,
         cloud: TerraformProvider,
         repo_uri: str,
-        iac_path: str,
+        root_module_path: str,
         operation: OperationType,
         branch_name: str,
     ):
@@ -61,7 +61,7 @@ class PhoenixTracer(ITracer):
         self.__user_id: str = user_id
         self.__terraform_prv: TerraformProvider = cloud
         self.__repo_uri: str = repo_uri
-        self.__iac_path: str = iac_path
+        self.__root_module_path: str = root_module_path
         self.__branch_name: str = branch_name
         self.__root_context: Context | None = None
 
@@ -83,7 +83,7 @@ class PhoenixTracer(ITracer):
                     "user_id": self.__user_id,
                     "cloud": self.__terraform_prv.name,
                     "repo_uri": self.__repo_uri,
-                    "iac_path": self.__iac_path,
+                    "root_module_path": self.__root_module_path,
                     "branch_name": self.__branch_name,
                     **kwargs,
                 }

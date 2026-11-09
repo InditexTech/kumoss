@@ -297,7 +297,7 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
 
     @patch("src.infrastructure.external.authz_service.evaluate_op")
     @patch("src.infrastructure.external.authz_service.system_config")
-    async def test_evaluate_omits_iac_path_when_none(self, mock_cfg, mock_eval):
+    async def test_evaluate_omits_root_module_path_when_none(self, mock_cfg, mock_eval):
         from src.clients.authz.types import UNSET
 
         mock_cfg.services.authz = _mock_authz_config(enabled=True)
@@ -310,7 +310,7 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
             _claims(),
             ActionName.GENERATE,
             **_evaluate_args(),
-            iac_path=None,
+            root_module_path=None,
         )
         request = mock_eval.asyncio.call_args.kwargs["body"]
-        self.assertIs(request.resource.properties.iac_path, UNSET)
+        self.assertIs(request.resource.properties.root_module_path, UNSET)

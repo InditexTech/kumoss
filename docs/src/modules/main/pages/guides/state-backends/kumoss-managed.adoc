@@ -304,7 +304,7 @@ State is keyed by *project*, not by session or directory:
 . the *normalized repository URI*, as `host/path`
 . the *cloud scope* (`scope_id` — subscription, project, or account),
   trimmed and lowercased
-. the *normalized root-module path* within the repository (`iac_path`)
+. the *normalized root-module path* within the repository (`root_module_path`)
 
 Normalization means two spellings of the same project never split into
 two states: the repository URI is lowercased, loses a `.git` suffix
@@ -322,12 +322,12 @@ rejects every other scheme.
 |`HTTPS://GitHub.com/Acme/Infra.git`
 |===
 
-An empty `iac_path` is a valid project — the root module is the
+An empty `root_module_path` is a valid project — the root module is the
 repository root. The path comes from the root detection described in
 xref:main:reference/repository-layout.adoc#terraform-roots[Repository
 layout]; note that the web application sends `.` for a
 repository whose Terraform files are at the top level, while an API call
-that omits `iac_path` sends an empty value, and the two are hashed as
+that omits `root_module_path` sends an empty value, and the two are hashed as
 different projects. Because all three inputs matter, a change to *any*
 of them is a different project and therefore a different state file.
 

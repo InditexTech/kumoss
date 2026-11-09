@@ -68,7 +68,7 @@ class AuthzServiceClient:
         scope_id: str,
         provider: TerraformProvider,
         repo_uri: str,
-        iac_path: str | None = None,
+        root_module_path: str | None = None,
     ) -> AuthzDecision:
         cfg = system_config.services.authz
         if not cfg.enabled:
@@ -91,7 +91,7 @@ class AuthzServiceClient:
         resource_props = ResourceProperties(
             provider=ResourcePropertiesProvider(provider.value),
             repo_uri=repo_uri,
-            iac_path=iac_path if iac_path else UNSET,
+            root_module_path=root_module_path if root_module_path else UNSET,
         )
 
         request = AccessEvaluationRequest(

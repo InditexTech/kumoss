@@ -17,7 +17,7 @@ import type { WizardData } from "./useWizardNavigation";
 export function nextStep(data: WizardData): WizardStep | "complete" {
   if (!data.query) return "query";
   if (!data.repositoryUrl) return "repository_url";
-  if (!data.iacPath) return "iac_path";
+  if (!data.rootModulePath) return "root_module_path";
   if (!data.provider) return "provider";
   if (!data.scope) return "scope";
   return "complete";

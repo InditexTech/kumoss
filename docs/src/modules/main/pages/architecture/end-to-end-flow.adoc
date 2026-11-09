@@ -25,7 +25,7 @@ Messages 1 to 13; the diagram also covers phases 3 and 4.
 |Request
 |The wizard posts repository URL, target cloud, scope id, optional IaC
 path and request text to `POST /api/v1/iac/generate` with a bearer
-token. The IaC path is one of the Terraform roots
+token. The root module path is one of the Terraform roots
 `POST /api/v1/repository/parse` found in a metadata-only clone
 (a `git ls-tree` heuristic over `.tf` directories).
 
@@ -568,13 +568,13 @@ model as a failed result. Every result reaches the model as JSON,
 |===
 
 *Workspace confinement.* The agents' working directory is the session's
-IaC root: the clone plus `iac_path`, with symlinks resolved. The root must
+Root module: the clone plus `root_module_path`, with symlinks resolved. The root must
 be an existing directory inside the clone, or the run fails with `runner
-failed: iac_path '<path>' is not a directory inside the repository` before
+failed: root_module_path '<path>' is not a directory inside the repository` before
 any agent starts, so a committed link cannot widen the tools' reach.
 Within it:
 
-* Tool paths are relative to the IaC root. An absolute path is accepted
+* Tool paths are relative to the root module. An absolute path is accepted
   only when it points inside the root; anything that resolves outside it,
   through `..` or a symlink, is rejected.
 * The entries Kumoss manages are invisible to the tools at any depth:

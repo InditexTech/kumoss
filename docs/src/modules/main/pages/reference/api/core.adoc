@@ -192,20 +192,21 @@ cloud scope, so any stable identifier does.
 |required
 |Which cloud the operation targets.
 
-|`iac_path`
+|`root_module_path`
 |optional
-|Repository-relative path to the IaC root, for example
+|Repository-relative path to the root module, for example
 `environments/dev`. Defaults to the repository root. An absolute path
 or one containing a `..` segment is rejected. After the clone, the path
 must resolve, symlinks included, to an existing directory inside the
-repository, or the session ends `FAILED` with `runner failed: iac_path
+repository, or the session ends `FAILED` with `runner failed: root_module_path
 '<path>' is not a directory inside the repository`. First call only —
-iteration calls inherit it from the session.
+iteration calls inherit it from the session. The former name `iac_path`
+is still accepted as a deprecated alias; prefer `root_module_path`.
 
 |`session_id`
 |omit
 |On an iteration call, the session to continue. Only `q` may accompany
-it; `iac_path` in particular is rejected.
+it; `root_module_path` in particular is rejected.
 
 |`is_partial`
 |optional

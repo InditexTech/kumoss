@@ -97,7 +97,7 @@ reachable or access was denied." whatever the cause, and the exact git
 error is only in the core log.
 ====
 
-.Why does Kumoss say it found no IaC paths?
+.Why does Kumoss say it found no root module paths?
 [%collapsible]
 ====
 It only sees files committed on the repository's default branch, and
@@ -109,7 +109,7 @@ xref:main:reference/repository-layout.adoc#terraform-roots[Repository
 layout].
 ====
 
-.Why is my directory not offered as an IaC path?
+.Why is my directory not offered as an root module path?
 [%collapsible]
 ====
 Either it sits under an excluded directory name, or it is nested
@@ -358,7 +358,7 @@ repository.
 The identity your platform team configured for the execution engine,
 never yours. Your deployment can also plug in an external
 authorization service that is asked, at the start of each session,
-whether you may work on that cloud, repository, and IaC path; in the
+whether you may work on that cloud, repository, and root module path; in the
 shipped configuration that service is switched off and no such check
 runs.
 ====

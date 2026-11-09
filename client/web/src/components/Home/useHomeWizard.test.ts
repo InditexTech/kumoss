@@ -128,7 +128,7 @@ describe("useHomeWizard orchestrator", () => {
     expect(result.current.step).toBe("query");
   });
 
-  it("handlePath sets iacPath and advances to provider", async () => {
+  it("handlePath sets rootModulePath and advances to provider", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
       identifier: "https://dev.azure.com/org/repo",
@@ -157,7 +157,7 @@ describe("useHomeWizard orchestrator", () => {
     });
 
     expect(result.current.wizard.step).toBe("provider");
-    expect(result.current.wizard.data.iacPath).toBe("environments/dev");
+    expect(result.current.wizard.data.rootModulePath).toBe("environments/dev");
     expect(result.current.session.session.workspace?.root_path).toBe(
       "environments/dev",
     );
@@ -214,7 +214,7 @@ describe("useHomeWizard orchestrator", () => {
       repositoryUrl: "",
       provider: "",
       scope: "",
-      iacPath: "",
+      rootModulePath: "",
     });
     expect(result.current.scanPaths).toEqual([]);
     expect(result.current.isLoading).toBe(false);
@@ -262,7 +262,7 @@ describe("useHomeWizard — repository resolution", () => {
     mockMapperErrorValue.mockReturnValue(null);
   });
 
-  it("single IaC path auto-advances to provider", async () => {
+  it("single root module path auto-advances to provider", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
       identifier: "https://dev.azure.com/org/repo",
@@ -281,14 +281,14 @@ describe("useHomeWizard — repository resolution", () => {
 
     expect(result.current.wizard.step).toBe("provider");
     expect(result.current.wizard.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
-    expect(result.current.wizard.data.iacPath).toBe("environments/dev");
+    expect(result.current.wizard.data.rootModulePath).toBe("environments/dev");
     expect(result.current.session.session.workspace).toEqual({
       uri: "https://dev.azure.com/org/repo",
       root_path: "environments/dev",
     });
   });
 
-  it("multiple IaC paths go to iac_path step", async () => {
+  it("multiple root module paths go to root_module_path step", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
       identifier: "https://dev.azure.com/org/repo",
@@ -302,10 +302,10 @@ describe("useHomeWizard — repository resolution", () => {
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
 
-    expect(result.current.step).toBe("iac_path");
+    expect(result.current.step).toBe("root_module_path");
   });
 
-  it("zero IaC paths sets mapper error", async () => {
+  it("zero root module paths sets mapper error", async () => {
     mockResolveAndScan.mockResolvedValueOnce({
       repoUrl: "https://dev.azure.com/org/repo",
       identifier: "https://dev.azure.com/org/repo",
@@ -394,7 +394,7 @@ describe("useHomeWizard — repository resolution", () => {
         terraformProviders: "azure",
         scopeId: "sub-from-catalogue",
         mode: "generate",
-        iacPath: "environments/dev",
+        rootModulePath: "environments/dev",
       },
       mockHandleOutcome,
     );
@@ -416,7 +416,7 @@ describe("useHomeWizard — repository resolution", () => {
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("my-project"); });
 
-    expect(result.current.step).toBe("iac_path");
+    expect(result.current.step).toBe("root_module_path");
     expect(mockTerraformRun).not.toHaveBeenCalled();
 
     act(() => { result.current.handlePath("environments/pro"); });
@@ -428,7 +428,7 @@ describe("useHomeWizard — repository resolution", () => {
         terraformProviders: "azure",
         scopeId: "sub-from-catalogue",
         mode: "generate",
-        iacPath: "environments/pro",
+        rootModulePath: "environments/pro",
       },
       mockHandleOutcome,
     );
@@ -500,7 +500,7 @@ describe("useHomeWizard — terraform orchestration", () => {
         terraformProviders: "azure",
         scopeId: "sub-123",
         mode: "generate",
-        iacPath: "environments/dev",
+        rootModulePath: "environments/dev",
       },
       mockHandleOutcome,
     );
@@ -747,7 +747,7 @@ describe("useHomeWizard — retry", () => {
   });
 
   it("retry with mapper error resets to repository_url", async () => {
-    mockMapperErrorValue.mockReturnValue("No IaC paths found");
+    mockMapperErrorValue.mockReturnValue("No root modules found");
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
@@ -798,7 +798,7 @@ describe("useHomeWizard — restart", () => {
     expect(result.current.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
     expect(result.current.data.provider).toBe("azure");
     expect(result.current.data.scope).toBe("sub-from-catalogue");
-    expect(result.current.data.iacPath).toBe("environments/dev");
+    expect(result.current.data.rootModulePath).toBe("environments/dev");
 
     act(() => { result.current.restart(); });
 
@@ -807,7 +807,7 @@ describe("useHomeWizard — restart", () => {
     expect(result.current.data.repositoryUrl).toBe("");
     expect(result.current.data.provider).toBe("");
     expect(result.current.data.scope).toBe("");
-    expect(result.current.data.iacPath).toBe("");
+    expect(result.current.data.rootModulePath).toBe("");
     expect(mockResetMapper).toHaveBeenCalled();
     expect(mockTerraformReset).toHaveBeenCalled();
   });
@@ -894,7 +894,7 @@ describe("useHomeWizard — clear requested from outside", () => {
       repositoryUrl: "",
       provider: "",
       scope: "",
-      iacPath: "",
+      rootModulePath: "",
     });
     expect(mockResetMapper).toHaveBeenCalled();
     expect(mockTerraformReset).toHaveBeenCalled();

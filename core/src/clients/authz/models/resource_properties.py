@@ -22,12 +22,12 @@ class ResourceProperties:
     Attributes:
         provider (ResourcePropertiesProvider | Unset):
         repo_uri (str | Unset):
-        iac_path (str | Unset):
+        root_module_path (str | Unset):
     """
 
     provider: ResourcePropertiesProvider | Unset = UNSET
     repo_uri: str | Unset = UNSET
-    iac_path: str | Unset = UNSET
+    root_module_path: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -37,7 +37,7 @@ class ResourceProperties:
 
         repo_uri = self.repo_uri
 
-        iac_path = self.iac_path
+        root_module_path = self.root_module_path
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -46,8 +46,8 @@ class ResourceProperties:
             field_dict["provider"] = provider
         if repo_uri is not UNSET:
             field_dict["repo_uri"] = repo_uri
-        if iac_path is not UNSET:
-            field_dict["iac_path"] = iac_path
+        if root_module_path is not UNSET:
+            field_dict["root_module_path"] = root_module_path
 
         return field_dict
 
@@ -63,12 +63,12 @@ class ResourceProperties:
 
         repo_uri = d.pop("repo_uri", UNSET)
 
-        iac_path = d.pop("iac_path", UNSET)
+        root_module_path = d.pop("root_module_path", UNSET)
 
         resource_properties = cls(
             provider=provider,
             repo_uri=repo_uri,
-            iac_path=iac_path,
+            root_module_path=root_module_path,
         )
 
         resource_properties.additional_properties = d

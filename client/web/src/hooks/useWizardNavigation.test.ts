@@ -17,7 +17,7 @@ describe("useWizardNavigation", () => {
       repositoryUrl: "",
       provider: "",
       scope: "",
-      iacPath: "",
+      rootModulePath: "",
     });
   });
 
@@ -68,11 +68,11 @@ describe("useWizardNavigation", () => {
       );
     });
 
-    it("returns iac_path prompt for iac_path step", () => {
+    it("returns root_module_path prompt for root_module_path step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("iac_path"));
+      act(() => result.current.setStep("root_module_path"));
       expect(result.current.promptMessage()).toBe(
-        STRINGS.wizard.promptIacPath,
+        STRINGS.wizard.promptRootModulePath,
       );
     });
 
@@ -121,9 +121,9 @@ describe("useWizardNavigation", () => {
       );
     });
 
-    it("returns empty string for iac_path step", () => {
+    it("returns empty string for root_module_path step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("iac_path"));
+      act(() => result.current.setStep("root_module_path"));
       expect(result.current.placeholder()).toBe("");
     });
 
@@ -164,7 +164,7 @@ describe("useWizardNavigation", () => {
         repositoryUrl: "https://repo.example.com",
         provider: "azure",
         scope: "sub-123",
-        iacPath: "environments/dev",
+        rootModulePath: "environments/dev",
       }));
     });
 
@@ -179,7 +179,7 @@ describe("useWizardNavigation", () => {
       repositoryUrl: "",
       provider: "",
       scope: "",
-      iacPath: "",
+      rootModulePath: "",
     });
   });
 });

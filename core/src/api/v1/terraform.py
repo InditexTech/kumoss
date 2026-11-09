@@ -82,7 +82,7 @@ async def _resolve_or_raise(
                 scope_id=request.scope_id,
                 provider=request.terraform_providers,
                 repo_uri=request.repo_uri,
-                iac_path=request.iac_path,
+                root_module_path=request.root_module_path,
             )
 
         ctx = await _orchestration.resolve(request, operation, user.id)
@@ -99,7 +99,7 @@ async def _resolve_or_raise(
                 scope_id=ctx.scope_id,
                 provider=ctx.terraform_prv,
                 repo_uri=ctx.repo_uri,
-                iac_path=ctx.iac_path,
+                root_module_path=ctx.root_module_path,
             )
         return ctx
     except ExceptionHandler as e:
@@ -133,7 +133,7 @@ def _make_runner(
                 branch_name=ctx.branch_name,
                 cloud=ctx.terraform_prv,
                 repo_uri=ctx.repo_uri,
-                iac_path=ctx.iac_path,
+                root_module_path=ctx.root_module_path,
                 operation=ctx.operation,
             )
         )
@@ -143,7 +143,7 @@ def _make_runner(
                 repo_uri=ctx.repo_uri,
                 branch=ctx.branch_name,
             )
-            ctx.set_call_dir(_workspace.iac_root(call_dir, ctx.iac_path))
+            ctx.set_call_dir(_workspace.root_module_dir(call_dir, ctx.root_module_path))
             run_handler = await build_handler(ctx)
             await run_handler()
             last = await DatabaseService.get_last_status(ctx.id)

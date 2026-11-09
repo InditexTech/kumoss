@@ -10,7 +10,7 @@ from uuid import UUID
 from uuid import uuid4
 
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.infrastructure.exceptions import InvalidIacPath, RepositoryUnreachable
+from src.infrastructure.exceptions import InvalidRootModulePath, RepositoryUnreachable
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
@@ -96,12 +96,12 @@ class WorkspaceService(IWorkspace):
         return call_dir
 
     @override
-    def iac_root(self, call_dir: Path, iac_path: str | None) -> Path:
+    def root_module_dir(self, call_dir: Path, root_module_path: str | None) -> Path:
         clone = call_dir.resolve()
-        root = (clone / (iac_path or "")).resolve()
+        root = (clone / (root_module_path or "")).resolve()
         if not root.is_relative_to(clone) or not root.is_dir():
-            raise InvalidIacPath(
-                message=f"iac_path '{iac_path}' is not a directory inside the repository",
+            raise InvalidRootModulePath(
+                message=f"root_module_path '{root_module_path}' is not a directory inside the repository",
                 error_code=400,
             )
         return root

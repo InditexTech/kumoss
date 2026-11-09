@@ -82,7 +82,7 @@ class _GatingBase(unittest.IsolatedAsyncioTestCase):
             scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
         return user, sid
 

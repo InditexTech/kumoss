@@ -157,6 +157,48 @@ class TestGenerateRequest(unittest.TestCase):
         req = GenerateRequest(session_id=str(_SID), q="x")
         self.assertIsNone(req.repo_uri)
 
+    def test_accepts_root_module_path(self):
+        req = GenerateRequest.model_validate(
+            {
+                "repo_uri": "https://example.com/foo.git",
+                "terraform_providers": "azure",
+                "scope_id": "sub-123",
+                "q": "x",
+                "root_module_path": "environments/dev",
+            }
+        )
+        self.assertEqual(req.root_module_path, "environments/dev")
+
+    def test_accepts_deprecated_iac_path_alias(self):
+        req = GenerateRequest.model_validate(
+            {
+                "repo_uri": "https://example.com/foo.git",
+                "terraform_providers": "azure",
+                "scope_id": "sub-123",
+                "q": "x",
+                "iac_path": "environments/dev",
+            }
+        )
+        self.assertEqual(req.root_module_path, "environments/dev")
+
+    def test_deprecated_alias_is_still_validated(self):
+        with self.assertRaises(ValidationError):
+            GenerateRequest.model_validate(
+                {
+                    "repo_uri": "https://example.com/foo.git",
+                    "terraform_providers": "azure",
+                    "scope_id": "sub-123",
+                    "q": "x",
+                    "iac_path": "../escape",
+                }
+            )
+
+    def test_iteration_call_rejects_deprecated_alias_too(self):
+        with self.assertRaises(ValidationError):
+            GenerateRequest.model_validate(
+                {"session_id": str(_SID), "q": "x", "iac_path": "envs/dev"}
+            )
+
 
 class TestDriftRequest(unittest.TestCase):
     def test_drift_first_call(self):

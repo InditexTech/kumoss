@@ -11,7 +11,7 @@ const EMPTY: WizardData = {
   repositoryUrl: "",
   provider: "",
   scope: "",
-  iacPath: "",
+  rootModulePath: "",
 };
 
 const data = (patch: Partial<WizardData>): WizardData => ({ ...EMPTY, ...patch });
@@ -31,7 +31,7 @@ describe("nextStep — first missing input wins", () => {
         data({
           query: "deploy a VM",
           repositoryUrl: "https://git.example/iac.git",
-          iacPath: "environments/dev",
+          rootModulePath: "environments/dev",
           provider: "azure",
           scope: "sub-123",
         }),
@@ -56,7 +56,7 @@ describe("nextStep — the skip matrix after repository_url", () => {
     scope: string;
     expected: ReturnType<typeof nextStep>;
   }> = [
-    // Single IaC path: the wizard fills iacPath itself, so what the
+    // Single root module path: the wizard fills rootModulePath itself, so what the
     // mapper answered is all that is left to decide.
     {
       name: "single path, mapper answered neither",
@@ -86,34 +86,34 @@ describe("nextStep — the skip matrix after repository_url", () => {
       scope: "sub-123",
       expected: "complete",
     },
-    // Multi-path repos insert iac_path first, whatever the mapper said.
+    // Multi-path repos insert root_module_path first, whatever the mapper said.
     {
       name: "multi path, mapper answered neither",
       paths: 2,
       provider: "",
       scope: "",
-      expected: "iac_path",
+      expected: "root_module_path",
     },
     {
       name: "multi path, mapper answered provider only",
       paths: 2,
       provider: "azure",
       scope: "",
-      expected: "iac_path",
+      expected: "root_module_path",
     },
     {
       name: "multi path, mapper answered scope only",
       paths: 2,
       provider: "",
       scope: "sub-123",
-      expected: "iac_path",
+      expected: "root_module_path",
     },
     {
       name: "multi path, mapper answered both",
       paths: 2,
       provider: "azure",
       scope: "sub-123",
-      expected: "iac_path",
+      expected: "root_module_path",
     },
   ];
 
@@ -122,7 +122,7 @@ describe("nextStep — the skip matrix after repository_url", () => {
       nextStep(
         data({
           ...resolved,
-          iacPath: paths === 1 ? "environments/dev" : "",
+          rootModulePath: paths === 1 ? "environments/dev" : "",
           provider,
           scope: scope,
         }),
@@ -133,11 +133,11 @@ describe("nextStep — the skip matrix after repository_url", () => {
 
 // Once the path is chosen, a multi-path repo behaves like a single-path
 // one: the remaining steps are exactly the slots the mapper left empty.
-describe("nextStep — after iac_path is chosen", () => {
+describe("nextStep — after root_module_path is chosen", () => {
   const chosen = {
     query: "deploy a VM",
     repositoryUrl: "https://git.example/iac.git",
-    iacPath: "environments/pro",
+    rootModulePath: "environments/pro",
   };
 
   it.each([
@@ -164,7 +164,7 @@ describe("nextStep — a scope alone never completes the wizard", () => {
         data({
           query: "deploy a VM",
           repositoryUrl: "https://git.example/iac.git",
-          iacPath: "environments/dev",
+          rootModulePath: "environments/dev",
           scope: "ocid1.compartment.oc1..aaaa",
         }),
       ),

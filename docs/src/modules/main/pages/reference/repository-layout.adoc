@@ -3,7 +3,7 @@
 
 When a repository URL is entered, Kumoss looks inside it for the
 directories that hold Terraform-compatible code and offers them as the
-session's *IaC path*. This page is the complete reference for that
+session's *root module path*. This page is the complete reference for that
 detection.
 
 [#terraform-roots]
@@ -36,25 +36,25 @@ the temporary clone is deleted afterwards.
   `./`, so a repository with top-level `.tf` files *and* a qualifying
   `envs/dev/main.tf` offers both `.` and `envs/dev`.
 
-With no result the wizard shows "No IaC paths found in this
-repository."; with exactly one it skips the "Which IaC path?" step;
+With no result the wizard shows "No root modules found in this
+repository."; with exactly one it skips the "Which root module?" step;
 with several it asks the user to pick. The chosen path becomes the
-session's IaC path: it is fixed on the first request, the engine runs
+session's root module path: it is fixed on the first request, the engine runs
 `init`, `validate`, `plan`, and `apply` inside that directory, and it
 is one of the three inputs that identify the project's state when
 Kumoss manages state (see
 xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
 keys]). The web application offers only detected paths; API callers
-may pass any repository-relative `iac_path` that contains no `..`
+may pass any repository-relative `root_module_path` that contains no `..`
 segment and resolves, symlinks included, to an existing directory inside
-the repository; an omitted `iac_path` means the repository root. The
+the repository; an omitted `root_module_path` means the repository root. The
 agents' file tools are confined to that directory (see
 xref:main:architecture/end-to-end-flow.adoc#agent-tool-loop[Agent tool
 loop]).
 
 [cols="3,2,4",options="header"]
 |===
-|Repository files (default branch) |Offered IaC paths |Why
+|Repository files (default branch) |Offered root module paths |Why
 
 |`envs/dev/main.tf`, `envs/prod/main.tf`,
 `modules/network/vpc.tf`, `modules/network/examples/basic/main.tf`
@@ -86,7 +86,7 @@ qualifies.
 If a directory is missing from the offered list, check that its `.tf`
 files are committed on the default branch and that no parent directory
 is named `modules`, `examples`, `example`, or `.terraform`. The rules
-live in `core/src/infrastructure/filesystem/iac_root_detector.py`.
+live in `core/src/infrastructure/filesystem/root_module_detector.py`.
 
 == Next steps
 

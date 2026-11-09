@@ -15,7 +15,7 @@ from src.shared.exceptions import ExceptionHandler
 
 class TerraformUtils:
     @staticmethod
-    def project_id(repo_uri: str, scope_id: str, iac_path: str) -> str:
+    def project_id(repo_uri: str, scope_id: str, root_module_path: str) -> str:
         """Identify the Terraform project a session operates on.
 
         Digest over the triple that decides which state a run belongs
@@ -34,7 +34,7 @@ class TerraformUtils:
             (
                 TerraformUtils.__normalize_repo_uri(repo_uri),
                 scope_id.strip().lower(),
-                TerraformUtils.__normalize_iac_path(iac_path or ""),
+                TerraformUtils.__normalize_root_module_path(root_module_path or ""),
             )
         )
         return hashlib.sha256(seed.encode("utf-8")).hexdigest()
@@ -47,8 +47,8 @@ class TerraformUtils:
         return f"{host}/{path}"
 
     @staticmethod
-    def __normalize_iac_path(iac_path: str) -> str:
-        path = iac_path.strip().strip("/")
+    def __normalize_root_module_path(root_module_path: str) -> str:
+        path = root_module_path.strip().strip("/")
         return PurePosixPath(path).as_posix() if path else ""
 
     @staticmethod

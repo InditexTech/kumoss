@@ -104,7 +104,7 @@ class ResourceProperties(BaseModel):
     model_config = {"extra": "allow"}
     provider: Provider | None = None
     repo_uri: str | None = None
-    iac_path: str | None = None
+    root_module_path: str | None = None
 
 
 class Resource(BaseModel):

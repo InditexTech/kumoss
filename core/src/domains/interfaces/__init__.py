@@ -4,9 +4,9 @@
 
 from .filesystem_interface import IFileSystem
 from .git_interface import IGit
-from .iac_root_detector_interface import IIacRootDetector
 from .llm_interface import ILLMProvider
 from .object_storage_interface import IObjectStorage
+from .root_module_detector_interface import IRootModuleDetector
 from .template_interface import ITemplate
 from .terraform_interface import ITerraform
 from .tool_registry_interface import IToolRegistry
@@ -16,9 +16,9 @@ from .workspace_interface import IWorkspace
 __all__ = [
     "IFileSystem",
     "IGit",
-    "IIacRootDetector",
     "ILLMProvider",
     "IObjectStorage",
+    "IRootModuleDetector",
     "ITemplate",
     "ITerraform",
     "IToolRegistry",

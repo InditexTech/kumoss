@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Integration test for IacRootDetector.
+"""Integration test for RootModuleDetector.
 
 Exercises the full pipeline — clone → ls-tree → _find_roots — against a
 local file:// bare repo so it runs without network access.
@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from src.infrastructure.filesystem.iac_root_detector import IacRootDetector
+from src.infrastructure.filesystem.root_module_detector import RootModuleDetector
 
 _GIT = ["git", "-c", "user.email=test@test", "-c", "user.name=test"]
 
@@ -62,7 +62,7 @@ def _touch(root: Path, relpath: str) -> None:
     p.write_text("")
 
 
-class TestIacRootDetectorIntegration(unittest.IsolatedAsyncioTestCase):
+class TestRootModuleDetectorIntegration(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.uri = _init_fixture_repo(self.tmp)
@@ -71,11 +71,11 @@ class TestIacRootDetectorIntegration(unittest.IsolatedAsyncioTestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     async def test_detect_roots_end_to_end(self):
-        detector = IacRootDetector()
+        detector = RootModuleDetector()
         roots = await detector.detect_roots(self.uri)
         self.assertEqual(roots, ["app/deploy", "infra", "standalone"])
 
     async def test_bogus_uri_raises(self):
-        detector = IacRootDetector()
+        detector = RootModuleDetector()
         with self.assertRaises(Exception):
             await detector.detect_roots("file:///no/such/repo.git")

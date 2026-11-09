@@ -26,7 +26,7 @@ const firstCall = {
   repoUri: "https://github.com/org/repo",
   terraformProviders: "azure" as const,
   scopeId: "sub-123",
-  iacPath: "environments/dev",
+  rootModulePath: "environments/dev",
 };
 
 describe("runTerraformActionWorkflow", () => {
@@ -51,7 +51,7 @@ describe("runTerraformActionWorkflow", () => {
       q: firstCall.query,
       terraform_providers: "azure",
       scope_id: "sub-123",
-      iac_path: "environments/dev",
+      root_module_path: "environments/dev",
       ...(isPartial === undefined ? {} : { is_partial: isPartial }),
     });
   });

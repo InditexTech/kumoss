@@ -12,7 +12,7 @@ export interface WizardData {
   repositoryUrl: string;
   provider: TerraformProvider | "";
   scope: string;
-  iacPath: string;
+  rootModulePath: string;
 }
 
 const INITIAL_DATA: WizardData = {
@@ -20,7 +20,7 @@ const INITIAL_DATA: WizardData = {
   repositoryUrl: "",
   provider: "",
   scope: "",
-  iacPath: "",
+  rootModulePath: "",
 };
 
 export function useWizardNavigation() {
@@ -33,8 +33,8 @@ export function useWizardNavigation() {
         return STRINGS.wizard.promptQuery;
       case "repository_url":
         return STRINGS.wizard.promptRepository;
-      case "iac_path":
-        return STRINGS.wizard.promptIacPath;
+      case "root_module_path":
+        return STRINGS.wizard.promptRootModulePath;
       case "provider":
         return STRINGS.wizard.promptProvider;
       case "scope":
@@ -52,7 +52,7 @@ export function useWizardNavigation() {
         return STRINGS.wizard.placeholderQuery;
       case "repository_url":
         return STRINGS.wizard.placeholderRepository;
-      case "iac_path":
+      case "root_module_path":
         return "";
       case "provider":
         return "";

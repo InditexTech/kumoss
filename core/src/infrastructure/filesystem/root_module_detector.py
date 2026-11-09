@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import final, override
 from urllib.parse import urlparse, urlunparse
 
-from src.domains.interfaces.iac_root_detector_interface import IIacRootDetector
+from src.domains.interfaces.root_module_detector_interface import IRootModuleDetector
 from src.infrastructure.exceptions import RepositoryUnreachable
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
@@ -89,12 +89,12 @@ def _find_roots(file_paths: list[str]) -> list[str]:
 
 
 @final
-class IacRootDetector(IIacRootDetector):
+class RootModuleDetector(IRootModuleDetector):
     """Detects Terraform root modules by inspecting the git tree metadata."""
 
     @override
     async def detect_roots(self, repo_uri: str) -> list[str]:
-        clone_dir = Path(tempfile.mkdtemp(prefix="iac-root-"))
+        clone_dir = Path(tempfile.mkdtemp(prefix="root-module-"))
         try:
             git = GitUtils(
                 uri=repo_uri,

@@ -2,14 +2,14 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from src.domains.interfaces.iac_root_detector_interface import IIacRootDetector
+from src.domains.interfaces.root_module_detector_interface import IRootModuleDetector
 from src.domains.interfaces.workspace_interface import IWorkspace
 
 
-class IacRootDetectionService:
-    """Validates a repository URI and detects its IaC root modules."""
+class RootModuleDetectionService:
+    """Validates a repository URI and detects its Terraform root modules."""
 
-    def __init__(self, workspace: IWorkspace, detector: IIacRootDetector):
+    def __init__(self, workspace: IWorkspace, detector: IRootModuleDetector):
         self.__workspace = workspace
         self.__detector = detector
 

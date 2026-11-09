@@ -19,7 +19,7 @@ export type StateSetter<T> = Dispatch<SetStateAction<T>>;
 export type WizardStep =
   | "query"
   | "repository_url"
-  | "iac_path"
+  | "root_module_path"
   | "provider"
   | "scope";
 export type HomeView = "wizard" | "planning" | "result" | "apply-results";

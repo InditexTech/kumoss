@@ -4,7 +4,7 @@
 
 import unittest
 
-from src.infrastructure.filesystem.iac_root_detector import _find_roots
+from src.infrastructure.filesystem.root_module_detector import _find_roots
 
 GOLDEN_FIXTURE = [
     ".editorconfig",

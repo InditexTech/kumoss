@@ -73,7 +73,7 @@ export default function WizardView({
   const isTextStep =
     step === "query" || step === "repository_url" || step === "scope";
 
-  const isListStep = step === "iac_path";
+  const isListStep = step === "root_module_path";
 
   const isProviderStep = step === "provider";
 
@@ -133,7 +133,7 @@ export default function WizardView({
           <ul
             className={styles.selectContainer}
             role="listbox"
-            aria-label={STRINGS.wizard.ariaIacPath}
+            aria-label={STRINGS.wizard.ariaRootModulePath}
           >
             {scanPaths.map((path) => (
               <Typography variant="h3" component="li" key={path} onClick={handlePathClick} role="option">

@@ -257,7 +257,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     scope_id="dev",
                     branch_name="Kumoss/apply-x",
                     query="seed",
-                    iac_path="",
+                    root_module_path="",
                 )
             finally:
                 await redis_client.close()
@@ -298,7 +298,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     scope_id="dev",
                     branch_name="Kumoss/apply-blocked",
                     query="seed",
-                    iac_path="",
+                    root_module_path="",
                 )
                 self.assertTrue(await DatabaseService.set_lock(sid, True))
             finally:
@@ -370,7 +370,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
                     scope_id="dev",
                     branch_name="Kumoss/x",
                     query="seed",
-                    iac_path="",
+                    root_module_path="",
                 )
                 await DatabaseService.acquire_in_flight(str(sid))
             finally:

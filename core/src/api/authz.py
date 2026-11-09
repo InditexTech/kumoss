@@ -25,7 +25,7 @@ async def authorize(
     scope_id: str,
     provider: TerraformProvider,
     repo_uri: str,
-    iac_path: str | None = None,
+    root_module_path: str | None = None,
 ) -> None:
     try:
         decision = await AuthzServiceClient().evaluate(
@@ -34,7 +34,7 @@ async def authorize(
             scope_id=scope_id,
             provider=provider,
             repo_uri=repo_uri,
-            iac_path=iac_path,
+            root_module_path=root_module_path,
         )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message) from e

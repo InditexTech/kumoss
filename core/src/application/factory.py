@@ -12,7 +12,7 @@ from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
     ComplianceCheckService,
-    IacRootDetectionService,
+    RootModuleDetectionService,
     LLMOrchestrationService,
     SessionService,
     TemplateOrchestrationService,
@@ -33,7 +33,7 @@ from src.infrastructure.tools import ToolRegistryWorkspace, ToolRegistryStatic
 from src.infrastructure.filesystem import (
     FileSystemUtils,
     GitUtils,
-    IacRootDetector,
+    RootModuleDetector,
     WorkspaceService,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
@@ -177,10 +177,10 @@ class ApplicationFactory:
         )
 
     @staticmethod
-    def get_iac_root_detection_service() -> IacRootDetectionService:
-        return IacRootDetectionService(
+    def get_root_module_detection_service() -> RootModuleDetectionService:
+        return RootModuleDetectionService(
             workspace=WorkspaceService(),
-            detector=IacRootDetector(),
+            detector=RootModuleDetector(),
         )
 
     def _get_artifact_storage_service(self) -> ArtifactStorageService:
@@ -243,7 +243,7 @@ class ApplicationFactory:
             project_id=TerraformUtils.project_id(
                 repo_uri=self.__ctx.repo_uri,
                 scope_id=self.__ctx.scope_id,
-                iac_path=self.__ctx.iac_path,
+                root_module_path=self.__ctx.root_module_path,
             ),
         ).get()
 

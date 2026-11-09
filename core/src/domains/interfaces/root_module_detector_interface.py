@@ -5,8 +5,8 @@
 from abc import ABC, abstractmethod
 
 
-class IIacRootDetector(ABC):
-    """Detects IaC root-module directories in a git repository."""
+class IRootModuleDetector(ABC):
+    """Detects Terraform root-module directories in a git repository."""
 
     @abstractmethod
     async def detect_roots(self, repo_uri: str) -> list[str]:

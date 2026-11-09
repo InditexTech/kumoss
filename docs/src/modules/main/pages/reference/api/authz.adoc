@@ -116,7 +116,7 @@ enabled, the core *never* fails open:
     "properties": {
       "provider": "azure",
       "repo_uri": "https://dev.azure.com/org/project/_git/infra",
-      "iac_path": "environments/dev"
+      "root_module_path": "environments/dev"
     }
   }
 }
@@ -184,9 +184,9 @@ xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 |No
 |The git repository URL.
 
-|`properties.iac_path`
+|`properties.root_module_path`
 |No
-|The IaC path within the repository. Omitted when empty.
+|The root module path within the repository. Omitted when empty.
 |===
 
 `additionalProperties` is `false` on the request envelope, subject,

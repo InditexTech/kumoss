@@ -62,7 +62,7 @@ def _session_ctx(sid=None, operation=OperationType.GENERATE) -> SessionContext:
         terraform_prv=TerraformProvider.AZURE,
         branch_name="Kumoss/x",
         scope_id="sub-123",
-        iac_path="infra",
+        root_module_path="infra",
         operation_type=operation,
         history=[],
         chat_history=[],
@@ -84,7 +84,7 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://dev.azure.com/org/proj/_git/repo",
             terraform_providers=TerraformProvider.AZURE,
             scope_id="sub-123",
-            iac_path="infra",
+            root_module_path="infra",
             q="create a resource group",
         )
         await _resolve_or_raise(request, _user(), _claims(), OperationType.GENERATE)
@@ -104,7 +104,7 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://dev.azure.com/org/proj/_git/repo",
             terraform_providers=TerraformProvider.GCP,
             scope_id="proj-456",
-            iac_path="",
+            root_module_path="",
             q="check drift",
         )
         await _resolve_or_raise(request, _user(), _claims(), OperationType.DRIFT)
@@ -122,7 +122,7 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
             repo_uri="https://dev.azure.com/org/proj/_git/repo",
             terraform_providers=TerraformProvider.AWS,
             scope_id="acct-789",
-            iac_path="modules/vpc",
+            root_module_path="modules/vpc",
             q="import vpc",
         )
         await _resolve_or_raise(request, _user(), _claims(), OperationType.IMPORT)

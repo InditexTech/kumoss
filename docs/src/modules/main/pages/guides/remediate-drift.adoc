@@ -3,7 +3,7 @@
 
 The Kumoss web application offers two drift modes: Partial Drift
 Remediation, for a specific set of resources you describe, and Full Drift
-Remediation, for the whole configuration in the IaC path. They share the
+Remediation, for the whole configuration in the root module path. They share the
 same prerequisites and workflow shape, and differ only in how targets are
 selected. This guide covers both.
 
@@ -112,7 +112,7 @@ request.
 
 == Full drift remediation
 
-*Use case.* Reconcile the whole configuration in the IaC path, for
+*Use case.* Reconcile the whole configuration in the root module path, for
 example after a period of manual changes.
 
 *Required inputs.* Repository URL, cloud, scope id, and request text. The

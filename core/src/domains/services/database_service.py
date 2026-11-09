@@ -184,7 +184,7 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
         "operation_type": ctx.operation.value,
         "terraform_prv": ctx.terraform_prv.value,
         "branch_name": ctx.branch_name,
-        "iac_path": ctx.iac_path,
+        "root_module_path": ctx.root_module_path,
         "history": ctx.history.serialize(),
         "chat_history": ctx.chat_history.serialize(),
     }
@@ -200,7 +200,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
         operation_type=OperationType(data["operation_type"]),
         terraform_prv=TerraformProvider(data["terraform_prv"]),
         branch_name=data["branch_name"],
-        iac_path=data["iac_path"],
+        root_module_path=data["root_module_path"],
         history=data["history"],
         chat_history=data["chat_history"],
     )
@@ -498,7 +498,7 @@ class DatabaseService:
         scope_id: str,
         branch_name: str,
         query: str,
-        iac_path: str | None = None,
+        root_module_path: str | None = None,
     ) -> Session:
         session: Session = await db.create(
             Session,
@@ -511,7 +511,7 @@ class DatabaseService:
             session_id=session.id,
             uri=repo_uri,
             branch=branch_name,
-            root_path=iac_path,
+            root_path=root_module_path,
         )
         _ = await db.create(
             DbTerraformProvider,
@@ -534,7 +534,11 @@ class DatabaseService:
                 (_k_owner(session_id), user_pk, _ttl(_TTL_FACTS)),
                 (
                     _k_workspace(session_id),
-                    {"uri": repo_uri, "branch": branch_name, "root_path": iac_path},
+                    {
+                        "uri": repo_uri,
+                        "branch": branch_name,
+                        "root_path": root_module_path,
+                    },
                     _ttl(_TTL_FACTS),
                 ),
                 (
@@ -592,7 +596,7 @@ class DatabaseService:
                 operation_type=session.operation,
                 terraform_prv=provider.provider,
                 branch_name=workspace.branch,
-                iac_path=workspace.root_path,
+                root_module_path=workspace.root_path,
                 history=history["payload"],
                 chat_history=history["chat_payload"],
             )

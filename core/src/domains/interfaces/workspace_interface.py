@@ -35,12 +35,12 @@ class IWorkspace(ABC):
         """Shallow-clone into the per-call directory. Returns the dir path."""
 
     @abstractmethod
-    def iac_root(self, call_dir: Path, iac_path: str | None) -> Path:
-        """Resolve the IaC root of a call directory.
+    def root_module_dir(self, call_dir: Path, root_module_path: str | None) -> Path:
+        """Resolve the root module of a call directory.
 
         Symlinks are resolved: the root must be an existing directory
         inside ``call_dir``, so a committed link cannot widen the scope
-        of the tools working in it. Raises InvalidIacPath otherwise.
+        of the tools working in it. Raises InvalidRootModulePath otherwise.
         """
 
     @abstractmethod

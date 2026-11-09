@@ -39,7 +39,7 @@ export interface ParseRepositoryResponse {
   roots: string[];
 }
 
-/** POST /v1/repository/parse — Parse a repo for IaC root-module directories */
+/** POST /v1/repository/parse — Parse a repo for Terraform root-module directories */
 export async function parseRepository(
   repo_uri: string,
 ): Promise<ParseRepositoryResponse> {

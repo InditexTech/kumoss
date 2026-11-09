@@ -198,7 +198,7 @@ components:
           enum: [azure, gcp, aws, oci, kubernetes, vmware]
         repo_uri:
           type: string
-        iac_path:
+        root_module_path:
           type: string
 
     AccessEvaluationResponse:

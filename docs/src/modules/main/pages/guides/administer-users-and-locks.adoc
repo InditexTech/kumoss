@@ -62,7 +62,7 @@ Clicking a row opens the detail panel with: type, cloud, status, failure
 message when present, duration, a timeline of statuses per round with
 the artifacts attached to each (report, apply report, drift report,
 Terraform plan, changed files), and additional information (session id,
-IaC path, scope, repository link, pull-request links). Artifacts render
+root module path, scope, repository link, pull-request links). Artifacts render
 inline: JSON reports as change tables with impact and cost sections,
 plans as code, and code changes as file diffs.
 

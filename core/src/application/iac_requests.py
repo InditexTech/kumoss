@@ -10,6 +10,7 @@ from uuid import UUID
 
 from pydantic import (
     AfterValidator,
+    AliasChoices,
     BaseModel,
     Field,
     field_validator,
@@ -101,24 +102,27 @@ class BaseIacRequest(BaseModel):
             description="Terraform providers where the operation will take place (first call only)."
         ),
     ] = None
-    iac_path: Annotated[
+    root_module_path: Annotated[
         str | None,
         Field(
+            # `iac_path` is the deprecated pre-rename spelling, still accepted on input.
+            validation_alias=AliasChoices("root_module_path", "iac_path"),
             description=(
-                "Repository-relative path to the IaC root (e.g. 'environments/dev'). "
-                "Defaults to repo root. First call only; omit on iteration calls."
+                "Repository-relative path to the Terraform root module (e.g. 'environments/dev'). "
+                "Defaults to repo root. First call only; omit on iteration calls. "
+                "`iac_path` is accepted as a deprecated alias."
             ),
         ),
     ] = None
 
-    @field_validator("iac_path", mode="before")
+    @field_validator("root_module_path", mode="before")
     @classmethod
-    def _validate_iac_path(cls, v: str):
+    def _validate_root_module_path(cls, v: str):
         if v is None or v == "":
             return None
         if v.startswith("/") or ".." in v.split("/"):
             raise ValueError(
-                "iac_path must be a repo-relative path (not absolute) and must not contain '..' segments"
+                "root_module_path must be a repo-relative path (not absolute) and must not contain '..' segments"
             )
         return v
 
@@ -134,9 +138,9 @@ class BaseIacRequest(BaseModel):
             raise ValueError("First call (repo_uri) requires `terraform_providers`.")
         if has_uri and (self.scope_id is None):
             raise ValueError("First call (repo_uri) requires `scope_id`.")
-        if has_sid and self.iac_path is not None:
+        if has_sid and self.root_module_path is not None:
             raise ValueError(
-                "iac_path is set only on the first call; iteration calls inherit it from the session."
+                "root_module_path is set only on the first call; iteration calls inherit it from the session."
             )
         return self
 

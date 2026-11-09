@@ -92,7 +92,7 @@ async def create_pr(
             branch_name=ctx.branch_name,
             cloud=ctx.terraform_prv,
             repo_uri=ctx.repo_uri,
-            iac_path=ctx.iac_path,
+            root_module_path=ctx.root_module_path,
             operation=ctx.operation,
         )
     )
@@ -135,7 +135,7 @@ async def parse_repository(
     ],
 ) -> JSONResponse:
     try:
-        service = ApplicationFactory.get_iac_root_detection_service()
+        service = ApplicationFactory.get_root_module_detection_service()
         roots = await service.detect_roots(repo_uri)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

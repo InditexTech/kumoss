@@ -57,7 +57,7 @@ export function useHomeWizard() {
             terraformProviders: data.provider as TerraformProvider,
             scopeId: data.scope,
             mode,
-            iacPath: data.iacPath,
+            rootModulePath: data.rootModulePath,
           },
           handleOutcome,
         );
@@ -100,14 +100,14 @@ export function useHomeWizard() {
             if (result.paths.length === 0) {
               navigation.applyResolution({ repositoryUrl: result.repoUrl });
               updateSession({ workspace: { uri: result.repoUrl } });
-              mapper.setMapperError(STRINGS.wizard.noIacPaths);
+              mapper.setMapperError(STRINGS.wizard.noRootModulePaths);
               break;
             }
 
             const path = result.paths.length === 1 ? result.paths[0] : "";
             const resolved = navigation.applyResolution({
               repositoryUrl: result.repoUrl,
-              ...(path ? { iacPath: path } : {}),
+              ...(path ? { rootModulePath: path } : {}),
               ...(result.provider ? { provider: result.provider } : {}),
               ...(result.scopeId ? { scope: result.scopeId } : {}),
             });
@@ -142,7 +142,7 @@ export function useHomeWizard() {
   const handlePath = useCallback(
     (path: string) => {
       updateSession({ workspace: { ...session.workspace, root_path: path } });
-      advance(navigation.applyResolution({ iacPath: path }));
+      advance(navigation.applyResolution({ rootModulePath: path }));
     },
     [navigation, updateSession, session.workspace, advance],
   );
@@ -194,7 +194,7 @@ export function useHomeWizard() {
   const retry = useCallback(() => {
     if (mapper.mapperError) {
       navigation.setStep("repository_url");
-      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", provider: "", scope: "", iacPath: "" }));
+      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", provider: "", scope: "", rootModulePath: "" }));
       mapper.resetMapper();
       terraform.reset();
     } else if (terraform.state.status === "error") {
@@ -211,7 +211,7 @@ export function useHomeWizard() {
       repositoryUrl: "",
       provider: "",
       scope: "",
-      iacPath: "",
+      rootModulePath: "",
     });
     mapper.resetMapper();
     terraform.reset();
