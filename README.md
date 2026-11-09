@@ -24,7 +24,7 @@ humans in control of high-impact or not compliant changes.
 [![License](https://img.shields.io/github/license/InditexTech/kumoss)](LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/InditexTech/kumoss/badge)](https://securityscorecards.dev/viewer/?uri=github.com/InditexTech/kumoss)
 [![Docs](https://img.shields.io/badge/docs-inditextech.github.io%2Fkumoss-blue)](https://inditextech.github.io/kumoss/stable/)
-
+![OpenTofu compatibility](https://img.shields.io/badge/OpenTofu-Compatible-FFDA18?logo=opentofu&logoColor=white)
 </div>
 
 https://github.com/user-attachments/assets/97be7ff9-5995-4907-8b47-db53cc3a5808
