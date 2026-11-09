@@ -206,6 +206,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 				Path:       path,
 				ConfigPath: "../config/config.yaml",
 				HostCerts:  opts.HostCerts,
+				Mounts:     iacMounts(opts.Home, s),
 			}
 			if err := override.Write(); err != nil {
 				return err
@@ -324,7 +325,11 @@ func dryRun(ctx context.Context, opts Options) error {
 		}
 	}
 
-	override, err := (&render.Compose{ConfigPath: "../config/config.yaml", HostCerts: opts.HostCerts}).Render()
+	override, err := (&render.Compose{
+		ConfigPath: "../config/config.yaml",
+		HostCerts:  opts.HostCerts,
+		Mounts:     iacMounts(opts.Home, s),
+	}).Render()
 	if err != nil {
 		return err
 	}
@@ -406,6 +411,21 @@ func fetchCompose(ctx context.Context, dl *render.Download, dst string) error {
 		return err
 	}
 	return dl.Save(ctx, "docker-compose.yml", dst)
+}
+
+// iacMounts are the cloud credential mounts, with the host paths rewritten
+// relative to the home root: the iac service's cwd is its build context, so an
+// absolute source would mount a host path that happens to exist there instead
+// of the user's file. render.Mount carries the container target.
+func iacMounts(h home.Home, s *state.State) []render.Mount {
+	var out []render.Mount
+	for _, m := range render.IACMounts(s) {
+		if r, err := filepath.Rel(h.Root, m.Source); err == nil {
+			m.Source = r
+		}
+		out = append(out, m)
+	}
+	return out
 }
 
 // envPaths is where each env file lives under the managed home.

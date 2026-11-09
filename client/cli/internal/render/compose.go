@@ -39,6 +39,10 @@ type Compose struct {
 	// HostCerts adds the corporate CA wiring to core and searxng. Off by default:
 	// the default host directory does not exist on a normal network.
 	HostCerts bool
+	// Mounts are the read-only credential mounts for the iac service (cloud
+	// key files, kubeconfig, ~/.aws). Each is added as its own volume entry;
+	// compose merges volumes into the service's existing list.
+	Mounts []Mount
 }
 
 // ContainerConfigPath is where core reads its config inside the container. It
@@ -80,15 +84,27 @@ func (c *Compose) Render() ([]byte, error) {
 	doc := map[string]any{
 		"services": map[string]any{"core": core},
 	}
+	if len(c.Mounts) > 0 {
+		volumes := make([]string, 0, len(c.Mounts))
+		for _, m := range c.Mounts {
+			volumes = append(volumes, m.Source+":"+m.Target+":ro")
+		}
+		// Only iac carries mounts today; a per-service grouping is one edit
+		// away when another service needs one.
+		doc["services"] = map[string]any{
+			"core": core,
+			"iac":  map[string]any{"volumes": volumes},
+		}
+	}
 	if c.HostCerts {
 		// Both services merge the same anchor, so compose applies the CA build
 		// context and mount to each without repeating them. The core's own
 		// volumes entry above is merged, not replaced.
 		doc["x-host-ca"] = hostCA()
-		doc["services"] = map[string]any{
-			"core":    mergeHostCA(core),
-			"searxng": hostCA(),
-		}
+		services := doc["services"].(map[string]any)
+		services["core"] = mergeHostCA(core)
+		services["searxng"] = hostCA()
+		doc["services"] = services
 	}
 	out, err := yaml.Marshal(doc)
 	if err != nil {
