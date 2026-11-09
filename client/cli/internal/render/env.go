@@ -164,6 +164,13 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 	}
 }
 
+// ownedKey reports whether the wizard owns the key, whatever its value: owned()
+// carries every owned key, blank included.
+func ownedKey(owned map[string]string, key string) bool {
+	_, ok := owned[key]
+	return ok
+}
+
 // resolveSample builds one env file's vars from its sample: wizard-owned value
 // first, then the sample's own value, then the user's Extra value. Every sample
 // key appears in the result, even when all three sources are empty.
@@ -178,7 +185,7 @@ func resolveSample(sample *Sample, owned, extra map[string]string) map[string]st
 	for _, v := range sample.Vars {
 		seen[v.Key] = true
 		switch {
-		case owned[v.Key] != "":
+		case owned[v.Key] != "" || ownedKey(owned, v.Key):
 			vars[v.Key] = owned[v.Key]
 		case v.Value != "":
 			vars[v.Key] = v.Value
@@ -207,6 +214,11 @@ func resolveSample(sample *Sample, owned, extra map[string]string) map[string]st
 // wizard does not collect them, and their sample values are the ones that match
 // the containers docker-compose.yml starts.
 func (e *Env) owned(s *state.State) map[string]string {
+	// Every key is set, even when blank: owned() feeds resolveSample, whose
+	// first branch is "the wizard owns this key, so its value wins", and a
+	// missing key would let the sample's placeholder win instead. A disabled
+	// notification or a blank secret then keeps the sample's dev-notifications-
+	// token out of the file.
 	owned := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
 		"KUMOSS_IAC_TOKEN":           s.Secrets.IACToken,
@@ -215,6 +227,7 @@ func (e *Env) owned(s *state.State) map[string]string {
 		"GIT_USER":                   s.Git.User,
 		"GIT_TOKEN":                  s.Git.Token,
 		"IAC_BINARY":                 s.Engine.Binary,
+		"SLACK_WEBHOOK_URL":          s.Notifications.SlackWebhookURL,
 	}
 	// Provider credentials collected by the LLM step, keyed by env-var name.
 	// Blank entries are skipped, same reason as storage below.
@@ -238,12 +251,6 @@ func (e *Env) owned(s *state.State) map[string]string {
 		if v != "" {
 			owned[k] = v
 		}
-	}
-	// The webhook is asked for in the notifications step, so it is owned here:
-	// blank is skipped, or the notifications .env would carry an empty value the
-	// service refuses to boot with.
-	if v := s.Notifications.SlackWebhookURL; v != "" {
-		owned["SLACK_WEBHOOK_URL"] = v
 	}
 	return owned
 }
@@ -315,6 +322,10 @@ func cloudVars(c state.Cloud) map[string]string {
 	vars := map[string]string{}
 	if a := c.AWS; a != nil {
 		if a.Method == "profile" {
+			// AWS_SHARED_CREDENTIALS_FILE is the file inside the mounted
+			// ~/.aws; AWS_PROFILE alone would still read the image's empty
+			// ~/.aws, which the mount never reaches.
+			vars["AWS_SHARED_CREDENTIALS_FILE"] = ContainerAWSProfile + "/credentials"
 			vars["AWS_PROFILE"] = a.Profile
 		} else {
 			vars["AWS_ACCESS_KEY_ID"] = a.AccessKey
@@ -330,13 +341,25 @@ func cloudVars(c state.Cloud) map[string]string {
 		// per request from the scope, so it never belongs in the env file.
 	}
 	if a := c.GCP; a != nil {
-		vars["GOOGLE_APPLICATION_CREDENTIALS"] = a.KeyFile
+		// Inline JSON wins when both are somehow set: it is the form that
+		// needs no mount, so it cannot break on a file the container cannot see.
+		if a.InlineJSON != "" {
+			vars["GOOGLE_CREDENTIALS"] = a.InlineJSON
+		} else {
+			// Empty, never containerPath(""): a blank key file is "no key
+			// given", and the engine then falls back to Application Default
+			// Credentials instead of opening /etc/kumoss/creds/.
+			vars["GOOGLE_APPLICATION_CREDENTIALS"] = ""
+			if a.KeyFile != "" {
+				vars["GOOGLE_APPLICATION_CREDENTIALS"] = containerPath(a.KeyFile)
+			}
+		}
 	}
 	if a := c.OCI; a != nil {
-		vars["OCI_CONFIG_FILE"] = a.ConfigPath
+		vars["OCI_CONFIG_FILE"] = containerPath(a.ConfigPath)
 	}
 	if a := c.Kubernetes; a != nil {
-		vars["KUBE_CONFIG_PATH"] = a.KubeconfigPath
+		vars["KUBE_CONFIG_PATH"] = containerPath(a.KubeconfigPath)
 	}
 	return vars
 }

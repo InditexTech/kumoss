@@ -68,10 +68,15 @@ type AzureAuth struct {
 	ClientSecret string `yaml:"-" json:"-"` // → ARM_CLIENT_SECRET (secret)
 }
 
-// GCPAuth → services/iac/.env GOOGLE_APPLICATION_CREDENTIALS (key-file path mounted
-// read-only into the iac container).
+// GCPAuth → services/iac/.env. A key file is a path mounted read-only into the
+// iac container; the inline JSON is the same key pasted into the variable, and
+// needs no mount. Method picks which of the two was given.
 type GCPAuth struct {
+	Method  string `yaml:"-" json:"-"` // "file" | "json"
 	KeyFile string `yaml:"-" json:"-"` // host path → GOOGLE_APPLICATION_CREDENTIALS
+	// InlineJSON is the key itself → GOOGLE_CREDENTIALS (secret). The repo's
+	// env.sample documents this form for a deployment with no file to mount.
+	InlineJSON string `yaml:"-" json:"-"`
 }
 
 // OCIAuth → services/iac/.env OCI_CONFIG_FILE (host path, mounted read-only).

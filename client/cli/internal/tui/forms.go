@@ -608,11 +608,38 @@ func azureGroup(s *state.State) *huh.Group {
 
 func gcpGroup(s *state.State) *huh.Group {
 	a := ensureCloud(s, "gcp").(*state.GCPAuth)
+	if a.Method == "" {
+		a.Method = "json"
+	}
 	return huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Google Cloud credentials").
+			Description("Inline JSON needs no file mount; a key file is mounted read-only into the iac container.").
+			Options(
+				huh.NewOption("Service-account JSON (paste it)", "json"),
+				huh.NewOption("Service-account key file path", "file"),
+			).
+			Value(&a.Method),
+		huh.NewText().
+			Title("Service-account JSON").
+			Description("GOOGLE_CREDENTIALS. The whole key, pasted. It stays in services/iac/.env, never in kumoss.yaml.").
+			Value(&a.InlineJSON).
+			Validate(func(v string) error {
+				if a.Method == "json" {
+					return required(v)
+				}
+				return nil
+			}),
 		huh.NewInput().
 			Title("Service-account key file path").
 			Description("GOOGLE_APPLICATION_CREDENTIALS. Host path, mounted read-only into the iac container.").
-			Value(&a.KeyFile),
+			Value(&a.KeyFile).
+			Validate(func(v string) error {
+				if a.Method == "file" {
+					return required(v)
+				}
+				return nil
+			}),
 	).Title("Google Cloud")
 }
 
