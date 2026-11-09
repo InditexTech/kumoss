@@ -11,14 +11,15 @@ import (
 	"strings"
 	"text/tabwriter"
 
+	"github.com/InditexTech/kumoss/client/cli/internal/cli"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-// SetHelpCommand replaces cobra's generated help command with one that also
-// answers --all. cobra builds its help command lazily, so this must run before
-// Execute; `kumoss help init` keeps working exactly as before.
-func SetHelpCommand(root *cobra.Command) {
+// NewHelpCmd replaces cobra's generated help command with one that also answers
+// --all. cobra builds its help command lazily, so this must run before Execute;
+// `kumoss help init` keeps working exactly as before.
+func NewHelpCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	help := &cobra.Command{
 		Use:   "help [command]",
 		Short: "Help about any command",
@@ -43,6 +44,7 @@ func SetHelpCommand(root *cobra.Command) {
 	}
 	help.Flags().Bool("all", false, "list every command's flags, grouped by command")
 	root.SetHelpCommand(help)
+	return help
 }
 
 // printAllFlags lists each command's own flags. Inherited flags are left out:

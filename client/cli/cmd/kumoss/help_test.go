@@ -9,13 +9,29 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/InditexTech/kumoss/client/cli/internal/cli"
 	"github.com/spf13/cobra"
 )
 
+// newTestRoot builds a root with the real commands, since the parent package
+// owns NewRootCmd and importing it here would be a cycle.
+func newTestRoot() *cobra.Command {
+	var flags cli.Flags
+	root := &cobra.Command{Use: "kumoss"}
+	NewInitCmd(root, &flags)
+	NewHomeCmd(root, &flags)
+	NewVersionCmd(root, &flags)
+	NewStatusCmd(root, &flags)
+	NewLogsCmd(root, &flags)
+	NewConfigCmd(root, &flags)
+	NewDoctorCmd(root, &flags)
+	NewHelpCmd(root, &flags)
+	return root
+}
+
 // runHelp executes the help command with args and returns its output.
-func runHelp(t *testing.T, args ...string) string {
+func runHelp(t *testing.T, root *cobra.Command, args ...string) string {
 	t.Helper()
-	root := NewRootCmd()
 	var out bytes.Buffer
 	root.SetOut(&out)
 	root.SetErr(&out)
@@ -29,7 +45,7 @@ func runHelp(t *testing.T, args ...string) string {
 // --all groups each command's own flags under it, and a command with no flags
 // is still listed, so the reader knows it was considered.
 func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
-	got := runHelp(t, "--all")
+	got := runHelp(t, newTestRoot(), "--all")
 
 	for _, want := range []string{
 		"Flags by command:",
@@ -55,7 +71,7 @@ func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
 // A command argument still wins over --all, so `help --all init` is not a
 // surprise.
 func TestHelpWithCommandStillPrintsThatCommand(t *testing.T) {
-	got := runHelp(t, "--all", "init")
+	got := runHelp(t, newTestRoot(), "--all", "init")
 	if strings.Contains(got, "Flags by command:") {
 		t.Errorf("--all overrode the command argument:\n%s", got)
 	}
@@ -67,18 +83,13 @@ func TestHelpWithCommandStillPrintsThatCommand(t *testing.T) {
 // The listing must come from the live tree, not a hand-kept list: a command
 // added later shows up without touching help.go.
 func TestHelpAllReflectsNewCommands(t *testing.T) {
-	root := NewRootCmd()
+	root := newTestRoot()
 	extra := &cobra.Command{Use: "extra", RunE: func(*cobra.Command, []string) error { return nil }}
 	extra.Flags().String("thing", "", "a thing")
 	root.AddCommand(extra)
 
-	var out bytes.Buffer
-	root.SetOut(&out)
-	root.SetArgs([]string{"help", "--all"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("help --all: %v", err)
-	}
-	if !strings.Contains(out.String(), "--thing string") {
-		t.Errorf("new command's flag missing:\n%s", out.String())
+	got := runHelp(t, root, "--all")
+	if !strings.Contains(got, "--thing string") {
+		t.Errorf("new command's flag missing:\n%s", got)
 	}
 }
