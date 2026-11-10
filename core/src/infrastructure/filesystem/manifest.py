@@ -27,6 +27,7 @@ class Manifest:
     def __init__(self, config: Path):
         self.__config: Path = config
 
+    # TODO: pass optional arguments or create different methods (def add_env, def update_providers, etc)
     def write(self, data: dict[str, Any] | None) -> ManifestObject:
         if data is None:
             return ManifestObject(

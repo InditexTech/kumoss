@@ -9,7 +9,6 @@ from typing import Annotated, Any
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
 from src.api.authz import authorize
-from src.clients.authz.models.action_name import ActionName
 from src.api.deps import (
     assert_session_access,
     get_validated_claims,
@@ -28,6 +27,7 @@ from src.application.iac_requests import (
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
+from src.clients.authz.models.action_name import ActionName
 from src.domains.entities import SessionContext, User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
@@ -67,40 +67,27 @@ async def _resolve_or_raise(
     ``session_id``): ownership check → session load → authz (from
     ``SessionContext``).
     """
-    is_first_call = isinstance(request, BaseIacRequest) and request.repo_uri is not None
 
     if request.session_id is not None:
         await assert_session_access(user, request.session_id, write=True)
     try:
-        action = ActionName(operation.value)
-
-        if is_first_call:
-            await _workspace.validate_uri(request.repo_uri)
-            await authorize(
-                claims,
-                action,
-                scope_id=request.scope_id,
-                provider=request.terraform_providers,
-                repo_uri=request.repo_uri,
-                root_module_path=request.root_module_path,
-            )
-
         ctx = await _orchestration.resolve(request, operation, user.id)
-
-        if not is_first_call:
-            if operation is not OperationType.APPLY and ctx.operation is not operation:
-                raise HTTPException(
-                    status_code=409,
-                    detail="The requested operation does not match the session operation.",
-                )
-            await authorize(
-                claims,
-                action,
-                scope_id=ctx.scope_id,
-                provider=ctx.terraform_prv,
-                repo_uri=ctx.repo_uri,
-                root_module_path=ctx.root_module_path,
+        if operation is not OperationType.APPLY and ctx.operation is not operation:
+            raise HTTPException(
+                status_code=409,
+                detail="The requested operation does not match the session operation.",
             )
+
+        await _workspace.validate_uri(ctx.repo_uri)
+        await authorize(
+            claims,
+            ActionName(operation.value),
+            scope_id=ctx.scope_id,
+            provider=ctx.terraform_prv,
+            repo_uri=ctx.repo_uri,
+            root_module_path=ctx.root_module_path,
+        )
+
         return ctx
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

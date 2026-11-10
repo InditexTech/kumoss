@@ -30,7 +30,7 @@ class WorkspaceService(IWorkspace):
     def _base(self) -> Path:
         return self._override_base or system_config.paths.upload_folder
 
-    def __add_terraform_gitignore(self, path: Path) -> bool:
+    def __add_terraform_gitignore(self, path: Path) -> None:
         utils = FileSystemUtils(path)
         with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
             content = f.read()
@@ -38,9 +38,9 @@ class WorkspaceService(IWorkspace):
         if target.exists():
             existing = target.read_text(encoding="utf-8")
             if self._REUSE_MARKER in existing:
-                return True
+                return
             content = existing.rstrip("\n") + "\n\n" + content
-        return utils.write_file(
+        utils.write_file(
             target_file=".gitignore",
             content=content,
             is_safe=False,
@@ -83,8 +83,7 @@ class WorkspaceService(IWorkspace):
         if not ok:
             raise RepositoryUnreachable(500)
 
-        if not self.__add_terraform_gitignore(call_dir):
-            logging.warning("terraform gitignore couldn't be created")
+        self.__add_terraform_gitignore(call_dir)
 
         git = GitUtils(
             uri=repo_uri,
