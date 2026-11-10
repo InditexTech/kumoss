@@ -6,8 +6,8 @@ package buildinfo
 
 import "testing"
 
-// KumossTag decides which repo revision the CLI downloads from. A release build
-// must pin its own version; a dev build follows KUMOSS_TAG, then main.
+// A release build pins its own version; a dev build follows KUMOSS_TAG, then
+// main.
 func TestKumossTag(t *testing.T) {
 	old := Version
 	t.Cleanup(func() { Version = old })

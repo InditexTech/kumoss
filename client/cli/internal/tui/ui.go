@@ -16,37 +16,27 @@ type Mode int
 const (
 	// ModeFresh is a new install: the forms open empty.
 	ModeFresh Mode = iota
-	// ModeReconfigure is an existing install the user chose to edit: the forms
-	// open pre-filled with the current values.
+	// ModeReconfigure edits an existing install: the forms open pre-filled.
 	ModeReconfigure
-	// ModeKeep is an existing install the user chose to leave as-is: the forms
-	// are skipped and no file is written. The pipeline still offers to start
-	// the stack.
+	// ModeKeep writes nothing; the pipeline still offers to start the stack.
 	ModeKeep
 )
 
-// UI is the interactive seam. The pipeline asks questions; the adapter decides
-// how to ask. Real runs use the terminal; tests inject a stub.
+// UI is the interactive seam: the pipeline asks, the adapter decides how.
 type UI interface {
 	SelectStateAction() (Mode, error)
 	Configure(mode Mode, s *state.State) error
-	// RotateSecrets offers the secrets already present in the env files and
-	// returns the keys the user wants regenerated. An empty return keeps them
-	// all. Only called when an existing install has secrets to offer.
+	// RotateSecrets returns the keys to regenerate; empty keeps them all.
 	RotateSecrets(found []Secret) (rotate []string, err error)
-	// ExtraVars asks for the env keys the samples leave empty and the wizard
-	// does not collect, and returns their values keyed by env-var name.
+	// ExtraVars asks for the sample keys the wizard does not own.
 	ExtraVars(keys []Secret) (map[string]string, error)
-	// ConfirmRegenerate asks whether to rewrite an existing generated file, and
-	// returns false to leave it untouched. Used for compose.override.yml, which
-	// a user may have hand-edited.
+	// ConfirmRegenerate guards compose.override.yml, which may be hand-edited.
 	ConfirmRegenerate(what string) (bool, error)
 	RunDocker() (bool, error)
 }
 
-// Secret is one rotatable value: its env-var key and a human label. Defined here
-// (not in render) so the pipeline can pass render.LoadSecrets' result to the UI
-// without tui importing render.
+// Secret is one rotatable value. Defined here, not in render, so the pipeline
+// can pass LoadSecrets' result on without tui importing render.
 type Secret struct {
 	Key   string // env-var name, e.g. KUMOSS_IAC_TOKEN
 	Label string // what it is, e.g. "IaC service bearer token"

@@ -29,12 +29,10 @@ func NewHomeCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 				if err := home.ClearPointer(); err != nil {
 					return err
 				}
-				// flags.Home was resolved before the pointer was cleared; re-resolve
-				// so the printed value reflects the restored default.
+				// Resolved before the pointer was cleared, so re-resolve.
 				return printHome(cmd, home.FromFlag(flags.HomeOverride), "Kumoss home is reset to")
 			}
-			// Only an explicit --home is persisted; otherwise there is nothing
-			// to remember beyond the default.
+			// Only an explicit --home is worth remembering.
 			if flags.HomeOverride != "" {
 				if err := home.SetPointer(flags.Home.Root); err != nil {
 					return err

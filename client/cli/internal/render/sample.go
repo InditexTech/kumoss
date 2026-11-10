@@ -10,9 +10,8 @@ import (
 	"strings"
 )
 
-// Sample is one env file's key set, taken from the repo's env.sample. It decides
-// which variables an env file carries: the sample lists them, the wizard fills
-// the ones it owns and the sample supplies the rest.
+// Sample is one env file's key set, from the repo's env.sample: it decides
+// which variables the file carries.
 type Sample struct {
 	// Vars are the uncommented KEY=VALUE pairs, in file order.
 	Vars []Var
@@ -24,8 +23,7 @@ type Var struct {
 	Value string
 }
 
-// Lookup returns the sample value for key and whether the key is in the sample.
-// Unused by the pipeline today; kept as the sample's read accessor.
+// Lookup returns the sample value for key. Unused by the pipeline today.
 func (s *Sample) Lookup(key string) (string, bool) {
 	for _, v := range s.Vars {
 		if v.Key == key {
@@ -51,9 +49,8 @@ type Samples struct {
 	Notifications *Sample // services/notifications/env.sample
 }
 
-// FetchSamples downloads and parses the three env samples. A failed fetch is
-// returned, not fatal: the caller warns and falls back to the built-in key list,
-// since the wizard can still write a usable (if possibly incomplete) set.
+// FetchSamples downloads and parses the three env samples. A failure is
+// returned, not fatal: the caller falls back to the built-in key list.
 func FetchSamples(ctx context.Context, d *Download) (*Samples, error) {
 	core, err := fetchSample(ctx, d, "core/env.sample")
 	if err != nil {
@@ -79,8 +76,8 @@ func fetchSample(ctx context.Context, d *Download, path string) (*Sample, error)
 	return ParseSample(string(raw)), nil
 }
 
-// ParseSample reads uncommented KEY=VALUE lines. Blank lines and comments are
-// skipped, surrounding quotes are stripped, and a line with no `=` is ignored.
+// ParseSample reads uncommented KEY=VALUE lines, stripping surrounding quotes
+// and ignoring any line with no `=`.
 func ParseSample(body string) *Sample {
 	s := &Sample{}
 	for line := range strings.SplitSeq(body, "\n") {
@@ -100,9 +97,8 @@ func ParseSample(body string) *Sample {
 	return s
 }
 
-// NeedsAsking returns the keys of s that have no value and that owned does not
-// cover, sorted so the form order is stable. These are the variables only the
-// user can supply (e.g. SLACK_WEBHOOK_URL).
+// NeedsAsking returns the valueless, unowned keys — the ones only the user can
+// supply — sorted so the form order is stable.
 func (s *Sample) NeedsAsking(owned map[string]bool) []Var {
 	var out []Var
 	for _, v := range s.Vars {

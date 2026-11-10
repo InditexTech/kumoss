@@ -10,14 +10,11 @@ import (
 	"path/filepath"
 )
 
-// Download fetches a file from the Kumoss repository at a release tag. It is the
-// one place that knows how a repo file becomes a local file: the CLI ships
-// without the repo, so anything it needs at runtime comes from the tag reported
-// by buildinfo.KumossTag().
+// Download fetches repo files at a release tag: the CLI ships without the
+// repo, so anything it needs at runtime is downloaded.
 type Download struct {
-	// Fetch downloads a repo file at the release tag. Required: the caller (the
-	// composition root) injects it, so this package never depends on a concrete
-	// downloader. A function, not a fetcher type, so tests can stub it inline.
+	// Fetch is injected by the composition root, so this package depends on no
+	// concrete downloader. A func, not an interface, so tests stub it inline.
 	Fetch func(ctx context.Context, tag, path string) ([]byte, error)
 	// Tag is the release tag to fetch (buildinfo.KumossTag()).
 	Tag string

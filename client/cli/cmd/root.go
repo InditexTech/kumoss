@@ -18,8 +18,8 @@ import (
 func Execute(command *cobra.Command) {
 	err := command.Execute()
 	if err != nil {
-		// SilenceErrors is set so cobra does not also print usage; report the
-		// error itself, or a parse failure exits 1 with no explanation.
+		// SilenceErrors is set, so report the error here: otherwise a parse
+		// failure exits 1 with no explanation.
 		fmt.Fprintln(os.Stderr, "kumoss:", err)
 		os.Exit(1)
 	}
@@ -36,8 +36,8 @@ func NewRootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			// HomeOverride is bound by whichever command registered --home
-			// (empty elsewhere); resolve it here, once parsing is done.
+			// Resolved here, once parsing is done; empty for commands that
+			// never registered --home.
 			envFlags.Home = home.FromFlag(envFlags.HomeOverride)
 			return nil
 		},

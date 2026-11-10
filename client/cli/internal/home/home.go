@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// Home is the resolved root of the managed directory. It is the only place
-// that knows the ~/.kumoss layout; everything else asks for paths here.
+// Home is the resolved root, and the only place that knows the ~/.kumoss
+// layout; everything else asks for paths here.
 type Home struct {
 	Root string
 }
@@ -26,9 +26,8 @@ const (
 	SourceDefault
 )
 
-// FromFlag resolves the home directory. Precedence: --home flag, then
-// KUMOSS_HOME, then the pointer file written by `kumoss init`, then ~/.kumoss.
-// This is the only reader of KUMOSS_HOME.
+// FromFlag resolves the home: --home, then KUMOSS_HOME, then the pointer file,
+// then ~/.kumoss. The only reader of KUMOSS_HOME.
 func FromFlag(flagHome string) Home {
 	h, _ := Resolve(flagHome)
 	return h
@@ -49,8 +48,7 @@ func Resolve(flagHome string) (Home, Source) {
 }
 
 // expand makes a path absolute and resolves a leading ~, so a quoted
-// `--home '~/x'` or a relative `--home x` is stored and reported as a real
-// path that does not depend on the caller's working directory.
+// `--home '~/x'` does not depend on the caller's working directory.
 func expand(path string) string {
 	switch {
 	case path == "~":
@@ -88,16 +86,15 @@ func (h Home) ConfigDir() string { return filepath.Join(h.Root, "config") }
 // ConfigYAML is config/config.yaml.
 func (h Home) ConfigYAML() string { return filepath.Join(h.ConfigDir(), "config.yaml") }
 
-// ConfigExample is config/config.yaml.example — the repo's config.yaml at the
-// release tag, verbatim, so the comments the generated file loses are kept.
+// ConfigExample keeps the repo's config.yaml verbatim, with the comments the
+// generated file loses.
 func (h Home) ConfigExample() string { return h.ConfigYAML() + ".example" }
 
 // ComposeOverride is the generated docker compose override.
 func (h Home) ComposeOverride() string { return filepath.Join(h.Root, "compose.override.yml") }
 
-// ComposeFile is src/docker-compose.yml — the downloaded compose project file.
-// It sits in src/ so its ./core/.env and ./services/<name>/.env paths resolve to
-// the generated env files.
+// ComposeFile is src/docker-compose.yml. It sits in src/ so its own ./core/.env
+// and ./services/<name>/.env paths resolve to the generated files.
 func (h Home) ComposeFile() string { return filepath.Join(h.SrcDir(), "docker-compose.yml") }
 
 // CoreEnv is src/core/.env.
@@ -116,18 +113,13 @@ func (h Home) ServiceEnv(service string) string {
 	return filepath.Join(h.ServicesDir(service), ".env")
 }
 
-// Services are the sidecar directories created under src/services/. Hardcoded
-// because the CLI ships without the repo, so there is no src/services/ listing
-// to read: these are the bundled sidecars plus the search backend. mapping and
-// authz are contracts-only and get no directory. Keep in sync when the stack
-// gains a service.
-//
-// Only iac and notifications get a generated .env (see pipeline.envPaths); the
-// searxng directory is created for layout parity and stays empty.
+// Services are the directories created under src/services/. Hardcoded: the CLI
+// ships without the repo, so there is no listing to read. Keep in sync when the
+// stack gains a service. Only iac and notifications get a generated .env;
+// searxng exists for layout parity and stays empty.
 var Services = []string{"iac", "notifications", "searxng"}
 
-// Ensure creates the empty skeleton directories. File contents are written by
-// their producers (render.Download for src/, render + Write for the rest).
+// Ensure creates the skeleton; the producers write the contents.
 func (h Home) Ensure() error {
 	dirs := []string{h.Root, h.SrcDir(), h.CoreDir(), h.ConfigDir()}
 	for _, name := range Services {
@@ -137,7 +129,6 @@ func (h Home) Ensure() error {
 		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return err
 		}
-		// fmt.Fprintf(os.Stdout, "Created directory: %s\n", dir) // Debug
 	}
 	return nil
 }

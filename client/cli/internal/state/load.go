@@ -22,9 +22,8 @@ func StateFileExist(path string) (bool, error) {
 	return !exist.IsDir(), nil
 }
 
-// Load reads a kumoss.yaml into a State. Missing secrets are expected: they are
-// yaml:"-" and never persisted, so the caller re-collects them through the
-// forms or keeps the existing env files.
+// Load reads a kumoss.yaml into a State. Missing secrets are expected: they
+// are never persisted, so the caller re-collects or keeps the env files.
 func Load(path string) (*State, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -37,17 +36,16 @@ func Load(path string) (*State, error) {
 	return &s, nil
 }
 
-// Save writes the non-secret state to path. Fields tagged yaml:"-" (Cloud,
-// Engine, Secrets, and every credential map) are dropped by the marshal, so the
-// file never carries a secret. Written 0600: it is configuration, not a secret,
-// but it names the buckets and providers of this install.
+// Save writes the non-secret state. The yaml:"-" fields are dropped by the
+// marshal, so the file carries no secret. 0600 anyway: it names this
+// install's buckets and providers.
 func Save(path string, s *State) error {
 	raw, err := Render(s)
 	if err != nil {
 		return err
 	}
-	// Same temp-then-rename as render.writeFile, which is unexported: a torn
-	// kumoss.yaml would lose every non-secret answer.
+	// Same temp-then-rename as render.writeFile, which is unexported here. A
+	// torn kumoss.yaml would lose every answer.
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".kumoss.yaml.*")
 	if err != nil {
 		return err
@@ -67,8 +65,7 @@ func Save(path string, s *State) error {
 	return os.Rename(tmp.Name(), path)
 }
 
-// Render returns the bytes Save would write, without writing them, so a dry run
-// shows exactly what would land on disk.
+// Render returns the bytes Save would write, for a dry run.
 func Render(s *State) ([]byte, error) {
 	return yaml.Marshal(s)
 }

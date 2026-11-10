@@ -11,33 +11,30 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// Flags is the resolved, read-only context every subcommand receives. It is
-// built once in the root's PersistentPreRunE, so no command resolves flags.
+// Flags is built once in the root's PersistentPreRunE, so no command resolves
+// flags for itself.
 type Flags struct {
 	Home home.Home
 
-	// HomeOverride is the raw --home value: "" when the user did not pass it.
-	// Only init and home consult it, to decide whether to persist the choice.
+	// HomeOverride is the raw --home value, "" when unset. init and home read
+	// it to decide whether to persist the choice.
 	HomeOverride string
 
-	// Foreground keeps `docker compose up` attached instead of detached: logs
-	// stream until Ctrl-C, which also stops the stack. Only init reads it.
+	// Foreground keeps `up` attached: logs stream until Ctrl-C, which also
+	// stops the stack. Only init reads it.
 	Foreground bool
 
-	// HostCerts makes the generated compose override trust this host's CA roots,
-	// for a TLS-inspecting proxy. Only init reads it.
+	// HostCerts trusts this host's CA roots, for a TLS-inspecting proxy.
 	HostCerts bool
 }
 
-// RegisterHome adds the --home flag to a command that honours it. Only init
-// and home do: registering it everywhere would accept the flag on commands
-// that ignore it, silently doing nothing.
+// RegisterHome is local, not persistent: a global --home would be accepted by
+// commands that ignore it and silently do nothing.
 func (f *Flags) RegisterHome(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.HomeOverride, "home", "", "managed home directory (default ~/.kumoss)")
 }
 
-// RegisterInit adds the flags only `kumoss init` acts on: the docker start
-// behaviour and the CA wiring. Local, for the same reason as RegisterHome.
+// RegisterInit adds the flags only init acts on, local for the same reason.
 func (f *Flags) RegisterInit(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&f.Foreground, "foreground", false,
 		"stream the stack's logs instead of detaching; Ctrl-C also stops it")
