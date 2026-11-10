@@ -27,9 +27,13 @@ func email(v string) error {
 	return nil
 }
 
-// floatRange accepts a number in [min, max].
+// floatRange accepts a number in [min, max], or blank — which is how the
+// optional LLM knobs say "keep the repo's value".
 func floatRange(min, max float64) func(string) error {
 	return func(v string) error {
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
 		f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {
 			return errors.New("enter a number")
@@ -41,9 +45,12 @@ func floatRange(min, max float64) func(string) error {
 	}
 }
 
-// floatMin accepts a number >= min.
+// floatMin accepts a number >= min, or blank (see floatRange).
 func floatMin(min float64) func(string) error {
 	return func(v string) error {
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
 		f, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
 		if err != nil {
 			return errors.New("enter a number")
@@ -55,9 +62,12 @@ func floatMin(min float64) func(string) error {
 	}
 }
 
-// intMin accepts a whole number >= min.
+// intMin accepts a whole number >= min, or blank (see floatRange).
 func intMin(min int) func(string) error {
 	return func(v string) error {
+		if strings.TrimSpace(v) == "" {
+			return nil
+		}
 		n, err := strconv.Atoi(strings.TrimSpace(v))
 		if err != nil {
 			return errors.New("enter a whole number")
@@ -67,4 +77,13 @@ func intMin(min int) func(string) error {
 		}
 		return nil
 	}
+}
+
+// acknowledgeTerraform rejects an unacknowledged Terraform choice. Nothing
+// downstream reads the answer, so the prompt must hold the form itself.
+func acknowledgeTerraform(ok bool) error {
+	if !ok {
+		return errors.New("Terraform is licensed under BUSL-1.1; acknowledge to continue, or go back and choose OpenTofu")
+	}
+	return nil
 }

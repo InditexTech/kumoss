@@ -89,9 +89,9 @@ func TestRenderOverlaysAnswersAndKeepsTheRest(t *testing.T) {
 		LLM: state.LLM{
 			Model:           "anthropic/claude-sonnet-5",
 			SmallModel:      "anthropic/claude-haiku-4-5",
-			Temperature:     0.2,
-			MaxOutputTokens: 16000,
-			Timeout:         300,
+			Temperature:     ptr(0.2),
+			MaxOutputTokens: ptr(16000),
+			Timeout:         ptr(300.0),
 		},
 		Git: state.Git{Provider: "GITLAB", AuthorName: "Bot", AuthorEmail: "bot@example.invalid"},
 		Storage: state.Storage{
@@ -199,9 +199,8 @@ func TestRenderFetchError(t *testing.T) {
 	}
 }
 
-// The tuning knobs come from the fetched config.yaml when the wizard never set
-// them. Writing a zero would make the core's pydantic model reject the file
-// (temperature has no 0 default, timeout must be positive).
+// Unset knobs come from the fetched config.yaml: writing a zero would make the
+// core's pydantic model reject the file.
 func TestConfigKeepsFetchedTuningKnobsWhenUnset(t *testing.T) {
 	raw := "llm:\n  model: repo/model\n  temperature: 0.2\n  max_output_tokens: 64000\n  timeout: 900\n"
 	out, err := RenderConfig([]byte(raw), &state.State{LLM: state.LLM{Model: "chosen/model"}})
@@ -227,7 +226,7 @@ func TestConfigKeepsFetchedTuningKnobsWhenUnset(t *testing.T) {
 // An explicit answer still wins over the fetched value.
 func TestConfigAnswersOverrideFetchedTuningKnobs(t *testing.T) {
 	raw := "llm:\n  temperature: 0.2\n  max_output_tokens: 64000\n  timeout: 900\n"
-	s := &state.State{LLM: state.LLM{Temperature: 0.7, MaxOutputTokens: 1024, Timeout: 30}}
+	s := &state.State{LLM: state.LLM{Temperature: ptr(0.7), MaxOutputTokens: ptr(1024), Timeout: ptr(30.0)}}
 	out, err := RenderConfig([]byte(raw), s)
 	if err != nil {
 		t.Fatalf("RenderConfig: %v", err)
@@ -239,8 +238,7 @@ func TestConfigAnswersOverrideFetchedTuningKnobs(t *testing.T) {
 	}
 }
 
-// With nothing fetched and nothing answered, the keys are omitted rather than
-// written as zeros: the core's defaults then apply.
+// Nothing fetched and nothing answered: omit the keys rather than write zeros.
 func TestConfigOmitsUnsetTuningKnobs(t *testing.T) {
 	out, err := RenderConfig([]byte("llm:\n  model: x\n"), &state.State{})
 	if err != nil {
@@ -254,3 +252,21 @@ func TestConfigOmitsUnsetTuningKnobs(t *testing.T) {
 		}
 	}
 }
+
+// Temperature 0 is a real answer, not a missing one: treating zero as "never
+// asked" silently gave the user the repo's 0.1 instead.
+func TestConfigWritesAnExplicitZeroTemperature(t *testing.T) {
+	raw := "llm:\n  temperature: 0.2\n"
+	out, err := RenderConfig([]byte(raw), &state.State{LLM: state.LLM{Temperature: ptr(0.0)}})
+	if err != nil {
+		t.Fatalf("RenderConfig: %v", err)
+	}
+
+	llm := configDoc(t, out)["llm"].(map[string]any)
+	if llm["temperature"] != 0 {
+		t.Errorf("temperature = %v, want the answered 0", llm["temperature"])
+	}
+}
+
+// ptr is the address of a literal, for the optional tuning knobs.
+func ptr[T any](v T) *T { return &v }

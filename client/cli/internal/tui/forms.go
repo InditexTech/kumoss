@@ -34,19 +34,15 @@ func (w *Wizard) SelectStateAction() (Mode, error) {
 	return mode, nil
 }
 
-// Configure runs the interactive forms and fills s. In ModeReconfigure s
-// arrives pre-filled from kumoss.yaml and the forms open on those values; in
-// ModeFresh s is zero-valued and the forms open empty. ModeKeep never reaches
-// here. Credentials collected by the forms live in the yaml:"-" maps on s, so
-// they reach the .env files and never kumoss.yaml.
+// Configure runs the forms and fills s: pre-filled in ModeReconfigure, empty
+// in ModeFresh, never called for ModeKeep. Credentials land in the yaml:"-"
+// maps, so they reach the .env files and never kumoss.yaml.
 func (w *Wizard) Configure(mode Mode, s *state.State) error {
 	if mode == ModeKeep {
 		return nil
 	}
 
-	// The LLM step is split in two because the credential fields depend on the
-	// provider chosen in the first form. Pick the provider, then build the
-	// details form from that choice.
+	// Split in two: the credential fields depend on the provider picked first.
 	idx, err := w.llmProviderStep(s)
 	if err != nil {
 		return err
@@ -72,9 +68,8 @@ func (w *Wizard) Configure(mode Mode, s *state.State) error {
 	return nil
 }
 
-// multiSelectKeyMap is huh's default keymap with the toggle help renamed to
-// "space". huh labels it "x" by default, which hides that space works too — the
-// obvious key on a list of checkboxes. Both keys stay bound.
+// multiSelectKeyMap renames the toggle help to "space". huh labels it "x",
+// hiding the obvious key on a list of checkboxes. Both stay bound.
 func multiSelectKeyMap() *huh.KeyMap {
 	km := huh.NewDefaultKeyMap()
 	km.MultiSelect.Toggle = key.NewBinding(
@@ -84,10 +79,8 @@ func multiSelectKeyMap() *huh.KeyMap {
 	return km
 }
 
-// RotateSecrets offers the secrets already in the env files and returns the keys
-// to regenerate. Multi-select: nothing selected keeps every secret, which is the
-// safe default for a running stack. Rotating a token breaks any client still
-// presenting the old one, so the description says so.
+// RotateSecrets returns the keys to regenerate. Selecting nothing keeps every
+// secret, the safe default: rotating breaks any client holding the old one.
 func (w *Wizard) RotateSecrets(found []Secret) ([]string, error) {
 	opts := make([]huh.Option[string], len(found))
 	for i, s := range found {
@@ -100,7 +93,7 @@ func (w *Wizard) RotateSecrets(found []Secret) ([]string, error) {
 				Title("Secrets already present in the env files").
 				Description("Space (or x) toggles a secret, enter confirms. Select any to regenerate; leave all unselected to keep the running stack working.").
 				Options(opts...).
-				// One line per secret, plus the title, description and help bar.
+				// One line per secret, plus title, description and help bar.
 				Height(len(opts) + 5).
 				Value(&rotate),
 		),
@@ -111,11 +104,10 @@ func (w *Wizard) RotateSecrets(found []Secret) ([]string, error) {
 	return rotate, nil
 }
 
-// ExtraVars asks for the env keys the samples leave empty and the wizard does
-// not collect. One masked input per key; empty answers are allowed, since a
-// blank env var is how the stack says "not configured".
+// ExtraVars asks for the sample keys the wizard does not own. Blank answers
+// are allowed: an empty var is how the stack says "not configured".
 func (w *Wizard) ExtraVars(keys []Secret) (map[string]string, error) {
-	// huh binds to addresses, so collect into a slice and zip it back by index.
+	// huh binds to addresses, so collect into a slice and zip back by index.
 	answers := make([]string, len(keys))
 	fields := make([]huh.Field, len(keys))
 	for i, k := range keys {
@@ -135,8 +127,7 @@ func (w *Wizard) ExtraVars(keys []Secret) (map[string]string, error) {
 	return values, nil
 }
 
-// ConfirmRegenerate asks whether to rewrite an existing generated file. The
-// default is no: a hand-edited file is the user's, and losing it is silent.
+// ConfirmRegenerate defaults to no: losing a hand-edited file is silent.
 func (w *Wizard) ConfirmRegenerate(what string) (bool, error) {
 	regenerate := false
 	form := huh.NewForm(
@@ -155,8 +146,7 @@ func (w *Wizard) ConfirmRegenerate(what string) (bool, error) {
 	return regenerate, nil
 }
 
-// RunDocker asks whether to pull and start the stack now. The pipeline then
-// decides detached vs foreground from --foreground.
+// RunDocker asks whether to start now; the pipeline picks detached or not.
 func (w *Wizard) RunDocker() (bool, error) {
 	run := true
 	form := huh.NewForm(
@@ -175,9 +165,8 @@ func (w *Wizard) RunDocker() (bool, error) {
 	return run, nil
 }
 
-// llmProviderStep asks which provider serves the models and returns its row
-// index (into llmProviders, or -1 for the free-text "Other" row). Preselected
-// from the stored model prefix on reconfigure.
+// llmProviderStep returns the chosen row index, or -1 for "Other".
+// Preselected from the stored model prefix on reconfigure.
 func (w *Wizard) llmProviderStep(s *state.State) (int, error) {
 	prefix := s.LLM.Provider
 	if prefix == "" {
@@ -200,9 +189,8 @@ func (w *Wizard) llmProviderStep(s *state.State) (int, error) {
 	return idx, nil
 }
 
-// llmDetailsStep collects the two models, the tuning knobs, and the chosen
-// provider's credentials. For the free-text "Other" provider it asks for a
-// credential name and value by hand.
+// llmDetailsStep collects the models, the knobs and the provider's
+// credentials — or asks for name/value pairs by hand for "Other".
 func (w *Wizard) llmDetailsStep(s *state.State, provider llmProvider) error {
 	s.LLM.Provider = provider.Prefix
 	if s.LLM.Model == "" {
@@ -211,18 +199,18 @@ func (w *Wizard) llmDetailsStep(s *state.State, provider llmProvider) error {
 	if s.LLM.SmallModel == "" {
 		s.LLM.SmallModel = provider.DefaultSmallModel
 	}
-	// temperature, max_output_tokens and timeout have no default here: a zero
-	// leaves the fetched config.yaml's value in place (see render.overlay), so
-	// the repo stays the single source of truth for the tuning knobs.
+	// The knobs have no default here: nil leaves the fetched config.yaml value
+	// in place (render.overlay), so the repo stays the source of truth.
 	if s.LLM.Credentials == nil {
 		s.LLM.Credentials = map[string]string{}
 	}
 
-	// huh binds *string, so each numeric knob and credential gets a local;
-	// commit parses the locals back into the struct once the form has run.
-	temp := strconv.FormatFloat(s.LLM.Temperature, 'g', -1, 64)
-	maxTokens := strconv.Itoa(s.LLM.MaxOutputTokens)
-	timeout := strconv.FormatFloat(s.LLM.Timeout, 'g', -1, 64)
+	// huh binds *string, so each knob and credential gets a local that commit
+	// parses back once the form has run. An unset knob shows blank: pre-filling
+	// 0 claimed an answer the user never gave.
+	temp := knobFloat(s.LLM.Temperature)
+	maxTokens := knobInt(s.LLM.MaxOutputTokens)
+	timeout := knobFloat(s.LLM.Timeout)
 	values := make([]string, len(provider.Credentials))
 	fields := []huh.Field{
 		huh.NewInput().
@@ -266,23 +254,21 @@ func (w *Wizard) llmDetailsStep(s *state.State, provider llmProvider) error {
 	if err := w.run(form); err != nil {
 		return err
 	}
-	s.LLM.Temperature, _ = strconv.ParseFloat(temp, 64)
-	s.LLM.MaxOutputTokens, _ = strconv.Atoi(maxTokens)
-	s.LLM.Timeout, _ = strconv.ParseFloat(timeout, 64)
+	s.LLM.Temperature = parseKnobFloat(temp)
+	s.LLM.MaxOutputTokens = parseKnobInt(maxTokens)
+	s.LLM.Timeout = parseKnobFloat(timeout)
 	for i, c := range provider.Credentials {
 		s.LLM.Credentials[c.Name] = values[i]
 	}
-	// The free-text provider collects an arbitrary number of credentials in a
-	// loop after the fixed form, since huh cannot add fields mid-run.
+	// Looped after the fixed form, since huh cannot add fields mid-run.
 	if provider.Freeform {
 		return w.collectFreeformCredentials(s)
 	}
 	return nil
 }
 
-// collectFreeformCredentials asks for credential name/value pairs until the
-// user leaves the name blank. Each round is its own form; a blank name ends the
-// loop. The last value entered for a repeated name wins.
+// collectFreeformCredentials loops one form per pair until the name is left
+// blank. The last value for a repeated name wins.
 func (w *Wizard) collectFreeformCredentials(s *state.State) error {
 	for {
 		name := ""
@@ -434,8 +420,8 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 	return form, commit
 }
 
-// cloudStep picks the clouds this deployment serves and opens one credential
-// group per pick. Unpicked clouds stay hidden and their structs stay nil.
+// cloudStep opens one credential group per picked cloud; the rest stay hidden
+// and their structs stay nil.
 func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 	picked := []string{}
 	for _, c := range clouds {
@@ -450,7 +436,7 @@ func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 				Title("Cloud providers").
 				Description("Which clouds your Terraform modules target? Space (or x) toggles a cloud, enter confirms. Skip if none.").
 				Options(cloudOptions()...).
-				// One line per cloud, plus the title, description and help bar.
+				// One line per cloud, plus title, description and help bar.
 				Height(len(clouds) + 5).
 				Value(&picked),
 		).Title("Clouds"),
@@ -458,9 +444,8 @@ func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 	for _, c := range clouds {
 		groups = append(groups, cloudGroup(s, c, &picked))
 	}
-	// ensureCloud allocates every cloud's struct so its fields can be bound;
-	// drop the ones the user did not pick so the renderer only sees the picked
-	// clouds.
+	// ensureCloud allocated every struct so the fields could be bound; drop
+	// the unpicked ones so the renderer sees only real answers.
 	commit := func() {
 		if !selected(picked, "aws") {
 			s.Cloud.AWS = nil
@@ -503,16 +488,15 @@ func (w *Wizard) engineStep(s *state.State) (*huh.Form, func()) {
 				Description("Terraform is under BUSL-1.1. Confirm your use complies with its terms.").
 				Affirmative("I acknowledge").
 				Negative("Cancel").
-				Value(&s.Engine.BUSLAcknowledged),
+				Value(&s.Engine.BUSLAcknowledged).
+				Validate(acknowledgeTerraform),
 		).WithHideFunc(func() bool { return s.Engine.Binary != "terraform" }),
 	)
 	return form, func() {}
 }
 
-// notificationsStep asks whether the stack sends Slack notifications and for the
-// webhook to send them to. The notifications service refuses to start without a
-// webhook, so the pipeline only writes enabled=true when one was given: asking
-// for both in one form keeps the two from disagreeing.
+// notificationsStep asks both questions in one form: the service refuses to
+// start without a webhook, so enabled and the URL must not disagree.
 func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -527,7 +511,7 @@ func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
 				Description("SLACK_WEBHOOK_URL. Required to enable: anyone holding it can post to the channel.").
 				EchoMode(huh.EchoModePassword).
 				Value(&s.Notifications.SlackWebhookURL).
-				// Validated only when enabling, or "No" would still demand a webhook.
+				// Only when enabling, or "No" would still demand a webhook.
 				Validate(func(v string) error {
 					if s.Notifications.Enabled {
 						return required(v)
@@ -669,4 +653,47 @@ func pickStorage(s *state.State) *storageModel {
 		return m
 	}
 	return &storageModels[0]
+}
+
+// The optional LLM knobs are pointers so "unanswered" and "zero" stay apart:
+// nil keeps the repo's value. These four convert to and from the form's input.
+
+func knobFloat(v *float64) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.FormatFloat(*v, 'g', -1, 64)
+}
+
+func knobInt(v *int) string {
+	if v == nil {
+		return ""
+	}
+	return strconv.Itoa(*v)
+}
+
+// parseKnobFloat returns nil for a blank box, and for junk Validate already
+// refused — only reachable when the form was cancelled.
+func parseKnobFloat(s string) *float64 {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return nil
+	}
+	return &f
+}
+
+func parseKnobInt(s string) *int {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return nil
+	}
+	return &n
 }

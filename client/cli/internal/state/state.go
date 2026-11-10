@@ -4,9 +4,8 @@
 
 package state
 
-// State is kumoss.yaml: the answers that survive a run. Secrets, the
-// cloud/engine structs and every credential map are yaml:"-" and never reach
-// the file.
+// State is kumoss.yaml: the answers that survive a run. Secrets, the cloud and
+// engine structs and every credential map are yaml:"-" and never reach it.
 type State struct {
 	SchemaVersion int           `yaml:"schema_version" json:"schema_version"`
 	LLM           LLM           `yaml:"llm"            json:"llm"`
@@ -24,9 +23,11 @@ type LLM struct {
 	Model      string `yaml:"model" json:"model"`             // → config.yaml llm.model
 	SmallModel string `yaml:"small_model" json:"small_model"` // → config.yaml llm.small_model
 
-	Temperature     float64 `yaml:"temperature,omitempty" json:"temperature,omitempty"`             // → llm.temperature
-	MaxOutputTokens int     `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"` // → llm.max_output_tokens
-	Timeout         float64 `yaml:"timeout,omitempty" json:"timeout,omitempty"`                     // → llm.timeout
+	// Pointers so "unset" and "zero" stay distinct: nil keeps the repo's value.
+	// As plain floats, temperature 0 read as "never asked" and was unreachable.
+	Temperature     *float64 `yaml:"temperature,omitempty" json:"temperature,omitempty"`             // → llm.temperature
+	MaxOutputTokens *int     `yaml:"max_output_tokens,omitempty" json:"max_output_tokens,omitempty"` // → llm.max_output_tokens
+	Timeout         *float64 `yaml:"timeout,omitempty" json:"timeout,omitempty"`                     // → llm.timeout
 
 	// → core/.env: provider credential vars keyed by ENV-VAR NAME (e.g.
 	Credentials map[string]string `yaml:"-" json:"-"`
@@ -68,14 +69,13 @@ type AzureAuth struct {
 	ClientSecret string `yaml:"-" json:"-"` // → ARM_CLIENT_SECRET (secret)
 }
 
-// GCPAuth → services/iac/.env. A key file is a path mounted read-only into the
-// iac container; the inline JSON is the same key pasted into the variable, and
-// needs no mount. Method picks which of the two was given.
+// GCPAuth → services/iac/.env. A key file is mounted read-only; the inline
+// JSON is the same key in the variable and needs no mount.
 type GCPAuth struct {
 	Method  string `yaml:"-" json:"-"` // "file" | "json"
 	KeyFile string `yaml:"-" json:"-"` // host path → GOOGLE_APPLICATION_CREDENTIALS
-	// InlineJSON is the key itself → GOOGLE_CREDENTIALS (secret). The repo's
-	// env.sample documents this form for a deployment with no file to mount.
+	// InlineJSON → GOOGLE_CREDENTIALS (secret), for a host with no file to
+	// mount. The repo's env.sample documents this form.
 	InlineJSON string `yaml:"-" json:"-"`
 }
 
@@ -93,18 +93,16 @@ type KubernetesAuth struct {
 type Engine struct {
 	Binary string `yaml:"-" json:"-"` // → services/iac/.env IAC_BINARY (tofu | terraform)
 
-	// Wizard-only consent gate for Terraform's BUSL-1.1 license. Not persisted
-	// anywhere and not consulted by the pipeline: picking "terraform" is the
-	// only gate the generated env file carries.
+	// Wizard-only consent gate for Terraform's BUSL-1.1 license. Not persisted:
+	// the form itself will not submit while this is false (tui.acknowledgeTerraform).
 	BUSLAcknowledged bool `yaml:"-" json:"-"`
 }
 
-// Storage fields map to config.yaml's `storage:` block; credentials are
-// env vars in core/.env (RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY / STORAGE_ACCOUNT_KEY) and
-// services/iac/.env (repository-declared backend creds).
+// Storage maps to config.yaml's `storage:` block. Its credentials are env vars
+// in core/.env, or services/iac/.env for a repository-declared backend.
 type Storage struct {
-	// CLI discriminator (not a config key): "bundled" | "external_s3" | "external_azure" |
-	// "repository". Drives Provider and the empty/non-empty TerraformStateBucket.
+	// CLI discriminator, not a config key. Drives Provider and whether
+	// TerraformStateBucket is empty.
 	Model string `yaml:"-" json:"-"`
 
 	Provider             string `yaml:"provider,omitempty" json:"provider,omitempty"`                             // → storage.provider: RUSTFS | S3 | STORAGE_ACCOUNT
@@ -114,8 +112,8 @@ type Storage struct {
 	EndpointURL          string `yaml:"endpoint_url,omitempty" json:"endpoint_url,omitempty"`                     // → storage.endpoint_url (in-cluster)
 	PublicEndpointURL    string `yaml:"public_endpoint_url,omitempty" json:"public_endpoint_url,omitempty"`       // → storage.public_endpoint_url (browser-facing)
 
-	// → core/.env: RUSTFS_ACCESS_KEY / RUSTFS_SECRET_KEY / STORAGE_ACCOUNT_KEY, keyed by
-	// ENV-VAR NAME. Blank for provider S3 (a static key would defeat boto3's chain).
+	// → core/.env, keyed by env-var name. Blank for S3: a static key would
+	// defeat boto3's default chain.
 	Credentials map[string]string `yaml:"-" json:"-"`
 
 	// → services/iac/.env: backend credential variables for the repository-declared model.
@@ -125,13 +123,12 @@ type Storage struct {
 type Notifications struct {
 	Enabled bool `yaml:"enabled" json:"enabled"` // → config.yaml services.notifications.enabled
 
-	// → services/notifications/.env SLACK_WEBHOOK_URL (secret). The service
-	// refuses to start without it, so the wizard only writes Enabled when it is set.
+	// → SLACK_WEBHOOK_URL (secret). The service refuses to start without it,
+	// so Enabled is only written when this is set.
 	SlackWebhookURL string `yaml:"-" json:"-"`
 }
 
-// Secrets are generated, never user-supplied, never serialised: every value
-// is an env var in core/.env or a sidecar .env.
+// Secrets are generated, never user-supplied, never serialised.
 type Secrets struct {
 	// → core/.env and the matching sidecar .env (must be byte-identical).
 	IACToken           string // KUMOSS_IAC_TOKEN
@@ -139,9 +136,8 @@ type Secrets struct {
 	MappingToken       string // KUMOSS_MAPPING_TOKEN
 	AuthzToken         string // KUMOSS_AUTHZ_TOKEN
 
-	// → core/.env. The DB password and the RustFS keys are never generated:
-	// docker-compose.yml fixes them, so render takes them from the env sample
-	// (or the existing file) and Fill carries them over on reconfigure.
+	// → core/.env. Never generated: docker-compose.yml fixes these, so they
+	// come from the env sample and Fill carries them over on reconfigure.
 	CoreDBPassword  string // embedded in KUMOSS_SQL_DATABASE_URL
 	RustFSAccessKey string // RUSTFS_ACCESS_KEY
 	RustFSSecretKey string // RUSTFS_SECRET_KEY
