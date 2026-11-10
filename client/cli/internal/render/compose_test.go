@@ -58,8 +58,8 @@ func TestComposeOverrideHostCerts(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	// core keeps its config remap and gains the CA mount, which is what the
-	// entrypoints read; losing the config mount would silently unconfigure it.
+	// core keeps its config remap and gains the CA mount; losing the first
+	// would silently unconfigure it.
 	core := doc["services"].(map[string]any)["core"].(map[string]any)
 	volumes := core["volumes"].([]any)
 	if len(volumes) != 2 {
@@ -87,9 +87,8 @@ func TestComposeOverrideHostCerts(t *testing.T) {
 	}
 }
 
-// Without the flag the override must stay exactly as before: the default CA
-// directory does not exist on a normal network, and mounting it would break the
-// stack.
+// Without the flag the override must not change: that CA directory is absent on
+// a normal network, and mounting it would break the stack.
 func TestComposeOverrideOmitsHostCertsByDefault(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "compose.override.yml")
 	c := &Compose{Path: path, ConfigPath: "../config/config.yaml"}

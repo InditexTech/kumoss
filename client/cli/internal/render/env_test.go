@@ -67,8 +67,7 @@ func TestWriteUsesOwnerOnlyPermissions(t *testing.T) {
 	}
 }
 
-// An existing token is kept, not regenerated: rotating it would break a running
-// stack whose clients hold the old value.
+// An existing token is kept: rotating breaks a stack holding the old value.
 func TestWriteKeepsExistingTokens(t *testing.T) {
 	p := envPathsIn(t)
 	s := &state.State{Secrets: state.Secrets{IACToken: "keep-me", NotificationsToken: "keep-me-too"}}
@@ -124,8 +123,7 @@ func TestFillRespectsRotation(t *testing.T) {
 	}
 }
 
-// Without samples the built-in list still produces a usable file set, with the
-// values docker-compose.yml expects.
+// Without samples the built-in list must still match docker-compose.yml.
 func TestFallbackFilesMatchTheComposeDefaults(t *testing.T) {
 	p := envPathsIn(t)
 	if err := (&Env{}).Write(p, &state.State{}); err != nil {
@@ -156,8 +154,8 @@ func TestDBPassword(t *testing.T) {
 	}
 }
 
-// writeEnv sorts its keys so two runs diff cleanly, and writes an empty value as
-// KEY= rather than dropping the key: compose distinguishes missing from empty.
+// Sorted so two runs diff cleanly, and an empty value stays as KEY=: compose
+// reads missing and empty differently.
 func TestWriteEnvSortsAndKeepsEmptyKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "x.env")
 	if err := writeEnv(path, map[string]string{"B": "2", "A": "", "C": "3"}); err != nil {
@@ -172,8 +170,8 @@ func TestWriteEnvSortsAndKeepsEmptyKeys(t *testing.T) {
 	}
 }
 
-// readEnv skips comments, blanks and malformed lines, and strips quotes: a
-// hand-edited file must not block the run.
+// readEnv tolerates comments, blanks, junk and quotes: a hand-edited file must
+// not block the run.
 func TestReadEnvToleratesHandEdits(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "x.env")
 	body := "# comment\n\nA=1\nB=\"two\"\nno equals sign\nC='three'\n"
@@ -221,8 +219,7 @@ func TestCloudVarsAWSProfile(t *testing.T) {
 	}
 }
 
-// randomHex must be long enough and different each call, or every install would
-// share a token.
+// Long enough and different each call, or every install shares a token.
 func TestRandomHexIsUniqueAndLong(t *testing.T) {
 	a, b := randomHex(), randomHex()
 	if a == b {
@@ -230,5 +227,49 @@ func TestRandomHexIsUniqueAndLong(t *testing.T) {
 	}
 	if len(a) != 64 || strings.Trim(a, "0123456789abcdef") != "" {
 		t.Errorf("randomHex = %q, want 64 hex chars", a)
+	}
+}
+
+// Replace by rename, not truncate: these files are the only copy of the stack's
+// bearer tokens. A different inode means the target was renamed over.
+func TestWriteEnvReplacesByRename(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "core", ".env")
+	if err := writeEnv(path, map[string]string{"A": "1"}); err != nil {
+		t.Fatalf("first write: %v", err)
+	}
+	before, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := writeEnv(path, map[string]string{"B": "2"}); err != nil {
+		t.Fatalf("second write: %v", err)
+	}
+	after, err := os.Stat(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if os.SameFile(before, after) {
+		t.Error("the rewrite reused the same file: truncated in place, not renamed over")
+	}
+
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(got) != "B=2\n" {
+		t.Errorf("content = %q", got)
+	}
+	if m := after.Mode().Perm(); m != 0o600 {
+		t.Errorf("mode = %v, want 0600", m)
+	}
+
+	// No temp file left behind: it would be a second copy of the tokens.
+	entries, err := os.ReadDir(filepath.Dir(path))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 1 {
+		t.Errorf("directory holds %d files, want only .env", len(entries))
 	}
 }

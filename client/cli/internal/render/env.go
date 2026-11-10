@@ -9,46 +9,34 @@ import (
 	"encoding/hex"
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// EnvPaths are the three env files the pipeline writes. Kept as a struct, not a
-// slice, so the mapping file→vars stays explicit.
+// EnvPaths are the three env files the pipeline writes. A struct, not a slice,
+// so the file→vars mapping stays explicit.
 type EnvPaths struct {
 	Core          string // src/core/.env
 	IAC           string // src/services/iac/.env
 	Notifications string // src/services/notifications/.env
 }
 
-// Env renders the three .env files from the answers. Generation is the only
-// secret work it does: the caller copies the existing files' values onto the
-// state (LoadSecrets + Fill) and clears the ones the user chose to rotate, so
-// Write fills exactly the empty ones and writes all three 0600.
-//
-// The key set comes from the repo's env.sample files when Samples is set: the
-// wizard fills the keys it owns, the sample supplies the rest, and keys the
-// sample leaves empty are asked for and carried in Extra. Wizard credentials the
-// sample does not list at all are appended. With Samples nil (the fetch failed)
-// it falls back to the built-in key list, which may lag the repo.
+// Env renders the three .env files from the answers. The key set comes from the
+// repo's env.sample files; with Samples nil (the fetch failed) it falls back to
+// the built-in key list, which may lag the repo.
 type Env struct {
 	Samples *Samples
-	// Extra holds the values the user supplied for sample keys with no value and
-	// no wizard owner (e.g. SLACK_WEBHOOK_URL).
+	// Extra holds what the user typed for sample keys with no value and no
+	// wizard owner (e.g. SLACK_WEBHOOK_URL).
 	Extra map[string]string
 }
 
-// Write writes the env files. s.Secrets is filled in place with any values it
-// had to generate, so the caller can report them if needed. Every secret that is
-// already set on s is kept as-is: the caller copies the existing files' values
-// with LoadSecrets and Fill and clears only the ones the user chose to rotate,
-// so this method never rotates anything on its own.
+// Write writes the env files, generating onto s only the secrets still empty.
+// It never rotates: the caller clears what the user chose to regenerate.
 func (e *Env) Write(p EnvPaths, s *state.State) error {
-	// generate allocates the missing tokens onto s, and Files would generate
-	// them again if called after; call it once and write what it returned.
+	// Files generates onto s, so call it once and write what it returned.
 	files := e.Files(p, s)
 	for path, vars := range files {
 		if err := writeEnv(path, vars); err != nil {
@@ -58,16 +46,14 @@ func (e *Env) Write(p EnvPaths, s *state.State) error {
 	return nil
 }
 
-// Files returns the env files Write would produce, keyed by path, without
-// touching the disk. It generates the same missing tokens Write does, onto s,
-// so a dry run can show the real content.
+// Files returns what Write would produce, keyed by path, without touching the
+// disk. It generates the same tokens onto s, so a dry run shows real content.
 func (e *Env) Files(p EnvPaths, s *state.State) map[string]map[string]string {
 	e.generate(s)
 	return e.files(p, s)
 }
 
-// RenderEnvFile returns the bytes writeEnv would put in one file, without
-// writing.
+// RenderEnvFile returns the bytes writeEnv would write.
 func RenderEnvFile(vars map[string]string) []byte {
 	keys := make([]string, 0, len(vars))
 	for k := range vars {
@@ -85,9 +71,8 @@ func RenderEnvFile(vars map[string]string) []byte {
 	return []byte(b.String())
 }
 
-// LoadSecrets reads the secrets already present in the three env files, so the
-// caller can offer to rotate them before Write. Returns false when none of the
-// files exist yet (a fresh install).
+// LoadSecrets reads the secrets already in the env files, so the caller can
+// offer to rotate them. False when no file exists yet (a fresh install).
 func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 	var s state.Secrets
 	found := false
@@ -110,10 +95,8 @@ func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 	return s, found
 }
 
-// Fill copies the secrets found in the env files onto s, except the keys in
-// rotate, which are left empty so Write generates fresh ones. Call it with
-// LoadSecrets' result before Write; a fresh install passes found=false and
-// nothing is copied.
+// Fill copies LoadSecrets' result onto s, leaving the keys in rotate empty so
+// Write generates fresh ones.
 func Fill(s *state.State, existing state.Secrets, rotate []string) {
 	keep := func(key, value string) string {
 		for _, r := range rotate {
@@ -132,27 +115,17 @@ func Fill(s *state.State, existing state.Secrets, rotate []string) {
 	s.Secrets.CoreDBPassword = keep("KUMOSS_SQL_DATABASE_URL", existing.CoreDBPassword)
 }
 
-// generate fills every token still empty with a fresh random value. 32 bytes
-// of entropy hex-encoded, matching the `openssl rand -hex 32` the samples
-// recommend. Tokens must be non-empty: the generated clients reject an empty
-// bearer.
-//
-// The Postgres password and the RustFS keys are NOT generated: docker-compose.yml
-// hardcodes them (POSTGRES_PASSWORD=postgres; RustFS's built-in rustfsadmin), so
-// a random value could never match the running containers. They come from the
-// env sample instead.
+// generate fills every empty token with 32 random bytes, hex-encoded. The
+// Postgres password and RustFS keys are not generated: docker-compose.yml
+// hardcodes them, so a random value could never match the containers.
 func (e *Env) generate(s *state.State) {
 	s.Secrets.IACToken = first(s.Secrets.IACToken, randomHex())
 	s.Secrets.NotificationsToken = first(s.Secrets.NotificationsToken, randomHex())
-	// Mapping and authz are contracts-only and disabled by default; leave them
-	// empty unless the user set them, so the core does not try to use them.
+	// Mapping and authz stay empty: contracts-only, disabled by default.
 }
 
-// files maps each env file to its vars. With samples, each file carries the
-// sample's keys, resolved in this order: the wizard's value, then the sample's
-// value, then what the user typed for an empty sample key, plus the wizard
-// credentials the sample does not list. Without samples it falls back to the
-// built-in key list.
+// files maps each env file to its vars, from the samples when they were
+// fetched and from the built-in key list otherwise.
 func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 	if e.Samples == nil {
 		return e.fallbackFiles(p, s)
@@ -164,21 +137,18 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 	}
 }
 
-// ownedKey reports whether the wizard owns the key, whatever its value: owned()
-// carries every owned key, blank included.
+// ownedKey reports whether the wizard owns the key, blank value included.
 func ownedKey(owned map[string]string, key string) bool {
 	_, ok := owned[key]
 	return ok
 }
 
-// resolveSample builds one env file's vars from its sample: wizard-owned value
-// first, then the sample's own value, then the user's Extra value. Every sample
-// key appears in the result, even when all three sources are empty.
+// resolveSample resolves one env file: wizard value, then the sample's, then
+// the user's Extra. Every sample key appears even when all three are empty.
 //
-// Credentials the wizard actually collected are then appended even when the
-// sample does not list them. LLM and cloud credentials are provider-specific and
-// appear in core/env.sample only as commented examples, so iterating the sample
-// alone silently dropped every one of them (VERTEXAI_*, ANTHROPIC_API_KEY, …).
+// Collected credentials are appended even when the sample omits them: LLM and
+// cloud vars are provider-specific and appear there only as commented examples,
+// so iterating the sample alone dropped every one (VERTEXAI_*, ANTHROPIC_*…).
 func resolveSample(sample *Sample, owned, extra map[string]string) map[string]string {
 	vars := make(map[string]string, len(sample.Vars))
 	seen := make(map[string]bool, len(sample.Vars))
@@ -201,24 +171,16 @@ func resolveSample(sample *Sample, owned, extra map[string]string) map[string]st
 	return vars
 }
 
-// owned maps every env key the wizard collects to its value. A non-blank value
-// here wins over whatever the sample says.
+// owned maps every env key the wizard collects to its value, which wins over
+// the sample. Credentials drop their blank entries so an empty value cannot
+// shadow a sample default; secrets and cloud vars keep theirs, since an empty
+// var is how the stack says "not configured".
 //
-// LLM and object-storage credentials drop their blank entries: an empty map
-// value must not shadow the sample's default for a key the user did not set.
-// The secrets and cloud fields are kept even when blank, because the sample
-// has no value for them and an empty var is how the stack says "not
-// configured". Blank LLM credentials therefore stay out of the env file too.
-//
-// KUMOSS_SQL_DATABASE_URL and the RUSTFS keys are deliberately absent: the
-// wizard does not collect them, and their sample values are the ones that match
-// the containers docker-compose.yml starts.
+// KUMOSS_SQL_DATABASE_URL and the RUSTFS keys are absent on purpose: only the
+// sample's values match the containers docker-compose.yml starts.
 func (e *Env) owned(s *state.State) map[string]string {
-	// Every key is set, even when blank: owned() feeds resolveSample, whose
-	// first branch is "the wizard owns this key, so its value wins", and a
-	// missing key would let the sample's placeholder win instead. A disabled
-	// notification or a blank secret then keeps the sample's dev-notifications-
-	// token out of the file.
+	// Every key is set even when blank, or the sample's dev-*-token placeholder
+	// would win for a secret the wizard deliberately left empty.
 	owned := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
 		"KUMOSS_IAC_TOKEN":           s.Secrets.IACToken,
@@ -229,16 +191,14 @@ func (e *Env) owned(s *state.State) map[string]string {
 		"IAC_BINARY":                 s.Engine.Binary,
 		"SLACK_WEBHOOK_URL":          s.Notifications.SlackWebhookURL,
 	}
-	// Provider credentials collected by the LLM step, keyed by env-var name.
-	// Blank entries are skipped, same reason as storage below.
+	// LLM credentials, keyed by env-var name. Blanks skipped, as below.
 	for k, v := range s.LLM.Credentials {
 		if v != "" {
 			owned[k] = v
 		}
 	}
-	// Object-storage credentials, keyed by env-var name (STORAGE_ACCOUNT_KEY).
-	// Blank entries are skipped: an empty map value must not shadow the sample's
-	// default for a key the user did not actually set.
+	// Object-storage credentials (STORAGE_ACCOUNT_KEY). Blanks skipped so they
+	// cannot shadow a sample default the user never overrode.
 	for k, v := range s.Storage.Credentials {
 		if v != "" {
 			owned[k] = v
@@ -264,8 +224,8 @@ func (e *Env) OwnedKeys(s *state.State) map[string]bool {
 	return keys
 }
 
-// fallbackFiles is the built-in key list, used only when the samples could not
-// be fetched. It mirrors the samples at the time of writing and can lag them.
+// fallbackFiles is the built-in key list, used only when the sample fetch
+// failed. It mirrors the samples at the time of writing and can lag them.
 func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]string {
 	owned := e.owned(s)
 	core := map[string]string{
@@ -273,8 +233,7 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 		"KUMOSS_IAC_TOKEN":           owned["KUMOSS_IAC_TOKEN"],
 		"GIT_USER":                   owned["GIT_USER"],
 		"GIT_TOKEN":                  owned["GIT_TOKEN"],
-		// These two match docker-compose.yml, which is what the containers
-		// actually use; they are not generated.
+		// Not generated: only these match the containers compose starts.
 		"RUSTFS_ACCESS_KEY":       first(s.Secrets.RustFSAccessKey, "rustfsadmin"),
 		"RUSTFS_SECRET_KEY":       first(s.Secrets.RustFSSecretKey, "rustfsadmin"),
 		"KUMOSS_SQL_DATABASE_URL": databaseURL(first(s.Secrets.CoreDBPassword, "postgres")),
@@ -303,9 +262,8 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 	notifications := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
 	}
-	// The sample leaves SLACK_WEBHOOK_URL empty and asks for it in Extra; the
-	// fallback list has to carry the wizard's answer too, or a failed sample
-	// fetch would write the notifications file without its one required var.
+	// Carried here too, or a failed sample fetch writes the notifications file
+	// without its one required var.
 	if v := s.Notifications.SlackWebhookURL; v != "" {
 		notifications["SLACK_WEBHOOK_URL"] = v
 	}
@@ -316,15 +274,14 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 	}
 }
 
-// cloudVars flattens the picked clouds into the iac env vars. Only the picked
-// clouds are non-nil (the cloud step nils the rest).
+// cloudVars flattens the picked clouds into the iac env vars; the cloud step
+// nils the rest.
 func cloudVars(c state.Cloud) map[string]string {
 	vars := map[string]string{}
 	if a := c.AWS; a != nil {
 		if a.Method == "profile" {
-			// AWS_SHARED_CREDENTIALS_FILE is the file inside the mounted
-			// ~/.aws; AWS_PROFILE alone would still read the image's empty
-			// ~/.aws, which the mount never reaches.
+			// AWS_PROFILE alone would read the image's own empty ~/.aws,
+			// which the mount never reaches.
 			vars["AWS_SHARED_CREDENTIALS_FILE"] = ContainerAWSProfile + "/credentials"
 			vars["AWS_PROFILE"] = a.Profile
 		} else {
@@ -337,42 +294,38 @@ func cloudVars(c state.Cloud) map[string]string {
 		vars["ARM_TENANT_ID"] = a.TenantID
 		vars["ARM_CLIENT_ID"] = a.ClientID
 		vars["ARM_CLIENT_SECRET"] = a.ClientSecret
-		// ARM_SUBSCRIPTION_ID is deliberately absent: the frontend supplies it
-		// per request from the scope, so it never belongs in the env file.
+		// ARM_SUBSCRIPTION_ID is absent: the frontend supplies it per request.
 	}
 	if a := c.GCP; a != nil {
-		// Inline JSON wins when both are somehow set: it is the form that
-		// needs no mount, so it cannot break on a file the container cannot see.
+		// Inline JSON wins: it needs no mount, so it cannot break on a file
+		// the container cannot see.
 		if a.InlineJSON != "" {
 			vars["GOOGLE_CREDENTIALS"] = a.InlineJSON
 		} else {
-			// Empty, never containerPath(""): a blank key file is "no key
-			// given", and the engine then falls back to Application Default
-			// Credentials instead of opening /etc/kumoss/creds/.
+			// Empty, never containerPath(""): no key means fall back to
+			// Application Default Credentials.
 			vars["GOOGLE_APPLICATION_CREDENTIALS"] = ""
 			if a.KeyFile != "" {
-				vars["GOOGLE_APPLICATION_CREDENTIALS"] = containerPath(a.KeyFile)
+				vars["GOOGLE_APPLICATION_CREDENTIALS"] = containerPath(cloudGCP, a.KeyFile)
 			}
 		}
 	}
 	if a := c.OCI; a != nil {
-		vars["OCI_CONFIG_FILE"] = containerPath(a.ConfigPath)
+		vars["OCI_CONFIG_FILE"] = containerPath(cloudOCI, a.ConfigPath)
 	}
 	if a := c.Kubernetes; a != nil {
-		vars["KUBE_CONFIG_PATH"] = containerPath(a.KubeconfigPath)
+		vars["KUBE_CONFIG_PATH"] = containerPath(cloudKube, a.KubeconfigPath)
 	}
 	return vars
 }
 
-// databaseURL embeds the generated password in the fixed local URL. The host
-// `core-db` is the compose service name.
+// databaseURL embeds the password in the local URL; core-db is the service name.
 func databaseURL(password string) string {
 	return fmt.Sprintf("postgresql://postgres:%s@core-db:5432/kumoss", password)
 }
 
 // dbPassword pulls the password out of a postgres URL, or "" when it has none.
-// The userinfo is everything between `//` and the last `@`; the password is
-// everything after the first `:` in it, so a `:` inside the password survives.
+// Split on the LAST @ and the FIRST :, so a : inside the password survives.
 func dbPassword(url string) string {
 	at := strings.LastIndexByte(url, '@')
 	slashes := strings.Index(url, "//")
@@ -387,19 +340,16 @@ func dbPassword(url string) string {
 	return userinfo[colon+1:]
 }
 
-// writeEnv writes KEY=value lines, one per var, sorted so runs are diffable.
-// Empty values are written as `KEY=` — the compose stack reads the file as a
-// whole and a missing key behaves differently from an empty one. 0600: the file
-// holds secrets.
+// writeEnv writes KEY=value lines, sorted so runs are diffable. An empty value
+// is written as `KEY=`: the stack reads that differently from a missing key.
+// Via writeFile, so a half-finished write cannot truncate the only copy of the
+// stack's bearer tokens.
 func writeEnv(path string, vars map[string]string) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	return os.WriteFile(path, RenderEnvFile(vars), 0o600)
+	return writeFile(path, RenderEnvFile(vars), 0o600)
 }
 
-// readEnv parses KEY=value lines, ignoring blanks and comments. A malformed line
-// is skipped rather than failing: a hand-edited file should not block the run.
+// readEnv parses KEY=value lines. A malformed line is skipped, not fatal: a
+// hand-edited file should not block the run.
 func readEnv(path string) map[string]string {
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -432,8 +382,7 @@ func first(a, b string) string {
 func randomHex() string {
 	b := make([]byte, 32)
 	if _, err := rand.Read(b); err != nil {
-		// crypto/rand only fails when the OS source is unavailable; there is
-		// nothing sensible to do but surface it loudly.
+		// Only fails if the OS source is gone; nothing sensible to do but shout.
 		panic("render: cannot read randomness: " + err.Error())
 	}
 	return hex.EncodeToString(b)
