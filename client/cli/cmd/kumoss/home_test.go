@@ -16,9 +16,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// runHome executes `home` with args and returns its output. The test root
-// mirrors NewRootCmd's PersistentPreRunE, which is what resolves --home after
-// parsing; without it the command would always print an empty path.
+// runHome mirrors NewRootCmd's PersistentPreRunE, which resolves --home after
+// parsing; without it the command prints an empty path.
 func runHome(t *testing.T, args ...string) string {
 	t.Helper()
 	var flags cli.Flags
@@ -41,8 +40,7 @@ func runHome(t *testing.T, args ...string) string {
 	return out.String()
 }
 
-// isolateHome keeps the pointer file and the default path out of the real
-// user's home directory.
+// isolateHome keeps the pointer and the default out of the real home.
 func isolateHome(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -61,8 +59,7 @@ func TestHomeDefaults(t *testing.T) {
 	}
 }
 
-// --home is persisted, so a later run without the flag still finds it. This is
-// the whole point of the command.
+// --home is persisted, so a later run without it still finds the choice.
 func TestHomePersistsTheChoice(t *testing.T) {
 	isolateHome(t)
 	chosen := filepath.Join(t.TempDir(), "elsewhere")

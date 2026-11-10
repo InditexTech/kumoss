@@ -10,8 +10,8 @@ import (
 	"strings"
 )
 
-// pointerPath is where the chosen home is remembered. It must live OUTSIDE the
-// home it points at, otherwise nothing would know where to look first.
+// pointerPath must live OUTSIDE the home it points at, or nothing would know
+// where to look first.
 func pointerPath() string {
 	dir, err := os.UserConfigDir() // ~/.config on Linux, ~/Library/... on macOS
 	if err != nil {
@@ -33,8 +33,7 @@ func readPointer() string {
 	return strings.TrimSpace(string(b))
 }
 
-// SetPointer remembers root so later invocations resolve it without --home.
-// Called only by `kumoss init` and `kumoss home --home`.
+// SetPointer remembers root so later runs resolve it without --home.
 func SetPointer(root string) error {
 	p := pointerPath()
 	if p == "" {
@@ -46,8 +45,8 @@ func SetPointer(root string) error {
 	return os.WriteFile(p, []byte(root+"\n"), 0o600)
 }
 
-// ClearPointer forgets the persisted home so resolution falls back to
-// KUMOSS_HOME, then ~/.kumoss. A missing pointer is not an error.
+// ClearPointer falls resolution back to KUMOSS_HOME, then ~/.kumoss. A missing
+// pointer is not an error.
 func ClearPointer() error {
 	p := pointerPath()
 	if p == "" {

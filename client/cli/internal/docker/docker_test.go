@@ -26,9 +26,8 @@ func TestArgsUseAnExplicitFileList(t *testing.T) {
 	}
 }
 
-// `docker compose pull` takes service names, never image references. Passing an
-// image ref made compose fail with "no such service: <image>", which the
-// pipeline reported as a bare "exit status 1" — the user saw nothing happen.
+// `pull` takes service names, never image refs: passing one failed with "no
+// such service", which surfaced as a bare "exit status 1".
 func TestPullUsesTheMissingPolicy(t *testing.T) {
 	got := pullArgs()
 	want := []string{"pull", "--policy", "missing"}
@@ -43,8 +42,7 @@ func TestUpForcesRecreateOnlyWhenAsked(t *testing.T) {
 		t.Errorf("fresh up args = %v, want no --force-recreate", got)
 	}
 
-	// A reconfigure rewrote mounted files; compose compares the definition, so
-	// only an explicit recreate picks them up.
+	// Compose compares the definition, so only a recreate picks up new bytes.
 	if got := upArgs(true, true); !reflect.DeepEqual(got, []string{"up", "-d", "--force-recreate"}) {
 		t.Errorf("reconfigure up args = %v, want --force-recreate", got)
 	}

@@ -12,9 +12,8 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// env.sample ships a dev token for every service; a fresh install must not
-// keep it, and a key the wizard leaves unset must come out empty rather than
-// fall back to the sample's placeholder.
+// env.sample ships a dev token per service. A fresh install must not keep it,
+// and an unset key must come out empty rather than take the placeholder.
 func TestOwnedKeysShadowTheSampleValues(t *testing.T) {
 	sample := &Sample{Vars: []Var{
 		{Key: "KUMOSS_IAC_TOKEN", Value: "dev-iac-token"},
@@ -34,8 +33,8 @@ func TestOwnedKeysShadowTheSampleValues(t *testing.T) {
 	}
 }
 
-// Atomic writes: no temp file is left behind, the mode survives the rename, and
-// an existing file is replaced rather than appended to.
+// No temp file left behind, the mode survives the rename, and an existing file
+// is replaced rather than appended to.
 func TestWriteFileReplacesAtomically(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "core", ".env")
 	if err := writeFile(path, []byte("A=1\n"), 0o600); err != nil {

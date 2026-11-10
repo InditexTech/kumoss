@@ -25,9 +25,8 @@ func configDoc(t *testing.T, raw []byte) map[string]any {
 	return doc
 }
 
-// The notifications answer must reach services.notifications.enabled, and the
-// endpoint/token_env/timeout the wizard does not own must survive: dropping them
-// would leave the core pointing at no service.
+// The answer must reach services.notifications.enabled, and the keys the wizard
+// does not own must survive, or the core points at no service.
 func TestConfigWritesNotificationsEnabled(t *testing.T) {
 	for _, enabled := range []bool{true, false} {
 		out, err := RenderConfig([]byte(repoDefault), &state.State{Notifications: state.Notifications{Enabled: enabled}})
@@ -70,8 +69,7 @@ func TestConfigCreatesNotificationsBlockWhenAbsent(t *testing.T) {
 	}
 }
 
-// The webhook goes into the notifications .env under SLACK_WEBHOOK_URL, and the
-// token stays beside it: the service needs both to start and to authenticate.
+// The service needs both the webhook and the token to start.
 func TestEnvWritesSlackWebhook(t *testing.T) {
 	p := envPathsIn(t)
 	s := &state.State{
@@ -92,8 +90,8 @@ func TestEnvWritesSlackWebhook(t *testing.T) {
 	}
 }
 
-// Without samples the built-in key list must still carry the webhook, or a
-// failed fetch would write a notifications file the service cannot boot from.
+// The built-in list must carry the webhook too, or a failed sample fetch writes
+// a file the service cannot boot from.
 func TestFallbackEnvWritesSlackWebhook(t *testing.T) {
 	p := envPathsIn(t)
 	s := &state.State{Notifications: state.Notifications{SlackWebhookURL: "https://hooks.slack.com/services/y"}}

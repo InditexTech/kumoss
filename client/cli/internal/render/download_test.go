@@ -39,8 +39,8 @@ func TestDownloadFile(t *testing.T) {
 	}
 }
 
-// Save writes the body verbatim, creating the parent directory: the stack's
-// compose file lives under src/, which may not exist yet.
+// Save creates the parent: the compose file lives under src/, which may not
+// exist yet.
 func TestDownloadSaveCreatesParents(t *testing.T) {
 	dst := filepath.Join(t.TempDir(), "src", "nested", "docker-compose.yml")
 	d := stubDownload(t, "services: {}\n", "v1", "docker-compose.yml")
@@ -78,8 +78,7 @@ func TestDownloadSavePropagatesFetchError(t *testing.T) {
 	}
 }
 
-// Example writes the sample and returns the same bytes, so the caller renders
-// them without a second download.
+// Example returns the bytes it wrote, so the caller needs no second download.
 func TestDownloadExampleReturnsAndWrites(t *testing.T) {
 	example := filepath.Join(t.TempDir(), "config", "config.yaml.example")
 	d := stubDownload(t, "# sample\n", "v1", "config.yaml")

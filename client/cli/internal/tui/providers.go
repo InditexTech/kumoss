@@ -12,22 +12,18 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// credential is one secret the user types into a masked field. Name is the
-// ENV-VAR NAME the value is written under (state.LLM.Credentials and friends
-// are keyed by env-var name, not by provider). Title is what the form shows.
+// credential is one masked field. Name is the ENV-VAR NAME it is written
+// under — the credential maps are keyed by variable, not by provider.
 type credential struct {
 	Name  string
 	Title string
 }
 
-// llmProvider is a row of the provider Select. Prefix is the LiteLLM
-// `<provider>/` string used to derive the model id; Credentials are the
-// provider's default env vars (docs: reference/llm-providers). DefaultModel
-// and DefaultSmallModel seed the model inputs.
+// llmProvider is a row of the provider Select: the LiteLLM prefix, the
+// provider's default env vars, and seeds for the two model inputs.
 //
-// Freeform marks the "Other" row: the provider is not in this table, so the
-// form asks for a credential name and value by hand instead of offering a
-// fixed list.
+// Freeform marks the "Other" row, where the form asks for credential names by
+// hand instead of offering a fixed list.
 type llmProvider struct {
 	Name              string // select key, e.g. "Anthropic"
 	Prefix            string // LiteLLM prefix, e.g. "anthropic"
@@ -37,17 +33,13 @@ type llmProvider struct {
 	Freeform          bool
 }
 
-// otherProvider is the escape hatch for a LiteLLM provider not listed here. Its
-// Prefix is empty; the user types the credential env-var name and value.
+// otherProvider is the escape hatch for a provider not listed here.
 var otherProvider = llmProvider{Name: "Other (enter credentials manually)", Freeform: true}
 
-// llmProviders mirrors the LiteLLM provider list in
-// docs/src/modules/main/pages/reference/llm-providers.adoc. Only the default
-// env var names are carried: model_list's custom `os.environ/...` names are an
-// advanced escape hatch and stay hand-edited in config.yaml.
+// llmProviders mirrors docs/.../reference/llm-providers.adoc. Only the default
+// env var names: model_list's custom `os.environ/...` names stay hand-edited.
 //
-// The default model ids are seeds for a new install, not a claim that they are
-// the newest: edit them in the form, or later in config.yaml.
+// The model ids are seeds for a new install, not a claim about what is newest.
 var llmProviders = []llmProvider{
 	{
 		Name: "Anthropic", Prefix: "anthropic",
@@ -125,9 +117,7 @@ var llmProviders = []llmProvider{
 	},
 }
 
-// llmProviderOptions is the Select's option list: every known provider plus the
-// free-text "Other" row. The value is the row's index into llmProviders; -1
-// means the Other row.
+// llmProviderOptions values are indexes into llmProviders; -1 is "Other".
 func llmProviderOptions() []huh.Option[int] {
 	opts := make([]huh.Option[int], 0, len(llmProviders)+1)
 	for i, p := range llmProviders {
@@ -145,11 +135,9 @@ func providerAt(idx int) llmProvider {
 	return llmProviders[idx]
 }
 
-// providerIndex returns the Select index preselecting the row matching prefix,
-// or the Other index (-1) when the prefix is unknown. openai covers both the
-// cloud API and any self-hosted OpenAI-compatible server (LM Studio, LocalAI,
-// vLLM), so the two rows share the prefix and the first wins: they write the
-// same OPENAI_* variables, only the hint text differs.
+// providerIndex preselects the row matching prefix, or -1 when unknown. Two
+// rows share the openai prefix and the first wins: they write the same
+// OPENAI_* variables, only the hint text differs.
 func providerIndex(prefix string) int {
 	for i := range llmProviders {
 		if llmProviders[i].Prefix == prefix {
@@ -167,9 +155,8 @@ func prefixOf(model string) string {
 	return ""
 }
 
-// storageModel is a row of the Storage model Select. It is the CLI
-// discriminator (state.Storage.Model) that drives config.yaml's
-// storage.provider and whether terraform_state_bucket is empty.
+// storageModel is the CLI discriminator driving storage.provider and whether
+// terraform_state_bucket is empty.
 type storageModel struct {
 	Name        string // select key
 	Model       string // state.Storage.Model
@@ -182,8 +169,7 @@ type storageModel struct {
 var storageModels = []storageModel{
 	{
 		Name: "Bundled RustFS", Model: "bundled", Provider: "RUSTFS", Managed: true,
-		// Keys are generated into core/.env, not typed: they must match the
-		// object-storage container's own credentials.
+		// Keys are generated, not typed: they must match the container's own.
 	},
 	{
 		Name: "External S3-compatible", Model: "external_s3", Provider: "S3", Managed: true, Region: true,
@@ -210,8 +196,8 @@ func storageModelByName(model string) *storageModel {
 	return nil
 }
 
-// cloud is one row of the Cloud MultiSelect. Key is the state.Cloud field
-// selector used by cloudPicked, ensureCloud and the commit in cloudStep.
+// cloud is one row of the Cloud MultiSelect; Key selects the state.Cloud
+// field, for cloudPicked, ensureCloud and cloudStep's commit.
 type cloud struct {
 	Name string
 	Key  string
@@ -235,8 +221,7 @@ func selected(picked []string, key string) bool {
 	return false
 }
 
-// cloudPicked reports whether a cloud's credentials are already stored, so a
-// reconfigure run opens with that cloud preselected.
+// cloudPicked preselects a cloud whose credentials are already stored.
 func cloudPicked(s *state.State, key string) bool {
 	switch key {
 	case "aws":
@@ -253,8 +238,7 @@ func cloudPicked(s *state.State, key string) bool {
 	return false
 }
 
-// ensureCloud returns the Cloud sub-struct for a cloud key, allocating it on
-// first use so the renderer only sees the clouds the user picked.
+// ensureCloud allocates a cloud's struct on first use.
 func ensureCloud(s *state.State, key string) any {
 	switch key {
 	case "aws":

@@ -11,8 +11,7 @@ import (
 	"testing"
 )
 
-// withBase points the fetcher at a local server, since rawBase is a package var
-// for exactly this.
+// withBase points the fetcher at a local server.
 func withBase(t *testing.T, url string) {
 	t.Helper()
 	old := rawBase
@@ -42,8 +41,7 @@ func TestFetchReturnsBodyAndUsesTag(t *testing.T) {
 	}
 }
 
-// A non-200 must be an error naming the status: a 404 body would otherwise be
-// parsed as a file.
+// A non-200 must error, or a 404 body gets parsed as a file.
 func TestFetchFailsOnNon200(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)

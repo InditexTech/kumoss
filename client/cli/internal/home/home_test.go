@@ -10,8 +10,7 @@ import (
 	"testing"
 )
 
-// isolate points HOME and the config dir at a temp directory, so the pointer
-// file never touches the real user's ~/.config.
+// isolate keeps the pointer file out of the real ~/.config.
 func isolate(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -21,8 +20,7 @@ func isolate(t *testing.T) string {
 	return dir
 }
 
-// The layout is the contract with the compose file: these paths are where the
-// stack expects its files.
+// The layout is the contract with the compose file.
 func TestLayout(t *testing.T) {
 	h := Home{Root: "/h"}
 	cases := map[string]string{
@@ -76,8 +74,7 @@ func TestResolvePrecedence(t *testing.T) {
 	}
 }
 
-// A quoted ~ or a relative path is stored as a real absolute path, so it does
-// not depend on the caller's working directory.
+// A quoted ~ or a relative path must not depend on the caller's cwd.
 func TestExpandResolvesTildeAndRelative(t *testing.T) {
 	dir := isolate(t)
 
@@ -92,8 +89,7 @@ func TestExpandResolvesTildeAndRelative(t *testing.T) {
 	}
 }
 
-// SetPointer then ClearPointer round-trips, and clearing an absent pointer is
-// not an error.
+// SetPointer/ClearPointer round-trips; clearing an absent pointer is fine.
 func TestPointerRoundTrip(t *testing.T) {
 	isolate(t)
 
@@ -115,8 +111,7 @@ func TestPointerRoundTrip(t *testing.T) {
 	}
 }
 
-// The pointer lives outside the home it points at, or nothing would know where
-// to look first.
+// The pointer lives outside the home it points at.
 func TestPointerLivesOutsideTheHome(t *testing.T) {
 	isolate(t)
 	p := pointerPath()
@@ -128,8 +123,7 @@ func TestPointerLivesOutsideTheHome(t *testing.T) {
 	}
 }
 
-// Ensure creates the skeleton, including one directory per service, and is
-// idempotent so a re-run is harmless.
+// Ensure creates one directory per service, and is idempotent.
 func TestEnsureCreatesTheSkeleton(t *testing.T) {
 	h := Home{Root: filepath.Join(t.TempDir(), "root")}
 	for i := 0; i < 2; i++ {

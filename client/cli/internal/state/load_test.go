@@ -11,13 +11,12 @@ import (
 	"testing"
 )
 
-// Save then Load must round-trip the persisted fields, and must never carry a
-// secret: kumoss.yaml is configuration, not a vault.
+// Save/Load round-trips the persisted fields and never carries a secret.
 func TestSaveLoadRoundTripWithoutSecrets(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "kumoss.yaml")
 	s := &State{
 		SchemaVersion: 1,
-		LLM:           LLM{Model: "anthropic/claude", SmallModel: "anthropic/haiku", Temperature: 0.2, MaxOutputTokens: 16000, Timeout: 300},
+		LLM:           LLM{Model: "anthropic/claude", SmallModel: "anthropic/haiku", Temperature: ptr(0.2), MaxOutputTokens: ptr(16000), Timeout: ptr(300.0)},
 		Git:           Git{Provider: "GITHUB", AuthorName: "Bot", AuthorEmail: "bot@example.invalid"},
 		Storage:       Storage{Provider: "S3", Bucket: "artifacts", TerraformStateBucket: "", Region: "eu-west-1"},
 		Secrets:       Secrets{IACToken: "must-not-be-saved", NotificationsToken: "nor-this"},
@@ -53,8 +52,7 @@ func TestSaveLoadRoundTripWithoutSecrets(t *testing.T) {
 	}
 }
 
-// A partial file loads with zero values rather than failing: the forms re-fill
-// the gaps on reconfigure, so refusing here would strand the user.
+// A partial file loads with zero values; the forms re-fill the gaps.
 func TestLoadToleratesMissingKeys(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "kumoss.yaml")
 	if err := os.WriteFile(path, []byte("schema_version: 1\nllm:\n  model: keep/me\n"), 0o600); err != nil {
@@ -122,3 +120,6 @@ func TestSaveUsesOwnerOnlyPermissions(t *testing.T) {
 		t.Errorf("mode = %o, want 600", perm)
 	}
 }
+
+// ptr is the address of a literal, for the optional tuning knobs.
+func ptr[T any](v T) *T { return &v }

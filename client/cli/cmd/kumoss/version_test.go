@@ -14,8 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// version must report the CLI version and the tag it downloads the stack from:
-// a user debugging a mismatch needs both on one line.
+// Both the CLI version and the stack tag, on one line: a mismatch needs both.
 func TestVersionPrintsBothVersions(t *testing.T) {
 	oldVersion := buildinfo.Version
 	t.Cleanup(func() { buildinfo.Version = oldVersion })

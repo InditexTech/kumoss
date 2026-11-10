@@ -18,8 +18,7 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/tui"
 )
 
-// stubUI answers every question with a fixed value and records what it was
-// asked, so a test can assert a prompt was or was not shown.
+// stubUI answers with fixed values and records what it was asked.
 type stubUI struct {
 	mode     tui.Mode
 	regen    bool
@@ -38,8 +37,7 @@ func (s *stubUI) ConfirmRegenerate(what string) (bool, error) {
 }
 func (s *stubUI) RunDocker() (bool, error) { return false, nil }
 
-// stubDocker satisfies docker.Runner; the pipeline is never asked to start the
-// stack in these tests.
+// stubDocker satisfies docker.Runner; no test starts the stack.
 type stubDocker struct{}
 
 func (stubDocker) Pull(context.Context) error           { return nil }
@@ -47,8 +45,8 @@ func (stubDocker) Up(context.Context, bool, bool) error { return nil }
 
 var _ docker.Runner = stubDocker{}
 
-// install writes the files an existing install owns, so a run can be checked
-// for touching them.
+// install writes the files an existing install owns, to catch a run that
+// touches them.
 func install(t *testing.T) (home.Home, map[string]string) {
 	t.Helper()
 	h := home.Home{Root: t.TempDir()}
@@ -71,8 +69,7 @@ func install(t *testing.T) (home.Home, map[string]string) {
 	return h, files
 }
 
-// Keep it as is must write nothing: every file stays byte-identical, and the
-// override is not even asked about.
+// Keep must write nothing, and must not even ask about the override.
 func TestModeKeepLeavesEveryFileUntouched(t *testing.T) {
 	h, files := install(t)
 	ui := &stubUI{mode: tui.ModeKeep}
@@ -101,8 +98,7 @@ func TestModeKeepLeavesEveryFileUntouched(t *testing.T) {
 	}
 }
 
-// Reconfiguring an existing install asks before replacing a hand-edited
-// override, and a "no" answer leaves it alone.
+// A reconfigure asks before replacing a hand-edited override.
 func TestReconfigureAsksBeforeOverwritingTheOverride(t *testing.T) {
 	h, files := install(t)
 	ui := &stubUI{mode: tui.ModeReconfigure, regen: false}
@@ -130,10 +126,8 @@ func TestReconfigureAsksBeforeOverwritingTheOverride(t *testing.T) {
 	}
 }
 
-// noFetch answers only the two files the pipeline needs before it reaches the
-// override: the compose file (fetched before the mode is known) and the default
-// config.yaml (rendered on reconfigure). Everything else fails, which keeps the
-// test offline. The sample fetch failure is a warning, not an error.
+// noFetch answers only the compose file and config.yaml; everything else fails,
+// which keeps the test offline. A failed sample fetch is a warning, not fatal.
 func noFetch(_ context.Context, _, path string) ([]byte, error) {
 	switch path {
 	case "docker-compose.yml":
@@ -144,8 +138,8 @@ func noFetch(_ context.Context, _, path string) ([]byte, error) {
 	return nil, os.ErrNotExist
 }
 
-// The notifications service refuses to boot without a webhook, so enabling it
-// with none must downgrade the flag rather than write a stack that cannot start.
+// Enabling with no webhook must downgrade the flag: the service would not
+// boot, and the stack would be unstartable.
 func TestNotificationsEnabledWithoutWebhookIsDowngraded(t *testing.T) {
 	for _, c := range []struct {
 		name    string
@@ -213,8 +207,7 @@ func (n *notifyUI) Configure(_ tui.Mode, s *state.State) error {
 	return nil
 }
 
-// A dry run asks everything and writes nothing: no home directory, no file, no
-// pointer, no container. The report shows what a real run would produce.
+// A dry run asks everything and writes nothing at all.
 func TestDryRunWritesNothing(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "never-created")
 	h := home.Home{Root: root}
@@ -255,8 +248,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 	}
 }
 
-// The preview must match the real run: same state, same env keys. A dry run
-// that shows something the real run would not write is worse than none.
+// A preview that differs from the real run is worse than no preview.
 func TestDryRunPreviewMatchesTheRealRun(t *testing.T) {
 	root := filepath.Join(t.TempDir(), "home")
 	h := home.Home{Root: root}
@@ -304,5 +296,27 @@ func TestDryRunInKeepModeReportsNothingToWrite(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "nothing would be written") {
 		t.Errorf("report = %q", out.String())
+	}
+}
+
+// Mount sources are relative to src/, the first -f file's directory — not the
+// home root. Rebasing on the root lands every mount one level too deep.
+func TestIACMountsResolveAgainstTheComposeProjectDir(t *testing.T) {
+	base := t.TempDir()
+	h := home.Home{Root: filepath.Join(base, ".kumoss")}
+	keyDir := filepath.Join(base, "gcp")
+	s := &state.State{Cloud: state.Cloud{
+		GCP: &state.GCPAuth{Method: "file", KeyFile: filepath.Join(keyDir, "sa.json")},
+	}}
+
+	mounts := iacMounts(h, s)
+	if len(mounts) != 1 {
+		t.Fatalf("mounts = %v, want exactly one", mounts)
+	}
+	if filepath.IsAbs(mounts[0].Source) {
+		t.Fatalf("Source = %q, want a path relative to src/", mounts[0].Source)
+	}
+	if got := filepath.Clean(filepath.Join(h.SrcDir(), mounts[0].Source)); got != keyDir {
+		t.Errorf("mount %q resolves to %s, want %s", mounts[0].Source, got, keyDir)
 	}
 }

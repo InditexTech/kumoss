@@ -11,9 +11,8 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// prefixOf derives the provider row from a stored model id. Getting this wrong
-// preselects the wrong provider on reconfigure, which then asks for the wrong
-// credentials.
+// prefixOf picks the provider row on reconfigure; wrong here means asking for
+// the wrong credentials.
 func TestPrefixOf(t *testing.T) {
 	cases := []struct{ in, want string }{
 		{"anthropic/claude-sonnet-5", "anthropic"},
@@ -29,8 +28,7 @@ func TestPrefixOf(t *testing.T) {
 	}
 }
 
-// providerIndex and providerAt must agree: the index that preselects a row must
-// resolve back to that same row, and an unknown prefix lands on Other.
+// The index that preselects a row must resolve back to it; unknown means Other.
 func TestProviderIndexAndAt(t *testing.T) {
 	for i, p := range llmProviders {
 		// Two rows share the openai prefix, so the first match wins by design.
@@ -52,17 +50,14 @@ func TestProviderIndexAndAt(t *testing.T) {
 	}
 }
 
-// Every row must carry a prefix and a non-empty default model, or the seeded
-// form would submit an empty model id.
+// Every row needs a prefix and a default model, or the form seeds an empty id.
 func TestLLMProvidersAreComplete(t *testing.T) {
 	seen := map[string]string{}
 	for _, p := range llmProviders {
 		if p.Prefix == "" || p.DefaultModel == "" || p.DefaultSmallModel == "" {
 			t.Errorf("%q has an empty prefix or model: %+v", p.Name, p)
 		}
-		// Two rows may share a prefix (openai hosts both OpenAI and
-		// OpenAI-compatible), but the first must win a lookup, so duplicates
-		// are only tolerated for openai.
+		// Only openai may duplicate: two rows, and the first must win.
 		if prev, dup := seen[p.Prefix]; dup && p.Prefix != "openai" {
 			t.Errorf("duplicate prefix %q: %q and %q", p.Prefix, prev, p.Name)
 		}
@@ -70,10 +65,8 @@ func TestLLMProvidersAreComplete(t *testing.T) {
 	}
 }
 
-// The two openai rows share a prefix, so providerIndex cannot tell them apart
-// on reconfigure. That is only safe while they write the same credential
-// variables: if one gains a key the other lacks, a re-run would silently drop
-// it from the .env file.
+// The two openai rows are indistinguishable on reconfigure, which is only safe
+// while they write the same variables: a divergence would silently drop one.
 func TestSharedOpenAIPrefixRowsAreInterchangeable(t *testing.T) {
 	var names [][]string
 	for _, p := range llmProviders {
@@ -162,8 +155,7 @@ func TestCloudPickedAndEnsureCloud(t *testing.T) {
 	}
 }
 
-// ensureCloud must return the existing struct rather than resetting it, or
-// reconfigure would silently drop stored credentials.
+// ensureCloud must not reset an existing struct, or a reconfigure drops it.
 func TestEnsureCloudKeepsExistingValues(t *testing.T) {
 	s := &state.State{Cloud: state.Cloud{AWS: &state.AWSAuth{Method: "profile", Profile: "corp"}}}
 	got, ok := ensureCloud(s, "aws").(*state.AWSAuth)

@@ -12,11 +12,10 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// RenderConfig is what `init --dry-run` prints, so it must be the same overlay
-// Write applies, and must keep the keys the forms do not own.
+// --dry-run prints RenderConfig, so it must apply the same overlay as Write.
 func TestRenderConfigOverlaysTheAnswers(t *testing.T) {
 	s := &state.State{
-		LLM:     state.LLM{Model: "anthropic/x", SmallModel: "anthropic/y", Temperature: 0.3},
+		LLM:     state.LLM{Model: "anthropic/x", SmallModel: "anthropic/y", Temperature: ptr(0.3)},
 		Git:     state.Git{Provider: "GITHUB", AuthorName: "Bot", AuthorEmail: "bot@example.invalid"},
 		Storage: state.Storage{Provider: "RUSTFS", Bucket: "b", TerraformStateBucket: "t"},
 	}
@@ -63,8 +62,7 @@ func TestRenderConfigAcceptsEmpty(t *testing.T) {
 	}
 }
 
-// Files is the dry-run view of Write: it must produce the same paths and the
-// same generated tokens, and must not write anything.
+// Files is the dry-run view of Write: same paths, same tokens, no writes.
 func TestEnvFilesDoesNotTouchTheDisk(t *testing.T) {
 	p := envPathsIn(t)
 	s := &state.State{}
@@ -85,8 +83,8 @@ func TestEnvFilesDoesNotTouchTheDisk(t *testing.T) {
 	}
 }
 
-// Write generates each token exactly once: calling generate twice would write
-// one token to the file and leave a different one on the state.
+// Each token is generated once: twice would put one value in the file and a
+// different one on the state.
 func TestWriteGeneratesEachTokenOnce(t *testing.T) {
 	p := envPathsIn(t)
 	s := &state.State{}
