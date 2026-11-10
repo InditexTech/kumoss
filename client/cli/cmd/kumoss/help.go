@@ -43,6 +43,9 @@ func NewHelpCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	}
 	help.Flags().Bool("all", false, "list every command's flags, grouped by command")
 	root.SetHelpCommand(help)
+	// Cobra adds completion lazily; this runs before Execute, so hide it here
+	// or `kumoss help` lists a command `help --all` leaves out.
+	root.CompletionOptions.DisableDefaultCmd = true
 	return help
 }
 
