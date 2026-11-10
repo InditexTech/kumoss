@@ -20,11 +20,12 @@ import (
 func NewSelfInstallCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "self-install",
-		Short: "Download and run install.sh from the latest release",
-		Long: "Download and run install.sh from the latest release.\n\n" +
-			"For a host with neither curl nor wget, or behind a proxy the shell does\n" +
-			"not know about. It verifies the archive checksum and replaces the binary\n" +
-			"in place, exactly like the curl | bash installer.",
+		Short: "Download and run the current install.sh",
+		Long: "Download and run install.sh.\n\n" +
+			"Upgrades in place without pasting the curl | bash line again. It verifies\n" +
+			"the archive checksum and replaces the binary exactly like the installer\n" +
+			"does, and needs curl or wget on PATH for the same reason the installer\n" +
+			"does: the script downloads the release itself.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ctx := cmd.Context()
 			script, err := release.Script(ctx)
@@ -38,8 +39,7 @@ func NewSelfInstallCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	return cmd
 }
 
-// runBash feeds the script to bash over stdin. It is not written to disk: the
-// script is downloaded, not a file the user keeps.
+// runBash pipes the script to bash; it is never written to disk.
 func runBash(ctx context.Context, cmd *cobra.Command, script []byte) error {
 	if runtime.GOOS == "windows" {
 		return fmt.Errorf("self-install is not supported on native Windows; use WSL2")

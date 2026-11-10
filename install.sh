@@ -27,8 +27,17 @@ die() {
 	exit 1
 }
 
-# fetch URL DEST: curl, else wget, else the binary itself (which serves the
-# same files, for a host behind a proxy only it knows).
+# require_downloader runs before anything is fetched or created, so a host that
+# cannot proceed is told at once.
+require_downloader() {
+	if command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1; then
+		return 0
+	fi
+	die "neither curl nor wget is installed. Please install one of them and run this script again."
+}
+
+# fetch URL DEST: curl, else wget. The last branch is a guard, not a path a
+# user reaches: require_downloader already ran.
 fetch() {
 	local url="$1" dest="$2"
 	if command -v curl >/dev/null 2>&1; then
@@ -36,16 +45,16 @@ fetch() {
 	elif command -v wget >/dev/null 2>&1; then
 		wget -q "$url" -O "$dest"
 	else
-		"$(command -v kumoss)" fetch-release "$url" >"$dest" ||
-			die "neither curl nor wget is installed"
+		die "neither curl nor wget is installed. Please install one of them and run this script again."
 	fi
 }
 
-# latest_version prints the tag the releases/latest redirect points at. This
-# avoids the rate-limited REST API.
+# latest_version reads the tag off the releases/latest redirect, avoiding the
+# rate-limited REST API.
 latest_version() {
 	local url="${RELEASE_BASE}/latest"
-	local effective
+	# Must start empty, or `set -u` trips before the case can report why.
+	local effective=""
 	if command -v curl >/dev/null 2>&1; then
 		effective=$(curl -fsSLI -o /dev/null -w '%{url_effective}' "$url")
 	elif command -v wget >/dev/null 2>&1; then
@@ -95,6 +104,8 @@ on_path() {
 }
 
 main() {
+	require_downloader
+
 	read -r os arch <<EOF
 $(detect_platform)
 EOF
@@ -104,12 +115,14 @@ EOF
 	if [ -z "$version" ]; then
 		# The redirect's tag name is already vX.Y.Z; keep it verbatim for the URL.
 		tag=$(latest_version)
-		base="${RELEASE_BASE}/download/${tag}"
 	else
 		tag="v${version#v}"
-		base="${RELEASE_BASE}/download/${tag}"
 	fi
-	local archive="kumoss_${version#v}_${os}_${arch}.tar.gz"
+	# Both names come from the tag: KUMOSS_VERSION is empty on the default path,
+	# which asked the host for kumoss__<os>_<arch>.tar.gz.
+	version="${tag#v}"
+	base="${RELEASE_BASE}/download/${tag}"
+	local archive="kumoss_${version}_${os}_${arch}.tar.gz"
 
 	local tmp
 	tmp=$(mktemp -d)
@@ -135,7 +148,7 @@ EOF
 	mv -f "${tmp}/kumoss" "${INSTALL_DIR}/kumoss"
 	chmod 0755 "${INSTALL_DIR}/kumoss"
 
-	say "Installed kumoss ${version#v} to ${INSTALL_DIR}/kumoss"
+	say "Installed kumoss ${version} to ${INSTALL_DIR}/kumoss"
 	if ! on_path; then
 		say ""
 		say "Add it to your PATH, e.g. for bash:"

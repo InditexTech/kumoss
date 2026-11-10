@@ -16,9 +16,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// NewHelpCmd replaces cobra's generated help command with one that also answers
-// --all. cobra builds its help command lazily, so this must run before Execute;
-// `kumoss help init` keeps working exactly as before.
+// NewHelpCmd replaces cobra's help command with one that also answers --all.
+// cobra builds its own lazily, so this must run before Execute.
 func NewHelpCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	help := &cobra.Command{
 		Use:   "help [command]",
@@ -47,9 +46,8 @@ func NewHelpCmd(root *cobra.Command, _ *cli.Flags) *cobra.Command {
 	return help
 }
 
-// printAllFlags lists each command's own flags. Inherited flags are left out:
-// the tree has no persistent flags today, and a child's inherited set would
-// repeat them under every command.
+// printAllFlags lists each command's own flags. Inherited ones are left out:
+// there are none today, and they would repeat under every command.
 func printAllFlags(w io.Writer, root *cobra.Command) error {
 	if _, err := fmt.Fprintln(w, "Flags by command:"); err != nil {
 		return err
@@ -57,8 +55,9 @@ func printAllFlags(w io.Writer, root *cobra.Command) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	var bare []string
 	for _, c := range root.Commands() {
-		// help and completion are cobra's own; the rest is what we ship.
-		if c.Name() == "help" || c.Name() == "completion" {
+		// help and completion are cobra's own; the rest is what we ship. A
+		// hidden command stays hidden here too, or --all would undo its Hidden.
+		if c.Name() == "help" || c.Name() == "completion" || c.Hidden {
 			continue
 		}
 		var lines []string
@@ -67,8 +66,7 @@ func printAllFlags(w io.Writer, root *cobra.Command) error {
 				return
 			}
 			usage := f.Usage
-			// --help is always present and its default is the empty string, so
-			// only a real default is worth printing.
+			// --help is always present with an empty default; skip those.
 			if f.DefValue != "" && f.DefValue != "false" {
 				usage += " (default " + f.DefValue + ")"
 			}
@@ -92,8 +90,7 @@ func printAllFlags(w io.Writer, root *cobra.Command) error {
 	return tw.Flush()
 }
 
-// typeName is pflag's type placeholder for the usage line, matching what
-// cobra prints: "string" for strings, nothing for bools.
+// typeName matches what cobra prints: "string" for strings, nothing for bools.
 func typeName(f *pflag.Flag) string {
 	if f.Value.Type() == "bool" {
 		return ""

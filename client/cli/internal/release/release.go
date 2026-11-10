@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-// Package release serves the install script's files from the public release
-// endpoints, so a machine with neither curl nor wget still works.
+// Package release reaches the public release endpoints: the install script
+// `kumoss self-install` runs, and the archives it downloads. It is not a
+// substitute for curl or wget, which install.sh requires.
 package release
 
 import (
@@ -15,8 +16,7 @@ import (
 	"time"
 )
 
-// endpoints are the two URLs a file can live at. A var so tests can point them
-// at a local server.
+// endpoints are the two URLs a file can live at. A var, for tests.
 var endpoints = []string{
 	"https://github.com/InditexTech/kumoss/releases/latest/download",
 	"https://raw.githubusercontent.com/InditexTech/kumoss/main",
@@ -51,8 +51,8 @@ func get(ctx context.Context, url string) ([]byte, error) {
 	return io.ReadAll(resp.Body)
 }
 
-// Script is install.sh at the tip of main, so `kumoss self-install` always
-// runs the current installer rather than a copy baked into an old binary.
+// Script is install.sh at the tip of main, so self-install runs the current
+// installer and not a copy baked into an old binary.
 func Script(ctx context.Context) ([]byte, error) {
 	return get(ctx, endpoints[1]+"/install.sh")
 }

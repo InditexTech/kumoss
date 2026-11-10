@@ -11,8 +11,8 @@ import (
 	"testing"
 )
 
-// A missing archive must not be served as if it were the binary, and the
-// checksum lookup must match the exact file, not a substring of another name.
+// A missing archive must not pass as the binary, and the checksum lookup must
+// match the exact name, not a substring.
 func TestFetchRejectsNon200AndLookupMatchesExactName(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/kumoss_1.2.3_linux_amd64.tar.gz" {

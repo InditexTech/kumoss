@@ -13,8 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// newTestRoot builds a root with the real commands, since the parent package
-// owns NewRootCmd and importing it here would be a cycle.
+// newTestRoot rebuilds the real tree: importing NewRootCmd would be a cycle.
 func newTestRoot() *cobra.Command {
 	var flags cli.Flags
 	root := &cobra.Command{Use: "kumoss"}
@@ -43,8 +42,7 @@ func runHelp(t *testing.T, root *cobra.Command, args ...string) string {
 	return out.String()
 }
 
-// --all groups each command's own flags under it, and a command with no flags
-// is still listed, so the reader knows it was considered.
+// --all groups flags per command, and still lists the flagless ones.
 func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
 	got := runHelp(t, newTestRoot(), "--all")
 
@@ -67,10 +65,17 @@ func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
 	if strings.Contains(got, "completion") {
 		t.Errorf("output lists cobra's completion command:\n%s", got)
 	}
+	// Nor a hidden one: that would undo its Hidden.
+	hidden := &cobra.Command{Use: "secret", Hidden: true, RunE: func(*cobra.Command, []string) error { return nil }}
+	hidden.Flags().String("token", "", "a flag nobody should be told about")
+	root := newTestRoot()
+	root.AddCommand(hidden)
+	if all := runHelp(t, root, "--all"); strings.Contains(all, "secret") {
+		t.Errorf("output lists a hidden command:\n%s", all)
+	}
 }
 
-// A command argument still wins over --all, so `help --all init` is not a
-// surprise.
+// A command argument wins over --all.
 func TestHelpWithCommandStillPrintsThatCommand(t *testing.T) {
 	got := runHelp(t, newTestRoot(), "--all", "init")
 	if strings.Contains(got, "Flags by command:") {
@@ -81,8 +86,7 @@ func TestHelpWithCommandStillPrintsThatCommand(t *testing.T) {
 	}
 }
 
-// The listing must come from the live tree, not a hand-kept list: a command
-// added later shows up without touching help.go.
+// The listing comes from the live tree, so a new command needs no edit here.
 func TestHelpAllReflectsNewCommands(t *testing.T) {
 	root := newTestRoot()
 	extra := &cobra.Command{Use: "extra", RunE: func(*cobra.Command, []string) error { return nil }}
