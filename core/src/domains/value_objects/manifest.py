@@ -38,7 +38,7 @@ class ProviderEnv:
 
 
 @dataclass(frozen=True)
-class ManifestObject:
+class Manifest:
     """Value object: the parsed providers manifest of a root module.
 
     ``providers`` the terraform providers the manifest pins.

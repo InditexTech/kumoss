@@ -9,8 +9,8 @@ from typing import Any
 import yaml
 
 from src.application.exceptions import ManifestReadError
-from src.domains.value_objects import ManifestObject
-from src.domains.value_objects.manifest_object import (
+from src.domains.value_objects import Manifest
+from src.domains.value_objects.manifest import (
     Backend,
     Fingerprint,
     Provider,
@@ -19,7 +19,7 @@ from src.domains.value_objects.manifest_object import (
 from src.shared.logger import logging
 
 
-class Manifest:
+class ManifestFile:
     """Reads the providers manifest of a root module from disk."""
 
     _VERSION: str = "1.1"
@@ -28,14 +28,14 @@ class Manifest:
         self.__config: Path = config
 
     # TODO: pass optional arguments or create different methods (def add_env, def update_providers, etc)
-    def write(self, data: dict[str, Any] | None) -> ManifestObject:
+    def write(self, data: dict[str, Any] | None) -> Manifest:
         if data is None:
-            return ManifestObject(
+            return Manifest(
                 version=self._VERSION,
                 backend=Backend("", ""),
                 fingerprint=Fingerprint("", ""),
             )
-        manifest: ManifestObject = self._parse(data)
+        manifest: Manifest = self._parse(data)
         with open("./kumoss.yaml", "wb") as f:
             _ = f.write(
                 yaml.safe_dump(
@@ -47,7 +47,7 @@ class Manifest:
             )
         return manifest
 
-    def load(self) -> ManifestObject:
+    def load(self) -> Manifest:
         if not self.__config.exists():
             return self.write(None)
         try:
@@ -61,11 +61,11 @@ class Manifest:
             )
 
     @staticmethod
-    def _parse(data: dict[str, Any]) -> ManifestObject:
+    def _parse(data: dict[str, Any]) -> Manifest:
         # str() everywhere: YAML turns unquoted versions into numbers and timestamps into datetimes
         backend = data["backend"]
         fingerprint = data["fingerprint"]
-        return ManifestObject(
+        return Manifest(
             version=str(data["version"]),
             backend=Backend(
                 config=str(backend["config"]), lineage=str(backend["lineage"])
@@ -86,7 +86,12 @@ class Manifest:
 
 
 if __name__ == "__main__":
-    manifest = Manifest(Path("./test_kumoss.yaml"))
-    data = asdict(manifest.load())
-    print(data)
-    manifest.write(data)
+    import json
+
+    manifest = ManifestFile(Path("./example-kumoss.yml"))
+    with open("./example-kumoss.yml", "r") as f:
+        data = yaml.safe_load(f)
+        print(json.dumps(data, indent=2))
+        print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
+    # data = asdict(manifest.load())
+    # _ = manifest.write(data)

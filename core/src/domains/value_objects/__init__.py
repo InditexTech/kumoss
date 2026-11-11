@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from .conventions import Conventions
-from .manifest_object import ManifestObject
+from .manifest import Manifest
 from .page_summary import PageSummary
 from .plan_ref import PlanRef
 from .provider_facts import ProviderFacts
@@ -15,7 +15,7 @@ from .workspace_facts import WorkspaceFacts
 
 __all__ = [
     "Conventions",
-    "ManifestObject",
+    "Manifest",
     "PageSummary",
     "PlanRef",
     "ProviderFacts",
