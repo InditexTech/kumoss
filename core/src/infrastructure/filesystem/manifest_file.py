@@ -14,7 +14,7 @@ from src.domains.value_objects.manifest import (
     Backend,
     Fingerprint,
     Provider,
-    ProviderEnv,
+    Variable,
 )
 from src.shared.logger import logging
 
@@ -22,12 +22,21 @@ from src.shared.logger import logging
 class ManifestFile:
     """Reads the providers manifest of a root module from disk."""
 
-    _VERSION: str = "1.1"
+    _VERSION: str = "1"
 
     def __init__(self, config: Path):
         self.__config: Path = config
 
-    # TODO: pass optional arguments or create different methods (def add_env, def update_providers, etc)
+    def initialize(
+        self,
+        config: str,
+        lieage: str,
+        providers: dict[str, str | dict[str, str]],
+        variables: dict[str, str],
+        fingerprint: str,
+    ) -> None:
+        pass
+
     def write(self, data: dict[str, Any] | None) -> Manifest:
         if data is None:
             return Manifest(
@@ -60,28 +69,57 @@ class ManifestFile:
                 error_code=500,
             )
 
-    @staticmethod
-    def _parse(data: dict[str, Any]) -> Manifest:
-        # str() everywhere: YAML turns unquoted versions into numbers and timestamps into datetimes
-        backend = data["backend"]
+    def _parse_backend(self, data: dict[str, str]) -> Backend:
+        try:
+            return Backend(config=data["config"], lineage=data["lineage"])
+        except KeyError:
+            raise ManifestReadError(
+                message=f"Manifest backend parse data fail. data={data}",
+                error_code=500,
+            )
+
+    def _parse_variables(self, data: list[dict[str, str]]) -> tuple[Variable, ...]:
+        try:
+            return tuple(
+                Variable(name=var["name"], value=var.get("value")) for var in data
+            )
+        except KeyError:
+            raise ManifestReadError(
+                message=f"Manifest Variables parse data fail. data={data}",
+                error_code=500,
+            )
+
+    def _parse_providers(
+        self,
+        data: list[dict[str, str | dict[str, str]]],
+    ) -> tuple[Provider, ...]:
+        try:
+            return tuple(
+                Provider(
+                    name=str(p["name"]),
+                    version=str(p["version"]),
+                    environment=self._parse_variables(p.get("variables", [])),
+                )
+                for p in data
+            )
+        except KeyError:
+            raise ManifestReadError(
+                message=f"Manifest Providers parse data fail. data={data}",
+                error_code=500,
+            )
+
+    def _parse(self, data: dict[str, Any]) -> Manifest:
+        version = data["version"]
+        backend = data.get("backend")
+        providers = data.get("providers", ())
+        variables = data.get("variables", ())
         fingerprint = data["fingerprint"]
         return Manifest(
-            version=str(data["version"]),
-            backend=Backend(
-                config=str(backend["config"]), lineage=str(backend["lineage"])
-            ),
-            fingerprint=Fingerprint(
-                checksum=str(fingerprint["checksum"]),
-                validated_at=str(fingerprint["validated_at"]),
-            ),
-            providers=tuple(
-                Provider(name=str(p["name"]), version=str(p["version"]))
-                for p in data.get("providers") or ()
-            ),
-            provider_env=tuple(
-                ProviderEnv(name=str(p["name"]), value=str(p["value"]))
-                for p in data.get("provider_env") or ()
-            ),
+            version=version,
+            backend=self._parse_backend(backend),
+            providers=self._parse_providers(providers),
+            variables=self._parse_variables(variables),
+            fingerprint=fingerprint,
         )
 
 
