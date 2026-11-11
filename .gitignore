@@ -105,8 +105,7 @@ skills-lock.json
 # Local Tests
 local_test/
 .playwright-mcp
-example-kumoss.yml
-kumoss.yml
+*manifest.yml
 
 # Unpublished files
 docs-tmp/

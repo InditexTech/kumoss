@@ -12,7 +12,6 @@ from src.application.exceptions import ManifestReadError
 from src.domains.value_objects import Manifest
 from src.domains.value_objects.manifest import (
     Backend,
-    Fingerprint,
     Provider,
     Variable,
 )
@@ -24,28 +23,24 @@ class ManifestFile:
 
     _VERSION: str = "1"
 
-    def __init__(self, config: Path):
-        self.__config: Path = config
+    def __init__(self, config_path: Path):
+        self.__config_path: Path = config_path
 
-    def initialize(
+    def create(
         self,
-        config: str,
-        lieage: str,
-        providers: dict[str, str | dict[str, str]],
-        variables: dict[str, str],
         fingerprint: str,
-    ) -> None:
-        pass
+        variables: dict[str, str],
+        providers: dict[str, str | dict[str, str]],
+    ) -> Manifest:
+        return self.write(
+            {"version": self._VERSION, "fingerprint": fingerprint}
+            | variables  # it may be empty
+            | providers
+        )
 
-    def write(self, data: dict[str, Any] | None) -> Manifest:
-        if data is None:
-            return Manifest(
-                version=self._VERSION,
-                backend=Backend("", ""),
-                fingerprint=Fingerprint("", ""),
-            )
-        manifest: Manifest = self._parse(data)
-        with open("./kumoss.yaml", "wb") as f:
+    def write(self, data: dict[str, Any]) -> Manifest:
+        manifest = self._parse(data)
+        with open(self.__config_path, "wb") as f:
             _ = f.write(
                 yaml.safe_dump(
                     asdict(manifest),
@@ -56,11 +51,33 @@ class ManifestFile:
             )
         return manifest
 
+    def write_backend(self, config: str, lineage: str) -> Manifest:
+        manifest: Manifest = self.load()
+        payload = asdict(manifest) | {"backend": {"config": config, "lineage": lineage}}
+        return self.write(payload)
+
+    def write_variables(self, variables: list[dict[str, str]]) -> Manifest:
+        """Merges and overrides existing values"""
+        manifest: Manifest = self.load()
+        dict_manifest = asdict(manifest)
+        _ = self._parse(dict_manifest)
+        variables: list[dict[str, str]] | None = dict_manifest.get("variables")
+        if variables:
+            pass
+
+        payload = asdict(manifest) | {
+            "variables": [{"name": n, "value": v} for n, v in variables]
+        }
+        return self.write(payload)
+
     def load(self) -> Manifest:
-        if not self.__config.exists():
-            return self.write(None)
+        if not self.__config_path.exists():
+            raise ManifestReadError(
+                message=f"Manifest files doesn't exist at {self.__config_path}",
+                error_code=500,
+            )
         try:
-            with open(self.__config, "r") as f:
+            with open(self.__config_path, "r") as f:
                 return self._parse(yaml.safe_load(f))
         except Exception as e:
             logging.error(f"Error reading manifest: {e}")
@@ -73,8 +90,9 @@ class ManifestFile:
         try:
             return Backend(config=data["config"], lineage=data["lineage"])
         except KeyError:
+            logging.error(f"Manifest backend parse data fail. data={data}")
             raise ManifestReadError(
-                message=f"Manifest backend parse data fail. data={data}",
+                message="Manifest backend parse data fail.",
                 error_code=500,
             )
 
@@ -84,8 +102,9 @@ class ManifestFile:
                 Variable(name=var["name"], value=var.get("value")) for var in data
             )
         except KeyError:
+            logging.error(f"Manifest Variables parse data fail. data={data}")
             raise ManifestReadError(
-                message=f"Manifest Variables parse data fail. data={data}",
+                message="Manifest Variables parse data fail.",
                 error_code=500,
             )
 
@@ -98,13 +117,14 @@ class ManifestFile:
                 Provider(
                     name=str(p["name"]),
                     version=str(p["version"]),
-                    environment=self._parse_variables(p.get("variables", [])),
+                    environment=self._parse_variables(p.get("environment", [])),
                 )
                 for p in data
             )
         except KeyError:
+            logging.error(f"Manifest Providers parse data fail. data={data}")
             raise ManifestReadError(
-                message=f"Manifest Providers parse data fail. data={data}",
+                message="Manifest Providers parse data fail.",
                 error_code=500,
             )
 
@@ -124,12 +144,13 @@ class ManifestFile:
 
 
 if __name__ == "__main__":
-    import json
+    # import json
 
-    manifest = ManifestFile(Path("./example-kumoss.yml"))
-    with open("./example-kumoss.yml", "r") as f:
-        data = yaml.safe_load(f)
-        print(json.dumps(data, indent=2))
-        print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
-    # data = asdict(manifest.load())
-    # _ = manifest.write(data)
+    manifest = ManifestFile(Path("./manifest.yml"))
+    # with open("./example-kumoss.yml", "r") as f:
+    #     data = yaml.safe_load(f)
+    #     print(json.dumps(data, indent=2))
+    #     print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
+    data = asdict(manifest.load())
+    print(data)
+    _ = manifest.write(data)
