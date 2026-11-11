@@ -22,6 +22,7 @@ class ManifestFile:
     """Reads the providers manifest of a root module from disk."""
 
     _VERSION: str = "1"
+    _TF_VAR_SUFFIX: str = "TF_VAR_"
 
     def __init__(self, config_path: Path):
         self.__config_path: Path = config_path
@@ -29,46 +30,60 @@ class ManifestFile:
     def create(
         self,
         fingerprint: str,
-        variables: dict[str, str],
-        providers: dict[str, str | dict[str, str]],
+        variables: list[dict[str, str]],
+        providers: list[dict[str, str | dict[str, str]]],
     ) -> Manifest:
-        return self.write(
-            {"version": self._VERSION, "fingerprint": fingerprint}
-            | variables  # it may be empty
-            | providers
+        return self._write(
+            {
+                "version": self._VERSION,
+                "fingerprint": fingerprint,
+                "providers": providers,
+                "variables": variables,
+            }
         )
-
-    def write(self, data: dict[str, Any]) -> Manifest:
-        manifest = self._parse(data)
-        with open(self.__config_path, "wb") as f:
-            _ = f.write(
-                yaml.safe_dump(
-                    asdict(manifest),
-                    encoding="utf8",
-                    allow_unicode=True,
-                    sort_keys=False,
-                )
-            )
-        return manifest
 
     def write_backend(self, config: str, lineage: str) -> Manifest:
         manifest: Manifest = self.load()
-        payload = asdict(manifest) | {"backend": {"config": config, "lineage": lineage}}
-        return self.write(payload)
+        dmanifest = asdict(manifest) | {
+            "backend": {"config": config, "lineage": lineage}
+        }
+        return self._write(dmanifest)
 
-    def write_variables(self, variables: list[dict[str, str]]) -> Manifest:
+    def write_variables(self, variables: dict[str, str]) -> Manifest:
         """Merges and overrides existing values"""
         manifest: Manifest = self.load()
-        dict_manifest = asdict(manifest)
-        _ = self._parse(dict_manifest)
-        variables: list[dict[str, str]] | None = dict_manifest.get("variables")
-        if variables:
-            pass
+        dmanifest = asdict(manifest)
+        _ = self._parse(dmanifest)
+        manifest_vars: list[dict[str, str]] | None = dmanifest.get("variables")
 
-        payload = asdict(manifest) | {
-            "variables": [{"name": n, "value": v} for n, v in variables]
+        dmanifest = dmanifest | {
+            "variables": self._update_variables(variables, manifest_vars)
         }
-        return self.write(payload)
+
+        return self._write(dmanifest)
+
+    def write_provider(
+        self,
+        provider: str,
+        version: str,
+        environment: dict[str, str],
+    ) -> Manifest:
+        """Merges and overrides existing values"""
+        manifest: Manifest = self.load()
+        dmanifest = asdict(manifest)
+        _ = self._parse(dmanifest)
+        if dmanifest.get("providers") is None:
+            dmanifest = dmanifest | {
+                "providers": [{"name": provider, "version": version}]
+            }
+
+        for prv in dmanifest["providers"]:
+            if prv["name"] == provider:
+                prv["environment"] = self._update_variables(
+                    environment, prv.get("environment")
+                )
+
+        return self._write(dmanifest)
 
     def load(self) -> Manifest:
         if not self.__config_path.exists():
@@ -86,7 +101,9 @@ class ManifestFile:
                 error_code=500,
             )
 
-    def _parse_backend(self, data: dict[str, str]) -> Backend:
+    def _parse_backend(self, data: dict[str, str] | None) -> Backend | None:
+        if data is None:
+            return None
         try:
             return Backend(config=data["config"], lineage=data["lineage"])
         except KeyError:
@@ -96,11 +113,19 @@ class ManifestFile:
                 error_code=500,
             )
 
-    def _parse_variables(self, data: list[dict[str, str]]) -> tuple[Variable, ...]:
+    def _parse_variables(
+        self, data: list[dict[str, str]], prefix: str | None = None
+    ) -> tuple[Variable, ...]:
+        payload: list[Variable] = []
         try:
-            return tuple(
-                Variable(name=var["name"], value=var.get("value")) for var in data
-            )
+            for var in data:
+                name = var["name"]
+                value = var.get("value")
+                if prefix and not name.startswith(prefix):
+                    name = prefix + name
+                payload.append(Variable(name=name, value=value))
+            return tuple(payload)
+
         except KeyError:
             logging.error(f"Manifest Variables parse data fail. data={data}")
             raise ManifestReadError(
@@ -138,19 +163,70 @@ class ManifestFile:
             version=version,
             backend=self._parse_backend(backend),
             providers=self._parse_providers(providers),
-            variables=self._parse_variables(variables),
+            variables=self._parse_variables(variables, prefix=self._TF_VAR_SUFFIX),
             fingerprint=fingerprint,
         )
+
+    def _update_variables(
+        self, new: dict[str, str], to_update: list[dict[str, str]] | None = None
+    ) -> list[dict[str, str]]:
+        if to_update is not None:
+            for v in to_update:
+                new[v["name"]] = v["value"]
+        return [{"name": n, "value": v} for n, v in new.items()]
+
+    def _write(self, data: dict[str, Any]) -> Manifest:
+        manifest = self._parse(data)
+        with open(self.__config_path, "wb") as f:
+            _ = f.write(
+                yaml.safe_dump(
+                    asdict(manifest),
+                    encoding="utf8",
+                    allow_unicode=True,
+                    sort_keys=False,
+                )
+            )
+        return manifest
 
 
 if __name__ == "__main__":
     # import json
 
-    manifest = ManifestFile(Path("./manifest.yml"))
+    handler = ManifestFile(Path("./manifest.yml"))
     # with open("./example-kumoss.yml", "r") as f:
     #     data = yaml.safe_load(f)
     #     print(json.dumps(data, indent=2))
     #     print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
-    data = asdict(manifest.load())
-    print(data)
-    _ = manifest.write(data)
+    # data = asdict(manifest.load())
+    # print(data)
+    manifest = handler.create(
+        fingerprint="sha256:qwerty",
+        providers=[
+            {
+                "name": "azurerm",
+                "version": "4.33.0",
+                "environment": [
+                    {"name": "ARM_SUBSCRIPTION_ID", "value": "22222-22222-22222-2222"}
+                ],
+            },
+            {
+                "name": "aws",
+                "version": "6.72.0",
+                "environment": ({"name": "AWS_REGION", "value": None},),
+            },
+        ],
+        variables=[
+            {
+                "name": "sub_prod_id",
+                "value": "11111111-1111-1111-1111-111111111111",
+            },
+            {
+                "name": "ad_data_devops_owners",
+                "value": [
+                    "eaed4141-131d-4e88-8e9f-7d23422f6d1e",
+                    "bbbb5c12-6105-47ae-ab59-f53cf9f74515",
+                ],
+            },
+        ],
+    )
+    print(manifest)
