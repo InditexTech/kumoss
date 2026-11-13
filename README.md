@@ -10,9 +10,10 @@ SPDX-License-Identifier: Apache-2.0
 
 ### AI-powered Infrastructure as Code, governed by your rules
 
-Turn natural-language requests into validated Opentofu/Terraform pull requests.
-Kumoss generates infrastructure, corrects drift, enforces your policies and keeps
-humans in control of high-impact or not compliant changes.
+AI assistant for developer-friendly, intent-based day-two infrastructure in your existing ecosystem.
+Turn plain-language requests into Terraform or OpenTofu pull requests, with validated plans, 
+transparent drift corrections, enforces your policies and keeps humans in control.
+
 
 **[Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/)** ·
 **[Documentation](https://inditextech.github.io/kumoss/stable/)** ·
