@@ -82,6 +82,28 @@ func (c *Compose) stream(ctx context.Context, sub ...string) error {
 	return cmd.Run()
 }
 
+// Recreate replaces the named services so a rewritten .env or mounted file
+// takes effect. `restart` would keep the old environment.
+func (c *Compose) Recreate(ctx context.Context, services ...string) error {
+	args := append([]string{"up", "-d"}, services...)
+	_, err := c.run(ctx, args...)
+	return err
+}
+
+// Logs streams the containers' logs. follow keeps reading until the context is
+// cancelled; since is passed through to compose, which understands 30m and a
+// timestamp.
+func (c *Compose) Logs(ctx context.Context, follow bool, since string, services ...string) error {
+	args := []string{"logs"}
+	if follow {
+		args = append(args, "-f")
+	}
+	if since != "" {
+		args = append(args, "--since", since)
+	}
+	return c.stream(ctx, append(args, services...)...)
+}
+
 // Down stops and removes the stack: containers, network, and with volumes the
 // data. Volumes outlive a plain down, so the next init would find the old
 // database and the old administrator.

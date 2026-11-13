@@ -43,6 +43,12 @@ func (c *Config) Write(ctx context.Context, s *state.State) error {
 	return writeFile(c.Path, out, 0o644)
 }
 
+// WriteConfig writes rendered config.yaml bytes atomically, so `kumoss config`
+// does not refetch a file it already has on disk.
+func WriteConfig(path string, data []byte) error {
+	return writeFile(path, data, 0o644)
+}
+
 // RenderConfig is Write without the write, for --dry-run.
 func RenderConfig(raw []byte, s *state.State) ([]byte, error) {
 	var doc map[string]any

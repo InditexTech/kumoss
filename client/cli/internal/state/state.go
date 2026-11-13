@@ -128,6 +128,61 @@ type Notifications struct {
 	SlackWebhookURL string `yaml:"-" json:"-"`
 }
 
+// Copy returns a deep copy, so a section edit can be diffed against the
+// original before anything is written.
+func (s *State) Copy() *State {
+	c := *s
+	c.LLM.Credentials = copyMap(s.LLM.Credentials)
+	c.Storage.Credentials = copyMap(s.Storage.Credentials)
+	c.Storage.BackendCredentials = copyMap(s.Storage.BackendCredentials)
+	cloud := Cloud{}
+	if s.Cloud.AWS != nil {
+		v := *s.Cloud.AWS
+		cloud.AWS = &v
+	}
+	if s.Cloud.Azure != nil {
+		v := *s.Cloud.Azure
+		cloud.Azure = &v
+	}
+	if s.Cloud.GCP != nil {
+		v := *s.Cloud.GCP
+		cloud.GCP = &v
+	}
+	if s.Cloud.OCI != nil {
+		v := *s.Cloud.OCI
+		cloud.OCI = &v
+	}
+	if s.Cloud.Kubernetes != nil {
+		v := *s.Cloud.Kubernetes
+		cloud.Kubernetes = &v
+	}
+	c.Cloud = cloud
+	if s.LLM.Temperature != nil {
+		v := *s.LLM.Temperature
+		c.LLM.Temperature = &v
+	}
+	if s.LLM.MaxOutputTokens != nil {
+		v := *s.LLM.MaxOutputTokens
+		c.LLM.MaxOutputTokens = &v
+	}
+	if s.LLM.Timeout != nil {
+		v := *s.LLM.Timeout
+		c.LLM.Timeout = &v
+	}
+	return &c
+}
+
+func copyMap(m map[string]string) map[string]string {
+	if m == nil {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
 // Secrets are generated, never user-supplied, never serialised.
 type Secrets struct {
 	// → core/.env and the matching sidecar .env (must be byte-identical).

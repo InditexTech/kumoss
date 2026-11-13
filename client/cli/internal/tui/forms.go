@@ -42,28 +42,13 @@ func (w *Wizard) Configure(mode Mode, s *state.State) error {
 		return nil
 	}
 
-	// Split in two: the credential fields depend on the provider picked first.
-	idx, err := w.llmProviderStep(s)
-	if err != nil {
+	if err := w.LLM(s); err != nil {
 		return err
 	}
-	if err := w.llmDetailsStep(s, providerAt(idx)); err != nil {
-		return err
-	}
-
-	steps := []func(*state.State) (*huh.Form, func()){
-		w.gitStep,
-		w.storageStep,
-		w.cloudStep,
-		w.engineStep,
-		w.notificationsStep,
-	}
-	for _, step := range steps {
-		form, commit := step(s)
-		if err := w.run(form); err != nil {
+	for _, step := range []func(*state.State) error{w.Git, w.State, w.Cloud, w.Engine, w.Notifications} {
+		if err := step(s); err != nil {
 			return err
 		}
-		commit()
 	}
 	return nil
 }
