@@ -10,9 +10,9 @@ SPDX-License-Identifier: Apache-2.0
 
 ### AI-powered Infrastructure as Code, governed by your rules
 
-AI assistant that helps developers manage day-two infrastructure through plain-language requests
-Turn plain-language requests into Terraform/OpenTofu pull requests, with validated plans, drift corrections
-enforces your policies and keeps humans in control into your existing ecosystem.
+AI assistant that helps developers manage day-two infrastructure through plain-language requests.
+It creates Terraform/OpenTofu pull requests with validated plans and drift corrections, 
+enforces your policies, and keeps humans in control—all within your existing ecosystem.
 
 
 **[Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/)** ·
