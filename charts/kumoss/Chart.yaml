@@ -7,8 +7,8 @@ name: kumoss
 description: Kumoss — generate compliant Infrastructure as Code with a couple of clicks.
 type: application
 # Chart and app share the release version; release-please bumps both.
-version: 1.0.8 # x-release-please-version
-appVersion: "1.0.8" # x-release-please-version
+version: 1.0.9 # x-release-please-version
+appVersion: "1.0.9" # x-release-please-version
 home: https://inditextech.github.io/kumoss/
 sources:
   - https://github.com/InditexTech/kumoss
