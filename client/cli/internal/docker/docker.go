@@ -82,6 +82,17 @@ func (c *Compose) stream(ctx context.Context, sub ...string) error {
 	return cmd.Run()
 }
 
+// Down stops and removes the stack: containers, network, and with volumes the
+// data. Volumes outlive a plain down, so the next init would find the old
+// database and the old administrator.
+func (c *Compose) Down(ctx context.Context, volumes bool) error {
+	args := []string{"down"}
+	if volumes {
+		args = append(args, "-v")
+	}
+	return c.stream(ctx, args...)
+}
+
 // Pull fetches the missing images. `--policy missing` is compose's own "only
 // what is absent", so a re-run does no network work and there are no service
 // names to get wrong.
