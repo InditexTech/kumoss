@@ -30,12 +30,14 @@ class ManifestFile:
     def create(
         self,
         fingerprint: str,
+        backend: dict[str, str],
         variables: list[dict[str, str]],
         providers: list[dict[str, str | dict[str, str]]],
     ) -> Manifest:
         return self._write(
             {
                 "version": self._VERSION,
+                "backend": backend,
                 "fingerprint": fingerprint,
                 "providers": providers,
                 "variables": variables,
@@ -101,11 +103,9 @@ class ManifestFile:
                 error_code=500,
             )
 
-    def _parse_backend(self, data: dict[str, str] | None) -> Backend | None:
-        if data is None:
-            return None
+    def _parse_backend(self, data: dict[str, str]) -> Backend:
         try:
-            return Backend(config=data["config"], lineage=data["lineage"])
+            return Backend(type=data["type"])
         except KeyError:
             logging.error(f"Manifest backend parse data fail. data={data}")
             raise ManifestReadError(
@@ -155,7 +155,7 @@ class ManifestFile:
 
     def _parse(self, data: dict[str, Any]) -> Manifest:
         version = data["version"]
-        backend = data.get("backend")
+        backend = data["backend"]
         providers = data.get("providers", ())
         variables = data.get("variables", ())
         fingerprint = data["fingerprint"]
@@ -178,29 +178,30 @@ class ManifestFile:
     def _write(self, data: dict[str, Any]) -> Manifest:
         manifest = self._parse(data)
         with open(self.__config_path, "wb") as f:
-            _ = f.write(
-                yaml.safe_dump(
-                    asdict(manifest),
-                    encoding="utf8",
-                    allow_unicode=True,
-                    sort_keys=False,
-                )
+            _ = f.write(b"# Auto managed by Kumoss.\n")
+            yaml.safe_dump(
+                data=asdict(manifest),
+                stream=f,
+                encoding="utf8",
+                allow_unicode=True,
+                sort_keys=False,
             )
         return manifest
 
 
 if __name__ == "__main__":
-    # import json
+    import json
 
     handler = ManifestFile(Path("./manifest.yml"))
-    # with open("./example-kumoss.yml", "r") as f:
-    #     data = yaml.safe_load(f)
-    #     print(json.dumps(data, indent=2))
-    #     print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
-    # data = asdict(manifest.load())
-    # print(data)
+    with open("./example-manifest.yml", "r") as f:
+        data = yaml.safe_load(f)
+        print(json.dumps(data, indent=2))
+        print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
+    data = asdict(handler.load())
+    print(data)
     manifest = handler.create(
         fingerprint="sha256:qwerty",
+        backend={"type": "azurerm"},
         providers=[
             {
                 "name": "azurerm",
