@@ -241,10 +241,64 @@ still runs the current installer. Needs `curl` or `wget`, like the installer.
 | ---------- | --------------------------------------------------- |
 | `--all`    | List every command's flags, grouped by command      |
 
-### `kumoss status`, `logs`, `config`, `doctor`
+### `kumoss logs`
 
-Registered as placeholders for the day-2 commands and currently do nothing. Use
-`docker compose` against `~/.kumoss/src` in the meantime; see
+A thin wrapper over `docker compose logs`. Ctrl-C stops following; the stack
+keeps running.
+
+| Argument / flag    | Effect                                                   |
+| ------------------ | -------------------------------------------------------- |
+| `[service…]`       | Only these containers; default is the whole stack        |
+| `-f`, `--follow`   | Follow the output                                        |
+| `--since <when>`   | `30m`, `2h`, or a timestamp; compose parses it           |
+
+### `kumoss config <section>`
+
+Reopens one wizard section prefilled from the current files, shows a diff of
+the generated files with the secrets masked, and on confirmation writes them
+and recreates **only** the containers that read them.
+
+| Section         | Recreates (normally)   |
+| --------------- | ---------------------- |
+| `llm`, `git`    | `core`                 |
+| `cloud`, `engine` | `iac`                |
+| `state`         | `core`, `iac`          |
+| `notifications` | `core`, `notifications` |
+| `secrets`       | the token pairs        |
+
+`docker compose up -d <svc>`, never `restart`: a restart does not reload
+`env_file` or a mounted file. When the edit changes a container's
+**definition** — the credential mounts `cloud` writes into
+`compose.override.yml`, or `engine` — compose would otherwise keep the old
+container, so `core`, `iac` and `notifications` are all force-recreated. A
+`state` change warns first that the existing state is not migrated — Terraform
+will not find it in the new backend.
+
+Run without a section to list them.
+
+### `kumoss status`
+
+One screen for the whole stack:
+
+- **The table** — every container with its state (plus health when the image
+  defines a check), how long it has been up and how often it restarted, from
+  `docker compose ps`.
+- **The probes** — the core's `/api/v1/auth/config`, which proves it serves and
+  not merely runs, then `/healthz` for each running sidecar.
+- **The Kumoss tag** the stack was built from, and the optional pieces `init`
+  left unset.
+- **Pending recreates** — any generated file whose mtime is newer than the
+  container that mounts it. Compose compares the service definition, not the
+  bytes of a mounted file, so those changes are not live yet.
+
+```bash
+kumoss status
+```
+
+### `kumoss doctor`
+
+Registered as a placeholder and currently does nothing. Use `docker compose`
+against `~/.kumoss/src` in the meantime; see
 [Day-2 operations](#day-2-operations).
 
 ## The managed home
@@ -351,8 +405,8 @@ Nothing is installed outside your home, so there is no system-wide cleanup.
 
 ## Debugging
 
-The `status`, `logs`, `config` and `doctor` commands are placeholders. Until they
-are implemented, use `docker compose` against the managed home:
+`kumoss status` covers the common case; `kumoss doctor` is still a placeholder.
+For anything else, use `docker compose` against the managed home:
 
 ```bash
 cd ~/.kumoss/src
@@ -430,7 +484,7 @@ The full documentation is published at **[inditextech.github.io/kumoss](https://
 | **Headless mode**                                 | Planned     | Describe the answers file your CI would want               |
 | **Live credential validation**                    | Planned     | Run it against your providers and report what fails        |
 | **Preflight checks**                              | Planned     | Share the host conditions that break a start               |
-| **Day-2 commands: `status`, `logs`, `config`, `doctor`** | Planned | Propose the checks and fixes you need               |
+| **Day-2 command: `doctor`**        | Planned     | Propose the checks and fixes you need               |
 | **Wizard polish: step sidebar, back navigation**  | Planned     | Describe where you got lost                                |
 | **Published docs page for the CLI**               | Planned     | Contribute examples from your own setup                    |
 
