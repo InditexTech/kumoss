@@ -95,6 +95,26 @@ func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 	return s, found
 }
 
+// FillCloud reads back from services/iac/.env the cloud credentials that are
+// never written to kumoss.yaml. Without it a reconfigure or `config cloud`
+// opens the forms blank and the next write drops the key.
+func FillCloud(s *state.State, p EnvPaths) {
+	vars := readEnv(p.IAC)
+	if len(vars) == 0 {
+		return
+	}
+	if a := s.Cloud.AWS; a != nil {
+		a.AccessKey = first(a.AccessKey, vars["AWS_ACCESS_KEY_ID"])
+		a.SecretKey = first(a.SecretKey, vars["AWS_SECRET_ACCESS_KEY"])
+	}
+	if a := s.Cloud.Azure; a != nil {
+		a.ClientSecret = first(a.ClientSecret, vars["ARM_CLIENT_SECRET"])
+	}
+	if a := s.Cloud.GCP; a != nil {
+		a.InlineJSON = first(a.InlineJSON, vars["GOOGLE_CREDENTIALS"])
+	}
+}
+
 // Fill copies LoadSecrets' result onto s, leaving the keys in rotate empty so
 // Write generates fresh ones.
 func Fill(s *state.State, existing state.Secrets, rotate []string) {

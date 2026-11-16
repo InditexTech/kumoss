@@ -23,12 +23,8 @@ func EnvKeys(provider string) []string {
 	return keys
 }
 
-// ProviderEnvKeys is EnvKeys for a state, deriving the provider from the model
-// when kumoss.yaml never stored one (it is yaml:"-").
+// ProviderEnvKeys is EnvKeys for a state. The provider is re-derived by
+// state.Load, so the stored field is always set here.
 func ProviderEnvKeys(s *state.State) []string {
-	provider := s.LLM.Provider
-	if provider == "" {
-		provider = prefixOf(s.LLM.Model)
-	}
-	return EnvKeys(provider)
+	return EnvKeys(s.LLM.Provider)
 }

@@ -70,7 +70,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		return dryRun(ctx, opts)
 	}
 
-	// 1. Ensure the directory skeleton exists.
+	// Ensure the directory skeleton exists.
 	if err := opts.Home.Ensure(); err != nil {
 		return err
 	}
@@ -82,15 +82,14 @@ func RunPipeline(ctx context.Context, opts Options) error {
 
 	dl := opts.download()
 
-	// 2. Fetch the compose file. Skipped if present: it may be hand-edited.
+	// Fetch the compose file. Skipped if present: it may be hand-edited.
 	if err := fetchCompose(ctx, dl, opts.Home.ComposeFile()); err != nil {
 		return err
 	}
 
-	// 3. An existing kumoss.yaml means asking whether to reconfigure or keep.
+	// An existing kumoss.yaml means asking whether to reconfigure or keep.
 	s := &state.State{SchemaVersion: 1}
 	mode := tui.ModeFresh
-
 	exists, err := state.StateFileExist(opts.Home.StateFile())
 	if err != nil {
 		return err
@@ -104,19 +103,19 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 4. Fetch the env samples for their key sets. A failure warns rather than
+	// Fetch the env samples for their key sets. A failure warns rather than
 	// stopping: the built-in list still produces a usable file set.
 	samples, err := render.FetchSamples(ctx, dl)
 	if err != nil {
 		warn(opts.Warn, "could not fetch the env samples (%v); falling back to the built-in key list. Review the generated .env files against core/env.sample and services/*/env.sample in the repo, or the documentation.", err)
 	}
 
-	// 5. Collect answers. ModeKeep skips the forms entirely.
+	// Collect answers. ModeKeep skips the forms entirely.
 	if err := opts.UI.Configure(mode, s); err != nil {
 		return err
 	}
 
-	// 6. Write the two YAML files. ModeKeep writes neither, as promised.
+	// Write the two YAML files. ModeKeep writes neither, as promised.
 	if mode != tui.ModeKeep {
 		// The service refuses to boot without a webhook, so downgrade rather
 		// than write a stack that cannot start.
@@ -137,7 +136,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 7. Write the three env files. ModeKeep leaves them alone: they hold the
+	// Write the three env files. ModeKeep leaves them alone: they hold the
 	// only copy of the secrets. Otherwise reuse them, offering a rotation.
 	if mode != tui.ModeKeep {
 		paths := envPaths(opts.Home)
@@ -151,6 +150,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 		// Write then generates fresh values for exactly the rotated keys.
 		render.Fill(s, existing, rotate)
+		render.FillCloud(s, paths)
 
 		env := &render.Env{Samples: samples}
 		if samples != nil {
@@ -165,7 +165,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 8. Write compose.override.yml, which is what points core's config mount
+	// Write compose.override.yml, which is what points core's config mount
 	// at the file written above. Replaced only with consent, since it may have
 	// been hand-edited; a fresh install has nothing to ask about.
 	if mode != tui.ModeKeep {
@@ -189,7 +189,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		}
 	}
 
-	// 9. Pull and start. The recreate is what makes a reconfigure take effect:
+	// Pull and start. The recreate is what makes a reconfigure take effect:
 	// compose compares the service definition, not the bytes of a mounted file,
 	// so a plain `up -d` would keep the old containers and the old values.
 	run, err := opts.UI.RunDocker()
@@ -249,7 +249,6 @@ func dryRun(ctx context.Context, opts Options) error {
 			return err
 		}
 	}
-
 	samples, err := render.FetchSamples(ctx, dl)
 	if err != nil {
 		warn(opts.Warn, "could not fetch the env samples (%v); falling back to the built-in key list. Review the generated .env files against core/env.sample and services/*/env.sample in the repo, or the documentation.", err)
@@ -287,6 +286,7 @@ func dryRun(ctx context.Context, opts Options) error {
 		}
 	}
 	render.Fill(s, existing, rotate)
+	render.FillCloud(s, paths)
 	env := &render.Env{Samples: samples}
 	if samples != nil {
 		if env.Extra, err = opts.UI.ExtraVars(askList(samples, env.OwnedKeys(s))); err != nil {

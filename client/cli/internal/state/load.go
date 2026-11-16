@@ -7,6 +7,7 @@ package state
 import (
 	"os"
 	"path/filepath"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,7 +34,17 @@ func Load(path string) (*State, error) {
 	if err := yaml.Unmarshal(raw, &s); err != nil {
 		return nil, err
 	}
+	s.LLM.Provider = providerOf(s.LLM.Model)
 	return &s, nil
+}
+
+// providerOf is the `<provider>/` part of a LiteLLM model string, or "". The
+// provider is never stored, so it is re-derived on load.
+func providerOf(model string) string {
+	if i := strings.IndexByte(model, '/'); i > 0 {
+		return model[:i]
+	}
+	return ""
 }
 
 // Save writes the non-secret state. The yaml:"-" fields are dropped by the

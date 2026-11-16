@@ -10,7 +10,7 @@ type State struct {
 	SchemaVersion int           `yaml:"schema_version" json:"schema_version"`
 	LLM           LLM           `yaml:"llm"            json:"llm"`
 	Git           Git           `yaml:"git"            json:"git"`
-	Cloud         Cloud         `yaml:"-"              json:"-"`
+	Cloud         Cloud         `yaml:"cloud,omitempty" json:"cloud,omitempty"`
 	Engine        Engine        `yaml:"-"              json:"-"`
 	Storage       Storage       `yaml:"storage"        json:"storage"`
 	Notifications Notifications `yaml:"notifications"  json:"notifications"`
@@ -18,7 +18,7 @@ type State struct {
 }
 
 type LLM struct {
-	Provider string `yaml:"-" json:"-"` // Wizard-only: which provider row was picked. Used to derive the model-id prefix and the credential variable names. Re-derived from llm.model on load, never persisted.
+	Provider string `yaml:"-" json:"-"` // Wizard-only: which provider row was picked. Re-derived from llm.model on load, never persisted, so one parser (state.Load) owns it.
 
 	Model      string `yaml:"model" json:"model"`             // → config.yaml llm.model
 	SmallModel string `yaml:"small_model" json:"small_model"` // → config.yaml llm.small_model
@@ -43,37 +43,38 @@ type Git struct {
 	Token string `yaml:"-" json:"-"`
 }
 
-// Cloud exists only to feed the renderer.
+// Cloud feeds the renderer. Persisted, minus the secrets: without it a
+// reconfigure re-asked every credential and dropped the iac mount block.
 type Cloud struct {
-	AWS        *AWSAuth        `yaml:"-" json:"-"`
-	Azure      *AzureAuth      `yaml:"-" json:"-"`
-	GCP        *GCPAuth        `yaml:"-" json:"-"`
-	OCI        *OCIAuth        `yaml:"-" json:"-"`
-	Kubernetes *KubernetesAuth `yaml:"-" json:"-"`
+	AWS        *AWSAuth        `yaml:"aws,omitempty" json:"aws,omitempty"`
+	Azure      *AzureAuth      `yaml:"azure,omitempty" json:"azure,omitempty"`
+	GCP        *GCPAuth        `yaml:"gcp,omitempty" json:"gcp,omitempty"`
+	OCI        *OCIAuth        `yaml:"oci,omitempty" json:"oci,omitempty"`
+	Kubernetes *KubernetesAuth `yaml:"kubernetes,omitempty" json:"kubernetes,omitempty"`
 }
 
 // AWSAuth → services/iac/.env AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY / AWS_REGION
 // (or AWS_PROFILE, which mounts ~/.aws read-only).
 type AWSAuth struct {
-	Method    string `yaml:"-" json:"-"` // "static" | "profile"
-	AccessKey string `yaml:"-" json:"-"` // → AWS_ACCESS_KEY_ID (secret)
-	SecretKey string `yaml:"-" json:"-"` // → AWS_SECRET_ACCESS_KEY (secret)
-	Region    string `yaml:"-" json:"-"` // → AWS_REGION
-	Profile   string `yaml:"-" json:"-"` // → AWS_PROFILE
+	Method    string `yaml:"method,omitempty" json:"method,omitempty"`   // "static" | "profile"
+	AccessKey string `yaml:"-" json:"-"`                                 // → AWS_ACCESS_KEY_ID (secret)
+	SecretKey string `yaml:"-" json:"-"`                                 // → AWS_SECRET_ACCESS_KEY (secret)
+	Region    string `yaml:"region,omitempty" json:"region,omitempty"`   // → AWS_REGION
+	Profile   string `yaml:"profile,omitempty" json:"profile,omitempty"` // → AWS_PROFILE
 }
 
 // AzureAuth → services/iac/.env ARM_TENANT_ID / ARM_CLIENT_ID / ARM_CLIENT_SECRET.
 type AzureAuth struct {
-	TenantID     string `yaml:"-" json:"-"` // → ARM_TENANT_ID
-	ClientID     string `yaml:"-" json:"-"` // → ARM_CLIENT_ID
-	ClientSecret string `yaml:"-" json:"-"` // → ARM_CLIENT_SECRET (secret)
+	TenantID     string `yaml:"tenant_id,omitempty" json:"tenant_id,omitempty"` // → ARM_TENANT_ID
+	ClientID     string `yaml:"client_id,omitempty" json:"client_id,omitempty"` // → ARM_CLIENT_ID
+	ClientSecret string `yaml:"-" json:"-"`                                     // → ARM_CLIENT_SECRET (secret)
 }
 
 // GCPAuth → services/iac/.env. A key file is mounted read-only; the inline
 // JSON is the same key in the variable and needs no mount.
 type GCPAuth struct {
-	Method  string `yaml:"-" json:"-"` // "file" | "json"
-	KeyFile string `yaml:"-" json:"-"` // host path → GOOGLE_APPLICATION_CREDENTIALS
+	Method  string `yaml:"method,omitempty" json:"method,omitempty"`     // "file" | "json"
+	KeyFile string `yaml:"key_file,omitempty" json:"key_file,omitempty"` // host path → GOOGLE_APPLICATION_CREDENTIALS
 	// InlineJSON → GOOGLE_CREDENTIALS (secret), for a host with no file to
 	// mount. The repo's env.sample documents this form.
 	InlineJSON string `yaml:"-" json:"-"`
@@ -81,12 +82,12 @@ type GCPAuth struct {
 
 // OCIAuth → services/iac/.env OCI_CONFIG_FILE (host path, mounted read-only).
 type OCIAuth struct {
-	ConfigPath string `yaml:"-" json:"-"`
+	ConfigPath string `yaml:"config_path,omitempty" json:"config_path,omitempty"`
 }
 
 // KubernetesAuth → services/iac/.env KUBE_CONFIG_PATH (host path, mounted read-only).
 type KubernetesAuth struct {
-	KubeconfigPath string `yaml:"-" json:"-"`
+	KubeconfigPath string `yaml:"kubeconfig_path,omitempty" json:"kubeconfig_path,omitempty"`
 }
 
 // Engine is the IaC engine the stack runs.
