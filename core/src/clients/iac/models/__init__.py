@@ -29,6 +29,7 @@ from .state_resource_ids_response_400 import StateResourceIdsResponse400
 from .terraform_provider import TerraformProvider
 from .validate_request import ValidateRequest
 from .validate_response_400 import ValidateResponse400
+from .variables import Variables
 
 __all__ = (
     "ApplyRequest",
@@ -56,4 +57,5 @@ __all__ = (
     "TerraformProvider",
     "ValidateRequest",
     "ValidateResponse400",
+    "Variables",
 )

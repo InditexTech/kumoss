@@ -51,7 +51,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
 from .discovery import ScopeDiscovery
-from .engine import CommandResult, IacEngine
+from .engine import CommandResult, IacEngine, RunInputs
 from .exceptions import DiscoveryError, StateReadError
 from .jobs import JobRegistry, Pipeline, WorkspaceQueue
 from .models import (
@@ -59,6 +59,7 @@ from .models import (
     Health,
     ImportRequest,
     InitRequest,
+    InputsRequest,
     Job,
     JobAccepted,
     JobKind,
@@ -123,7 +124,11 @@ async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONR
 async def validation_exception_handler(
     _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    return _problem(422, "Request validation failed", str(exc))
+    detail = "; ".join(
+        f"{'.'.join(str(part) for part in err.get('loc', ()))}: {err.get('msg', 'invalid')}"
+        for err in exc.errors()
+    )
+    return _problem(422, "Request validation failed", detail)
 
 
 @app.exception_handler(Exception)
@@ -232,6 +237,10 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
 
 
+def _inputs(body: InputsRequest) -> RunInputs:
+    return RunInputs(var_files=tuple(body.var_files), variables=body.variables)
+
+
 async def _scoped(
     discovery: ScopeDiscovery,
     terraform_provider: str,
@@ -336,7 +345,9 @@ async def plan(
             discovery,
             body.terraform_provider,
             body.scope_id,
-            lambda: engine.plan(workspace, body.targets, body.plan_file, env),
+            lambda: engine.plan(
+                workspace, body.targets, body.plan_file, env, _inputs(body)
+            ),
         ),
     )
 
@@ -414,7 +425,7 @@ async def import_resource(
             body.terraform_provider,
             body.scope_id,
             lambda: engine.import_resource(
-                workspace, body.address, body.resource_id, env
+                workspace, body.address, body.resource_id, env, _inputs(body)
             ),
         ),
     )

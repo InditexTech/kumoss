@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
@@ -20,6 +20,18 @@ PlanFileStr = Annotated[str, Field(pattern=r"^[A-Za-z0-9._-]{1,128}$")]
 ScopeIdStr = Annotated[str, Field(min_length=1, max_length=1024)]
 AddressStr = Annotated[str, Field(min_length=1, max_length=4096)]
 ResourceIdStr = Annotated[str, Field(min_length=1, max_length=4096)]
+
+# Relative to the workspace, plain segments only (no `.`, `..`, hidden
+# or leading `/`), so a var file can neither escape the workspace nor be
+# confused with anything Terraform itself manages. Mirrors the contract.
+VarFileStr = Annotated[
+    str,
+    Field(
+        max_length=1024,
+        pattern=r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.tfvars(\.json)?$",
+    ),
+]
+VariableNameStr = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_-]{0,127}$")]
 
 TerraformProvider = Literal["azure", "gcp", "aws", "oci", "kubernetes", "vmware"]
 
@@ -49,6 +61,19 @@ class ScopedRequest(WorkspaceRequest):
     terraform_provider: TerraformProvider
 
 
+class InputsRequest(ScopedRequest):
+    """Base for the commands that evaluate the configuration's input variables.
+
+    ``variables`` may hold secrets: it is excluded from ``repr`` and
+    must never be logged (see the contract's "Input variables").
+    """
+
+    var_files: list[VarFileStr] = Field(default_factory=list, max_length=64)
+    variables: dict[VariableNameStr, JsonValue] = Field(
+        default_factory=dict, max_length=1024, repr=False
+    )
+
+
 class InitRequest(ScopedRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
@@ -57,7 +82,7 @@ class ValidateRequest(WorkspaceRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
-class PlanRequest(ScopedRequest):
+class PlanRequest(InputsRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     targets: list[TargetStr] = Field(default_factory=list, max_length=4096)
@@ -76,7 +101,7 @@ class ApplyRequest(ScopedRequest):
     plan_file: PlanFileStr
 
 
-class ImportRequest(ScopedRequest):
+class ImportRequest(InputsRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     address: AddressStr

@@ -31,12 +31,16 @@ The contract's "Scope injection" section is normative.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
+import tempfile
 import time
-from dataclasses import dataclass
+from collections.abc import Generator, Mapping
+from contextlib import contextmanager
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 
 logger = logging.getLogger("iac.engine")
@@ -48,6 +52,53 @@ class CommandResult:
     stdout: str
     stderr: str
     exit_code: int = 0
+
+
+@dataclass(frozen=True)
+class RunInputs:
+    """Input variables for one command (see the contract's "Input variables").
+
+    ``var_files`` are relative to the workspace and passed first, in
+    order; ``variables`` follow as one more file, so they win. Values
+    may be secrets: excluded from ``repr`` and never logged.
+    """
+
+    var_files: tuple[str, ...] = ()
+    variables: Mapping[str, Any] = field(default_factory=dict[str, Any], repr=False)
+
+
+class _OutsideWorkspace(Exception):
+    pass
+
+
+@contextmanager
+def _var_file_args(cwd: Path, inputs: RunInputs | None) -> Generator[list[str]]:
+    """``-var-file`` arguments for ``inputs``, valid while the context is open.
+
+    ``variables`` are written to an owner-only temporary file outside the
+    workspace (the workspace may be committed or shared) and removed on
+    exit. A var file that resolves outside the workspace, e.g. through a
+    symlink, raises ``_OutsideWorkspace``.
+    """
+    if inputs is None:
+        yield []
+        return
+    root = cwd.resolve()
+    args: list[str] = []
+    for var_file in inputs.var_files:
+        if not (cwd / var_file).resolve().is_relative_to(root):
+            raise _OutsideWorkspace(var_file)
+        args.append(f"-var-file={var_file}")
+    if not inputs.variables:
+        yield args
+        return
+    fd, path = tempfile.mkstemp(prefix="iac-vars-", suffix=".tfvars.json")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(dict(inputs.variables), f)
+        yield [*args, f"-var-file={path}"]
+    finally:
+        Path(path).unlink(missing_ok=True)
 
 
 class IacEngine:
@@ -104,12 +155,17 @@ class IacEngine:
         return await self._run(["validate", "-no-color"], cwd)
 
     async def plan(
-        self, cwd: Path, targets: list[str], plan_file: str, env: dict[str, str]
+        self,
+        cwd: Path,
+        targets: list[str],
+        plan_file: str,
+        env: dict[str, str],
+        inputs: RunInputs | None = None,
     ) -> CommandResult:
         args = ["plan", "-no-color", "-input=false", "-out", plan_file]
         for t in targets:
             args.extend(["-target", t])
-        return await self._run(args, cwd, env)
+        return await self._run_with_inputs(args, cwd, env, inputs)
 
     async def show_plan_json(self, cwd: Path, plan_file: str) -> CommandResult:
         return await self._run(["show", "-json", "-no-color", plan_file], cwd)
@@ -124,11 +180,42 @@ class IacEngine:
         )
 
     async def import_resource(
-        self, cwd: Path, address: str, resource_id: str, env: dict[str, str]
+        self,
+        cwd: Path,
+        address: str,
+        resource_id: str,
+        env: dict[str, str],
+        inputs: RunInputs | None = None,
     ) -> CommandResult:
-        return await self._run(
-            ["import", "-no-color", "-input=false", address, resource_id], cwd, env
+        # Options must precede the positional address and id.
+        return await self._run_with_inputs(
+            ["import", "-no-color", "-input=false"],
+            cwd,
+            env,
+            inputs,
+            positional=[address, resource_id],
         )
+
+    async def _run_with_inputs(
+        self,
+        args: list[str],
+        cwd: Path,
+        env: dict[str, str],
+        inputs: RunInputs | None,
+        positional: list[str] | None = None,
+    ) -> CommandResult:
+        try:
+            with _var_file_args(cwd, inputs) as var_args:
+                return await self._run(
+                    [*args, *var_args, *(positional or [])], cwd, env
+                )
+        except _OutsideWorkspace as exc:
+            return CommandResult(
+                ok=False,
+                stdout="",
+                stderr=f"var file {exc} resolves outside the workspace",
+                exit_code=1,
+            )
 
     async def state_pull(self, cwd: Path) -> CommandResult:
         return await self._run(["state", "pull"], cwd)

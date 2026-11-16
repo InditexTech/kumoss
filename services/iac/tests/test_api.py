@@ -35,7 +35,7 @@ from fastapi.testclient import TestClient
 from src.config import Config
 from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
-from src.engine import CommandResult
+from src.engine import CommandResult, RunInputs
 from src.discovery import ScopeDiscovery
 from src.exceptions import DiscoveryError
 from src.state import StateResourceIds
@@ -359,7 +359,98 @@ def test_plan_invokes_engine_with_targets_and_plan_file(tmp_path: Path) -> None:
         ["module.db"],
         "abc123.plan",
         {"ARM_SUBSCRIPTION_ID": "sub-uuid-1234"},
+        RunInputs(),
     )
+
+
+def test_plan_forwards_var_files_and_variables(tmp_path: Path) -> None:
+    """`var_files` and `variables` reach the engine untouched; nothing
+    else interprets them."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
+    with client_with() as client:
+        with patch(
+            "src.engine.IacEngine.plan", new_callable=AsyncMock, return_value=ok
+        ) as plan_mock:
+            body = submit_and_poll(
+                client,
+                "/v1/plan",
+                {
+                    "workspace_path": str(workspace),
+                    "plan_file": "abc123.plan",
+                    "var_files": ["envs/dev.tfvars", "b.tfvars.json"],
+                    "variables": {"region": {"location": "westeurope"}, "pw": "s3cr3t"},
+                    **SCOPE,
+                },
+            )
+    assert body["status"] == "succeeded"
+    inputs = plan_mock.await_args.args[4]
+    assert inputs == RunInputs(
+        var_files=("envs/dev.tfvars", "b.tfvars.json"),
+        variables={"region": {"location": "westeurope"}, "pw": "s3cr3t"},
+    )
+
+
+@pytest.mark.parametrize(
+    "var_file",
+    [
+        "../x.tfvars",
+        "/etc/x.tfvars",
+        ".hidden/x.tfvars",
+        "a/./x.tfvars",
+        "x.txt",
+        "x.tfvars.bak",
+    ],
+)
+@pytest.mark.parametrize("endpoint", ["/v1/plan", "/v1/import"])
+def test_var_files_cannot_escape_the_workspace(endpoint: str, var_file: str) -> None:
+    with client_with() as client:
+        response = client.post(
+            endpoint,
+            json={
+                "workspace_path": "/tmp",
+                **EXTRA[endpoint],
+                **SCOPE,
+                "var_files": [var_file],
+            },
+        )
+    assert response.status_code == 422
+
+
+def test_rejected_variables_are_not_echoed() -> None:
+    """A 422 names the offending field, never the submitted values."""
+    with client_with() as client:
+        response = client.post(
+            "/v1/plan",
+            json={
+                "workspace_path": "/tmp",
+                "plan_file": "x.plan",
+                **SCOPE,
+                "variables": {"not a name": "s3cr3t-value"},
+            },
+        )
+    assert response.status_code == 422
+    assert "s3cr3t-value" not in response.text
+    assert "variables" in response.text
+
+
+@pytest.mark.parametrize(
+    "endpoint", ["/v1/init", "/v1/validate", "/v1/show", "/v1/apply"]
+)
+def test_only_plan_and_import_take_variables(endpoint: str) -> None:
+    with client_with() as client:
+        response = client.post(
+            endpoint,
+            json={
+                "workspace_path": "/tmp",
+                **EXTRA.get(endpoint, {}),
+                **({} if endpoint in ("/v1/validate", "/v1/show") else SCOPE),
+                "variables": {"a": 1},
+            },
+        )
+    assert response.status_code == 422
 
 
 def test_init_invokes_engine_with_the_injected_scope(tmp_path: Path) -> None:
@@ -701,7 +792,7 @@ def test_scope_is_injected_per_provider(
             assert response.status_code == 202
             accepted: dict[str, str] = response.json()
             _ = poll_until_terminal(client, accepted["job_id"])
-    plan_mock.assert_awaited_once_with(workspace, [], "x.plan", expected)
+    plan_mock.assert_awaited_once_with(workspace, [], "x.plan", expected, RunInputs())
 
 
 @pytest.mark.parametrize(
@@ -887,6 +978,7 @@ def test_import_forwards_the_address_resource_id_and_scope(tmp_path: Path) -> No
         "google_storage_bucket.assets",
         "my-assets",
         {"GOOGLE_PROJECT": "proj-1"},
+        RunInputs(),
     )
 
 
