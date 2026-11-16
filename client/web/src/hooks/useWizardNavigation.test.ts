@@ -18,6 +18,8 @@ describe("useWizardNavigation", () => {
       provider: "",
       scope: "",
       rootModulePath: "",
+      inputsChecked: false,
+      inputs: null,
     });
   });
 
@@ -180,6 +182,8 @@ describe("useWizardNavigation", () => {
       provider: "",
       scope: "",
       rootModulePath: "",
+      inputsChecked: false,
+      inputs: null,
     });
   });
 });

@@ -68,6 +68,72 @@ export interface BaseIacRequest {
   terraform_providers?: TerraformProvider | null;
   q: string;
   root_module_path?: string | null;
+  /** First call only: answers for what the manifest probe reported missing. */
+  manifest?: ManifestAnswers | null;
+}
+
+// ─── Root module manifest (/api/v1/manifest/*) ──────────────
+// The inputs a root module needs, probed before the first call; the
+// answers ride with that call and are saved to the module's manifest.
+
+/** JSON value of a Terraform input variable. */
+export type ManifestValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ManifestValue[]
+  | { [key: string]: ManifestValue };
+
+export interface ManifestVariableAnswer {
+  name: string;
+  value: ManifestValue;
+  /** Store as a secret; omit to keep the variable's classification. */
+  sensitive?: boolean;
+}
+
+export interface ManifestAnswers {
+  variables: ManifestVariableAnswer[];
+  /** Optional var files, in order; omit to keep the current selection. */
+  var_files?: string[];
+}
+
+export interface ManifestProbeRequest {
+  repo_uri: string;
+  root_module_path?: string | null;
+  terraform_provider: TerraformProvider;
+}
+
+export interface ManifestVariable {
+  name: string;
+  /** HCL type as declared (e.g. `map(string)`); null when untyped. */
+  type: string | null;
+  description: string;
+  required: boolean;
+  /** Declared sensitive: always stored as a secret. */
+  sensitive: boolean;
+}
+
+export interface ManifestVarFile {
+  path: string;
+  selected: boolean;
+  /** Variables the file sets: picking it answers those that are missing. */
+  sets: string[];
+}
+
+export interface ManifestProviderChange {
+  name: string;
+  before: string | null;
+  after: string | null;
+}
+
+export interface ManifestProbeResponse {
+  status: "not_found" | "up_to_date" | "drifted";
+  needs_input: boolean;
+  missing_variables: ManifestVariable[];
+  selectable_var_files: ManifestVarFile[];
+  missing_var_files: string[];
+  provider_changes: ManifestProviderChange[];
 }
 
 export type GenerateRequest = BaseIacRequest;

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTerraformActions } from "@/hooks/use_terraform_actions";
 import { useSession } from "@/contexts/SessionContext";
@@ -10,14 +10,19 @@ import { useMode } from "@/contexts/ModeContext";
 import { STRINGS } from "@/constants/strings";
 import { FIXED_MODE_QUERIES, isFixedModeQuery } from "@/constants/modes";
 import { useCurrentView } from "@/hooks/useCurrentView";
-import { useWizardNavigation } from "@/hooks/useWizardNavigation";
+import { INITIAL_WIZARD_DATA, useWizardNavigation } from "@/hooks/useWizardNavigation";
 import type { WizardData } from "@/hooks/useWizardNavigation";
 import { useMapperResolution } from "@/hooks/useMapperResolution";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
 import { nextStep } from "@/hooks/wizardFlow";
 import { isMergeOnlySession } from "@/utils/session";
+import { probeManifest } from "@/services/core/manifest";
 import type { Session } from "@/types/ui";
-import type { TerraformProvider } from "@/types/api";
+import type {
+  ManifestAnswers,
+  ManifestProbeResponse,
+  TerraformProvider,
+} from "@/types/api";
 
 const SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
 
@@ -34,11 +39,79 @@ export function useHomeWizard() {
 
   const terraform = useTerraformActions();
 
+  // The root module's input probe, run when the wizard reaches "inputs".
+  const [probe, setProbe] = useState<ManifestProbeResponse | null>(null);
+  const [probeLoading, setProbeLoading] = useState(false);
+  const [probeError, setProbeError] = useState<string | null>(null);
+  // Drops the answer of a probe the user has since moved away from.
+  const probeSeq = useRef(0);
+
+  const resetProbe = useCallback(() => {
+    probeSeq.current += 1;
+    setProbe(null);
+    setProbeLoading(false);
+    setProbeError(null);
+  }, []);
+
   useEffect(() => {
     if (terraform.state.status === "error" && homeView === "planning") {
       navigate("/home", { replace: true });
     }
   }, [terraform.state.status, homeView, navigate]);
+
+  const start = useCallback(
+    (data: WizardData) => {
+      navigate("/home/planning");
+      terraform.run(
+        {
+          repoUri: data.repositoryUrl,
+          query: data.query,
+          terraformProviders: data.provider as TerraformProvider,
+          scopeId: data.scope,
+          mode,
+          rootModulePath: data.rootModulePath,
+          ...(data.inputs ? { manifest: data.inputs } : {}),
+        },
+        handleOutcome,
+      );
+    },
+    [navigate, terraform, mode, handleOutcome],
+  );
+
+  /**
+   * Ask the backend what the root module needs. Nothing: complete the
+   * wizard on the user's behalf. Something: show the form (`probe`).
+   */
+  const runProbe = useCallback(
+    async (data: WizardData) => {
+      const seq = ++probeSeq.current;
+      setProbe(null);
+      setProbeError(null);
+      setProbeLoading(true);
+      try {
+        const result = await probeManifest({
+          repo_uri: data.repositoryUrl,
+          root_module_path: data.rootModulePath || null,
+          terraform_provider: data.provider as TerraformProvider,
+        });
+        if (seq !== probeSeq.current) return;
+        if (result.needs_input) {
+          setProbe(result);
+          return;
+        }
+        const checked = { ...data, inputsChecked: true, inputs: null };
+        navigation.setData(checked);
+        start(checked);
+      } catch (err) {
+        if (seq !== probeSeq.current) return;
+        console.error("Manifest probe failed:", err);
+        setProbeError(STRINGS.wizard.probeError);
+      } finally {
+        if (seq === probeSeq.current) setProbeLoading(false);
+      }
+    },
+    [navigation, start],
+  );
 
   const advance = useCallback(
     (data: WizardData) => {
@@ -49,23 +122,20 @@ export function useHomeWizard() {
 
       const next = nextStep(data);
       if (next === "complete") {
-        navigate("/home/planning");
-        terraform.run(
-          {
-            repoUri: data.repositoryUrl,
-            query: data.query,
-            terraformProviders: data.provider as TerraformProvider,
-            scopeId: data.scope,
-            mode,
-            rootModulePath: data.rootModulePath,
-          },
-          handleOutcome,
-        );
+        start(data);
         return;
       }
       navigation.setStep(next);
+      if (next === "inputs") void runProbe(data);
     },
-    [navigation, updateSession, terraform, navigate, mode, handleOutcome],
+    [navigation, updateSession, start, runProbe],
+  );
+
+  const handleInputs = useCallback(
+    (answers: ManifestAnswers) => {
+      advance(navigation.applyResolution({ inputsChecked: true, inputs: answers }));
+    },
+    [navigation, advance],
   );
 
   useEffect(() => {
@@ -192,38 +262,45 @@ export function useHomeWizard() {
   }, [session, navigate, terraform, handleOutcome]);
 
   const retry = useCallback(() => {
-    if (mapper.mapperError) {
+    if (probeError) {
+      void runProbe(navigation.data);
+    } else if (mapper.mapperError) {
       navigation.setStep("repository_url");
-      navigation.setData((prev) => ({ ...prev, repositoryUrl: "", provider: "", scope: "", rootModulePath: "" }));
+      navigation.setData((prev) => ({
+        ...prev,
+        repositoryUrl: "",
+        provider: "",
+        scope: "",
+        rootModulePath: "",
+        inputsChecked: false,
+        inputs: null,
+      }));
       mapper.resetMapper();
+      resetProbe();
       terraform.reset();
     } else if (terraform.state.status === "error") {
       terraform.reset();
       navigate("/home", { replace: true });
     }
-  }, [terraform, mapper, navigation, navigate]);
+  }, [terraform, mapper, navigation, navigate, probeError, runProbe, resetProbe]);
 
   const restart = useCallback(() => {
     const preservedQuery = navigation.data.query;
     navigation.setStep("query");
-    navigation.setData({
-      query: preservedQuery,
-      repositoryUrl: "",
-      provider: "",
-      scope: "",
-      rootModulePath: "",
-    });
+    navigation.setData({ ...INITIAL_WIZARD_DATA, query: preservedQuery });
     mapper.resetMapper();
+    resetProbe();
     terraform.reset();
     navigate("/home", { replace: true });
-  }, [navigation, mapper, terraform, navigate]);
+  }, [navigation, mapper, terraform, navigate, resetProbe]);
 
   const reset = useCallback(() => {
     navigation.resetNavigation();
     mapper.resetMapper();
+    resetProbe();
     terraform.reset();
     navigate("/home", { replace: true });
-  }, [navigation, mapper, terraform, navigate]);
+  }, [navigation, mapper, terraform, navigate, resetProbe]);
 
   const seenResetNonce = useRef(resetNonce);
   useEffect(() => {
@@ -238,10 +315,16 @@ export function useHomeWizard() {
 
   const isLoading =
     mapper.mapperLoading ||
+    probeLoading ||
     terraform.state.status === "loading";
+
+  const loadingMessage = probeLoading
+    ? STRINGS.wizard.loadingInputs
+    : STRINGS.wizard.loadingRepository;
 
   const error =
     mapper.mapperError ??
+    probeError ??
     (terraform.state.status === "error" ? terraform.state.message : null);
 
   return {
@@ -249,7 +332,9 @@ export function useHomeWizard() {
     data: navigation.data,
     homeView,
     scanPaths: mapper.scanPaths,
+    probe,
     isLoading,
+    loadingMessage,
     error,
     terraformState: terraform.state,
     promptMessage,
@@ -258,6 +343,7 @@ export function useHomeWizard() {
     handleInput,
     handlePath,
     handleProvider,
+    handleInputs,
     iterate,
     applyAfterPr,
     retry,

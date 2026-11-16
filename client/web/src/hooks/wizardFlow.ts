@@ -20,5 +20,7 @@ export function nextStep(data: WizardData): WizardStep | "complete" {
   if (!data.rootModulePath) return "root_module_path";
   if (!data.provider) return "provider";
   if (!data.scope) return "scope";
+  // Last, as the probe needs the repository, root module and provider.
+  if (!data.inputsChecked) return "inputs";
   return "complete";
 }

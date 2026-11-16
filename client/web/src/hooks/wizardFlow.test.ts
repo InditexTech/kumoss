@@ -12,6 +12,8 @@ const EMPTY: WizardData = {
   provider: "",
   scope: "",
   rootModulePath: "",
+  inputsChecked: false,
+  inputs: null,
 };
 
 const data = (patch: Partial<WizardData>): WizardData => ({ ...EMPTY, ...patch });
@@ -25,18 +27,20 @@ describe("nextStep — first missing input wins", () => {
     expect(nextStep(data({ query: "deploy a VM" }))).toBe("repository_url");
   });
 
-  it("is complete only when every slot is filled", () => {
-    expect(
-      nextStep(
-        data({
-          query: "deploy a VM",
-          repositoryUrl: "https://git.example/iac.git",
-          rootModulePath: "environments/dev",
-          provider: "azure",
-          scope: "sub-123",
-        }),
-      ),
-    ).toBe("complete");
+  const filled = {
+    query: "deploy a VM",
+    repositoryUrl: "https://git.example/iac.git",
+    rootModulePath: "environments/dev",
+    provider: "azure" as const,
+    scope: "sub-123",
+  };
+
+  it("checks the root module's inputs last, as the probe needs everything else", () => {
+    expect(nextStep(data(filled))).toBe("inputs");
+  });
+
+  it("is complete only when every slot is filled and the inputs are checked", () => {
+    expect(nextStep(data({ ...filled, inputsChecked: true }))).toBe("complete");
   });
 });
 
@@ -84,7 +88,7 @@ describe("nextStep — the skip matrix after repository_url", () => {
       paths: 1,
       provider: "azure",
       scope: "sub-123",
-      expected: "complete",
+      expected: "inputs",
     },
     // Multi-path repos insert root_module_path first, whatever the mapper said.
     {
@@ -144,7 +148,7 @@ describe("nextStep — after root_module_path is chosen", () => {
     { provider: "" as const, scope: "", expected: "provider" },
     { provider: "gcp" as const, scope: "", expected: "scope" },
     { provider: "" as const, scope: "my-project", expected: "provider" },
-    { provider: "gcp" as const, scope: "my-project", expected: "complete" },
+    { provider: "gcp" as const, scope: "my-project", expected: "inputs" },
   ])(
     "provider=$provider scope=$scope → $expected",
     ({ provider, scope, expected }) => {

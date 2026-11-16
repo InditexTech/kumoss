@@ -10,6 +10,8 @@ import { STRINGS } from "@/constants/strings";
 import { providerLabel } from "@/constants/providers";
 import { TERRAFORM_PROVIDERS } from "@/types/api";
 import { ProviderIcon } from "@/components/ui";
+import { extractProjectName } from "@/utils/workspace";
+import InputsForm from "./InputsForm";
 import styles from "./HomeScreen.module.css";
 
 const HINTS = STRINGS.wizard.hints;
@@ -21,13 +23,16 @@ type WizardProps = Pick<
   ReturnType<typeof useHomeWizard>,
   | "step"
   | "scanPaths"
+  | "probe"
   | "isLoading"
+  | "loadingMessage"
   | "error"
   | "promptMessage"
   | "placeholder"
   | "handleKeyDown"
   | "handlePath"
   | "handleProvider"
+  | "handleInputs"
   | "retry"
   | "restart"
   | "data"
@@ -36,13 +41,16 @@ type WizardProps = Pick<
 export default function WizardView({
   step,
   scanPaths,
+  probe,
   isLoading,
+  loadingMessage,
   error,
   promptMessage,
   placeholder,
   handleKeyDown,
   handlePath,
   handleProvider,
+  handleInputs,
   retry,
   restart,
   data,
@@ -84,7 +92,7 @@ export default function WizardView({
       {isLoading && (
         <Fade in timeout={500}>
           <Typography variant="h3" className={styles.loadingMsg}>
-            {STRINGS.wizard.loadingRepository}
+            {loadingMessage}
           </Typography>
         </Fade>
       )}
@@ -166,6 +174,16 @@ export default function WizardView({
             ))}
           </ul>
         </Fade>
+      )}
+
+      {!isLoading && !error && step === "inputs" && probe && (
+        <InputsForm
+          probe={probe}
+          project={extractProjectName(data.repositoryUrl).replace(/\.git$/, "")}
+          rootModulePath={data.rootModulePath || undefined}
+          onSubmit={handleInputs}
+          onCancel={restart}
+        />
       )}
 
       {step === "query" && !isLoading && !error && (

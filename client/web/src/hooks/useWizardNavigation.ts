@@ -5,7 +5,7 @@
 import { useState, useCallback } from "react";
 import { STRINGS } from "@/constants/strings";
 import type { WizardStep } from "@/types/ui";
-import type { TerraformProvider } from "@/types/api";
+import type { ManifestAnswers, TerraformProvider } from "@/types/api";
 
 export interface WizardData {
   query: string;
@@ -13,19 +13,25 @@ export interface WizardData {
   provider: TerraformProvider | "";
   scope: string;
   rootModulePath: string;
+  /** The root module's inputs were probed and, if needed, answered. */
+  inputsChecked: boolean;
+  /** Answers for the inputs the probe reported missing; null when none were needed. */
+  inputs: ManifestAnswers | null;
 }
 
-const INITIAL_DATA: WizardData = {
+export const INITIAL_WIZARD_DATA: WizardData = {
   query: "",
   repositoryUrl: "",
   provider: "",
   scope: "",
   rootModulePath: "",
+  inputsChecked: false,
+  inputs: null,
 };
 
 export function useWizardNavigation() {
   const [step, setStep] = useState<WizardStep>("query");
-  const [data, setData] = useState<WizardData>(INITIAL_DATA);
+  const [data, setData] = useState<WizardData>(INITIAL_WIZARD_DATA);
 
   const promptMessage = useCallback((): string => {
     switch (step) {
@@ -41,6 +47,8 @@ export function useWizardNavigation() {
         return data.provider
           ? STRINGS.wizard.scopeByProvider[data.provider].prompt
           : STRINGS.wizard.promptScope;
+      case "inputs":
+        return STRINGS.wizard.promptInputs;
       default:
         return "";
     }
@@ -86,7 +94,7 @@ export function useWizardNavigation() {
 
   const resetNavigation = useCallback(() => {
     setStep("query");
-    setData(INITIAL_DATA);
+    setData(INITIAL_WIZARD_DATA);
   }, []);
 
   return {

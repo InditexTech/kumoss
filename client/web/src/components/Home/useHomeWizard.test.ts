@@ -4,13 +4,15 @@
 
 import React from "react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { SessionProvider, useSession } from "@/contexts/SessionContext";
 import { ModeProvider, useMode } from "@/contexts/ModeContext";
 import { MODE } from "@/types/ui";
+import { STRINGS } from "@/constants/strings";
 import { useHomeWizard } from "./useHomeWizard";
 import type { ResolveResult } from "@/hooks/useMapperResolution";
+import type { ManifestProbeResponse } from "@/types/api";
 
 // ─── Dynamic mock controls ────────────────────────────────────
 const mockTerraformState = vi.fn<() => { status: string; message?: string }>(() => ({ status: "idle" }));
@@ -25,6 +27,19 @@ const mockMapperLoadingValue = vi.fn(() => false);
 const mockMapperErrorValue = vi.fn<() => string | null>(() => null);
 const mockSetMapperError = vi.fn();
 const mockResetMapper = vi.fn();
+
+const NOTHING_NEEDED: ManifestProbeResponse = {
+  status: "up_to_date",
+  needs_input: false,
+  missing_variables: [],
+  selectable_var_files: [],
+  missing_var_files: [],
+  provider_changes: [],
+};
+const mockProbeManifest = vi.fn(async (): Promise<ManifestProbeResponse> => NOTHING_NEEDED);
+vi.mock("@/services/core/manifest", () => ({
+  probeManifest: () => mockProbeManifest(),
+}));
 
 const mockHandleOutcome = vi.fn();
 vi.mock("@/hooks/useWizardTerraform", () => ({
@@ -215,6 +230,8 @@ describe("useHomeWizard orchestrator", () => {
       provider: "",
       scope: "",
       rootModulePath: "",
+      inputsChecked: false,
+      inputs: null,
     });
     expect(result.current.scanPaths).toEqual([]);
     expect(result.current.isLoading).toBe(false);
@@ -387,6 +404,7 @@ describe("useHomeWizard — repository resolution", () => {
 
     expect(result.current.wizard.step).not.toBe("provider");
     expect(result.current.wizard.step).not.toBe("scope");
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(mockTerraformRun).toHaveBeenCalledWith(
       {
         repoUri: "https://dev.azure.com/org/repo",
@@ -421,6 +439,7 @@ describe("useHomeWizard — repository resolution", () => {
 
     act(() => { result.current.handlePath("environments/pro"); });
 
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(mockTerraformRun).toHaveBeenCalledWith(
       {
         repoUri: "https://dev.azure.com/org/repo",
@@ -449,7 +468,7 @@ describe("useHomeWizard — repository resolution", () => {
     await act(async () => { await result.current.handleInput("my-project"); });
 
     expect(result.current.data.scope).toBe("ocid1.compartment.oc1..aaaaExample");
-    expect(mockTerraformRun).toHaveBeenCalled();
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
   });
 
   it("resolve failure sets mapper error", async () => {
@@ -493,6 +512,7 @@ describe("useHomeWizard — terraform orchestration", () => {
     await act(async () => { await result.current.wizard.handleInput("sub-123"); });
 
     expect(result.current.session.session.scope_id).toBe("sub-123");
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(mockTerraformRun).toHaveBeenCalledWith(
       {
         repoUri: "https://dev.azure.com/org/repo",
@@ -600,6 +620,7 @@ describe("useHomeWizard — full modes skip the query", () => {
       await result.current.wizard.handleInput("https://dev.azure.com/org/repo");
     });
 
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(mockTerraformRun.mock.calls[0][0]).toMatchObject({
       query: "Import all the infrastructure",
       mode: "import",
@@ -646,6 +667,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
     act(() => { result.current.wizard.handleProvider("azure"); });
     await act(async () => { await result.current.wizard.handleInput("sub-123"); });
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
 
     act(() => { result.current.wizard.iterate("add a database"); });
 
@@ -689,6 +711,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
     act(() => { result.current.wizard.handleProvider("azure"); });
     await act(async () => { await result.current.wizard.handleInput("sub-123"); });
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
 
     act(() => { result.current.wizard.applyAfterPr(); });
 
@@ -794,7 +817,7 @@ describe("useHomeWizard — restart", () => {
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("my-project"); });
 
-    expect(mockTerraformRun).toHaveBeenCalled();
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(result.current.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
     expect(result.current.data.provider).toBe("azure");
     expect(result.current.data.scope).toBe("sub-from-catalogue");
@@ -895,6 +918,8 @@ describe("useHomeWizard — clear requested from outside", () => {
       provider: "",
       scope: "",
       rootModulePath: "",
+      inputsChecked: false,
+      inputs: null,
     });
     expect(mockResetMapper).toHaveBeenCalled();
     expect(mockTerraformReset).toHaveBeenCalled();
@@ -905,5 +930,107 @@ describe("useHomeWizard — clear requested from outside", () => {
 
     expect(mockResetMapper).not.toHaveBeenCalled();
     expect(mockTerraformReset).not.toHaveBeenCalled();
+  });
+});
+
+describe("useHomeWizard — root module inputs", () => {
+  const NEEDS_REGION: ManifestProbeResponse = {
+    status: "not_found",
+    needs_input: true,
+    missing_variables: [
+      { name: "region", type: "string", description: "", required: true, sensitive: false },
+    ],
+    selectable_var_files: [],
+    missing_var_files: [],
+    provider_changes: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockTerraformState.mockReturnValue({ status: "idle" });
+    mockScanPathsValue.mockReturnValue([]);
+    mockMapperLoadingValue.mockReturnValue(false);
+    mockMapperErrorValue.mockReturnValue(null);
+  });
+
+  async function reachInputs() {
+    mockResolveAndScan.mockResolvedValueOnce({
+      repoUrl: "https://dev.azure.com/org/repo",
+      identifier: "my-project",
+      provider: "azure",
+      scopeId: "sub-1",
+      paths: ["environments/dev"],
+    });
+    const rendered = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+    await act(async () => { await rendered.result.current.handleInput("deploy a VM"); });
+    await act(async () => { await rendered.result.current.handleInput("my-project"); });
+    return rendered;
+  }
+
+  it("shows the form when the probe needs input, and starts nothing", async () => {
+    mockProbeManifest.mockResolvedValueOnce(NEEDS_REGION);
+    const { result } = await reachInputs();
+
+    await waitFor(() => expect(result.current.probe).toEqual(NEEDS_REGION));
+    expect(result.current.step).toBe("inputs");
+    expect(result.current.isLoading).toBe(false);
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+  });
+
+  it("starts the session with the answers once submitted", async () => {
+    mockProbeManifest.mockResolvedValueOnce(NEEDS_REGION);
+    const { result } = await reachInputs();
+    await waitFor(() => expect(result.current.probe).not.toBeNull());
+
+    act(() => {
+      result.current.handleInputs({ variables: [{ name: "region", value: "westeurope" }] });
+    });
+
+    expect(mockTerraformRun).toHaveBeenCalledWith(
+      {
+        repoUri: "https://dev.azure.com/org/repo",
+        query: "deploy a VM",
+        terraformProviders: "azure",
+        scopeId: "sub-1",
+        mode: "generate",
+        rootModulePath: "environments/dev",
+        manifest: { variables: [{ name: "region", value: "westeurope" }] },
+      },
+      mockHandleOutcome,
+    );
+  });
+
+  it("starts without answers when nothing is needed", async () => {
+    const { result } = await reachInputs();
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
+    expect(mockTerraformRun.mock.calls[0][0]).not.toHaveProperty("manifest");
+    expect(result.current.data.inputsChecked).toBe(true);
+  });
+
+  it("a failed probe is reported and can be retried", async () => {
+    mockProbeManifest.mockRejectedValueOnce(new Error("boom"));
+    const { result } = await reachInputs();
+    await waitFor(() => expect(result.current.error).toBe(STRINGS.wizard.probeError));
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+
+    act(() => { result.current.retry(); });
+
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
+    expect(mockProbeManifest).toHaveBeenCalledTimes(2);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("a probe answering after a restart is ignored", async () => {
+    let answer: (r: ManifestProbeResponse) => void = () => {};
+    mockProbeManifest.mockImplementationOnce(
+      () => new Promise<ManifestProbeResponse>((resolve) => { answer = resolve; }),
+    );
+    const { result } = await reachInputs();
+
+    act(() => { result.current.restart(); });
+    await act(async () => { answer(NOTHING_NEEDED); });
+
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+    expect(result.current.step).toBe("query");
   });
 });

@@ -21,7 +21,8 @@ export type WizardStep =
   | "repository_url"
   | "root_module_path"
   | "provider"
-  | "scope";
+  | "scope"
+  | "inputs";
 export type HomeView = "wizard" | "planning" | "result" | "apply-results";
 
 export interface ApplyResultsData {
