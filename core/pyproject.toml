@@ -39,7 +39,7 @@ dev = [
 tooling = [
     "basedpyright>=1.39.9",
     "debugpy>=1.8.21",
-    "openapi-python-client==0.29.1",
+    "openapi-python-client==0.30.0",
     "ipython>=9.16.1",
     "pytest>=9.0.3",
     "pytest-cov>=6.0",
