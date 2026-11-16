@@ -8,8 +8,10 @@ from datetime import datetime
 from typing import Any, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
+from src.application.iac_requests import RepoUri
+from src.domains.value_objects import ManifestResolution, ProviderRequirement
 from src.shared.constants import OperationRole, PanelRole, TerraformProvider
 
 
@@ -154,3 +156,135 @@ class MappingResolveResponse(BaseModel):
             "null if unknown."
         ),
     )
+
+
+class ManifestProbeRequest(BaseModel):
+    """Request shape of ``POST /v1/manifest/probe``."""
+
+    repo_uri: RepoUri = Field(
+        description=(
+            "HTTPS repository URI. May carry a userinfo username but must not "
+            "embed a password or token."
+        ),
+    )
+    root_module_path: str | None = Field(
+        default=None,
+        max_length=1024,
+        description="Repository-relative path to the Terraform root module; defaults to the repo root.",
+    )
+    terraform_provider: TerraformProvider = Field(
+        description="Cloud the session will run against: decides which variables the platform injects.",
+    )
+
+    @field_validator("root_module_path", mode="before")
+    @classmethod
+    def _relative_path(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        if v.startswith("/") or ".." in v.split("/"):
+            raise ValueError(
+                "root_module_path must be a repo-relative path (not absolute) and must not contain '..' segments"
+            )
+        return v
+
+
+class ManifestVariable(BaseModel):
+    """An input variable the user has to give a value for."""
+
+    name: str
+    type: str | None = Field(
+        description="HCL type as declared, e.g. `map(string)`; null when untyped."
+    )
+    description: str
+    required: bool = Field(description="Declared without a default.")
+    sensitive: bool = Field(
+        description="Declared sensitive: the value is always stored as a secret."
+    )
+
+
+class ManifestVarFile(BaseModel):
+    """An optional variables file the user may pick, passed as `-var-file`."""
+
+    path: str = Field(description="Relative to the root module.")
+    selected: bool = Field(description="Currently picked in the manifest.")
+    sets: list[str] = Field(
+        description="Variables the file sets: picking it answers those among `missing_variables`.",
+    )
+
+
+class ManifestProviderChange(BaseModel):
+    """A provider whose requirement changed since the manifest was written."""
+
+    name: str
+    before: str | None = Field(
+        description="`source constraints` before; null when added."
+    )
+    after: str | None = Field(
+        description="`source constraints` now; null when removed."
+    )
+
+
+class ManifestProbeResponse(BaseModel):
+    """Where a root module's manifest stands, and what the user must answer."""
+
+    status: Literal["not_found", "up_to_date", "drifted"] = Field(
+        description=(
+            "`not_found`: never configured. `up_to_date`: nothing changed. "
+            "`drifted`: the configuration changed since the manifest was written."
+        ),
+    )
+    needs_input: bool = Field(
+        description=(
+            "Whether the first session call must carry `manifest` answers. When false, "
+            "the session sets the manifest up (or brings it up to date) on its own."
+        ),
+    )
+    missing_variables: list[ManifestVariable] = Field(
+        description="Variables to answer: required ones nothing covers, and secrets whose value is gone.",
+    )
+    selectable_var_files: list[ManifestVarFile] = Field(
+        description="Optional var files to choose from (answer with `manifest.var_files`).",
+    )
+    missing_var_files: list[str] = Field(
+        description="Picked var files that no longer exist: a new selection is needed.",
+    )
+    provider_changes: list[ManifestProviderChange]
+
+    @classmethod
+    def from_resolution(cls, resolution: ManifestResolution) -> "ManifestProbeResponse":
+        selected = set(resolution.manifest.var_files) if resolution.manifest else set()
+        return cls(
+            status=resolution.status.value,
+            needs_input=resolution.needs_input,
+            missing_variables=[
+                ManifestVariable(
+                    name=v.name,
+                    type=v.type,
+                    description=v.description,
+                    required=v.required,
+                    sensitive=v.sensitive,
+                )
+                for v in resolution.missing_variables
+            ],
+            selectable_var_files=[
+                ManifestVarFile(
+                    path=f.path, selected=f.path in selected, sets=sorted(f.assigns)
+                )
+                for f in resolution.selectable_var_files
+            ],
+            missing_var_files=list(resolution.missing_var_files),
+            provider_changes=[
+                ManifestProviderChange(
+                    name=c.name,
+                    before=_provider_text(c.before),
+                    after=_provider_text(c.after),
+                )
+                for c in resolution.provider_changes
+            ],
+        )
+
+
+def _provider_text(provider: ProviderRequirement | None) -> str | None:
+    if provider is None:
+        return None
+    return " ".join([provider.source, *provider.version_constraints])

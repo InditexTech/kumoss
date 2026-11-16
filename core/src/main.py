@@ -18,6 +18,7 @@ from src.api.v1 import (
     mapping,
     users,
     notifications,
+    manifest,
 )
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
@@ -158,6 +159,7 @@ app.include_router(session.router, prefix="/v1")
 app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
+app.include_router(manifest.router, prefix="/v1")
 
 
 @app.get("/healthz", tags=["ops"], include_in_schema=False)

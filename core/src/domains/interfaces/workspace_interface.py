@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from abc import ABC, abstractmethod
+from contextlib import AbstractAsyncContextManager
 from pathlib import Path
 from uuid import UUID
 
@@ -33,6 +34,15 @@ class IWorkspace(ABC):
         branch: str,
     ) -> Path:
         """Shallow-clone into the per-call directory. Returns the dir path."""
+
+    @abstractmethod
+    def default_branch_clone(self, repo_uri: str) -> AbstractAsyncContextManager[Path]:
+        """Read-only shallow clone of the default branch, removed on exit.
+
+        For reading a repository outside any session: nothing is
+        committed or pushed from it. Raises RepositoryUnreachable when
+        the clone fails.
+        """
 
     @abstractmethod
     def root_module_dir(self, call_dir: Path, root_module_path: str | None) -> Path:

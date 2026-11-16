@@ -8,6 +8,7 @@ from typing import override
 from uuid import UUID
 
 from src.domains.entities.history import History
+from src.domains.value_objects.manifest import TerraformInputs
 from src.shared.constants import OperationType, TerraformProvider
 
 
@@ -38,6 +39,7 @@ class SessionContext:
         self.__history: History = History(history)
         self.__chat_history: History = History(chat_history)
         self.__call_dir: Path | None = None
+        self.__terraform_inputs: TerraformInputs | None = None
 
     @property
     def id(self) -> UUID:
@@ -95,6 +97,17 @@ class SessionContext:
 
     def set_call_dir(self, path: Path) -> None:
         self.__call_dir = path
+
+    @property
+    def terraform_inputs(self) -> TerraformInputs | None:
+        """The root module's configured variables for this call; None until loaded.
+
+        Runtime only, never persisted: values may include secrets.
+        """
+        return self.__terraform_inputs
+
+    def set_terraform_inputs(self, inputs: TerraformInputs) -> None:
+        self.__terraform_inputs = inputs
 
     @override
     def __str__(self) -> str:

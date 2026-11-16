@@ -240,3 +240,52 @@ class TestApplyRequest(unittest.TestCase):
     def test_apply_requires_a_session_id(self):
         with self.assertRaises(ValidationError):
             ApplyRequest()
+
+
+class TestManifestAnswers(unittest.TestCase):
+    FIRST_CALL = {
+        "repo_uri": "https://github.com/foo/bar.git",
+        "terraform_providers": "azure",
+        "scope_id": "sub-1",
+        "q": "add a bucket",
+    }
+
+    def test_first_call_carries_typed_answers(self):
+        req = GenerateRequest.model_validate(
+            self.FIRST_CALL
+            | {
+                "manifest": {
+                    "variables": [
+                        {"name": "region", "value": {"location": "x"}},
+                        {"name": "pw", "value": "s3cr3t", "sensitive": True},
+                    ],
+                    "var_files": ["envs/dev.tfvars"],
+                }
+            }
+        )
+        assert req.manifest is not None
+        answers = req.manifest.answers()
+        self.assertEqual(answers["region"].value, {"location": "x"})
+        self.assertIsNone(answers["region"].sensitive)
+        self.assertTrue(answers["pw"].sensitive)
+        self.assertEqual(req.manifest.var_files, ["envs/dev.tfvars"])
+        self.assertNotIn("s3cr3t", repr(req))
+
+    def test_iteration_calls_cannot_carry_answers(self):
+        with self.assertRaises(ValidationError):
+            _ = GenerateRequest.model_validate(
+                {"session_id": str(_SID), "q": "x", "manifest": {"variables": []}}
+            )
+
+    def test_answers_are_unique_and_well_named(self):
+        for manifest in (
+            {"variables": [{"name": "a", "value": 1}, {"name": "a", "value": 2}]},
+            {"variables": [{"name": "not a name", "value": 1}]},
+            {"variables": [{"name": "a"}]},
+            {"unknown": True},
+        ):
+            with self.subTest(manifest):
+                with self.assertRaises(ValidationError):
+                    _ = GenerateRequest.model_validate(
+                        self.FIRST_CALL | {"manifest": manifest}
+                    )

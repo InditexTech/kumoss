@@ -4,10 +4,11 @@
 
 import shutil
 import tempfile
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import ClassVar, final, override
-from uuid import UUID
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from src.domains.interfaces.workspace_interface import IWorkspace
 from src.infrastructure.exceptions import InvalidRootModulePath, RepositoryUnreachable
@@ -93,6 +94,22 @@ class WorkspaceService(IWorkspace):
         await git.checkout(branch)
         await git.commit_and_push(branch)
         return call_dir
+
+    @override
+    @asynccontextmanager
+    async def default_branch_clone(self, repo_uri: str) -> AsyncGenerator[Path]:
+        parent = Path(tempfile.mkdtemp(prefix="kumoss-read-"))
+        try:
+            git = GitUtils(
+                uri=repo_uri,
+                git_provider=system_config.git.provider,
+                cwd=parent,
+            )
+            if not await git.clone_repository(repo_uri, "repo", timeout=120):
+                raise RepositoryUnreachable(502)
+            yield parent / "repo"
+        finally:
+            shutil.rmtree(parent, ignore_errors=True)
 
     @override
     def root_module_dir(self, call_dir: Path, root_module_path: str | None) -> Path:

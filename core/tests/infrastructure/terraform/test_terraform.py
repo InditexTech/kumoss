@@ -41,7 +41,7 @@ from src.domains.dto import TerraformDiscoveryDTO
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import TracerService
-from src.domains.value_objects import PlanRef
+from src.domains.value_objects import PlanRef, TerraformInputs
 from src.infrastructure.terraform import terraform as tv
 from src.infrastructure.terraform.backend import TerraformBackend
 from src.shared.config.system_config import IacServiceConfig
@@ -269,6 +269,39 @@ class TestTerraformPlan(_TerraformTestCase):
         for name in ("init", "plan"):
             body = submit_mocks[name].await_args.kwargs["body"]
             self.assertEqual(body.scope_id, SCOPE_ID, f"{name} body")
+
+    async def test_without_inputs_the_plan_carries_no_variables(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
+        _ = await self.terraform.plan(targets=[])
+        body = submit_mocks["plan"].await_args.kwargs["body"]
+        # Omitted rather than empty, so an IaC service on contract 1.0 accepts it.
+        self.assertNotIn("var_files", body.to_dict())
+        self.assertNotIn("variables", body.to_dict())
+
+    async def test_configured_inputs_ride_with_the_plan(self):
+        self._use_config()
+        self.terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scope_id=SCOPE_ID,
+            terraform_provider=TERRAFORM_PROVIDER,
+            backend=self.backend,
+            inputs=TerraformInputs(
+                var_files=("envs/dev.tfvars",),
+                values={"region": {"location": "westeurope"}, "pw": "s3cr3t"},
+            ),
+        )
+        submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
+        _ = await self.terraform.plan(targets=[])
+        body = submit_mocks["plan"].await_args.kwargs["body"].to_dict()
+        self.assertEqual(body["var_files"], ["envs/dev.tfvars"])
+        self.assertEqual(
+            body["variables"], {"region": {"location": "westeurope"}, "pw": "s3cr3t"}
+        )
+        # validate evaluates no variables: it never receives them.
+        validate_body = submit_mocks["validate"].await_args.kwargs["body"].to_dict()
+        self.assertNotIn("variables", validate_body)
 
     async def test_the_revision_is_sampled_after_the_plan_job(self):
         self._use_config()

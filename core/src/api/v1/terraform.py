@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -22,6 +23,7 @@ from src.application.iac_requests import (
     DriftRequest,
     GenerateRequest,
     ImportRequest,
+    ManifestAnswers,
     SessionRequest,
 )
 from src.application.services.session_orchestration_service import (
@@ -93,9 +95,22 @@ async def _resolve_or_raise(
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
 
+@dataclass(frozen=True)
+class _Inputs:
+    """How a call puts the root module's inputs in place (see SessionInputsService)."""
+
+    first_call: bool
+    answers: ManifestAnswers | None = None
+
+    @classmethod
+    def of(cls, request: BaseIacRequest) -> "_Inputs":
+        return cls(first_call=request.session_id is None, answers=request.manifest)
+
+
 def _make_runner(
     ctx: SessionContext,
     build_handler: Callable[[SessionContext], Awaitable[Callable[[], Awaitable[Any]]]],
+    inputs: _Inputs | None = None,
 ):
     """Build the full pipeline as a single background coroutine.
 
@@ -103,6 +118,10 @@ def _make_runner(
     the right HandlerFactory and awaits its handler.handle(...) to return
     `(sse_id, run_handler)`. Everything else — workspace clone, push,
     history append, in_flight release — is the same regardless of use case.
+
+    `inputs`, when given, puts the root module's input variables in place
+    before the handler is built; None (apply) runs on a pinned plan that
+    already carries them.
     """
 
     async def runner():
@@ -131,6 +150,10 @@ def _make_runner(
                 branch=ctx.branch_name,
             )
             ctx.set_call_dir(_workspace.root_module_dir(call_dir, ctx.root_module_path))
+            if inputs is not None:
+                await ApplicationFactory.get_session_inputs_service(
+                    ctx.repo_uri, call_dir
+                ).prepare(ctx, first_call=inputs.first_call, answers=inputs.answers)
             run_handler = await build_handler(ctx)
             await run_handler()
             last = await DatabaseService.get_last_status(ctx.id)
@@ -176,7 +199,7 @@ async def generate_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
         return await handler.handle(request.q)
 
-    background_tasks.add_task(_make_runner(ctx, build))
+    background_tasks.add_task(_make_runner(ctx, build, _Inputs.of(request)))
     return {"session_id": str(ctx.id)}
 
 
@@ -200,7 +223,7 @@ async def drift_detection_remediation(
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
         return await handler.handle(request.q, request.is_partial)
 
-    background_tasks.add_task(_make_runner(ctx, build))
+    background_tasks.add_task(_make_runner(ctx, build, _Inputs.of(request)))
     return {"session_id": str(ctx.id)}
 
 
@@ -257,5 +280,5 @@ async def import_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()
         return await handler.handle(request.q, request.is_partial)
 
-    background_tasks.add_task(_make_runner(ctx, build))
+    background_tasks.add_task(_make_runner(ctx, build, _Inputs.of(request)))
     return {"session_id": str(ctx.id)}

@@ -7,6 +7,7 @@ from pathlib import Path
 
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
+from src.domains.value_objects import TerraformInputs
 from src.infrastructure.terraform import Terraform
 from src.infrastructure.terraform.backend import TerraformBackend
 from src.shared.constants import TerraformProvider
@@ -32,8 +33,10 @@ class TerraformFactory:
         scope_id: str,
         terraform_provider: TerraformProvider,
         project_id: str,
+        inputs: TerraformInputs | None = None,
     ):
         self.__project_root = project_root
+        self.__inputs = inputs
         self.__git = git
         self.__scope_id = scope_id
         self.__terraform_provider = terraform_provider
@@ -46,4 +49,5 @@ class TerraformFactory:
             scope_id=self.__scope_id,
             terraform_provider=self.__terraform_provider,
             backend=TerraformBackend(project_id=self.__project_id),
+            inputs=self.__inputs,
         )

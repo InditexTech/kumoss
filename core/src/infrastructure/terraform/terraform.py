@@ -56,7 +56,7 @@ import json
 import time
 from pathlib import Path
 from types import ModuleType
-from typing import override
+from typing import Any, override
 from uuid import UUID
 
 import httpx
@@ -89,6 +89,7 @@ from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRequest
 from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
 from src.clients.iac.models.import_request import ImportRequest
+from src.clients.iac.models.variables import Variables
 from src.clients.iac.types import UNSET
 from src.domains.dto import (
     TerraformApplyDTO,
@@ -100,7 +101,7 @@ from src.domains.dto import (
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
-from src.domains.value_objects import PlanRef
+from src.domains.value_objects import PlanRef, TerraformInputs
 from src.shared.config import system_config
 from src.shared.config.system_config import IacServiceConfig
 from src.shared.constants import TerraformProvider
@@ -130,8 +131,12 @@ class Terraform(ITerraform):
         scope_id: str,
         terraform_provider: TerraformProvider,
         backend: TerraformBackend,
+        inputs: TerraformInputs | None = None,
     ):
+        """``inputs`` are the root module's configured variables, passed to
+        the commands that evaluate them (``plan``, ``import``)."""
         self.__workspace_path = workspace_path
+        self.__inputs = inputs
         self.__git = git
         self.__scope_id = scope_id
         self.__terraform_provider = IacTerraformProvider(terraform_provider.value)
@@ -185,6 +190,7 @@ class Terraform(ITerraform):
                         terraform_provider=self.__terraform_provider,
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
+                        **self.__input_fields(),
                     ),
                     cfg,
                 )
@@ -588,6 +594,7 @@ class Terraform(ITerraform):
                         terraform_provider=self.__terraform_provider,
                         address=address,
                         resource_id=resource_id,
+                        **self.__input_fields(),
                     ),
                     cfg,
                 )
@@ -607,6 +614,18 @@ class Terraform(ITerraform):
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
         except httpx.RequestError as e:
             raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+    def __input_fields(self) -> dict[str, Any]:
+        """``var_files``/``variables`` request fields; empty when there are none,
+        so requests to an IaC service older than contract 1.1 stay valid."""
+        fields: dict[str, Any] = {}
+        if self.__inputs is None:
+            return fields
+        if self.__inputs.var_files:
+            fields["var_files"] = list(self.__inputs.var_files)
+        if self.__inputs.values:
+            fields["variables"] = Variables.from_dict(self.__inputs.values)
+        return fields
 
     async def __run_op(
         self,
