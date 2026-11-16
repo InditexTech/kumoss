@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 
 [[package]]
@@ -1339,15 +1339,15 @@ wheels = [
 
 [[package]]
 name = "httpcore2"
-version = "2.12.0"
+version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "h11" },
     { name = "truststore" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/be/ad/f4f0e57345f1870f3e8cb624e058d7eca6e5a27d33bcc3311d9b618734cd/httpcore2-2.12.0.tar.gz", hash = "sha256:9293522bba0aa7c4c8e9e3f040c16575bd8868e155a77fa30c7a9085a5eae648", size = 67548, upload-time = "2026-08-18T13:22:08.211Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c0/61/afa9d6b7452f9eca73f73d45324eb0bb52f098fd5e6049bf6b8263be9b4e/httpcore2-2.16.0.tar.gz", hash = "sha256:c72cd0413563b17e1cd8354677dff887466f8ec2551679759e93126534428643", size = 69886, upload-time = "2026-10-21T07:09:45.31Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/74/d370e55600d9bcfa0d9794b0166126d49291a3d2b20c268fc98c453a4948/httpcore2-2.12.0-py3-none-any.whl", hash = "sha256:7e04258ce01013d7d615e5b910a3b27fac937d7a95038227e79652b4ba3b4ceb", size = 83074, upload-time = "2026-08-18T13:22:05.854Z" },
+    { url = "https://files.pythonhosted.org/packages/af/c2/ce417c397afa5181f0e3c6ff01a4d01639414e1adef08730d97571297151/httpcore2-2.16.0-py3-none-any.whl", hash = "sha256:5c4358319f2602d984ad93182c9fee5160f22e9da7babdda870a5e7c4e2dc34f", size = 85070, upload-time = "2026-10-21T07:09:42.802Z" },
 ]
 
 [[package]]
@@ -1394,7 +1394,7 @@ http2 = [
 
 [[package]]
 name = "httpx2"
-version = "2.12.0"
+version = "2.16.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio", marker = "sys_platform != 'emscripten'" },
@@ -1403,9 +1403,9 @@ dependencies = [
     { name = "idna" },
     { name = "truststore", marker = "sys_platform != 'emscripten'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/7f/f8/579a8b51e42e38ee32647df9f08aa25643ae788e275cc625b199829c4671/httpx2-2.12.0.tar.gz", hash = "sha256:7631fe9887a8a2275f4a2540e053aa670fcc50742864a9ae7c66e609fdcf12cf", size = 100040, upload-time = "2026-08-18T13:22:09.086Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/43/73/5ca2cedf5e4e50423d1c258877865a6b62793633b561c58499f8aeb33b7e/httpx2-2.16.0.tar.gz", hash = "sha256:0d54c98128e8f2ff7fbbde0fca8c359e5f032edeaaaac443cdb7f31f685bcd7f", size = 103116, upload-time = "2026-10-21T07:09:46.348Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c8/95/411ba65569158e862368917aaf56597f3e5fa3b91b0502919638465a08f3/httpx2-2.12.0-py3-none-any.whl", hash = "sha256:cc8b6eecb8661c146b8f89a60e97456ee086e91a784ed31ac450c3a9e613dd36", size = 95427, upload-time = "2026-08-18T13:22:06.834Z" },
+    { url = "https://files.pythonhosted.org/packages/7b/3d/2e4bc4fd1ef9770871669adb348d612a6e4786b303a23f9935b81c48dd60/httpx2-2.16.0-py3-none-any.whl", hash = "sha256:fd2c5d7909e8d86fe92d53020c310ca0e4e431b838c207c5754b9bbf0308d49a", size = 97880, upload-time = "2026-10-21T07:09:44.01Z" },
 ]
 
 [[package]]
@@ -1700,7 +1700,7 @@ tooling = [
     { name = "basedpyright", specifier = ">=1.39.9" },
     { name = "debugpy", specifier = ">=1.8.21" },
     { name = "ipython", specifier = ">=9.16.1" },
-    { name = "openapi-python-client", specifier = "==0.29.1" },
+    { name = "openapi-python-client", specifier = "==0.30.0" },
     { name = "pytest", specifier = ">=9.0.3" },
     { name = "pytest-cov", specifier = ">=6.0" },
 ]
@@ -2066,12 +2066,12 @@ wheels = [
 
 [[package]]
 name = "openapi-python-client"
-version = "0.29.1"
+version = "0.30.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
     { name = "colorama", marker = "sys_platform == 'win32'" },
-    { name = "httpx" },
+    { name = "httpx2" },
     { name = "jinja2" },
     { name = "pydantic" },
     { name = "ruamel-yaml" },
@@ -2079,9 +2079,9 @@ dependencies = [
     { name = "shellingham" },
     { name = "typer" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a7/78/2154014130a3c4d808221d48a10af2e6e90a8b487a457a217e6b0a6dba0e/openapi_python_client-0.29.1.tar.gz", hash = "sha256:7e05c904fb4840c17b4a9fff05cc53dfd97d45b486d9462ffb7ecf9c98e67e25", size = 129985, upload-time = "2026-08-30T19:39:59.634Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/d5/93/c0811fa7bfa72f27ed71ba0ca5b497e488bfde3098cdc3dd372bf5e720b8/openapi_python_client-0.30.0.tar.gz", hash = "sha256:c0524369c78e4bea2f36dcde8594609e667eb4fab16e8f70d7dc85f2e8c6d767", size = 130097, upload-time = "2026-11-07T21:20:50.698Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/96/66/445d54a84ba5e607e061afbb2b168c245a80c80b5f21f9271d15863ab401/openapi_python_client-0.29.1-py3-none-any.whl", hash = "sha256:9820490a2872dc56ce77ffbdea87f4562dae530a70a7207c66e39315ad20a89e", size = 189924, upload-time = "2026-08-30T19:39:57.994Z" },
+    { url = "https://files.pythonhosted.org/packages/23/7e/d44e79546b5e5aed9c233af5fd920d4fca126267044d7a232260de3fc8c2/openapi_python_client-0.30.0-py3-none-any.whl", hash = "sha256:c9383be7b19d65ba20537d8a1325a162ba737e835034f9e52416fb43bc64e561", size = 190007, upload-time = "2026-11-07T21:20:49.175Z" },
 ]
 
 [[package]]
