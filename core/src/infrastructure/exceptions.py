@@ -173,3 +173,7 @@ class CustomFileNotFoundError(ExceptionHandler):
 
 class SearchReplaceBlockError(ExceptionHandler):
     """Raised when replace_in_file receives malformed or non-applicable SEARCH/REPLACE blocks"""
+
+
+class ConfigInspectionError(ExceptionHandler):
+    """Raised when terraform-config-inspect fails or reports configuration errors."""

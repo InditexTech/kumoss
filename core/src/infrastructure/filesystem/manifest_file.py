@@ -2,232 +2,191 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from dataclasses import asdict
+"""The manifest as a YAML file committed inside the root module.
+
+Layout (version 1)::
+
+    version: "1"
+    fingerprint: sha256:<hex>
+    providers:
+      - name: azurerm
+        source: hashicorp/azurerm
+        version_constraints: ["= 3.85.0"]
+    var_files: [envs/dev.tfvars]
+    variables:
+      - name: region
+        value: {location: westeurope}
+      - name: db_password
+        sensitive: true        # value kept in the secret store, never here
+
+Reading is strict: anything off-layout is reported rather than guessed,
+since the file is committed and may have been edited by hand.
+"""
+
+import os
+import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, final, override
 
 import yaml
 
-from src.application.exceptions import ManifestReadError
-from src.domains.value_objects import Manifest
-from src.domains.value_objects.manifest import (
-    Backend,
-    Provider,
-    Variable,
+from src.domains.exceptions import ManifestReadError
+from src.domains.interfaces.manifest_repository_interface import IManifestRepository
+from src.domains.value_objects.manifest import Manifest, Variable
+from src.domains.value_objects.terraform_requirements import ProviderRequirement
+from src.shared.config import system_config
+
+_VERSION = "1"
+_HEADER = (
+    "# Managed by Kumoss: the inputs this Terraform root module is configured with.\n"
+    "# Sensitive values are never stored here, only their names.\n"
 )
-from src.shared.logger import logging
+_TIMESTAMP_TAG = "tag:yaml.org,2002:timestamp"
 
 
-class ManifestFile:
-    """Reads the providers manifest of a root module from disk."""
+class _Loader(yaml.SafeLoader):
+    """Safe loader that keeps unquoted dates as strings, as Terraform would read them."""
 
-    _VERSION: str = "1"
-    _TF_VAR_SUFFIX: str = "TF_VAR_"
 
-    def __init__(self, config_path: Path):
-        self.__config_path: Path = config_path
+_Loader.yaml_implicit_resolvers = {
+    first: [(tag, regexp) for tag, regexp in resolvers if tag != _TIMESTAMP_TAG]
+    for first, resolvers in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
 
-    def create(
-        self,
-        fingerprint: str,
-        backend: dict[str, str],
-        variables: list[dict[str, str]],
-        providers: list[dict[str, str | dict[str, str]]],
-    ) -> Manifest:
-        return self._write(
-            {
-                "version": self._VERSION,
-                "backend": backend,
-                "fingerprint": fingerprint,
-                "providers": providers,
-                "variables": variables,
-            }
+
+@final
+class ManifestFile(IManifestRepository):
+    """``IManifestRepository`` storing the manifest as a file in the module's directory."""
+
+    def __init__(self, filename: str | None = None):
+        self.__filename = filename or system_config.paths.manifest_filename
+
+    @override
+    def load(self, directory: Path) -> Manifest | None:
+        path = directory / self.__filename
+        if not path.is_file():
+            return None
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = yaml.load(f, Loader=_Loader)
+        except (OSError, yaml.YAMLError) as e:
+            raise ManifestReadError(f"Cannot read {self.__filename}: {e}", 422) from e
+        try:
+            return _from_dict(data)
+        except (TypeError, ValueError, KeyError) as e:
+            raise ManifestReadError(f"Invalid {self.__filename}: {e}", 422) from e
+
+    @override
+    def save(self, directory: Path, manifest: Manifest) -> None:
+        body = yaml.safe_dump(
+            _to_dict(manifest),
+            sort_keys=False,
+            allow_unicode=True,
+            default_flow_style=False,
         )
+        # Write next to the target and swap it in, so a reader never sees
+        # half a file.
+        fd, tmp = tempfile.mkstemp(dir=directory, prefix=f".{self.__filename}.")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+                _ = f.write(_HEADER + body)
+            os.chmod(tmp, 0o644)
+            os.replace(tmp, directory / self.__filename)
+        except BaseException:
+            Path(tmp).unlink(missing_ok=True)
+            raise
 
-    def write_backend(self, config: str, lineage: str) -> Manifest:
-        manifest: Manifest = self.load()
-        dmanifest = asdict(manifest) | {
-            "backend": {"config": config, "lineage": lineage}
-        }
-        return self._write(dmanifest)
 
-    def write_variables(self, variables: dict[str, str]) -> Manifest:
-        """Merges and overrides existing values"""
-        manifest: Manifest = self.load()
-        dmanifest = asdict(manifest)
-        _ = self._parse(dmanifest)
-        manifest_vars: list[dict[str, str]] | None = dmanifest.get("variables")
-
-        dmanifest = dmanifest | {
-            "variables": self._update_variables(variables, manifest_vars)
-        }
-
-        return self._write(dmanifest)
-
-    def write_provider(
-        self,
-        provider: str,
-        version: str,
-        environment: dict[str, str],
-    ) -> Manifest:
-        """Merges and overrides existing values"""
-        manifest: Manifest = self.load()
-        dmanifest = asdict(manifest)
-        _ = self._parse(dmanifest)
-        if dmanifest.get("providers") is None:
-            dmanifest = dmanifest | {
-                "providers": [{"name": provider, "version": version}]
+def _to_dict(manifest: Manifest) -> dict[str, Any]:
+    return {
+        "version": _VERSION,
+        "fingerprint": manifest.fingerprint,
+        "providers": [
+            {
+                "name": p.name,
+                "source": p.source,
+                "version_constraints": list(p.version_constraints),
             }
+            for p in manifest.providers
+        ],
+        "var_files": list(manifest.var_files),
+        "variables": [
+            {"name": v.name, "sensitive": True}
+            if v.sensitive
+            else {"name": v.name, "value": v.value}
+            for v in manifest.variables
+        ],
+    }
 
-        for prv in dmanifest["providers"]:
-            if prv["name"] == provider:
-                prv["environment"] = self._update_variables(
-                    environment, prv.get("environment")
-                )
 
-        return self._write(dmanifest)
-
-    def load(self) -> Manifest:
-        if not self.__config_path.exists():
-            raise ManifestReadError(
-                message=f"Manifest files doesn't exist at {self.__config_path}",
-                error_code=500,
-            )
-        try:
-            with open(self.__config_path, "r") as f:
-                return self._parse(yaml.safe_load(f))
-        except Exception as e:
-            logging.error(f"Error reading manifest: {e}")
-            raise ManifestReadError(
-                message=f"Manifest parse error. Supported manifest version {self._VERSION}",
-                error_code=500,
-            )
-
-    def _parse_backend(self, data: dict[str, str]) -> Backend:
-        try:
-            return Backend(type=data["type"])
-        except KeyError:
-            logging.error(f"Manifest backend parse data fail. data={data}")
-            raise ManifestReadError(
-                message="Manifest backend parse data fail.",
-                error_code=500,
-            )
-
-    def _parse_variables(
-        self, data: list[dict[str, str]], prefix: str | None = None
-    ) -> tuple[Variable, ...]:
-        payload: list[Variable] = []
-        try:
-            for var in data:
-                name = var["name"]
-                value = var.get("value")
-                if prefix and not name.startswith(prefix):
-                    name = prefix + name
-                payload.append(Variable(name=name, value=value))
-            return tuple(payload)
-
-        except KeyError:
-            logging.error(f"Manifest Variables parse data fail. data={data}")
-            raise ManifestReadError(
-                message="Manifest Variables parse data fail.",
-                error_code=500,
-            )
-
-    def _parse_providers(
-        self,
-        data: list[dict[str, str | dict[str, str]]],
-    ) -> tuple[Provider, ...]:
-        try:
-            return tuple(
-                Provider(
-                    name=str(p["name"]),
-                    version=str(p["version"]),
-                    environment=self._parse_variables(p.get("environment", [])),
-                )
-                for p in data
-            )
-        except KeyError:
-            logging.error(f"Manifest Providers parse data fail. data={data}")
-            raise ManifestReadError(
-                message="Manifest Providers parse data fail.",
-                error_code=500,
-            )
-
-    def _parse(self, data: dict[str, Any]) -> Manifest:
-        version = data["version"]
-        backend = data["backend"]
-        providers = data.get("providers", ())
-        variables = data.get("variables", ())
-        fingerprint = data["fingerprint"]
-        return Manifest(
-            version=version,
-            backend=self._parse_backend(backend),
-            providers=self._parse_providers(providers),
-            variables=self._parse_variables(variables, prefix=self._TF_VAR_SUFFIX),
-            fingerprint=fingerprint,
+def _from_dict(data: Any) -> Manifest:
+    data = _mapping(data, "the document")
+    version = str(data.get("version", ""))
+    if version != _VERSION:
+        raise ValueError(
+            f"unsupported version {version or '(none)'!r}; this Kumoss reads version {_VERSION}"
         )
+    fingerprint = data.get("fingerprint")
+    if not isinstance(fingerprint, str) or not fingerprint:
+        raise ValueError("'fingerprint' must be a non-empty string")
 
-    def _update_variables(
-        self, new: dict[str, str], to_update: list[dict[str, str]] | None = None
-    ) -> list[dict[str, str]]:
-        if to_update is not None:
-            for v in to_update:
-                new[v["name"]] = v["value"]
-        return [{"name": n, "value": v} for n, v in new.items()]
-
-    def _write(self, data: dict[str, Any]) -> Manifest:
-        manifest = self._parse(data)
-        with open(self.__config_path, "wb") as f:
-            _ = f.write(b"# Auto managed by Kumoss.\n")
-            yaml.safe_dump(
-                data=asdict(manifest),
-                stream=f,
-                encoding="utf8",
-                allow_unicode=True,
-                sort_keys=False,
+    providers: list[ProviderRequirement] = []
+    for item in _list(data.get("providers"), "providers"):
+        item = _mapping(item, "a provider")
+        constraints = _list(item.get("version_constraints"), "version_constraints")
+        providers.append(
+            ProviderRequirement(
+                name=_string(item, "name"),
+                source=_string(item, "source"),
+                version_constraints=tuple(str(c) for c in constraints),
             )
-        return manifest
+        )
+    var_files = tuple(str(f) for f in _list(data.get("var_files"), "var_files"))
 
+    variables: list[Variable] = []
+    for item in _list(data.get("variables"), "variables"):
+        item = _mapping(item, "a variable")
+        name = _string(item, "name")
+        if item.get("sensitive") is True and "value" in item:
+            raise ValueError(
+                f"variable {name!r} is sensitive and must not have a value in the file; "
+                + "remove it and rotate the secret, it has been exposed"
+            )
+        variables.append(
+            Variable(
+                name=name,
+                value=item.get("value"),
+                sensitive=item.get("sensitive") is True,
+            )
+        )
+    names = [v.name for v in variables]
+    if len(set(names)) != len(names):
+        raise ValueError("a variable is listed more than once")
 
-if __name__ == "__main__":
-    import json
-
-    handler = ManifestFile(Path("./manifest.yml"))
-    with open("./example-manifest.yml", "r") as f:
-        data = yaml.safe_load(f)
-        print(json.dumps(data, indent=2))
-        print(yaml.safe_dump(data, allow_unicode=True, sort_keys=False))
-    data = asdict(handler.load())
-    print(data)
-    manifest = handler.create(
-        fingerprint="sha256:qwerty",
-        backend={"type": "azurerm"},
-        providers=[
-            {
-                "name": "azurerm",
-                "version": "4.33.0",
-                "environment": [
-                    {"name": "ARM_SUBSCRIPTION_ID", "value": "22222-22222-22222-2222"}
-                ],
-            },
-            {
-                "name": "aws",
-                "version": "6.72.0",
-                "environment": ({"name": "AWS_REGION", "value": None},),
-            },
-        ],
-        variables=[
-            {
-                "name": "sub_prod_id",
-                "value": "11111111-1111-1111-1111-111111111111",
-            },
-            {
-                "name": "ad_data_devops_owners",
-                "value": [
-                    "eaed4141-131d-4e88-8e9f-7d23422f6d1e",
-                    "bbbb5c12-6105-47ae-ab59-f53cf9f74515",
-                ],
-            },
-        ],
+    return Manifest(
+        fingerprint=fingerprint,
+        providers=tuple(providers),
+        var_files=var_files,
+        variables=tuple(variables),
     )
-    print(manifest)
+
+
+def _mapping(value: Any, what: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be a mapping")
+    return value
+
+
+def _list(value: Any, what: str) -> list[Any]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"'{what}' must be a list")
+    return value
+
+
+def _string(data: dict[str, Any], key: str) -> str:
+    value = data.get(key)
+    if not isinstance(value, str) or not value:
+        raise ValueError(f"'{key}' must be a non-empty string")
+    return value

@@ -5,6 +5,7 @@
 from .artifact_storage_service import ArtifactStorageService
 from .compliance_check_service import ComplianceCheckService
 from .llm_service import LLMOrchestrationService
+from .manifest_service import ManifestService
 from .root_module_detection_service import RootModuleDetectionService
 from .session_service import SessionService
 from .task_service import TaskService
@@ -19,6 +20,7 @@ __all__ = [
     "ArtifactStorageService",
     "ComplianceCheckService",
     "LLMOrchestrationService",
+    "ManifestService",
     "RootModuleDetectionService",
     "SessionService",
     "TaskService",

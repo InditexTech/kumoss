@@ -77,6 +77,15 @@ class SessionStatus(Enum):
 
 
 @unique
+class ManifestStatus(Enum):
+    """Where a root module's manifest stands against its current configuration."""
+
+    NOT_FOUND = "not_found"  # never configured: no manifest file yet
+    UP_TO_DATE = "up_to_date"  # manifest matches the configuration it was built from
+    DRIFTED = "drifted"  # the configuration changed since the manifest was written
+
+
+@unique
 class PromptsLibrary(Enum):
     """Defines all possible base template prompts"""
 
