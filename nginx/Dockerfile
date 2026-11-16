@@ -8,7 +8,7 @@ WORKDIR /public
 
 RUN  npm ci && npm run build
 
-FROM nginx@sha256:abe47724e466aeab9a345d8e46a221c2fa8953c7848bb4a3bd9976a7199f8cf2
+FROM nginx@sha256:165ddde8751e75a1c907d24ef10d9f6deb08b57e0fe56caf67512486aff76d82
 
 RUN rm /etc/nginx/conf.d/default.conf
 
