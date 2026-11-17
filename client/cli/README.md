@@ -373,6 +373,12 @@ leaving the default. `kumoss home` prints which one is in use.
 Every generated file is written atomically (temp file + rename), so a crash
 cannot truncate an `.env` — the only copy of the stack's tokens.
 
+Each `.env` carries only the keys its own container reads: `core/.env` the LLM,
+Git and object-storage credentials, `services/iac/.env` the cloud and state
+backend ones, `services/notifications/.env` the webhook. The exception is a
+bearer token, which appears in `core/.env` and in the sidecar that validates it
+and must match exactly there.
+
 ## Examples
 
 **Preview without writing.**

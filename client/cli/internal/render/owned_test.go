@@ -21,7 +21,7 @@ func TestOwnedKeysShadowTheSampleValues(t *testing.T) {
 		{Key: "GIT_TOKEN", Value: "sample-token"},
 	}}
 	s := &state.State{Secrets: state.Secrets{IACToken: "abc123"}}
-	vars := resolveSample(sample, (&Env{}).owned(s), nil)
+	vars := resolveSample(sample, (&Env{}).owned(s), nil, coreOnly)
 	if vars["KUMOSS_IAC_TOKEN"] != "abc123" {
 		t.Errorf("IAC token = %q, want the generated one", vars["KUMOSS_IAC_TOKEN"])
 	}

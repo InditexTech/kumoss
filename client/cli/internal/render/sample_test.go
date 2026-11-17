@@ -17,7 +17,7 @@ func TestResolveSampleKeepsUnownedCredentials(t *testing.T) {
 		// Blank values must not be written: they would shadow a provider default.
 		"VERTEXAI_LOCATION": "",
 	}
-	got := resolveSample(sample, owned, nil)
+	got := resolveSample(sample, owned, nil, []string{"KUMOSS_IAC_TOKEN", "VERTEXAI_PROJECT", "VERTEXAI_CREDENTIALS"})
 
 	if got["KUMOSS_IAC_TOKEN"] != "real-token" {
 		t.Errorf("sample key lost its wizard value: %q", got["KUMOSS_IAC_TOKEN"])

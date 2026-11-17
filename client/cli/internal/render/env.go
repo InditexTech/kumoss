@@ -150,11 +150,33 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 	if e.Samples == nil {
 		return e.fallbackFiles(p, s)
 	}
-	return map[string]map[string]string{
-		p.Core:          resolveSample(e.Samples.Core, e.owned(s), e.Extra),
-		p.IAC:           resolveSample(e.Samples.IAC, e.owned(s), e.Extra),
-		p.Notifications: resolveSample(e.Samples.Notifications, e.owned(s), e.Extra),
+	// Each file gets only its own vars: a var belongs to the file whose sample
+	// declares it, plus the core keys and the bearer token core and that sidecar
+	// must share. Without this every cloud or LLM credential landed in all three.
+	owned := e.owned(s)
+	core := append([]string{"KUMOSS_IAC_TOKEN", "KUMOSS_NOTIFICATIONS_TOKEN"}, coreOnly...)
+	// LLM credential names come from the provider table, so they are whatever
+	// the wizard collected, not a list here.
+	for k := range s.LLM.Credentials {
+		core = append(core, k)
 	}
+	// Likewise the cloud vars, which only the iac engine reads.
+	iac := []string{"KUMOSS_IAC_TOKEN"}
+	for k := range CloudVars(s.Cloud) {
+		iac = append(iac, k)
+	}
+	return map[string]map[string]string{
+		p.Core:          resolveSample(e.Samples.Core, owned, e.Extra, core),
+		p.IAC:           resolveSample(e.Samples.IAC, owned, e.Extra, iac),
+		p.Notifications: resolveSample(e.Samples.Notifications, owned, e.Extra, []string{"KUMOSS_NOTIFICATIONS_TOKEN"}),
+	}
+}
+
+// coreOnly are the vars no sidecar sample declares but core always reads.
+var coreOnly = []string{
+	"KUMOSS_MAPPING_TOKEN", "KUMOSS_AUTHZ_TOKEN", "GIT_USER", "GIT_TOKEN",
+	"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY", "KUMOSS_SQL_DATABASE_URL",
+	"STORAGE_ACCOUNT_KEY",
 }
 
 // ownedKey reports whether the wizard owns the key, blank value included.
@@ -169,7 +191,8 @@ func ownedKey(owned map[string]string, key string) bool {
 // Collected credentials are appended even when the sample omits them: LLM and
 // cloud vars are provider-specific and appear there only as commented examples,
 // so iterating the sample alone dropped every one (VERTEXAI_*, ANTHROPIC_*…).
-func resolveSample(sample *Sample, owned, extra map[string]string) map[string]string {
+// extraKeys is how each file keeps only the keys that are its own.
+func resolveSample(sample *Sample, owned, extra map[string]string, extraKeys []string) map[string]string {
 	vars := make(map[string]string, len(sample.Vars))
 	seen := make(map[string]bool, len(sample.Vars))
 	for _, v := range sample.Vars {
@@ -183,8 +206,12 @@ func resolveSample(sample *Sample, owned, extra map[string]string) map[string]st
 			vars[v.Key] = extra[v.Key]
 		}
 	}
+	allowed := make(map[string]bool, len(extraKeys))
+	for _, k := range extraKeys {
+		allowed[k] = true
+	}
 	for k, v := range owned {
-		if !seen[k] && v != "" {
+		if !seen[k] && v != "" && allowed[k] {
 			vars[k] = v
 		}
 	}

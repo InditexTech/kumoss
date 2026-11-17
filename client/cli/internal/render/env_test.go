@@ -67,6 +67,59 @@ func TestWriteUsesOwnerOnlyPermissions(t *testing.T) {
 	}
 }
 
+// Each file carries only its own vars: a cloud key in the notifications file
+// is handed to a container that never reads it.
+func TestEnvFilesKeepVarsInTheirOwnFile(t *testing.T) {
+	p := envPathsIn(t)
+	s := &state.State{
+		LLM:     state.LLM{Credentials: map[string]string{"ANTHROPIC_API_KEY": "sk-ant"}},
+		Cloud:   state.Cloud{AWS: &state.AWSAuth{Method: "static", AccessKey: "ak", SecretKey: "sk", Region: "eu-west-1"}},
+		Git:     state.Git{User: "bot", Token: "ghp"},
+		Storage: state.Storage{Credentials: map[string]string{"STORAGE_ACCOUNT_KEY": "az"}},
+		Engine:  state.Engine{Binary: "tofu"},
+	}
+	e := &Env{Samples: &Samples{
+		Core:          ParseSample("KUMOSS_IAC_TOKEN=\nKUMOSS_NOTIFICATIONS_TOKEN=\n"),
+		IAC:           ParseSample("KUMOSS_IAC_TOKEN=\nIAC_BINARY=tofu\n"),
+		Notifications: ParseSample("KUMOSS_NOTIFICATIONS_TOKEN=\nLOG_LEVEL=INFO\n"),
+	}}
+	files := e.Files(p, s)
+
+	core := files[p.Core]
+	if core["ANTHROPIC_API_KEY"] != "sk-ant" || core["GIT_TOKEN"] != "ghp" || core["STORAGE_ACCOUNT_KEY"] != "az" {
+		t.Errorf("core lost its own vars: %v", core)
+	}
+	for _, k := range []string{"AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "IAC_BINARY", "LOG_LEVEL"} {
+		if _, ok := core[k]; ok {
+			t.Errorf("core carries %s", k)
+		}
+	}
+
+	iac := files[p.IAC]
+	if iac["AWS_ACCESS_KEY_ID"] != "ak" || iac["AWS_REGION"] != "eu-west-1" {
+		t.Errorf("iac lost its cloud vars: %v", iac)
+	}
+	for _, k := range []string{"ANTHROPIC_API_KEY", "GIT_TOKEN", "STORAGE_ACCOUNT_KEY", "KUMOSS_NOTIFICATIONS_TOKEN"} {
+		if _, ok := iac[k]; ok {
+			t.Errorf("iac carries %s", k)
+		}
+	}
+
+	notif := files[p.Notifications]
+	if notif["LOG_LEVEL"] != "INFO" {
+		t.Errorf("notifications lost its sample value: %v", notif)
+	}
+	for _, k := range []string{"ANTHROPIC_API_KEY", "AWS_ACCESS_KEY_ID", "GIT_TOKEN", "STORAGE_ACCOUNT_KEY", "IAC_BINARY"} {
+		if _, ok := notif[k]; ok {
+			t.Errorf("notifications carries %s", k)
+		}
+	}
+	// The bearer token still reaches both ends, or the sidecar rejects the call.
+	if core["KUMOSS_IAC_TOKEN"] != iac["KUMOSS_IAC_TOKEN"] || core["KUMOSS_NOTIFICATIONS_TOKEN"] != notif["KUMOSS_NOTIFICATIONS_TOKEN"] {
+		t.Error("bearer token differs between core and its sidecar")
+	}
+}
+
 // An existing token is kept: rotating breaks a stack holding the old value.
 func TestWriteKeepsExistingTokens(t *testing.T) {
 	p := envPathsIn(t)
