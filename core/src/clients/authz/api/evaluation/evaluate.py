@@ -3,33 +3,28 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from http import HTTPStatus
-from typing import Any, cast
-from urllib.parse import quote
+from typing import Any
 
 import httpx
 
 from ... import errors
 from ...client import AuthenticatedClient, Client
-from ...models.assign_role_request import AssignRoleRequest
+from ...models.access_evaluation_request import AccessEvaluationRequest
+from ...models.access_evaluation_response import AccessEvaluationResponse
+from ...models.evaluate_response_400 import EvaluateResponse400
 from ...models.problem import Problem
-from ...types import UNSET, Response, Unset
+from ...types import Response
 
 
 def _get_kwargs(
-    user_id: str,
     *,
-    body: AssignRoleRequest,
-    x_user_id: str | Unset = UNSET,
+    body: AccessEvaluationRequest,
 ) -> dict[str, Any]:
     headers: dict[str, Any] = {}
-    if not isinstance(x_user_id, Unset):
-        headers["X-User-Id"] = x_user_id
 
     _kwargs: dict[str, Any] = {
         "method": "post",
-        "url": "/v1/users/{user_id}/roles".format(
-            user_id=quote(str(user_id), safe=""),
-        ),
+        "url": "/access/v1/evaluation",
     }
 
     _kwargs["json"] = body.to_dict()
@@ -42,10 +37,16 @@ def _get_kwargs(
 
 def _parse_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Any | Problem | None:
-    if response.status_code == 204:
-        response_204 = cast(Any, None)
-        return response_204
+) -> AccessEvaluationResponse | EvaluateResponse400 | Problem | None:
+    if response.status_code == 200:
+        response_200 = AccessEvaluationResponse.from_dict(response.json())
+
+        return response_200
+
+    if response.status_code == 400:
+        response_400 = EvaluateResponse400.from_dict(response.json())
+
+        return response_400
 
     if response.status_code == 401:
         response_401 = Problem.from_dict(response.json())
@@ -57,15 +58,20 @@ def _parse_response(
 
         return response_403
 
-    if response.status_code == 404:
-        response_404 = Problem.from_dict(response.json())
-
-        return response_404
-
     if response.status_code == 422:
         response_422 = Problem.from_dict(response.json())
 
         return response_422
+
+    if response.status_code == 500:
+        response_500 = Problem.from_dict(response.json())
+
+        return response_500
+
+    if response.status_code == 502:
+        response_502 = Problem.from_dict(response.json())
+
+        return response_502
 
     if client.raise_on_unexpected_status:
         raise errors.UnexpectedStatus(response.status_code, response.content)
@@ -75,7 +81,7 @@ def _parse_response(
 
 def _build_response(
     *, client: AuthenticatedClient | Client, response: httpx.Response
-) -> Response[Any | Problem]:
+) -> Response[AccessEvaluationResponse | EvaluateResponse400 | Problem]:
     return Response(
         status_code=HTTPStatus(response.status_code),
         content=response.content,
@@ -85,31 +91,28 @@ def _build_response(
 
 
 def sync_detailed(
-    user_id: str,
     *,
     client: AuthenticatedClient,
-    body: AssignRoleRequest,
-    x_user_id: str | Unset = UNSET,
-) -> Response[Any | Problem]:
-    """Admin: assign a role to a user.
+    body: AccessEvaluationRequest,
+) -> Response[AccessEvaluationResponse | EvaluateResponse400 | Problem]:
+    """Evaluate an access request.
+
+     Returns whether the subject is permitted to perform the named
+    action on the given resource, per OpenID AuthZEN 1.0 §5.
 
     Args:
-        user_id (str):
-        x_user_id (str | Unset):
-        body (AssignRoleRequest):
+        body (AccessEvaluationRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any | Problem]
+        Response[AccessEvaluationResponse | EvaluateResponse400 | Problem]
     """
 
     kwargs = _get_kwargs(
-        user_id=user_id,
         body=body,
-        x_user_id=x_user_id,
     )
 
     response = client.get_httpx_client().request(
@@ -120,61 +123,55 @@ def sync_detailed(
 
 
 def sync(
-    user_id: str,
     *,
     client: AuthenticatedClient,
-    body: AssignRoleRequest,
-    x_user_id: str | Unset = UNSET,
-) -> Any | Problem | None:
-    """Admin: assign a role to a user.
+    body: AccessEvaluationRequest,
+) -> AccessEvaluationResponse | EvaluateResponse400 | Problem | None:
+    """Evaluate an access request.
+
+     Returns whether the subject is permitted to perform the named
+    action on the given resource, per OpenID AuthZEN 1.0 §5.
 
     Args:
-        user_id (str):
-        x_user_id (str | Unset):
-        body (AssignRoleRequest):
+        body (AccessEvaluationRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Any | Problem
+        AccessEvaluationResponse | EvaluateResponse400 | Problem
     """
 
     return sync_detailed(
-        user_id=user_id,
         client=client,
         body=body,
-        x_user_id=x_user_id,
     ).parsed
 
 
 async def asyncio_detailed(
-    user_id: str,
     *,
     client: AuthenticatedClient,
-    body: AssignRoleRequest,
-    x_user_id: str | Unset = UNSET,
-) -> Response[Any | Problem]:
-    """Admin: assign a role to a user.
+    body: AccessEvaluationRequest,
+) -> Response[AccessEvaluationResponse | EvaluateResponse400 | Problem]:
+    """Evaluate an access request.
+
+     Returns whether the subject is permitted to perform the named
+    action on the given resource, per OpenID AuthZEN 1.0 §5.
 
     Args:
-        user_id (str):
-        x_user_id (str | Unset):
-        body (AssignRoleRequest):
+        body (AccessEvaluationRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Response[Any | Problem]
+        Response[AccessEvaluationResponse | EvaluateResponse400 | Problem]
     """
 
     kwargs = _get_kwargs(
-        user_id=user_id,
         body=body,
-        x_user_id=x_user_id,
     )
 
     response = await client.get_async_httpx_client().request(**kwargs)
@@ -183,32 +180,29 @@ async def asyncio_detailed(
 
 
 async def asyncio(
-    user_id: str,
     *,
     client: AuthenticatedClient,
-    body: AssignRoleRequest,
-    x_user_id: str | Unset = UNSET,
-) -> Any | Problem | None:
-    """Admin: assign a role to a user.
+    body: AccessEvaluationRequest,
+) -> AccessEvaluationResponse | EvaluateResponse400 | Problem | None:
+    """Evaluate an access request.
+
+     Returns whether the subject is permitted to perform the named
+    action on the given resource, per OpenID AuthZEN 1.0 §5.
 
     Args:
-        user_id (str):
-        x_user_id (str | Unset):
-        body (AssignRoleRequest):
+        body (AccessEvaluationRequest):
 
     Raises:
         errors.UnexpectedStatus: If the server returns an undocumented status code and Client.raise_on_unexpected_status is True.
         httpx.TimeoutException: If the request takes longer than Client.timeout.
 
     Returns:
-        Any | Problem
+        AccessEvaluationResponse | EvaluateResponse400 | Problem
     """
 
     return (
         await asyncio_detailed(
-            user_id=user_id,
             client=client,
             body=body,
-            x_user_id=x_user_id,
         )
     ).parsed

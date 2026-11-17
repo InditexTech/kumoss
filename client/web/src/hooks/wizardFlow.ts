@@ -19,6 +19,6 @@ export function nextStep(data: WizardData): WizardStep | "complete" {
   if (!data.repositoryUrl) return "repository_url";
   if (!data.iacPath) return "iac_path";
   if (!data.provider) return "provider";
-  if (!data.cloudScope) return "cloud_scope";
+  if (!data.scope) return "scope";
   return "complete";
 }

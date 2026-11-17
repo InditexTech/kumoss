@@ -73,12 +73,12 @@ layer — they live in `core/src/clients`, a sibling package.
 |Implements domain ports
 
 |authz service
-|Cloud project access checks, disabled by default and not bundled: provide
-your own implementation of the contract. Disabled, the core answers
-"authorized" without calling it; enabled, an unreachable sidecar is an
-error, never an allow. The contract's user and role endpoints are unused —
-Kumoss keeps those in core-db.
-|Called from the authorize route with the caller's identity
+|AuthZEN policy decision point for organizational access control. Disabled
+by default and not bundled: deploy your own PDP implementing the 2-endpoint
+contract (evaluation + healthz). Disabled, the core treats every operation
+as authorized; enabled, the core consults the PDP on every write route and
+never fails open.
+|Called from every write route via the PEP helper with the caller's identity
 
 |iac service
 |Runs one IaC engine command per asynchronous job — `init`, `validate`,

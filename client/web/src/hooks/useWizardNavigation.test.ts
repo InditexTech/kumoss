@@ -16,7 +16,7 @@ describe("useWizardNavigation", () => {
       query: "",
       repositoryUrl: "",
       provider: "",
-      cloudScope: "",
+      scope: "",
       iacPath: "",
     });
   });
@@ -27,8 +27,8 @@ describe("useWizardNavigation", () => {
     act(() => result.current.setStep("repository_url"));
     expect(result.current.step).toBe("repository_url");
 
-    act(() => result.current.setStep("cloud_scope"));
-    expect(result.current.step).toBe("cloud_scope");
+    act(() => result.current.setStep("scope"));
+    expect(result.current.step).toBe("scope");
   });
 
   it("setData merges partial updates", () => {
@@ -55,7 +55,7 @@ describe("useWizardNavigation", () => {
   describe("promptMessage", () => {
     it("returns query prompt for query step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.promptQuery,
       );
     });
@@ -63,7 +63,7 @@ describe("useWizardNavigation", () => {
     it("returns repository prompt for repository_url step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("repository_url"));
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.promptRepository,
       );
     });
@@ -71,7 +71,7 @@ describe("useWizardNavigation", () => {
     it("returns iac_path prompt for iac_path step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("iac_path"));
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.promptIacPath,
       );
     });
@@ -79,42 +79,30 @@ describe("useWizardNavigation", () => {
     it("returns provider prompt for provider step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("provider"));
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.promptProvider,
       );
     });
 
     it("returns generic cloud scope prompt when no provider is set", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("cloud_scope"));
-      expect(result.current.promptMessage("idle")).toBe(
-        STRINGS.wizard.promptCloudScope,
+      act(() => result.current.setStep("scope"));
+      expect(result.current.promptMessage()).toBe(
+        STRINGS.wizard.promptScope,
       );
     });
 
-    it("returns the provider's scope jargon for cloud_scope step", () => {
+    it("returns the provider's scope jargon for scope step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => {
-        result.current.setStep("cloud_scope");
+        result.current.setStep("scope");
         result.current.setData((prev) => ({ ...prev, provider: "azure" }));
       });
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.scopeByProvider.azure.prompt,
       );
     });
 
-    it("returns auth-checking message when auth is loading", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() =>
-        result.current.setData((prev) => ({
-          ...prev,
-          cloudScope: "my-subscription",
-        })),
-      );
-      expect(result.current.promptMessage("loading")).toBe(
-        `${STRINGS.wizard.checkingPermissions} my-subscription`,
-      );
-    });
   });
 
   describe("placeholder", () => {
@@ -147,16 +135,16 @@ describe("useWizardNavigation", () => {
 
     it("returns generic cloud scope placeholder when no provider is set", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("cloud_scope"));
+      act(() => result.current.setStep("scope"));
       expect(result.current.placeholder()).toBe(
-        STRINGS.wizard.placeholderCloudScope,
+        STRINGS.wizard.placeholderScope,
       );
     });
 
-    it("returns the provider's scope placeholder for cloud_scope step", () => {
+    it("returns the provider's scope placeholder for scope step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => {
-        result.current.setStep("cloud_scope");
+        result.current.setStep("scope");
         result.current.setData((prev) => ({ ...prev, provider: "gcp" }));
       });
       expect(result.current.placeholder()).toBe(
@@ -169,18 +157,18 @@ describe("useWizardNavigation", () => {
     const { result } = renderHook(() => useWizardNavigation());
 
     act(() => {
-      result.current.setStep("cloud_scope");
+      result.current.setStep("scope");
       result.current.setData((prev) => ({
         ...prev,
         query: "create vm",
         repositoryUrl: "https://repo.example.com",
         provider: "azure",
-        cloudScope: "sub-123",
+        scope: "sub-123",
         iacPath: "environments/dev",
       }));
     });
 
-    expect(result.current.step).toBe("cloud_scope");
+    expect(result.current.step).toBe("scope");
     expect(result.current.data.query).toBe("create vm");
 
     act(() => result.current.resetNavigation());
@@ -190,7 +178,7 @@ describe("useWizardNavigation", () => {
       query: "",
       repositoryUrl: "",
       provider: "",
-      cloudScope: "",
+      scope: "",
       iacPath: "",
     });
   });

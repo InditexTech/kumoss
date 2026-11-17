@@ -21,7 +21,7 @@ export type WizardStep =
   | "repository_url"
   | "iac_path"
   | "provider"
-  | "cloud_scope";
+  | "scope";
 export type HomeView = "wizard" | "planning" | "result" | "apply-results";
 
 export interface ApplyResultsData {

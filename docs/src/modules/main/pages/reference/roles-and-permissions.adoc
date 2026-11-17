@@ -11,11 +11,11 @@ every grant each level carries, the permission matrix the API
 enforces, and who receives which role by default.
 
 Roles live in the core database, not in the authorization sidecar. The
-authorization sidecar is consulted only by `POST
-/api/v1/auth/authorize`, which calls the sidecar's `POST /v1/check` to
-decide whether the caller may work against a given cloud project — a
-check that is disabled by default (`services.authz.enabled: false`)
-and has no bearing on operation or panel roles. See
+AuthZEN PDP is consulted on every write route via `POST
+/access/v1/evaluation` to decide whether the caller may perform an
+action on a given scope — a check that is disabled by default
+(`services.authz.enabled: false`) and has no bearing on operation or
+panel roles. See
 xref:main:guides/deploy-to-production.adoc[Deploy to production] for
 when to enable it.
 
@@ -255,11 +255,10 @@ in the browser and shows the login screen. Pressing *Sign In*
 re-fetches `GET /api/v1/users/me` and puts the browser straight back
 in as the dev identity.
 
-Do not confuse this with the authorization sidecar. An authorization
-service you implement may keep users and roles of its own, but the
-core never reads them; the sidecar is consulted only for the
-cloud-project authorization check described above, and only when
-`services.authz.enabled` is `true`.
+Do not confuse this with the authorization sidecar. The AuthZEN PDP is
+an organizational gate consulted on every write route, and only when
+`services.authz.enabled` is `true`. The core never reads any user or
+role store from the PDP.
 
 == Next steps
 

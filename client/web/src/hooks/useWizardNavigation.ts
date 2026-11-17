@@ -11,7 +11,7 @@ export interface WizardData {
   query: string;
   repositoryUrl: string;
   provider: TerraformProvider | "";
-  cloudScope: string;
+  scope: string;
   iacPath: string;
 }
 
@@ -19,7 +19,7 @@ const INITIAL_DATA: WizardData = {
   query: "",
   repositoryUrl: "",
   provider: "",
-  cloudScope: "",
+  scope: "",
   iacPath: "",
 };
 
@@ -27,30 +27,24 @@ export function useWizardNavigation() {
   const [step, setStep] = useState<WizardStep>("query");
   const [data, setData] = useState<WizardData>(INITIAL_DATA);
 
-  const promptMessage = useCallback(
-    (authStatus: string): string => {
-      if (authStatus === "loading") {
-        return `${STRINGS.wizard.checkingPermissions} ${data.cloudScope}`;
-      }
-      switch (step) {
-        case "query":
-          return STRINGS.wizard.promptQuery;
-        case "repository_url":
-          return STRINGS.wizard.promptRepository;
-        case "iac_path":
-          return STRINGS.wizard.promptIacPath;
-        case "provider":
-          return STRINGS.wizard.promptProvider;
-        case "cloud_scope":
-          return data.provider
-            ? STRINGS.wizard.scopeByProvider[data.provider].prompt
-            : STRINGS.wizard.promptCloudScope;
-        default:
-          return "";
-      }
-    },
-    [step, data.cloudScope, data.provider],
-  );
+  const promptMessage = useCallback((): string => {
+    switch (step) {
+      case "query":
+        return STRINGS.wizard.promptQuery;
+      case "repository_url":
+        return STRINGS.wizard.promptRepository;
+      case "iac_path":
+        return STRINGS.wizard.promptIacPath;
+      case "provider":
+        return STRINGS.wizard.promptProvider;
+      case "scope":
+        return data.provider
+          ? STRINGS.wizard.scopeByProvider[data.provider].prompt
+          : STRINGS.wizard.promptScope;
+      default:
+        return "";
+    }
+  }, [step, data.provider]);
 
   const placeholder = useCallback((): string => {
     switch (step) {
@@ -62,10 +56,10 @@ export function useWizardNavigation() {
         return "";
       case "provider":
         return "";
-      case "cloud_scope":
+      case "scope":
         return data.provider
           ? STRINGS.wizard.scopeByProvider[data.provider].placeholder
-          : STRINGS.wizard.placeholderCloudScope;
+          : STRINGS.wizard.placeholderScope;
       default:
         return "";
     }

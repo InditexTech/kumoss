@@ -10,7 +10,7 @@ const EMPTY: WizardData = {
   query: "",
   repositoryUrl: "",
   provider: "",
-  cloudScope: "",
+  scope: "",
   iacPath: "",
 };
 
@@ -33,7 +33,7 @@ describe("nextStep — first missing input wins", () => {
           repositoryUrl: "https://git.example/iac.git",
           iacPath: "environments/dev",
           provider: "azure",
-          cloudScope: "sub-123",
+          scope: "sub-123",
         }),
       ),
     ).toBe("complete");
@@ -70,7 +70,7 @@ describe("nextStep — the skip matrix after repository_url", () => {
       paths: 1,
       provider: "azure",
       scope: "",
-      expected: "cloud_scope",
+      expected: "scope",
     },
     {
       name: "single path, mapper answered scope only",
@@ -124,7 +124,7 @@ describe("nextStep — the skip matrix after repository_url", () => {
           ...resolved,
           iacPath: paths === 1 ? "environments/dev" : "",
           provider,
-          cloudScope: scope,
+          scope: scope,
         }),
       ),
     ).toBe(expected);
@@ -142,14 +142,14 @@ describe("nextStep — after iac_path is chosen", () => {
 
   it.each([
     { provider: "" as const, scope: "", expected: "provider" },
-    { provider: "gcp" as const, scope: "", expected: "cloud_scope" },
+    { provider: "gcp" as const, scope: "", expected: "scope" },
     { provider: "" as const, scope: "my-project", expected: "provider" },
     { provider: "gcp" as const, scope: "my-project", expected: "complete" },
   ])(
     "provider=$provider scope=$scope → $expected",
     ({ provider, scope, expected }) => {
       expect(
-        nextStep(data({ ...chosen, provider, cloudScope: scope })),
+        nextStep(data({ ...chosen, provider, scope: scope })),
       ).toBe(expected);
     },
   );
@@ -165,7 +165,7 @@ describe("nextStep — a scope alone never completes the wizard", () => {
           query: "deploy a VM",
           repositoryUrl: "https://git.example/iac.git",
           iacPath: "environments/dev",
-          cloudScope: "ocid1.compartment.oc1..aaaa",
+          scope: "ocid1.compartment.oc1..aaaa",
         }),
       ),
     ).toBe("provider");

@@ -8,23 +8,30 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from src.api.deps import assert_session_access, require_operation_role
+from src.api.authz import authorize
+from src.clients.authz.models.action_name import ActionName
+from src.api.deps import (
+    assert_session_access,
+    get_validated_claims,
+    require_operation_role,
+)
 from src.application.exceptions import RequestFilterException
-from src.domains.services.tracer_service import tracer
-from src.domains.services.database_service import DatabaseService
-from src.domains.entities import SessionContext, User
 from src.application.factory import ApplicationFactory
 from src.application.iac_requests import (
-    BaseIacRequest,
-    GenerateRequest,
-    DriftRequest,
     ApplyRequest,
-    SessionRequest,
+    BaseIacRequest,
+    DriftRequest,
+    GenerateRequest,
     ImportRequest,
+    SessionRequest,
 )
 from src.application.services.session_orchestration_service import (
     SessionOrchestrationService,
 )
+from src.domains.entities import SessionContext, User
+from src.domains.services.database_service import DatabaseService
+from src.domains.services.tracer_service import tracer
+from src.domains.value_objects.token_claims import TokenClaims
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
@@ -50,20 +57,51 @@ _orchestration = SessionOrchestrationService()
 async def _resolve_or_raise(
     request: BaseIacRequest | SessionRequest,
     user: User,
-    operation: OperationType | None = None,
+    claims: TokenClaims,
+    operation: OperationType,
 ) -> SessionContext:
-    """Validate URI (first call) and resolve to a SessionContext entity.
+    """Validate URI, authorize via PDP, and resolve to a SessionContext.
 
-    Session-only requests (e.g. apply) carry no ``repo_uri``: URI
-    validation applies only to request models that define the field.
-    Calls referencing an existing session are owner-only.
+    First-call (has ``repo_uri``): URI validation → authz (from request
+    body) → session creation. Iteration / session-only (has
+    ``session_id``): ownership check → session load → authz (from
+    ``SessionContext``).
     """
+    is_first_call = isinstance(request, BaseIacRequest) and request.repo_uri is not None
+
     if request.session_id is not None:
         await assert_session_access(user, request.session_id, write=True)
     try:
-        if isinstance(request, BaseIacRequest) and request.repo_uri is not None:
+        action = ActionName(operation.value)
+
+        if is_first_call:
             await _workspace.validate_uri(request.repo_uri)
-        return await _orchestration.resolve(request, operation, user.id)
+            await authorize(
+                claims,
+                action,
+                scope_id=request.scope_id,
+                provider=request.terraform_providers,
+                repo_uri=request.repo_uri,
+                iac_path=request.iac_path,
+            )
+
+        ctx = await _orchestration.resolve(request, operation, user.id)
+
+        if not is_first_call:
+            if operation is not OperationType.APPLY and ctx.operation is not operation:
+                raise HTTPException(
+                    status_code=409,
+                    detail="The requested operation does not match the session operation.",
+                )
+            await authorize(
+                claims,
+                action,
+                scope_id=ctx.scope_id,
+                provider=ctx.terraform_prv,
+                repo_uri=ctx.repo_uri,
+                iac_path=ctx.iac_path,
+            )
+        return ctx
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
 
@@ -140,11 +178,12 @@ async def generate_infrastructure(
     background_tasks: BackgroundTasks,
     request: GenerateRequest,
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
 ) -> dict[str, str]:
     """Generates, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, OperationType.GENERATE)
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.GENERATE)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
@@ -163,11 +202,12 @@ async def drift_detection_remediation(
     background_tasks: BackgroundTasks,
     request: DriftRequest,
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVOPS))],
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
 ) -> dict[str, str]:
     """Performs Terraform drift detection and remediation.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, OperationType.DRIFT)
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.DRIFT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
@@ -189,12 +229,13 @@ async def apply_infrastructure(
     background_tasks: BackgroundTasks,
     request: ApplyRequest,
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
 ) -> dict[str, str]:
     """Applies the plan pinned by the session's last successful generate or
     drift round — exactly the reviewed changes, with no re-plan at apply time.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user)
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.APPLY)
     if await DatabaseService.is_session_blocked(ctx.id):
         raise HTTPException(
             status_code=409,
@@ -218,11 +259,12 @@ async def import_infrastructure(
     background_tasks: BackgroundTasks,
     request: ImportRequest,
     user: Annotated[User, Depends(require_operation_role(OperationRole.DEVELOPER))],
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
 ) -> dict[str, str]:
     """Imports, validates, and prepares IaC based on a user query.
     Returns a session ID for tracking the background process.
     """
-    ctx = await _resolve_or_raise(request, user, OperationType.IMPORT)
+    ctx = await _resolve_or_raise(request, user, claims, OperationType.IMPORT)
 
     async def build(context: SessionContext):
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()

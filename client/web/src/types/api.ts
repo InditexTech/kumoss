@@ -107,20 +107,6 @@ export interface PullRequestDTO {
   status: string;
 }
 
-// ─── Authorization (/api/v1/auth/authorize) ─────────────────
-
-export interface AuthorizeRequest {
-  cloud: string;
-  project_name: string;
-  environment: string;
-}
-
-export interface AuthorizeResponse {
-  result: boolean;
-  message: string;
-  portalUrl?: string;
-}
-
 // ─── Sessions (/api/v1/sessions/*) ─────────────────────────
 
 export type OperationType = "generate" | "drift" | "import";

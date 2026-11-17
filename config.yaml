@@ -39,6 +39,13 @@ oidc:
   issuer_url: ""
   client_id: ""
   clock_skew_seconds: 60
+  # Map property keys to JWT claim names for the AuthZEN subject.properties
+  # bag. Merged with universal defaults (issuer ← iss, email ← email);
+  # extras override defaults.
+  #   Azure:  {identifier: "oid", groups: "groups", tenant_id: "tid"}
+  #   AWS:    {groups: "cognito:groups"}
+  #   GCP:    {} (defaults suffice)
+  custom_claims: {}
 
 # Bootstrap administrator. The user whose access token carries an `email`
 # claim matching this address together with `email_verified: true` is

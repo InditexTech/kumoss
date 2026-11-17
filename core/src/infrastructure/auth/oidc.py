@@ -5,6 +5,7 @@
 """OIDC bearer-token validation against the configured issuer."""
 
 import threading
+from typing import Any
 
 import httpx
 import jwt
@@ -36,6 +37,8 @@ class OidcTokenValidator:
     never depends on the IdP being reachable; ``PyJWKClient`` caches the
     JWK set and refreshes it on expiry, which also covers key rotation.
     """
+
+    _UNIVERSAL_CLAIMS: dict[str, str] = {"issuer": "iss", "email": "email"}
 
     def __init__(self, issuer_url: str, client_id: str, audience: str, leeway: int):
         self._issuer: str = issuer_url.rstrip("/")
@@ -72,13 +75,19 @@ class OidcTokenValidator:
             leeway=self._leeway,
             options={"require": ["exp", "iss", "sub"]},
         )
-        email = payload.get("email")
+        properties = self._extract_properties(payload, system_config.oidc.custom_claims)
+
+        standard_email = payload.get("email")
+        email = standard_email or payload.get("preferred_username")
+
         return TokenClaims(
             issuer=payload["iss"],
             subject=payload["sub"],
-            email=email or payload.get("preferred_username"),
+            email=email,
             name=payload.get("name"),
-            email_verified=email is not None and payload.get("email_verified") is True,
+            email_verified=standard_email is not None
+            and payload.get("email_verified") is True,
+            properties=properties,
         )
 
     async def validate(self, token: str) -> TokenClaims:
@@ -86,6 +95,16 @@ class OidcTokenValidator:
             return await self._validate(token)
         except Exception as e:
             raise TokenValidationError(f"Token validation failed: {e}", 401)
+
+    def _extract_properties(
+        self, payload: dict[str, Any], extra_claims: dict[str, str]
+    ) -> dict[str, Any]:
+        merged = {**self._UNIVERSAL_CLAIMS, **extra_claims}
+        return {
+            key: payload[claim]
+            for key, claim in merged.items()
+            if claim in payload and payload[claim] is not None
+        }
 
 
 def _build_validator() -> OidcTokenValidator | None:

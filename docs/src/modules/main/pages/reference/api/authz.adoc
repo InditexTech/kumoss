@@ -1,14 +1,15 @@
 = Authorization sidecar API
-:description: The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.
+:description: OpenID AuthZEN 1.0 Access Evaluation for organizational access control. Kumoss consults the PDP on every IaC and PR write route.
 
-The authorization service answers *may this user operate on this
-cloud resource?* — a question about a subscription, a project, or an
-account, asked before Kumoss runs anything against a live environment.
+The authorization service answers *may this user perform this action on
+this scope?* — asked before every IaC generation, drift detection,
+import, apply, PR creation, and PR merge.
 
-Contract: `contracts/openapi/authz.v1.yaml`. Kumoss bundles no
-implementation of it: authorization is an optional extension point you
-implement yourself and point `services.authz.endpoint` at. Bearer
-token: the value of the variable named by `services.authz.token_env`,
+Contract: `contracts/openapi/authz.v1.yaml`, implementing the OpenID
+AuthZEN 1.0 Access Evaluation API (§5). Kumoss bundles no PDP
+implementation: authorization is an optional extension point you deploy
+yourself and point `services.authz.endpoint` at. Bearer token: the
+value of the variable named by `services.authz.token_env`,
 `KUMOSS_AUTHZ_TOKEN` by default. The service is *optional* and ships
 disabled (`services.authz.enabled: false`, `endpoint: ""`).
 
@@ -17,179 +18,218 @@ disabled (`services.authz.enabled: false`, `endpoint: ""`).
 *Kumoss's own roles do not live here.* The operation roles (`developer`
 < `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide
 what a signed-in user can do are rows in the core database, managed
-from the admin panel. The contract's user and role endpoints describe
-an implementation's own store, which has no effect on any of that. See
+from the admin panel. The AuthZEN PDP is an *organizational* gate — it
+lets you enforce policies like "only the platform team may generate
+infrastructure in the production subscription." See
 xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
 ====
 
-== What the core actually calls
+== Endpoints
 
-The contract describes seven paths. *The core calls one of them.*
+The contract exposes two endpoints:
 
-`POST /api/v1/auth/authorize` — and nothing else in the core — forwards
-to `POST /v1/check`. The other five `/v1` paths exist for callers of
-this service directly, or for an implementation that keeps a role
-store of its own, to administer that service's own users and roles.
-The generated client contains methods for them; nothing in the core
-invokes them.
+[cols="3,4",options="header"]
+|===
+|Endpoint |What it does
 
-When `services.authz.enabled` is `false`, the shipped default, the
-core does not call out at all and answers authorized. When it is
+|`POST /access/v1/evaluation`
+|Evaluates whether a subject is permitted to perform an action on a
+resource, per AuthZEN §5. *Called on every write route.*
+
+|`GET /healthz`
+|Liveness probe, answers `\{"status":"ok"}`.
+|===
+
+== Enforcement
+
+The core calls the PDP on every route that mutates infrastructure or
+repository state. The `action.name` value maps to the operation:
+
+[cols="3,2,4",options="header"]
+|===
+|Core route |action.name |When
+
+|`POST /v1/iac/generate`
+|`generate`
+|First call and iterations
+
+|`POST /v1/iac/drift`
+|`drift`
+|First call and iterations
+
+|`POST /v1/iac/import`
+|`import`
+|First call and iterations
+
+|`POST /v1/iac/apply`
+|`apply`
+|Apply trigger
+|===
+
+NOTE: PR routes (`PUT /repository/pr` and `PUT /repository/pr/merge`) are
+governed by Kumoss's own operation roles, not by the authz PDP. See
+xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
+
+When `services.authz.enabled` is `false` (the default), the core does
+not call out at all and treats every operation as authorized. When
 enabled, the core *never* fails open:
 
 [cols="2,4",options="header"]
 |===
 |Situation |What the core answers
 
-|Sidecar unreachable, or the call times out
-|`502` or `504`
+|PDP unreachable, or the call times out
+|`504` (gateway timeout)
 
-|Sidecar returns a `4xx` or `5xx`
-|`502`
+|PDP returns a network-level error
+|`502` (bad gateway)
 
-|Sidecar returns `200`
-|The decision it computed, passed through
+|PDP returns `decision: false`
+|`403` with the PDP's `reason_user` context
+
+|PDP returns `decision: true`
+|The request proceeds
 |===
 
-A `422` from the sidecar is therefore visible at the browser as a
-`502`, which matters for one specific shape of request:
+== POST /access/v1/evaluation
 
-[WARNING]
-====
-*A long IaC path produces a `502`.* The web application sends the
-repository URL as `project` and the IaC path as `environment`. The
-contract caps `environment` at 32 characters, so a longer path fails
-schema validation with `422` — which the core, refusing to fail open,
-surfaces as `502`. This only bites when `services.authz.enabled` is
-`true`.
-====
-
-== Endpoints
-
-[cols="3,4",options="header"]
-|===
-|Endpoint |What it does
-
-|`POST /v1/check`
-|Decides whether a user may operate on a named cloud resource. *The
-only endpoint Kumoss uses.*
-
-|`GET /v1/users/me`
-|Returns the calling user's record and roles, creating an empty record
-if none exists.
-
-|`GET /v1/roles`
-|Lists the role names the service knows.
-
-|`GET /v1/users`
-|Lists all known users. Caller must hold the `admin` role.
-
-|`POST /v1/users/\{user_id}/roles`
-|Assigns a role. `204` on success, `404` if the role is not in the
-catalogue. Caller must hold `admin`.
-
-|`DELETE /v1/users/\{user_id}/roles/\{role}`
-|Revokes a role. `204` on success, and also `204` if the role was
-already absent. Caller must hold `admin`.
-
-|`GET /healthz`
-|Liveness probe, answers `{"status":"ok"}`.
-|===
-
-=== Asserted identity
-
-The administrative endpoints take identity from *headers*, not from a
-token this service validates. The two are declared unevenly:
-
-* `X-User-Id` — caller-asserted user identifier. Optional. Declared on
-  four operations: `GET /v1/users/me`, `GET /v1/users`,
-  `POST /v1/users/\{user_id}/roles`, and
-  `DELETE /v1/users/\{user_id}/roles/\{role}`. The contract advertises
-  no maximum length, deliberately, so that a boundary caller does not
-  get a hard `4xx`; an implementation may clamp it instead.
-* `X-User-Email` — caller-asserted email. Optional. Declared on
-  `GET /v1/users/me` alone.
-
-`GET /v1/roles` declares no parameters at all and therefore takes
-neither header.
-
-OIDC token validation lives entirely in the core, so this service
-makes no assumption about the upstream identity provider and does not
-verify the assertion. That is only safe because the service is
-reachable from the core alone. *The core sends neither header on any
-live path* — they matter only if you call these endpoints yourself.
-
-== POST /v1/check
+=== Request
 
 [source,json]
 ----
 {
-  "user_id": "someone@example.com",
-  "cloud": "azure",
-  "project": "my-project",
-  "environment": "dev"
+  "subject": {
+    "type": "user",
+    "id": "https://login.microsoftonline.com/.../v2.0",
+    "properties": {
+      "issuer": "https://login.microsoftonline.com/.../v2.0",
+      "email": "someone@example.com",
+      "groups": ["platform-team", "devops"]
+    }
+  },
+  "action": {
+    "name": "generate"
+  },
+  "resource": {
+    "type": "scope",
+    "id": "my-subscription-id",
+    "properties": {
+      "provider": "azure",
+      "repo_uri": "https://dev.azure.com/org/project/_git/infra",
+      "iac_path": "environments/dev"
+    }
+  }
 }
 ----
 
-`cloud` and `project` are required; `user_id` and `environment` are
-nullable. `additionalProperties` is `false`.
+==== Subject
 
 [cols="2,1,4",options="header"]
 |===
-|Field |Limits |Meaning
+|Field |Required |Description
 
-|`user_id`
-|1-1024 chars, nullable
-|The user to check. Null for an anonymous flow. The core sends the
-caller's email, falling back to the token subject when there is no
-email.
+|`type`
+|Yes
+|Always `user`.
 
-|`cloud`
-|1-32 chars, required
-|`azure`, `gcp`, and so on.
+|`id`
+|Yes
+|The OIDC `iss` (issuer) claim from the user's token.
 
-|`project`
-|1-256 chars, required
-|The resource being checked.
+|`properties.issuer`
+|No
+|The OIDC `iss` claim (universal default).
 
-|`environment`
-|1-32 chars, nullable
-|Deployment dimension — `dev`, `pro`.
+|`properties.email`
+|No
+|Present only when the token's `email_verified` is true (universal default).
+
+|`properties.*`
+|No
+|Any additional claims configured via `oidc.claims` in `config.yaml`.
+For example, `groups`, `identifier`, `tenant_id`. See
+xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 |===
 
-The response:
+==== Action
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Required |Description
+
+|`name`
+|Yes
+|One of: `generate`, `drift`, `import`, `apply`.
+|===
+
+==== Resource
+
+[cols="2,1,4",options="header"]
+|===
+|Field |Required |Description
+
+|`type`
+|Yes
+|Always `scope`.
+
+|`id`
+|Yes
+|The scope identifier (subscription, project, account).
+
+|`properties.provider`
+|No
+|`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`.
+
+|`properties.repo_uri`
+|No
+|The git repository URL.
+
+|`properties.iac_path`
+|No
+|The IaC path within the repository. Omitted when empty.
+|===
+
+`additionalProperties` is `false` on the request envelope, subject,
+action, and resource objects. It is `true` on all `properties` objects,
+so PDPs may read custom fields.
+
+=== Response
 
 [source,json]
 ----
 {
-  "authorized": true,
-  "portal_url": null,
-  "reason": null
+  "decision": true,
+  "context": {
+    "reason_user": {
+      "en": "Authorized by platform policy."
+    },
+    "reason_admin": {
+      "en": "Policy platform-team-azure matched."
+    }
+  }
 }
 ----
-
-A policy-backed implementation puts its own explanation in `reason`
-and a console deep link in `portal_url`; both may be null.
 
 [cols="2,4",options="header"]
 |===
 |Field |Meaning
 
-|`authorized`
-|Required boolean. The decision.
+|`decision`
+|Required boolean. `true` to allow, `false` to deny.
 
-|`portal_url`
-|Nullable, ≤2048 chars. A link to the cloud console for the resource.
-Null when the implementation has no portal-URL convention. The core
-passes it through as `portalUrl`.
+|`context.reason_user`
+|Optional. Human-readable explanation shown to the end user on denial.
 
-|`reason`
-|Nullable, ≤1024 chars. Human-readable explanation, useful in the UI
-and in debugging.
+|`context.reason_admin`
+|Optional. Detailed explanation logged at WARNING for operators.
 |===
 
-A denial is still `200`: the decision was computed, and it was "no".
+A denial is still `200`: the decision was computed, and it was "no."
 The error statuses are for cases where no decision could be reached.
+
+=== Error responses
+
+Error bodies use `application/problem+json` per RFC 9457.
 
 [cols="1,5",options="header"]
 |===
@@ -199,7 +239,7 @@ The error statuses are for cases where no decision could be reached.
 |A decision was computed, granted or denied.
 
 |`400`
-|The body could not be parsed at the transport layer.
+|Malformed request (bad JSON, non-UTF-8).
 
 |`401`
 |Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer`
@@ -209,8 +249,23 @@ challenge.
 |Well-formed JSON that failed schema validation.
 
 |`502`
-|The downstream identity or cloud backend returned an error.
+|Downstream backend error inside the PDP.
 |===
+
+== Stub PDP
+
+A minimal always-allow (or always-deny) stub is included for testing
+the conformance suite and local development:
+
+[source,bash]
+----
+cd contracts/conformance/authz
+uv sync
+STUB_DECISION=true uv run uvicorn stub:app --port 8083
+----
+
+Set `STUB_TOKEN=mysecret` to require bearer auth on the stub. Set
+`STUB_DECISION=false` to make it deny everything.
 
 [#conformance]
 == Conformance
@@ -231,17 +286,16 @@ uv run pytest \
 `--service-token` is needed only if the implementation enforces
 authentication.
 
-The suite checks schema conformance of the responses and that invalid
-bodies do not produce undocumented `5xx` answers. It cannot check that
-the decisions are *correct* — a permissive implementation that grants
+The suite checks schema conformance of the responses — that valid
+requests produce documented status codes with documented shapes. It
+cannot check that the decisions are *correct*: a PDP that grants
 everything passes it. Correctness of the policy is your own test
 suite's job.
 
 == Next steps
 
 * xref:main:reference/roles-and-permissions.adoc[Roles and
-  permissions] for the roles that actually gate Kumoss.
-* xref:main:reference/api/core.adoc[Core API] for the one core route
-  that consults this service.
+  permissions] for the roles that gate Kumoss itself.
 * xref:main:reference/configuration.adoc#config-services[the `services`
-  section] of the configuration reference for enabling the sidecar.
+  section] of the configuration reference for enabling the sidecar and
+  configuring `oidc.claims`.
