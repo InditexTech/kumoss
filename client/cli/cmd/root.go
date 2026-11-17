@@ -51,6 +51,7 @@ func NewRootCmd() *cobra.Command {
 func AddChildCommands(rootCmd *cobra.Command, env *cli.Flags) {
 	cmd.NewVersionCmd(rootCmd, env)
 	cmd.NewInitCmd(rootCmd, env)
+	cmd.NewRunCmd(rootCmd, env)
 	cmd.NewStatusCmd(rootCmd, env)
 	cmd.NewLogsCmd(rootCmd, env)
 	cmd.NewConfigCmd(rootCmd, env)

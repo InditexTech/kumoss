@@ -21,7 +21,7 @@ type Flags struct {
 	HomeOverride string
 
 	// Foreground keeps `up` attached: logs stream until Ctrl-C, which also
-	// stops the stack. Only init reads it.
+	// stops the stack. Read by init and run.
 	Foreground bool
 
 	// HostCerts trusts this host's CA roots, for a TLS-inspecting proxy.
@@ -36,8 +36,14 @@ func (f *Flags) RegisterHome(cmd *cobra.Command) {
 
 // RegisterInit adds the flags only init acts on, local for the same reason.
 func (f *Flags) RegisterInit(cmd *cobra.Command) {
-	cmd.Flags().BoolVar(&f.Foreground, "foreground", false,
-		"stream the stack's logs instead of detaching; Ctrl-C also stops it")
+	f.RegisterForeground(cmd)
 	cmd.Flags().BoolVar(&f.HostCerts, "host-certs", false,
 		"trust this host's CA roots in core and searxng (TLS-inspecting proxy)")
+}
+
+// RegisterForeground is shared by init and run, the two commands that start
+// the stack. --host-certs is not: it only changes a file init writes.
+func (f *Flags) RegisterForeground(cmd *cobra.Command) {
+	cmd.Flags().BoolVar(&f.Foreground, "foreground", false,
+		"stream the stack's logs instead of detaching; Ctrl-C also stops it")
 }

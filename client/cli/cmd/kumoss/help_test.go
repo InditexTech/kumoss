@@ -18,6 +18,7 @@ func newTestRoot() *cobra.Command {
 	var flags cli.Flags
 	root := &cobra.Command{Use: "kumoss"}
 	NewInitCmd(root, &flags)
+	NewRunCmd(root, &flags)
 	NewHomeCmd(root, &flags)
 	NewSelfInstallCmd(root, &flags)
 	NewVersionCmd(root, &flags)

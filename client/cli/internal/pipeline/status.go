@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -156,36 +155,9 @@ func uptimeOf(status string) string {
 // mounts them: compose compares the service definition, not the bytes of a
 // mounted file, so those changes are not live yet.
 func printPendingRecreate(w io.Writer, h home.Home, rows []docker.PS) {
-	files := map[string][]string{
-		h.ConfigYAML():                {"core"},
-		h.CoreEnv():                   {"core"},
-		h.ServiceEnv("iac"):           {"iac"},
-		h.ServiceEnv("notifications"): {"notifications"},
-	}
-	// A changed mount block needs a recreate too, and the override is where it
-	// lives.
-	files[h.ComposeOverride()] = []string{"core", "iac"}
-
-	created := map[string]time.Time{}
-	for _, r := range rows {
-		if r.Created > 0 {
-			created[r.Service] = time.Unix(r.Created, 0)
-		}
-	}
-
-	var pending []string
-	for path, services := range files {
-		info, err := os.Stat(path)
-		if err != nil {
-			continue
-		}
-		for _, svc := range services {
-			if at, ok := created[svc]; ok && info.ModTime().After(at) {
-				pending = append(pending, fmt.Sprintf("%s changed after %s was created", path, svc))
-			}
-		}
-	}
-	if len(pending) > 0 {
+	// Shared with kumoss run, which acts on the same list instead of
+	// reporting it.
+	if pending := staleFiles(h, rows); len(pending) > 0 {
 		fmt.Fprintln(w)
 		for _, line := range pending {
 			fmt.Fprintln(w, "pending recreate:", line)
