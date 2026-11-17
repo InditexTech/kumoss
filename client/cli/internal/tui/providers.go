@@ -19,6 +19,19 @@ type credential struct {
 	Title string
 }
 
+// optionalCredentials are the variables whose own Title above calls a blank
+// value a supported setup: Application Default Credentials, an API base that
+// defaults, a server that needs no key. `kumoss run` refuses to start on a
+// blank credential, so blocking on these would reject a working stack.
+//
+// Keyed by variable rather than by provider, like the credential maps
+// themselves. Keep in sync with the Titles in llmProviders.
+var optionalCredentials = map[string]bool{
+	"VERTEXAI_CREDENTIALS": true, // blank = Application Default Credentials
+	"OPENAI_API_BASE":      true, // blank = https://api.openai.com/v1
+	"HOSTED_VLLM_API_KEY":  true, // blank = the server needs none
+}
+
 // llmProvider is a row of the provider Select: the LiteLLM prefix, the
 // provider's default env vars, and seeds for the two model inputs.
 //

@@ -28,3 +28,16 @@ func EnvKeys(provider string) []string {
 func ProviderEnvKeys(s *state.State) []string {
 	return EnvKeys(s.LLM.Provider)
 }
+
+// RequiredEnvKeys is ProviderEnvKeys without the variables a blank value is a
+// supported answer for, so `kumoss run` blocks only on a credential whose
+// absence really stops the stack.
+func RequiredEnvKeys(s *state.State) []string {
+	var keys []string
+	for _, key := range ProviderEnvKeys(s) {
+		if !optionalCredentials[key] {
+			keys = append(keys, key)
+		}
+	}
+	return keys
+}
