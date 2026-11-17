@@ -92,6 +92,7 @@ kumoss init
 - **Keeps the repository authoritative.** `config.yaml` is overlaid, not replaced: every key the wizard does not own keeps the value and behaviour the project ships.
 - **Configuration without rebuilds.** The generated `config.yaml` is bind-mounted over the path the core already reads, so a change needs `docker compose up -d --force-recreate core`, never an image build.
 - **Idempotent.** Every step is safe to repeat; a failed run is fixed by running it again, and an existing install is offered a reconfigure or a keep.
+- **Refuses to start a stack that cannot work.** `kumoss run` reconciles the recorded answers against the generated files and the credentials they need, and names the command that fixes each problem instead of handing compose a stack that boots into an error.
 
 ### 🏢 Designed to fit the stack you already run
 
@@ -125,7 +126,8 @@ termination) is out of scope: see
 4. **It fetches the stack.** `docker-compose.yml`, `config.yaml` and the `env.sample` files come from the release tag the binary was built at.
 5. **It writes every file.** `kumoss.yaml`, `config/config.yaml`, three `.env` files and `compose.override.yml`, atomically, with `.env` files at `0600`.
 6. **It starts the stack.** Pulls the missing images and runs `docker compose up -d`, or attached with `--foreground`.
-7. **You change something later.** Re-run `kumoss init`, choose Reconfigure, and change only what you need; the containers are recreated with the new values.
+7. **You start it again later.** `kumoss run` checks the files still agree with the recorded answers, then starts the stack — pulling images only when there are no containers, and recreating them when a generated file changed underneath.
+8. **You change something later.** Re-run `kumoss init`, choose Reconfigure, and change only what you need; the containers are recreated with the new values.
 
 ## Who is the CLI for?
 
@@ -208,6 +210,40 @@ Install or reconfigure the stack. See [How it works](#how-it-works).
 | `--dry-run`      | off          | Ask everything, write nothing; print the files a real run would write  |
 | `--foreground`   | off          | Stream logs instead of detaching; Ctrl-C also stops the stack          |
 | `--host-certs`   | off          | Trust this host's CA roots in `core` and `searxng`, behind a TLS proxy |
+
+### `kumoss run`
+
+Start a stack that is already configured. `run` writes nothing: it checks the
+managed home, then hands the stack to compose.
+
+The checks, in order. A home with no `kumoss.yaml` has nothing to check
+against, so it is sent to `kumoss init`. Otherwise every answer recorded in
+`kumoss.yaml` must be present and identical in `config/config.yaml` and the
+`.env` files, and the credentials the configured LLM provider and clouds need
+must be filled in. Secrets are checked for presence only — `kumoss.yaml` never
+stores them — and never printed. Anything wrong is listed with the
+`kumoss config <section>` that rewrites it, and nothing is started.
+
+Once the checks pass it starts the whole stack. With no containers yet it pulls
+the images first; with containers already there it skips the pull, and forces a
+recreate when a generated file changed after the container that mounts it —
+compose compares the service definition, not the bytes of a mounted file, so a
+plain `up` would keep the old values.
+
+| Flag             | Default      | Effect                                                                 |
+| ---------------- | ------------ | ---------------------------------------------------------------------- |
+| `--home <dir>`   | `~/.kumoss`  | Start the stack in this root                                           |
+| `--foreground`   | off          | Stream logs instead of detaching; Ctrl-C also stops the stack          |
+
+```console
+$ kumoss run
+- ANTHROPIC_API_KEY is blank in core/.env, and anthropic needs it
+- KUMOSS_IAC_TOKEN differs between core/.env and services/iac/.env, so the sidecar rejects every call
+
+fix with: kumoss config llm
+fix with: kumoss config secrets
+kumoss: 2 problems found; the stack was not started
+```
 
 ### `kumoss home`
 
@@ -307,7 +343,7 @@ Everything lives under one directory, `~/.kumoss` by default.
 
 ```
 ~/.kumoss/
-├── kumoss.yaml            # non-secret answers (0600)
+├── kumoss.yaml            # non-secret answers, cloud included (0600)
 ├── src/
 │   ├── docker-compose.yml # downloaded at the release tag
 │   ├── core/.env          # generated (0600)
@@ -354,6 +390,13 @@ so do not paste its output into a ticket or a CI log.
 kumoss init --home ~/kumoss-lab
 kumoss home                       # Kumoss home is set to: /home/me/kumoss-lab
 kumoss home --reset               # back to ~/.kumoss
+```
+
+**Start a stack you already configured.**
+
+```bash
+kumoss run                        # check the files, then up -d
+kumoss run --home ~/kumoss-lab    # a second stack, its own answers
 ```
 
 **Behind a TLS-inspecting proxy.**
@@ -421,10 +464,11 @@ dc config                         # the fully merged stack
 
 1. **Which binary ran?** `which kumoss && kumoss version` — a source build reports `dev`.
 2. **Which home?** `kumoss home` — `KUMOSS_HOME` outranks a persisted `--home`, which surprises people.
-3. **What would it write?** `kumoss init --dry-run` — no side effects.
-4. **What did it write?** `ls -la ~/.kumoss/src/core` — `.env` files must be `0600`; an old timestamp means the file was skipped.
-5. **What does compose think?** `dc config` — the only reliable answer to "is my mount there?".
-6. **Why did a container stop?** `dc ps -a` then `dc logs --tail 50 core`.
+3. **Do the files still agree?** `kumoss run` — it reconciles `kumoss.yaml` against `config/config.yaml` and the `.env` files and names what drifted, without writing or starting anything.
+4. **What would it write?** `kumoss init --dry-run` — no side effects.
+5. **What did it write?** `ls -la ~/.kumoss/src/core` — `.env` files must be `0600`; an old timestamp means the file was skipped.
+6. **What does compose think?** `dc config` — the only reliable answer to "is my mount there?".
+7. **Why did a container stop?** `dc ps -a` then `dc logs --tail 50 core`.
 
 ### Common failures
 
@@ -439,8 +483,10 @@ dc config                         # the fully merged stack
 
 ### Day-2 operations
 
-After editing `config/config.yaml` or an `.env` by hand, recreate the affected
-container — `restart` does not reload `env_file` or a mounted file:
+After editing `config/config.yaml` or an `.env` by hand, `kumoss run` notices
+the file is newer than the container that mounts it and recreates the stack for
+you. To do it yourself, recreate the affected container — `restart` does not
+reload `env_file` or a mounted file:
 
 | Changed                                | Recreate                                |
 | -------------------------------------- | --------------------------------------- |
