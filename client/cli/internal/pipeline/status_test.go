@@ -63,3 +63,32 @@ func TestPrintServicesOneRowPerContainer(t *testing.T) {
 		}
 	}
 }
+
+// The core row and the sidecar rows share one URL column: two different
+// paddings left the core URL starting at a different offset.
+func TestPrintProbesAlignsTheURLs(t *testing.T) {
+	ok := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	defer ok.Close()
+
+	var b bytes.Buffer
+	printProbes(t.Context(), &b, ok.Client(), []docker.PS{
+		{Service: "core", State: "running"},
+		{Service: "iac", State: "running"},
+		{Service: "notifications", State: "running"},
+	})
+
+	var cols []int
+	for _, line := range strings.Split(strings.TrimSpace(b.String()), "\n") {
+		if i := strings.Index(line, "http://"); i >= 0 {
+			cols = append(cols, i)
+		}
+	}
+	if len(cols) != 3 {
+		t.Fatalf("got %d URL rows, want 3:\n%s", len(cols), b.String())
+	}
+	for _, c := range cols {
+		if c != cols[0] {
+			t.Errorf("URL columns %v are not aligned:\n%s", cols, b.String())
+		}
+	}
+}

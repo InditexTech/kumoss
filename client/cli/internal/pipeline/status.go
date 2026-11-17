@@ -97,14 +97,16 @@ func printServices(w io.Writer, rows []docker.PS) {
 
 // printProbes checks the core's auth config and each running sidecar's
 // /healthz. Only reachable containers are probed: a stopped one has no answer
-// worth waiting three seconds for.
+// worth waiting three seconds for. Tabwriter pads both the core row and the
+// service rows, so the URLs line up in one column.
 func printProbes(ctx context.Context, w io.Writer, client *http.Client, rows []docker.PS) {
 	fmt.Fprintln(w)
+	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
+	coreStatus := "unreachable"
 	if probe(ctx, client, coreConfigURL) {
-		fmt.Fprintf(w, "core  %s  ok\n", coreConfigURL)
-	} else {
-		fmt.Fprintf(w, "core  %s  unreachable\n", coreConfigURL)
+		coreStatus = "ok"
 	}
+	fmt.Fprintf(tw, "core\t%s\t%s\n", coreConfigURL, coreStatus)
 	for _, r := range rows {
 		if r.State != "running" || !sidecar(r.Service) {
 			continue
@@ -114,8 +116,9 @@ func printProbes(ctx context.Context, w io.Writer, client *http.Client, rows []d
 		if probe(ctx, client, url) {
 			status = "ok"
 		}
-		fmt.Fprintf(w, "%-8s %s  %s\n", r.Service, url, status)
+		fmt.Fprintf(tw, "%s\t%s\t%s\n", r.Service, url, status)
 	}
+	_ = tw.Flush()
 }
 
 // probe reports whether url answers with 2xx.
