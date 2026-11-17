@@ -81,7 +81,7 @@ func TestEnvWritesSlackWebhook(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	got := readEnv(p.Notifications)
+	got := ReadEnv(p.Notifications)
 	if got["SLACK_WEBHOOK_URL"] != "https://hooks.slack.com/services/x" {
 		t.Errorf("SLACK_WEBHOOK_URL = %q", got["SLACK_WEBHOOK_URL"])
 	}
@@ -98,7 +98,7 @@ func TestFallbackEnvWritesSlackWebhook(t *testing.T) {
 	if err := (&Env{}).Write(p, s); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	if got := readEnv(p.Notifications)["SLACK_WEBHOOK_URL"]; got != "https://hooks.slack.com/services/y" {
+	if got := ReadEnv(p.Notifications)["SLACK_WEBHOOK_URL"]; got != "https://hooks.slack.com/services/y" {
 		t.Errorf("SLACK_WEBHOOK_URL = %q", got)
 	}
 }

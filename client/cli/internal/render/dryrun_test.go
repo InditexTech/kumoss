@@ -78,7 +78,7 @@ func TestEnvFilesDoesNotTouchTheDisk(t *testing.T) {
 	if got := files[p.Core]["KUMOSS_IAC_TOKEN"]; got != s.Secrets.IACToken {
 		t.Errorf("shown token %q != generated %q", got, s.Secrets.IACToken)
 	}
-	if len(readEnv(p.Core)) != 0 {
+	if len(ReadEnv(p.Core)) != 0 {
 		t.Error("Files wrote to the disk")
 	}
 }
@@ -97,7 +97,7 @@ func TestWriteGeneratesEachTokenOnce(t *testing.T) {
 		t.Fatalf("Write: %v", err)
 	}
 
-	core := readEnv(p.Core)
+	core := ReadEnv(p.Core)
 	if core["KUMOSS_IAC_TOKEN"] != s.Secrets.IACToken {
 		t.Errorf("core iac token %q != state %q", core["KUMOSS_IAC_TOKEN"], s.Secrets.IACToken)
 	}

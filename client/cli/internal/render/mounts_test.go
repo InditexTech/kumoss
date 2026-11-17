@@ -22,7 +22,7 @@ func TestCloudKeyFilesAreMountedAndPointedAt(t *testing.T) {
 		GCP:        &state.GCPAuth{KeyFile: "/home/me/gcp.json"},
 		Kubernetes: &state.KubernetesAuth{KubeconfigPath: "/home/me/kube/config"},
 	}}
-	vars := cloudVars(s.Cloud)
+	vars := CloudVars(s.Cloud)
 	if vars["GOOGLE_APPLICATION_CREDENTIALS"] != "/etc/kumoss/creds/gcp/gcp.json" {
 		t.Errorf("GCP credentials = %q", vars["GOOGLE_APPLICATION_CREDENTIALS"])
 	}
@@ -74,7 +74,7 @@ func TestEachCloudGetsItsOwnMountPoint(t *testing.T) {
 	}
 
 	// Each var must resolve inside its own mount, or the engine looks elsewhere.
-	vars := cloudVars(s.Cloud)
+	vars := CloudVars(s.Cloud)
 	for _, c := range []struct{ env, host string }{
 		{"GOOGLE_APPLICATION_CREDENTIALS", "/home/me/gcp"},
 		{"OCI_CONFIG_FILE", "/home/me/oci"},
@@ -97,7 +97,7 @@ func TestGCPInlineJSONNeedsNoMount(t *testing.T) {
 	s := &state.State{Cloud: state.Cloud{GCP: &state.GCPAuth{
 		Method: "json", InlineJSON: `{"type":"service_account"}`, KeyFile: "/ignored/key.json",
 	}}}
-	vars := cloudVars(s.Cloud)
+	vars := CloudVars(s.Cloud)
 	if vars["GOOGLE_CREDENTIALS"] != `{"type":"service_account"}` {
 		t.Errorf("GOOGLE_CREDENTIALS = %q", vars["GOOGLE_CREDENTIALS"])
 	}
@@ -112,7 +112,7 @@ func TestGCPInlineJSONNeedsNoMount(t *testing.T) {
 // No key must not become a directory path, or the engine opens that instead of
 // falling back to Application Default Credentials.
 func TestGCPWithoutAKeyLeavesThePathEmpty(t *testing.T) {
-	vars := cloudVars(state.Cloud{GCP: &state.GCPAuth{Method: "file"}})
+	vars := CloudVars(state.Cloud{GCP: &state.GCPAuth{Method: "file"}})
 	if v := vars["GOOGLE_APPLICATION_CREDENTIALS"]; v != "" {
 		t.Errorf("GOOGLE_APPLICATION_CREDENTIALS = %q, want empty", v)
 	}
@@ -120,7 +120,7 @@ func TestGCPWithoutAKeyLeavesThePathEmpty(t *testing.T) {
 
 // A mount alone leaves the engine reading the image's own empty ~/.aws.
 func TestAWSProfilePointsAtTheMountedDirectory(t *testing.T) {
-	vars := cloudVars(state.Cloud{AWS: &state.AWSAuth{Method: "profile", Profile: "prod", Region: "eu-west-1"}})
+	vars := CloudVars(state.Cloud{AWS: &state.AWSAuth{Method: "profile", Profile: "prod", Region: "eu-west-1"}})
 	if vars["AWS_SHARED_CREDENTIALS_FILE"] != "/etc/kumoss/aws/credentials" {
 		t.Errorf("AWS_SHARED_CREDENTIALS_FILE = %q", vars["AWS_SHARED_CREDENTIALS_FILE"])
 	}

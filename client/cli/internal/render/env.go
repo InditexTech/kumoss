@@ -77,7 +77,7 @@ func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 	var s state.Secrets
 	found := false
 	for _, path := range []string{p.Core, p.IAC, p.Notifications} {
-		vars := readEnv(path)
+		vars := ReadEnv(path)
 		if len(vars) == 0 {
 			continue
 		}
@@ -99,7 +99,7 @@ func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 // never written to kumoss.yaml. Without it a reconfigure or `config cloud`
 // opens the forms blank and the next write drops the key.
 func FillCloud(s *state.State, p EnvPaths) {
-	vars := readEnv(p.IAC)
+	vars := ReadEnv(p.IAC)
 	if len(vars) == 0 {
 		return
 	}
@@ -224,7 +224,7 @@ func (e *Env) owned(s *state.State) map[string]string {
 			owned[k] = v
 		}
 	}
-	for k, v := range cloudVars(s.Cloud) {
+	for k, v := range CloudVars(s.Cloud) {
 		owned[k] = v
 	}
 	for k, v := range s.Storage.BackendCredentials {
@@ -272,7 +272,7 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 		"KUMOSS_IAC_TOKEN": s.Secrets.IACToken,
 		"IAC_BINARY":       s.Engine.Binary,
 	}
-	for k, v := range cloudVars(s.Cloud) {
+	for k, v := range CloudVars(s.Cloud) {
 		iac[k] = v
 	}
 	for k, v := range s.Storage.BackendCredentials {
@@ -294,9 +294,9 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 	}
 }
 
-// cloudVars flattens the picked clouds into the iac env vars; the cloud step
+// CloudVars flattens the picked clouds into the iac env vars; the cloud step
 // nils the rest.
-func cloudVars(c state.Cloud) map[string]string {
+func CloudVars(c state.Cloud) map[string]string {
 	vars := map[string]string{}
 	if a := c.AWS; a != nil {
 		if a.Method == "profile" {
@@ -368,9 +368,9 @@ func writeEnv(path string, vars map[string]string) error {
 	return writeFile(path, RenderEnvFile(vars), 0o600)
 }
 
-// readEnv parses KEY=value lines. A malformed line is skipped, not fatal: a
+// ReadEnv parses KEY=value lines. A malformed line is skipped, not fatal: a
 // hand-edited file should not block the run.
-func readEnv(path string) map[string]string {
+func ReadEnv(path string) map[string]string {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil

@@ -21,7 +21,7 @@ const (
 	ContainerAWSProfile = "/etc/kumoss/aws"
 )
 
-// Per-cloud subdirectory names, shared with cloudVars so the mount target and
+// Per-cloud subdirectory names, shared with CloudVars so the mount target and
 // the env var cannot drift apart.
 const (
 	cloudGCP  = "gcp"
@@ -44,7 +44,7 @@ type Mount struct {
 	Target  string // container directory
 }
 
-// containerPath is where one cloud's credential file lands, and what cloudVars
+// containerPath is where one cloud's credential file lands, and what CloudVars
 // writes into services/iac/.env.
 func containerPath(cloud, host string) string {
 	return credsDir(cloud) + "/" + filepath.Base(host)

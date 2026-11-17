@@ -40,12 +40,12 @@ func TestWriteGeneratesTokensAndWritesEveryFile(t *testing.T) {
 		t.Fatal("tokens not generated onto the state")
 	}
 	// The same token must reach core and iac, or the core's bearer is rejected.
-	core := readEnv(p.Core)
-	iac := readEnv(p.IAC)
+	core := ReadEnv(p.Core)
+	iac := ReadEnv(p.IAC)
 	if core["KUMOSS_IAC_TOKEN"] != s.Secrets.IACToken || iac["KUMOSS_IAC_TOKEN"] != s.Secrets.IACToken {
 		t.Errorf("iac token differs between files: core=%q iac=%q", core["KUMOSS_IAC_TOKEN"], iac["KUMOSS_IAC_TOKEN"])
 	}
-	if readEnv(p.Notifications)["KUMOSS_NOTIFICATIONS_TOKEN"] != s.Secrets.NotificationsToken {
+	if ReadEnv(p.Notifications)["KUMOSS_NOTIFICATIONS_TOKEN"] != s.Secrets.NotificationsToken {
 		t.Error("notifications token not written")
 	}
 }
@@ -75,7 +75,7 @@ func TestWriteKeepsExistingTokens(t *testing.T) {
 	if err := e.Write(p, s); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	if got := readEnv(p.Core)["KUMOSS_IAC_TOKEN"]; got != "keep-me" {
+	if got := ReadEnv(p.Core)["KUMOSS_IAC_TOKEN"]; got != "keep-me" {
 		t.Errorf("token rotated: %q", got)
 	}
 }
@@ -129,7 +129,7 @@ func TestFallbackFilesMatchTheComposeDefaults(t *testing.T) {
 	if err := (&Env{}).Write(p, &state.State{}); err != nil {
 		t.Fatalf("Write: %v", err)
 	}
-	core := readEnv(p.Core)
+	core := ReadEnv(p.Core)
 	if core["RUSTFS_ACCESS_KEY"] != "rustfsadmin" || core["RUSTFS_SECRET_KEY"] != "rustfsadmin" {
 		t.Errorf("rustfs keys = %q/%q, want the compose defaults", core["RUSTFS_ACCESS_KEY"], core["RUSTFS_SECRET_KEY"])
 	}
@@ -170,7 +170,7 @@ func TestWriteEnvSortsAndKeepsEmptyKeys(t *testing.T) {
 	}
 }
 
-// readEnv tolerates comments, blanks, junk and quotes: a hand-edited file must
+// ReadEnv tolerates comments, blanks, junk and quotes: a hand-edited file must
 // not block the run.
 func TestReadEnvToleratesHandEdits(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "x.env")
@@ -178,7 +178,7 @@ func TestReadEnvToleratesHandEdits(t *testing.T) {
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write: %v", err)
 	}
-	got := readEnv(path)
+	got := ReadEnv(path)
 	if got["A"] != "1" || got["B"] != "two" || got["C"] != "three" {
 		t.Errorf("parsed = %v", got)
 	}
@@ -187,9 +187,9 @@ func TestReadEnvToleratesHandEdits(t *testing.T) {
 	}
 }
 
-// cloudVars writes only the picked clouds; the cloud step nils the rest.
+// CloudVars writes only the picked clouds; the cloud step nils the rest.
 func TestCloudVarsOnlyWritesPickedClouds(t *testing.T) {
-	got := cloudVars(state.Cloud{
+	got := CloudVars(state.Cloud{
 		AWS:   &state.AWSAuth{Method: "static", AccessKey: "ak", SecretKey: "sk", Region: "eu-west-1"},
 		Azure: &state.AzureAuth{TenantID: "t", ClientID: "c", ClientSecret: "s"},
 	})
@@ -210,7 +210,7 @@ func TestCloudVarsOnlyWritesPickedClouds(t *testing.T) {
 
 // The AWS named-profile method writes AWS_PROFILE instead of static keys.
 func TestCloudVarsAWSProfile(t *testing.T) {
-	got := cloudVars(state.Cloud{AWS: &state.AWSAuth{Method: "profile", Profile: "corp"}})
+	got := CloudVars(state.Cloud{AWS: &state.AWSAuth{Method: "profile", Profile: "corp"}})
 	if got["AWS_PROFILE"] != "corp" {
 		t.Errorf("AWS_PROFILE = %q", got["AWS_PROFILE"])
 	}
