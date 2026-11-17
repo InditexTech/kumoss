@@ -40,8 +40,9 @@ func (s *stubUI) RunDocker() (bool, error) { return false, nil }
 // stubDocker satisfies docker.Runner; no test starts the stack.
 type stubDocker struct{}
 
-func (stubDocker) Pull(context.Context) error           { return nil }
-func (stubDocker) Up(context.Context, bool, bool) error { return nil }
+func (stubDocker) PS(context.Context) ([]docker.PS, error) { return nil, nil }
+func (stubDocker) Pull(context.Context) error              { return nil }
+func (stubDocker) Up(context.Context, bool, bool) error    { return nil }
 
 var _ docker.Runner = stubDocker{}
 

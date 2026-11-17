@@ -19,6 +19,9 @@ import (
 // Runner is the seam the pipeline talks to; tests stub it, Compose implements
 // it for real.
 type Runner interface {
+	// PS lists the stack's containers, including the stopped ones, so a
+	// caller can tell an empty home from a stack that merely exited.
+	PS(ctx context.Context) ([]PS, error)
 	// Pull fetches the images that are missing, streaming progress — a large
 	// pull is otherwise a silent wait. A re-run does no network work.
 	Pull(ctx context.Context) error
