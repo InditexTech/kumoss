@@ -15,7 +15,17 @@ SPDX-License-Identifier: Apache-2.0
 rebuilding the core after every change — with a short wizard that writes them
 all, consistently, into a managed directory.
 
-**[Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/)** ·
+> **Local development only.** The CLI starts the bundled single-machine Compose
+> stack and is not intended for production use: the default `config.yaml` runs
+> with authentication off, the stack serves plain HTTP, and the Postgres and
+> object-storage credentials are the ones the bundled Compose file hardcodes.
+> For a deployment, see
+> [Deploy to production](https://inditextech.github.io/kumoss/stable/main/guides/deploy-to-production/)
+> and
+> [Deploy with Helm](https://inditextech.github.io/kumoss/stable/main/guides/deploy-with-helm/).
+
+**[CLI quickstart](https://inditextech.github.io/kumoss/stable/main/cli/quickstart/)** ·
+**[How the CLI works](https://inditextech.github.io/kumoss/stable/main/cli/how-it-works/)** ·
 **[Documentation](https://inditextech.github.io/kumoss/stable/)** ·
 **[Prerequisites](https://inditextech.github.io/kumoss/stable/main/prerequisites/)** ·
 **[Issues](https://github.com/InditexTech/kumoss/issues)**
@@ -58,7 +68,7 @@ identical across pairs of `.env` files, rebuild the core image after every
 configuration change, and diagnose boot failures from a troubleshooting list.
 
 `kumoss init` does all of that through an interactive terminal UI. It asks only
-what the deployment needs, generates every secret, writes every file with
+what the local stack needs, generates every secret, writes every file with
 consistent values, mounts `config.yaml` so a change needs a container recreate
 instead of an image rebuild, and offers to start the stack.
 
@@ -87,7 +97,7 @@ kumoss init
 
 ### 🧭 What the CLI does for you
 
-- **Asks only what the deployment needs.** LLM provider and credentials, Git host, cloud credentials, IaC engine, state backend, optional Slack notifications.
+- **Asks only what the local stack needs.** LLM provider and credentials, Git host, cloud credentials, IaC engine, state backend, optional Slack notifications.
 - **Generates the shared secrets.** The core ↔ sidecar bearer tokens are random, written identically to both sides — nothing to paste twice or keep in step by hand.
 - **Keeps the repository authoritative.** `config.yaml` is overlaid, not replaced: every key the wizard does not own keeps the value and behaviour the project ships.
 - **Configuration without rebuilds.** The generated `config.yaml` is bind-mounted over the path the core already reads, so a change needs `docker compose up -d --force-recreate core`, never an image build.
@@ -115,8 +125,8 @@ kumoss init
 | **Identity**        | —                        | OIDC and the bootstrap administrator             |
 | **Authorization**   | —                        | The mapping and authorization contracts          |
 
-Production deployment (Kubernetes, Azure Container Apps, secret stores, TLS
-termination) is out of scope: see
+The CLI is for local development only. Production deployment (Kubernetes,
+Azure Container Apps, secret stores, TLS termination) is out of scope: see
 **[Deploy to production](https://inditextech.github.io/kumoss/stable/main/guides/deploy-to-production/)**.
 
 ## How it works
@@ -158,6 +168,9 @@ existing stack.
 | `KUMOSS_VERSION`      | latest release                                       | Pin a version              |
 | `KUMOSS_INSTALL_DIR`  | `~/.local/bin`                                       | Where the binary goes      |
 | `KUMOSS_RELEASE_BASE` | `https://github.com/InditexTech/kumoss/releases`     | Release host, for a mirror |
+
+The CLI ships in the 1.1.0 release. Earlier tags predate it, so pinning
+anything below that leaves you without a `kumoss` binary.
 
 ### Upgrading in place
 
@@ -265,7 +278,9 @@ Stops the stack and deletes the managed home. See [Uninstalling](#uninstalling).
 ### `kumoss version`
 
 Prints `kumoss <cli-version> (stack <tag>)`. The version is also the tag the CLI
-fetches the stack from, so a released binary always matches its stack.
+fetches the stack from, so a released binary always matches its stack: 1.2.3
+reports `kumoss 1.2.3 (stack 1.2.3)`, and a source build reports `dev` with the
+tag from `KUMOSS_TAG`, else `main`.
 
 ### `kumoss self-install`
 
@@ -366,6 +381,9 @@ ok   docker daemon    server 27.1.1
 ok   home             /home/me/.kumoss
 ok   generated files  agree with kumoss.yaml
 ```
+
+The version and Docker versions in these samples are illustrative; yours will
+differ.
 
 A machine with no install yet, and a Compose that is too old:
 
@@ -470,9 +488,13 @@ valid.
 **Pin a version.**
 
 ```bash
-KUMOSS_VERSION=1.2.3 curl -fsSL .../install.sh | bash
-kumoss version                    # kumoss 1.2.3 (stack v1.2.3)
+curl -fsSL https://raw.githubusercontent.com/InditexTech/kumoss/main/install.sh | KUMOSS_VERSION=1.2.3 bash
+kumoss version                    # kumoss 1.2.3 (stack 1.2.3)
 ```
+
+The variable has to reach `bash`, not `curl`: a prefix on the left of the pipe
+is scoped to `curl` only. The first release with the CLI is 1.1.0, so pin
+nothing below that.
 
 ## Uninstalling
 
