@@ -206,7 +206,6 @@ class ManifestVarFile(BaseModel):
     """An optional variables file the user may pick, passed as `-var-file`."""
 
     path: str = Field(description="Relative to the root module.")
-    selected: bool = Field(description="Currently picked in the manifest.")
     sets: list[str] = Field(
         description="Variables the file sets: picking it answers those among `missing_variables`.",
     )
@@ -240,10 +239,20 @@ class ManifestProbeResponse(BaseModel):
         ),
     )
     missing_variables: list[ManifestVariable] = Field(
-        description="Variables to answer: required ones nothing covers, and secrets whose value is gone.",
+        description=(
+            "Variables to answer: required ones nothing covers, and secrets whose value is "
+            "gone. Includes those only a picked var file sets (see `selected_var_files`): "
+            "they need an answer only when no picked file sets them."
+        ),
     )
     selectable_var_files: list[ManifestVarFile] = Field(
         description="Optional var files to choose from (answer with `manifest.var_files`).",
+    )
+    selected_var_files: list[str] = Field(
+        description=(
+            "The manifest's current pick among `selectable_var_files`, in the order they "
+            "are passed (a later file wins)."
+        ),
     )
     missing_var_files: list[str] = Field(
         description="Picked var files that no longer exist: a new selection is needed.",
@@ -252,7 +261,8 @@ class ManifestProbeResponse(BaseModel):
 
     @classmethod
     def from_resolution(cls, resolution: ManifestResolution) -> "ManifestProbeResponse":
-        selected = set(resolution.manifest.var_files) if resolution.manifest else set()
+        selectable = {f.path for f in resolution.selectable_var_files}
+        selected = resolution.manifest.var_files if resolution.manifest else ()
         return cls(
             status=resolution.status.value,
             needs_input=resolution.needs_input,
@@ -264,14 +274,13 @@ class ManifestProbeResponse(BaseModel):
                     required=v.required,
                     sensitive=v.sensitive,
                 )
-                for v in resolution.missing_variables
+                for v in resolution.unanswered_variables
             ],
             selectable_var_files=[
-                ManifestVarFile(
-                    path=f.path, selected=f.path in selected, sets=sorted(f.assigns)
-                )
+                ManifestVarFile(path=f.path, sets=sorted(f.assigns))
                 for f in resolution.selectable_var_files
             ],
+            selected_var_files=[p for p in selected if p in selectable],
             missing_var_files=list(resolution.missing_var_files),
             provider_changes=[
                 ManifestProviderChange(

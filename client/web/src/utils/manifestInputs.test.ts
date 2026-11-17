@@ -26,9 +26,10 @@ const PROBE: ManifestProbeResponse = {
     { name: "enabled", type: "bool", description: "", required: true, sensitive: false },
   ],
   selectable_var_files: [
-    { path: "envs/dev.tfvars", selected: false, sets: ["region"] },
-    { path: "envs/pro.tfvars", selected: true, sets: [] },
+    { path: "envs/dev.tfvars", sets: ["region", "enabled"] },
+    { path: "envs/pro.tfvars", sets: [] },
   ],
+  selected_var_files: ["envs/pro.tfvars"],
   missing_var_files: [],
   provider_changes: [],
 };
@@ -79,6 +80,11 @@ describe("var file selection", () => {
     const picked = toggleVarFile(state.varFiles, "envs/dev.tfvars");
     expect(picked).toEqual(["envs/pro.tfvars", "envs/dev.tfvars"]);
     expect(toggleVarFile(picked, "envs/pro.tfvars")).toEqual(["envs/dev.tfvars"]);
+  });
+
+  it("keeps the saved order, not the listing order", () => {
+    const probe = { ...PROBE, selected_var_files: ["envs/pro.tfvars", "envs/dev.tfvars"] };
+    expect(initialFormState(probe).varFiles).toEqual(["envs/pro.tfvars", "envs/dev.tfvars"]);
   });
 });
 
@@ -142,11 +148,54 @@ describe("buildAnswers", () => {
   });
 
   it("sends no var_files when the module has none to choose from", () => {
-    const probe = { ...PROBE, missing_variables: [], selectable_var_files: [] };
+    const probe = {
+      ...PROBE,
+      missing_variables: [],
+      selectable_var_files: [],
+      selected_var_files: [],
+    };
     expect(buildAnswers(probe, initialFormState(probe))).toEqual({
       ok: true,
       answers: { variables: [] },
     });
+  });
+
+  it("clears a selection whose files are all gone", () => {
+    const probe = {
+      ...PROBE,
+      missing_variables: [],
+      selectable_var_files: [],
+      selected_var_files: [],
+      missing_var_files: ["envs/old.tfvars"],
+    };
+    expect(buildAnswers(probe, initialFormState(probe))).toEqual({
+      ok: true,
+      answers: { variables: [], var_files: [] },
+    });
+  });
+
+  it("leaves an untouched switch to the picked var file that sets it", () => {
+    const state = initialFormState(PROBE);
+    state.values = { ...state.values, db_password: "pw", replicas: "1" };
+    state.varFiles = ["envs/dev.tfvars"];
+    state.values.region = "";
+    const fromFile = buildAnswers(PROBE, state);
+    expect(fromFile.ok && fromFile.answers.variables.map((v) => v.name)).toEqual([
+      "db_password",
+      "replicas",
+    ]);
+
+    // Not covered by a file: an untouched switch is sent as off.
+    state.varFiles = [];
+    state.values.region = '{"a": "b"}';
+    const noFile = buildAnswers(PROBE, state);
+    expect(noFile.ok && noFile.answers.variables[noFile.answers.variables.length - 1]).toEqual({ name: "enabled", value: false });
+
+    // Switched (even back off): the user's choice wins over the file.
+    state.varFiles = ["envs/dev.tfvars"];
+    state.values.enabled = false;
+    const touched = buildAnswers(PROBE, state);
+    expect(touched.ok && touched.answers.variables[touched.answers.variables.length - 1]).toEqual({ name: "enabled", value: false });
   });
 });
 

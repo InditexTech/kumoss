@@ -267,7 +267,8 @@ class TestReconcile(unittest.TestCase):
             res, {"owners": VariableAnswer(["a"], sensitive=False)}, None, secrets
         )
         self.assertEqual(manifest.variable("owners"), Variable("owners", ["a"]))
-        self.assertEqual(secrets, {})
+        # Another branch may still bind it as a secret: the value is kept.
+        self.assertEqual(secrets, {"owners": ["a"]})
 
     def test_variable_newly_declared_sensitive_moves_to_secrets(self):
         plain = requirements(variables=(OWNERS,))
@@ -289,14 +290,30 @@ class TestReconcile(unittest.TestCase):
         )
         self.assertEqual(secrets, {"owners": ["a"]})
 
-    def test_removed_variables_are_pruned_with_their_secrets(self):
+    def test_removed_variables_are_pruned_but_their_secrets_kept(self):
         manifest, secrets = configured(requirements())
         shrunk = requirements(variables=(REGION,))
         res = resolve_manifest(shrunk, manifest, stored_secrets=secrets.keys())
         self.assertEqual(res.stale_variables, ("db_password",))
         manifest, secrets = reconcile_manifest(res, {}, None, secrets)
         self.assertEqual([v.name for v in manifest.variables], ["region"])
-        self.assertEqual(secrets, {})
+        # The store is shared by every branch; older ones may still need it.
+        self.assertEqual(secrets, {"db_password": "s3cr3t"})
+
+    def test_platform_variable_cannot_be_answered(self):
+        req = requirements(variables=(VariableSpec("compartment_ocid", "string"),))
+        res = resolve_manifest(
+            req,
+            None,
+            platform_variables(TerraformProvider.OCI),
+            stored_secrets=(),
+        )
+        with self.assertRaises(ManifestInputError) as ctx:
+            _ = reconcile_manifest(
+                res, {"compartment_ocid": VariableAnswer("ocid1.other")}, None, {}
+            )
+        self.assertIn("compartment_ocid", ctx.exception.message)
+        self.assertEqual(ctx.exception.error_code, 422)
 
     def test_incomplete_answers_are_rejected_with_the_missing_names(self):
         res = resolve_manifest(requirements(), None, stored_secrets=())
@@ -509,6 +526,28 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             _ = await self.configure()
         self.assertIsNone(self.manifests.stored)
+
+    async def test_saving_secrets_keeps_values_saved_meanwhile(self):
+        _ = await self.configure()
+        # Another branch's session stores a secret after this one loaded.
+        self.secrets.values = {**self.secrets.values, "other": "x"}
+        stale = dict(self.secrets.values)
+        del stale["other"]
+        original_load = self.secrets.load
+        calls = 0
+
+        async def load_then_latest(module: RootModuleRef) -> dict[str, JsonValue]:
+            nonlocal calls
+            calls += 1
+            return stale if calls == 1 else await original_load(module)
+
+        self.secrets.load = load_then_latest
+        _ = await self.service.configure(
+            MODULE, {"db_password": VariableAnswer("rotated")}
+        )
+        self.assertEqual(
+            self.secrets.values, {"db_password": "rotated", "other": "x"}
+        )
 
     async def test_inputs_require_a_complete_configuration(self):
         self.assertEqual(await self.service.inputs(MODULE), TerraformInputs())

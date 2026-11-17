@@ -19,9 +19,10 @@ const PROBE: ManifestProbeResponse = {
     { name: "db_password", type: "string", description: "", required: true, sensitive: true },
   ],
   selectable_var_files: [
-    { path: "envs/dev.tfvars", selected: false, sets: ["region"] },
-    { path: "envs/pro.tfvars", selected: false, sets: [] },
+    { path: "envs/dev.tfvars", sets: ["region"] },
+    { path: "envs/pro.tfvars", sets: [] },
   ],
+  selected_var_files: [],
   missing_var_files: [],
   provider_changes: [],
 };

@@ -37,7 +37,12 @@ from src.domains.value_objects.token_claims import TokenClaims
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
-from src.shared.constants import OperationRole, OperationType, SessionStatus
+from src.shared.constants import (
+    OperationRole,
+    OperationType,
+    SessionStatus,
+    TerraformProvider,
+)
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -64,35 +69,63 @@ async def _resolve_or_raise(
 ) -> SessionContext:
     """Validate URI, authorize via PDP, and resolve to a SessionContext.
 
-    First-call (has ``repo_uri``): URI validation → authz (from request
-    body) → session creation. Iteration / session-only (has
-    ``session_id``): ownership check → session load → authz (from
-    ``SessionContext``).
+    Every call is checked. First-call (has ``repo_uri``): URI validation →
+    authz (from request body) → session creation, so a rejected request
+    leaves no session behind. Iteration / session-only (has
+    ``session_id``): ownership check → session load → operation check →
+    URI validation → authz (from ``SessionContext``).
     """
 
-    if request.session_id is not None:
-        await assert_session_access(user, request.session_id, write=True)
     try:
+        if isinstance(request, BaseIacRequest) and request.session_id is None:
+            await _check_access(
+                claims,
+                operation,
+                scope_id=request.scope_id,
+                provider=request.terraform_providers,
+                repo_uri=request.repo_uri,
+                root_module_path=request.root_module_path,
+            )
+            return await _orchestration.resolve(request, operation, user.id)
+
+        await assert_session_access(user, request.session_id, write=True)
         ctx = await _orchestration.resolve(request, operation, user.id)
         if operation is not OperationType.APPLY and ctx.operation is not operation:
             raise HTTPException(
                 status_code=409,
                 detail="The requested operation does not match the session operation.",
             )
-
-        await _workspace.validate_uri(ctx.repo_uri)
-        await authorize(
+        await _check_access(
             claims,
-            ActionName(operation.value),
+            operation,
             scope_id=ctx.scope_id,
             provider=ctx.terraform_prv,
             repo_uri=ctx.repo_uri,
             root_module_path=ctx.root_module_path,
         )
-
         return ctx
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
+
+
+async def _check_access(
+    claims: TokenClaims,
+    operation: OperationType,
+    *,
+    scope_id: str,
+    provider: TerraformProvider,
+    repo_uri: str,
+    root_module_path: str | None,
+) -> None:
+    await _workspace.validate_uri(repo_uri)
+    await authorize(
+        claims,
+        ActionName(operation.value),
+        scope_id=scope_id,
+        provider=provider,
+        repo_uri=repo_uri,
+        root_module_path=root_module_path,
+    )
 
 
 @dataclass(frozen=True)

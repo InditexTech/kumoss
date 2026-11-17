@@ -33,6 +33,7 @@ const NOTHING_NEEDED: ManifestProbeResponse = {
   needs_input: false,
   missing_variables: [],
   selectable_var_files: [],
+  selected_var_files: [],
   missing_var_files: [],
   provider_changes: [],
 };
@@ -941,6 +942,7 @@ describe("useHomeWizard — root module inputs", () => {
       { name: "region", type: "string", description: "", required: true, sensitive: false },
     ],
     selectable_var_files: [],
+    selected_var_files: [],
     missing_var_files: [],
     provider_changes: [],
   };

@@ -205,6 +205,7 @@ export const STRINGS = {
       missingVarFiles: "No longer in the repository:",
       setByVarFile: "Set by {file}",
       setByVarFilePlaceholder: "Leave empty to use {file}",
+      boolFromVarFile: "From {file} unless switched",
       secretLabel: "Secret",
       secretHelp: "Kept out of the repository: only the name is committed.",
       secretLocked: "Declared sensitive: always stored as a secret",

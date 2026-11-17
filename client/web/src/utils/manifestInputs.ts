@@ -35,6 +35,7 @@ export type Parsed = { ok: true; value: ManifestValue } | { ok: false; error: st
  */
 export function parseInput(kind: InputKind, raw: string | boolean): Parsed {
   const S = STRINGS.wizard.inputs;
+  // An untouched switch ("") reads as off.
   if (kind === "bool") return { ok: true, value: raw === true };
   const text = typeof raw === "string" ? raw : String(raw);
   // Only asked variables reach here, all of which need a value: an empty
@@ -62,6 +63,7 @@ export function parseInput(kind: InputKind, raw: string | boolean): Parsed {
 }
 
 export interface InputsFormState {
+  /** As entered; "" while untouched (a bool switch included, which shows off). */
   values: Record<string, string | boolean>;
   /** Store as secret, as toggled by the user (declared-sensitive ones are forced on). */
   secret: Record<string, boolean>;
@@ -71,11 +73,11 @@ export interface InputsFormState {
 
 export function initialFormState(probe: ManifestProbeResponse): InputsFormState {
   return {
-    values: Object.fromEntries(
-      probe.missing_variables.map((v) => [v.name, inputKind(v.type) === "bool" ? false : ""]),
-    ),
+    // Untouched, so a picked var file setting the variable is not overridden.
+    values: Object.fromEntries(probe.missing_variables.map((v) => [v.name, ""])),
     secret: Object.fromEntries(probe.missing_variables.map((v) => [v.name, v.sensitive])),
-    varFiles: probe.selectable_var_files.filter((f) => f.selected).map((f) => f.path),
+    // The saved order matters: a later file wins.
+    varFiles: [...probe.selected_var_files],
   };
 }
 
@@ -129,7 +131,11 @@ export function buildAnswers(
     ok: true,
     answers: {
       variables,
-      ...(probe.selectable_var_files.length > 0 ? { var_files: state.varFiles } : {}),
+      // Omitting var_files keeps the saved selection, which must not stand
+      // when some of it is gone, even with nothing left to pick instead.
+      ...(probe.selectable_var_files.length > 0 || probe.missing_var_files.length > 0
+        ? { var_files: state.varFiles }
+        : {}),
     },
   };
 }

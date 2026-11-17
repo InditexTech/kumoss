@@ -71,16 +71,26 @@ class _OutsideWorkspace(Exception):
     pass
 
 
+_TF_VAR_PREFIX = "TF_VAR_"
+
+
 @contextmanager
-def _var_file_args(cwd: Path, inputs: RunInputs | None) -> Generator[list[str]]:
+def _var_file_args(
+    cwd: Path, inputs: RunInputs | None, env: Mapping[str, str] | None = None
+) -> Generator[list[str]]:
     """``-var-file`` arguments for ``inputs``, valid while the context is open.
 
     ``variables`` are written to an owner-only temporary file outside the
     workspace (the workspace may be committed or shared) and removed on
     exit. A var file that resolves outside the workspace, e.g. through a
     symlink, raises ``_OutsideWorkspace``.
+
+    The scope bindings among ``env`` (its ``TF_VAR_*`` entries) go into
+    that file too, after ``variables``: a ``-var-file`` outranks the
+    environment, so without this a var file or value could retarget the
+    command away from the authorized scope.
     """
-    if inputs is None:
+    if inputs is None or not (inputs.var_files or inputs.variables):
         yield []
         return
     root = cwd.resolve()
@@ -89,13 +99,19 @@ def _var_file_args(cwd: Path, inputs: RunInputs | None) -> Generator[list[str]]:
         if not (cwd / var_file).resolve().is_relative_to(root):
             raise _OutsideWorkspace(var_file)
         args.append(f"-var-file={var_file}")
-    if not inputs.variables:
+    scope = {
+        name.removeprefix(_TF_VAR_PREFIX): value
+        for name, value in (env or {}).items()
+        if name.startswith(_TF_VAR_PREFIX)
+    }
+    values = {**inputs.variables, **scope}
+    if not values:
         yield args
         return
     fd, path = tempfile.mkstemp(prefix="iac-vars-", suffix=".tfvars.json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
-            json.dump(dict(inputs.variables), f)
+            json.dump(values, f)
         yield [*args, f"-var-file={path}"]
     finally:
         Path(path).unlink(missing_ok=True)
@@ -205,7 +221,7 @@ class IacEngine:
         positional: list[str] | None = None,
     ) -> CommandResult:
         try:
-            with _var_file_args(cwd, inputs) as var_args:
+            with _var_file_args(cwd, inputs, env) as var_args:
                 return await self._run(
                     [*args, *var_args, *(positional or [])], cwd, env
                 )

@@ -180,7 +180,7 @@ export default function InputsForm({
           </section>
 
           <aside className={styles.aside}>
-            {probe.selectable_var_files.length > 0 && (
+            {(probe.selectable_var_files.length > 0 || probe.missing_var_files.length > 0) && (
               <section className={styles.panel} aria-label={S.varFilesHeading}>
                 <h3 className={styles.sectionTitle}>{S.varFilesHeading}</h3>
                 <p className={styles.panelHelp}>{S.varFilesHelp}</p>
@@ -370,7 +370,13 @@ function VariableField({
             onChange={(e) => onValue(variable.name, e.target.checked)}
           />
           <span className={styles.switch} aria-hidden="true" />
-          <span className={styles.boolValue}>{value === true ? S.boolOn : S.boolOff}</span>
+          <span className={styles.boolValue}>
+            {value === true
+              ? S.boolOn
+              : value === "" && setBy
+                ? S.boolFromVarFile.replace("{file}", setBy)
+                : S.boolOff}
+          </span>
         </label>
       ) : isJson ? (
         <textarea

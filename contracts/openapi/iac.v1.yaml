@@ -122,6 +122,12 @@ info:
       over them; files Terraform loads on its own
       (`terraform.tfvars`, `*.auto.tfvars`) still apply underneath.
 
+    When either field is set, the input variables of "Scope injection"
+    (`compartment_ocid` for OCI, `aws_account_id` for AWS) are written
+    into that last file too, after `variables`: a `-var-file` outranks
+    `TF_VAR_*`, and a request's own inputs MUST NOT override the scope
+    it was authorized for.
+
     `variables` may hold secrets. Implementations MUST NOT log or
     persist them, nor write them inside `workspace_path` (which may be
     committed or shared); the reference implementation writes them to

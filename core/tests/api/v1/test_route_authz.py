@@ -129,6 +129,52 @@ class TestResolveOrRaiseFirstCall(unittest.IsolatedAsyncioTestCase):
         mock_authz.assert_called_once()
         self.assertEqual(mock_authz.call_args[0][1], ActionName.IMPORT)
 
+    @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
+    @patch("src.api.v1.terraform._orchestration")
+    @patch("src.api.v1.terraform._workspace")
+    async def test_denied_first_call_creates_no_session(
+        self, mock_ws, mock_orch, mock_authz
+    ):
+        from fastapi import HTTPException
+
+        mock_ws.validate_uri = AsyncMock()
+        mock_orch.resolve = AsyncMock(return_value=_session_ctx())
+        mock_authz.side_effect = HTTPException(status_code=403, detail="Denied")
+        request = GenerateRequest(
+            repo_uri="https://dev.azure.com/org/proj/_git/repo",
+            terraform_providers=TerraformProvider.AZURE,
+            scope_id="sub-123",
+            q="create a resource group",
+        )
+        with self.assertRaises(HTTPException) as cm:
+            await _resolve_or_raise(request, _user(), _claims(), OperationType.GENERATE)
+        self.assertEqual(cm.exception.status_code, 403)
+        mock_orch.resolve.assert_not_awaited()
+
+    @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
+    @patch("src.api.v1.terraform._orchestration")
+    @patch("src.api.v1.terraform._workspace")
+    async def test_unreachable_repo_on_first_call_creates_no_session(
+        self, mock_ws, mock_orch, mock_authz
+    ):
+        from fastapi import HTTPException
+
+        from src.infrastructure.exceptions import RepositoryUnreachable
+
+        mock_ws.validate_uri = AsyncMock(side_effect=RepositoryUnreachable(400))
+        mock_orch.resolve = AsyncMock(return_value=_session_ctx())
+        request = GenerateRequest(
+            repo_uri="https://dev.azure.com/org/proj/_git/repo",
+            terraform_providers=TerraformProvider.AZURE,
+            scope_id="sub-123",
+            q="create a resource group",
+        )
+        with self.assertRaises(HTTPException) as cm:
+            await _resolve_or_raise(request, _user(), _claims(), OperationType.GENERATE)
+        self.assertEqual(cm.exception.status_code, 400)
+        mock_authz.assert_not_awaited()
+        mock_orch.resolve.assert_not_awaited()
+
 
 class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
     """Session-only path: authorize reads from SessionContext, not request."""
@@ -136,8 +182,9 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
     @patch("src.api.v1.terraform.assert_session_access", new_callable=AsyncMock)
+    @patch("src.api.v1.terraform._workspace.validate_uri", new_callable=AsyncMock)
     async def test_apply_passes_action_apply_from_session(
-        self, mock_access, mock_orch, mock_authz
+        self, _mock_validate, mock_access, mock_orch, mock_authz
     ):
         sid = uuid4()
         ctx = _session_ctx(sid, operation=OperationType.GENERATE)
@@ -155,8 +202,9 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
     @patch("src.api.v1.terraform.assert_session_access", new_callable=AsyncMock)
+    @patch("src.api.v1.terraform._workspace.validate_uri", new_callable=AsyncMock)
     async def test_iteration_uses_session_operation_as_action(
-        self, mock_access, mock_orch, mock_authz
+        self, _mock_validate, mock_access, mock_orch, mock_authz
     ):
         sid = uuid4()
         ctx = _session_ctx(sid)
@@ -172,7 +220,10 @@ class TestResolveOrRaiseSessionOnly(unittest.IsolatedAsyncioTestCase):
     @patch("src.api.v1.terraform.authorize", new_callable=AsyncMock)
     @patch("src.api.v1.terraform._orchestration")
     @patch("src.api.v1.terraform.assert_session_access", new_callable=AsyncMock)
-    async def test_authz_deny_raises_403(self, mock_access, mock_orch, mock_authz):
+    @patch("src.api.v1.terraform._workspace.validate_uri", new_callable=AsyncMock)
+    async def test_authz_deny_raises_403(
+        self, _mock_validate, mock_access, mock_orch, mock_authz
+    ):
         from fastapi import HTTPException
 
         sid = uuid4()

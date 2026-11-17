@@ -81,22 +81,24 @@ def resolve_manifest(
     bindings = {v.name: v for v in manifest.variables} if manifest else {}
 
     lost = {n for n, b in bindings.items() if b.sensitive and n not in stored_secrets}
-    covered = (
+    covered_without_selection = (
         {name for f in requirements.auto_var_files for name in f.assigns}
-        | {
-            name
-            for f in requirements.optional_var_files
-            if f.path in selected
-            for name in f.assigns
-        }
         | (bindings.keys() - lost)
         | provided
     )
-    missing = tuple(
+    covered = covered_without_selection | {
+        name
+        for f in requirements.optional_var_files
+        if f.path in selected
+        for name in f.assigns
+    }
+    unanswered = tuple(
         spec
         for spec in requirements.variables
-        if spec.name not in covered and (spec.required or spec.name in lost)
+        if spec.name not in covered_without_selection
+        and (spec.required or spec.name in lost)
     )
+    missing = tuple(spec for spec in unanswered if spec.name not in covered)
     missing_files = tuple(p for p in selected if p not in selectable)
     stale = tuple(sorted(n for n in bindings if n not in declared))
     exposed = tuple(
@@ -122,6 +124,7 @@ def resolve_manifest(
         manifest=manifest,
         provided=provided,
         missing_variables=missing,
+        unanswered_variables=unanswered,
         missing_var_files=missing_files,
         stale_variables=stale,
         exposed_variables=exposed,
@@ -146,14 +149,19 @@ def reconcile_manifest(
     move to the secrets, and each answer replaces its variable's binding.
     ``var_files`` None keeps the current selection.
 
+    Secret values are never pruned: the store is shared by every branch
+    of the repository, and a value this branch no longer binds may still
+    be bound on another one.
+
     Returns:
         The new manifest, fingerprinted against the current requirements,
-        and every secret value the module now has (stale ones pruned).
+        and the secret values: ``stored_secrets`` plus those set here.
 
     Raises:
-        ManifestInputError: When an answer names an unknown variable or has
-            the wrong shape, a var file cannot be selected, or something
-            required is still left uncovered.
+        ManifestInputError: When an answer names an unknown variable, one
+            the platform injects, or has the wrong shape; when a var file
+            cannot be selected; or when something required is still left
+            uncovered.
     """
     requirements = resolution.requirements
     declared = {v.name: v for v in requirements.variables}
@@ -163,17 +171,21 @@ def reconcile_manifest(
         raise ManifestInputError(
             f"The root module declares no variable named: {', '.join(unknown)}.", 422
         )
+    injected = sorted(answers.keys() & resolution.provided)
+    if injected:
+        raise ManifestInputError(
+            f"Set by the platform from the session's scope: {', '.join(injected)}.",
+            422,
+        )
 
     bindings: dict[str, Variable] = {}
-    secrets: dict[str, JsonValue] = {}
+    secrets: dict[str, JsonValue] = dict(stored_secrets)
     for binding in resolution.manifest.variables if resolution.manifest else ():
         spec = declared.get(binding.name)
         if spec is None:
             continue
         if binding.sensitive:
             bindings[binding.name] = binding
-            if binding.name in stored_secrets:
-                secrets[binding.name] = stored_secrets[binding.name]
         elif spec.sensitive:
             bindings[binding.name] = Variable(binding.name, sensitive=True)
             secrets[binding.name] = binding.value
@@ -193,7 +205,6 @@ def reconcile_manifest(
             secrets[name] = answer.value
         else:
             bindings[name] = Variable(name, value=answer.value)
-            _ = secrets.pop(name, None)
 
     manifest = Manifest(
         fingerprint=requirements.fingerprint,
@@ -325,8 +336,13 @@ class ManifestService:
         manifest, secrets = reconcile_manifest(resolution, answers, var_files, stored)
         # Secrets first: a manifest naming a secret that failed to save
         # would be reported as up to date with its value missing.
-        if secrets != stored:
-            await self.__secrets.save(module, secrets)
+        changed = {
+            name: value
+            for name, value in secrets.items()
+            if name not in stored or stored[name] != value
+        }
+        if changed:
+            await self.__save_secrets(module, changed)
         if manifest != resolution.manifest:
             self.__manifests.save(module.directory, manifest)
         return resolve_manifest(
@@ -335,6 +351,20 @@ class ManifestService:
             resolution.provided,
             stored_secrets=secrets.keys(),
         )
+
+
+    async def __save_secrets(
+        self, module: RootModuleRef, changed: Mapping[str, JsonValue]
+    ) -> None:
+        """Write ``changed`` over the latest stored values.
+
+        Re-reading right before the write keeps values another session
+        saved since this one loaded them (and those ``__stored_secrets``
+        skips loading). It narrows the lost-write window; it does not close
+        it, as the store has no conditional write.
+        """
+        latest = await self.__secrets.load(module)
+        await self.__secrets.save(module, {**latest, **changed})
 
 
 def _select_var_files(

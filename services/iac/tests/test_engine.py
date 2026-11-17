@@ -157,3 +157,47 @@ def test_var_file_symlinked_out_of_the_workspace_fails_the_command(
     assert not result.ok
     assert result.exit_code == 1
     assert "outside the workspace" in result.stderr
+
+
+def test_scope_bindings_win_over_var_files_and_values(tmp_path: Path) -> None:
+    """A request's own inputs cannot retarget the command off its scope."""
+    import json
+
+    engine = IacEngine(binary="tofu")
+    seen: dict[str, object] = {}
+
+    async def fake_run(args: list[str], cwd: Path, env: dict[str, str] | None = None):
+        seen["args"] = args
+        seen["content"] = json.loads(
+            Path(args[-1].removeprefix("-var-file=")).read_text()
+        )
+        return CommandResult(ok=True, stdout="", stderr="")
+
+    env = engine.scope_env("oci", "ocid1.compartment.authorized")
+    inputs = RunInputs(
+        var_files=("envs/other.tfvars",),
+        variables={"compartment_ocid": "ocid1.compartment.other", "name": "x"},
+    )
+    with patch.object(IacEngine, "_run", side_effect=fake_run):
+        _ = asyncio.run(engine.plan(tmp_path, [], "p.plan", env, inputs))
+
+    args = seen["args"]
+    assert isinstance(args, list)
+    assert args[-2] == "-var-file=envs/other.tfvars"
+    assert seen["content"] == {
+        "compartment_ocid": "ocid1.compartment.authorized",
+        "name": "x",
+    }
+
+
+def test_no_values_file_without_inputs(tmp_path: Path) -> None:
+    engine = IacEngine(binary="tofu")
+    ok = CommandResult(ok=True, stdout="", stderr="")
+    env = engine.scope_env("aws", "123456789012")
+    with patch.object(
+        IacEngine, "_run", new_callable=AsyncMock, return_value=ok
+    ) as run:
+        _ = asyncio.run(engine.plan(tmp_path, [], "p.plan", env, RunInputs()))
+    run.assert_awaited_once_with(
+        ["plan", "-no-color", "-input=false", "-out", "p.plan"], tmp_path, env
+    )

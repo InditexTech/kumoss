@@ -116,7 +116,6 @@ export interface ManifestVariable {
 
 export interface ManifestVarFile {
   path: string;
-  selected: boolean;
   /** Variables the file sets: picking it answers those that are missing. */
   sets: string[];
 }
@@ -130,8 +129,11 @@ export interface ManifestProviderChange {
 export interface ManifestProbeResponse {
   status: "not_found" | "up_to_date" | "drifted";
   needs_input: boolean;
+  /** To answer; those a picked var file sets need no answer while it stays picked. */
   missing_variables: ManifestVariable[];
   selectable_var_files: ManifestVarFile[];
+  /** The current pick among `selectable_var_files`, in order (a later file wins). */
+  selected_var_files: string[];
   missing_var_files: string[];
   provider_changes: ManifestProviderChange[];
 }

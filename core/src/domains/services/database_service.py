@@ -148,7 +148,9 @@ def _k_first_query(session_id: UUID) -> str:
 
 
 def _k_context(session_id: UUID) -> str:
-    return f"{_CACHE_NS}:session:{session_id}:ctx"
+    # v2: entries carry "root_module_path" (was "iac_path"); a new key keeps
+    # pre-rename caches out, so those sessions are rebuilt from the database.
+    return f"{_CACHE_NS}:session:{session_id}:ctx:v2"
 
 
 def _k_last_status(session_id: UUID) -> str:

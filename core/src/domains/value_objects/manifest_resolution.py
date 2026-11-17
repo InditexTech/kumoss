@@ -29,6 +29,8 @@ class ManifestResolution:
 
     ``missing_variables`` are required variables nothing covers (no var
     file, binding or platform injection): the user has to answer them.
+    ``unanswered_variables`` adds those only a picked optional var file
+    covers: unpicking that file makes them missing again.
     ``missing_var_files`` were picked by the user but no longer exist.
     ``stale_variables`` are bound but no longer declared, and
     ``exposed_variables`` are bound in plain text but now declared
@@ -41,6 +43,7 @@ class ManifestResolution:
     manifest: Manifest | None
     provided: frozenset[str] = frozenset()
     missing_variables: tuple[VariableSpec, ...] = ()
+    unanswered_variables: tuple[VariableSpec, ...] = ()
     missing_var_files: tuple[str, ...] = ()
     stale_variables: tuple[str, ...] = ()
     exposed_variables: tuple[str, ...] = ()
