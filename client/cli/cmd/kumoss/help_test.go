@@ -56,10 +56,11 @@ func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
 		"\nhome\n",
 		"--reset",
 		"\nconfig\n",
+		"\ndoctor\n",
 		"\nlogs\n",
 		"--since string",
 		"\nstatus\n",
-		"doctor, self-install, version",
+		"self-install, version",
 		"(no flags)",
 	} {
 		if !strings.Contains(got, want) {

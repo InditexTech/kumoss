@@ -93,6 +93,7 @@ kumoss init
 - **Configuration without rebuilds.** The generated `config.yaml` is bind-mounted over the path the core already reads, so a change needs `docker compose up -d --force-recreate core`, never an image build.
 - **Idempotent.** Every step is safe to repeat; a failed run is fixed by running it again, and an existing install is offered a reconfigure or a keep.
 - **Refuses to start a stack that cannot work.** `kumoss run` reconciles the recorded answers against the generated files and the credentials they need, and names the command that fixes each problem instead of handing compose a stack that boots into an error.
+- **Says what the machine is missing.** `kumoss doctor` checks docker, Compose, the daemon and the home in one pass, so "it will not start" becomes a named failure instead of a guess. It only reads.
 
 ### 🏢 Designed to fit the stack you already run
 
@@ -333,9 +334,54 @@ kumoss status
 
 ### `kumoss doctor`
 
-Registered as a placeholder and currently does nothing. Use `docker compose`
-against `~/.kumoss/src` in the meantime; see
-[Day-2 operations](#day-2-operations).
+Checks what the stack needs from the machine before anything starts. It only
+reads: doctor writes nothing, and never creates the managed home.
+
+- **docker** on `PATH`, with its version when it answers.
+- **Docker Compose** v2 or newer — v1 lacks the flags `run` and `status` pass.
+  Newer majors are accepted, not just 2.
+- **The daemon** answering. A missing binary and a stopped daemon are different
+  failures, so they get different lines.
+- **The managed home** writable, since `init` writes every generated file there.
+  A home that does not exist yet is reported as such, not created. This reads
+  permission bits: a read-only mount or an ACL that denies the write is only
+  found by `init`.
+- **The generated files** still agreeing with `kumoss.yaml`, the same checks
+  `run` makes. A home with no `kumoss.yaml` yet is not an error — the line is
+  skipped and the command tells you how to install there: plain `kumoss init`
+  for the default root, `kumoss init --home <dir>` when the root came from
+  `--home`, `KUMOSS_HOME` or a persisted pointer. Without the flag, `init` would
+  write `~/.kumoss` instead of the home doctor just checked.
+
+Every check is printed, so one failure does not hide the rest, and the command
+exits non-zero if any failed.
+
+```console
+$ kumoss doctor
+Kumoss 1.2.0 (stack main)
+
+ok   docker           /usr/bin/docker (Docker version 27.1.1, build abc)
+ok   docker compose   2.29.1
+ok   docker daemon    server 27.1.1
+ok   home             /home/me/.kumoss
+ok   generated files  agree with kumoss.yaml
+```
+
+A machine with no install yet, and a Compose that is too old:
+
+```console
+$ kumoss doctor --home /tmp/lab
+Kumoss 1.2.0 (stack main)
+
+ok   docker           /usr/bin/docker (Docker version 27.1.1, build abc)
+FAIL docker compose   v1 found; v2 or newer is required
+ok   docker daemon    server 27.1.1
+ok   home             /tmp/lab does not exist yet; init will create it
+
+No /tmp/lab/kumoss.yaml yet. Run kumoss init --home /tmp/lab to install into this home.
+```
+
+See also [Day-2 operations](#day-2-operations).
 
 ## The managed home
 
@@ -454,7 +500,8 @@ Nothing is installed outside your home, so there is no system-wide cleanup.
 
 ## Debugging
 
-`kumoss status` covers the common case; `kumoss doctor` is still a placeholder.
+`kumoss status` covers the common case; `kumoss doctor` checks the machine
+(docker, Compose v2, the daemon, the home) when nothing starts at all.
 For anything else, use `docker compose` against the managed home:
 
 ```bash
@@ -470,22 +517,28 @@ dc config                         # the fully merged stack
 
 1. **Which binary ran?** `which kumoss && kumoss version` — a source build reports `dev`.
 2. **Which home?** `kumoss home` — `KUMOSS_HOME` outranks a persisted `--home`, which surprises people.
-3. **Do the files still agree?** `kumoss run` — it reconciles `kumoss.yaml` against `config/config.yaml` and the `.env` files and names what drifted, without writing or starting anything.
-4. **What would it write?** `kumoss init --dry-run` — no side effects.
-5. **What did it write?** `ls -la ~/.kumoss/src/core` — `.env` files must be `0600`; an old timestamp means the file was skipped.
-6. **What does compose think?** `dc config` — the only reliable answer to "is my mount there?".
-7. **Why did a container stop?** `dc ps -a` then `dc logs --tail 50 core`.
+3. **Does the machine have what it needs?** `kumoss doctor` — docker, Compose v2 or newer, the daemon and the home in one pass, plus the same file checks `run` makes. It writes nothing.
+4. **Do the files still agree?** `kumoss run` — it reconciles `kumoss.yaml` against `config/config.yaml` and the `.env` files and names what drifted, without writing or starting anything.
+5. **What would it write?** `kumoss init --dry-run` — no side effects.
+6. **What did it write?** `ls -la ~/.kumoss/src/core` — `.env` files must be `0600`; an old timestamp means the file was skipped.
+7. **What does compose think?** `dc config` — the only reliable answer to "is my mount there?".
+8. **Why did a container stop?** `dc ps -a` then `dc logs --tail 50 core`.
 
 ### Common failures
 
 | Symptom                                    | Cause and fix                                                       |
 | ------------------------------------------ | ------------------------------------------------------------------- |
 | `Cannot connect to the Docker daemon`      | Start Docker; on WSL2 enable the integration for the distribution   |
+| `docker compose` line reads `FAIL`         | v1 found or Compose missing: install Compose v2 or newer            |
+| `home` line says not writable              | `--home` points somewhere you cannot write; pick another root       |
 | Port 80 or 9000 in use                     | `ss -lntp` / `lsof -i :80`, stop the process, run `kumoss init` again |
 | The core exits right after start           | `dc logs core`; the first error line names the cause                |
 | Notifications container shows `Exited`     | Webhook missing or empty: re-run and paste one, or answer No        |
 | A cloud credential file is not found       | File-based methods only; re-pick the cloud, or paste the GCP JSON inline |
 | `bubbletea: could not open TTY`            | `kumoss init` needs a terminal; headless mode is not implemented    |
+
+When a stack will not start at all, `kumoss doctor` turns the daemon, Compose
+and home rows into one named line each.
 
 ### Day-2 operations
 
@@ -536,7 +589,6 @@ The full documentation is published at **[inditextech.github.io/kumoss](https://
 | **Headless mode**                                 | Planned     | Describe the answers file your CI would want               |
 | **Live credential validation**                    | Planned     | Run it against your providers and report what fails        |
 | **Preflight checks**                              | Planned     | Share the host conditions that break a start               |
-| **Day-2 command: `doctor`**        | Planned     | Propose the checks and fixes you need               |
 | **Wizard polish: step sidebar, back navigation**  | Planned     | Describe where you got lost                                |
 | **Published docs page for the CLI**               | Planned     | Contribute examples from your own setup                    |
 
