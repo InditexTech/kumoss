@@ -84,7 +84,7 @@ Grant the service principal *Storage Blob Data Contributor* on the
 storage account or on the `tfstates` container.
 
 * *Keep `subscription_id` in the block.* `init` runs with
-  `ARM_SUBSCRIPTION_ID` set from the request's cloud scope, so without
+  `ARM_SUBSCRIPTION_ID` set from the root module's `azurerm` scope, so without
   it the backend looks for the storage account in the _workload's_
   subscription and fails when the two differ.
 * *Without `use_azuread_auth`*, the backend fetches the account key

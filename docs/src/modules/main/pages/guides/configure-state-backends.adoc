@@ -212,9 +212,10 @@ _"Backend configuration changed"_ prompt. As a result:
   copies state between backends.
 * *A project starts from empty state* after any change to its backend or
   its key: switching `storage.provider`, renaming
-  `terraform_state_bucket`, moving the root module, or changing the
-  cloud scope. The next plan proposes creating resources that already
-  exist.
+  `terraform_state_bucket`, or moving the root module. (Upgrading from
+  a release that put the cloud scope in the managed state key counts
+  too; see xref:main:guides/upgrade-notes.adoc[Upgrade notes].) The next
+  plan proposes creating resources that already exist.
 
 Migrate before the next session runs, with the engine itself:
 
@@ -461,8 +462,8 @@ xref:main:guides/state-backends/kumoss-managed.adoc#credentials-required[Credent
 required].
 
 |`init` on `azurerm` cannot find the storage account
-|`init` runs with `ARM_SUBSCRIPTION_ID` set from the request's cloud
-scope. Pin `subscription_id` in the backend block when the state account
+|`init` runs with `ARM_SUBSCRIPTION_ID` set from the root module's
+`azurerm` scope. Pin `subscription_id` in the backend block when the state account
 lives in another subscription.
 
 |`init` fails with `InvalidAccessKeyId` after switching to `provider: S3`

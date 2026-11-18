@@ -13,7 +13,8 @@ selected. This guide covers both.
   on every request. `devops` is above `developer`. See
   xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
   for the complete role matrix.
-* A repository URL, the target cloud, and a scope id, as covered in
+* A repository URL and, the first time, the root module's scopes and
+  variable values, as covered in
   xref:main:guides/make-a-request.adoc[Make a request]. In the web
   application, both drift modes are shown disabled below `devops`, with
   the hint "Requires the devops operation role."
@@ -25,7 +26,7 @@ selected. This guide covers both.
 a hotfix) and you want the code and state reconciled for a specific set
 of resources: "resolve the drift on the web security group".
 
-*Required inputs.* Repository URL, cloud, scope id, and a *non-empty*
+*Required inputs.* Repository URL and a *non-empty*
 request describing which resources to reconcile. The API rejects a
 partial drift request with an empty text.
 
@@ -46,8 +47,9 @@ partial drift request with an empty text.
   `show -json` on the plan artifact, derives the drift from it, stores
   the drift report as an artifact (or the plan output, when the targets
   are already in sync), splits the drift into operations,
-  drops the operations covered by the cloud's
-  `<cloud>-guidelines-drift_exceptions` rules, groups the survivors in
+  drops the operations covered by the
+  `<provider>-guidelines-drift_exceptions` rules of the module's
+  providers, groups the survivors in
   batches of `orchestration.drift_group_operations` (8), and runs a
   generate and validate cycle per group. When every operation is
   excluded the loop stops there: re-planning would only rediscover the
@@ -106,7 +108,7 @@ request.
 * Remediation is bounded by the iteration and group limits; leftover
   drift is reported in the report's `unreconciled_drift` block and pulls
   the outcome down to `Partial`.
-* Drift covered by the cloud's `drift_exceptions` rules is never
+* Drift covered by the providers' `drift_exceptions` rules is never
   remediated; it is reported separately in `whitelisted_exceptions`, with
   the rule that covers it, and does not lower the outcome.
 
@@ -115,7 +117,7 @@ request.
 *Use case.* Reconcile the whole configuration in the root module path, for
 example after a period of manual changes.
 
-*Required inputs.* Repository URL, cloud, scope id, and request text. The
+*Required inputs.* Repository URL and request text. The
 text is required by the API, is recorded as the round's request and is
 given to the prompt compositor, but no filter runs on it and no targets
 are derived from it.
@@ -144,7 +146,7 @@ reports `Succeeded`.
 * Large roots take longer and consume more model calls; the first
   detection pass plans the whole configuration, and so does every
   remediation cycle.
-* Drift covered by the cloud's `drift_exceptions` rules is never
+* Drift covered by the providers' `drift_exceptions` rules is never
   remediated; it is reported separately in the report's
   `whitelisted_exceptions` block, with the rule that covers it, and does
   not lower the outcome.

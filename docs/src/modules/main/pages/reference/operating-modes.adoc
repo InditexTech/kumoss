@@ -10,26 +10,28 @@ each mode are xref:main:guides/generate-infrastructure.adoc[Generate
 infrastructure], xref:main:guides/remediate-drift.adoc[Remediate drift],
 and xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
-NOTE: The import modes are supported on Azure, GCP and AWS only. On
-OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+NOTE: The import modes list the scopes of the `azurerm`, `google` and
+`aws` providers only. A root module that uses none of them (only `oci`,
+`kubernetes`, `vsphere`...) has no scope that can be listed, so an
 import round ends with a report that says so and imports nothing.
 
 == Session inputs
 
 The first request of a session provides the repository URL (`https://`
-only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`,
-`kubernetes`, or `vmware`), a scope identifier (for example a subscription,
-project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository
-(see xref:main:reference/repository-layout.adoc#terraform-roots[Repository
-layout]), and the request text. The scope is stored with the session, sent
-to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed
-together with the repository URL and the root module path into the state project
-id when Kumoss manages state, and shown in the session detail view. Later
-requests in the same session send only the session id and the new text.
-When the mapping sidecar is enabled and its catalogue knows the
-repository, it may also answer the provider and the scope; the wizard
-then skips those two questions, so a mapper must answer `null` for
-anything it is not sure of.
+only; it may carry a userinfo username but no password or token), an
+optional path to the Terraform root inside the repository (see
+xref:main:reference/repository-layout.adoc#terraform-roots[Repository
+layout]), the request text and, when the root module needs them, the
+answers to its inputs. There is no provider question: the session's
+providers are the ones the module's `required_providers` declares, and
+the scope of each `azurerm`, `google`, `aws` or `oci` provider
+(subscription, project, account or compartment) is asked once and kept
+in the module's `kumoss.yaml` manifest with its variable values; see
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
+The providers and scopes are recorded on the session, sent to the iac
+sidecar on every `init`, `plan`, `apply`, and `import`, and shown in
+the session detail view. Later requests in the same session send only
+the session id and the new text.
 
 == How a session runs
 
@@ -38,7 +40,9 @@ route via the AuthZEN PDP (`POST /access/v1/evaluation`). With the
 shipped configuration (`services.authz.enabled: false`) no external check
 runs at all: the core treats every operation as authorized. When the
 sidecar is enabled, the core sends the caller's identity, the action,
-and the target scope to the PDP before proceeding — and never fails open.
+and each provider scope of the root module to the PDP before
+proceeding — on a first call inside the session, before the manifest
+setup saves anything — and never fails open.
 
 *Asynchronous execution.* Every IaC route answers `202 Accepted` with a
 session id immediately and runs in the background. Progress arrives

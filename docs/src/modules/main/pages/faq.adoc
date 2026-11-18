@@ -118,11 +118,28 @@ under another directory that already qualifies as a root (for example
 case pick the parent, Kumoss works from there.
 ====
 
-.Why does the scope field not accept my value?
+.Why am I not asked which cloud provider to use?
 [%collapsible]
 ====
-It accepts letters, digits, and hyphens only, up to 64 characters, and
-lower-cases the value. Underscores, dots, and spaces are not accepted.
+Kumoss reads the providers from the root module's `required_providers`,
+so a module that uses several (say `azurerm` and `kubernetes`) gets all
+of them in one session. It asks only what the code cannot tell: the
+subscription, project, account or compartment of each `azurerm`,
+`google`, `aws` or `oci` provider, and values for required variables,
+once per root module. The answers are kept in a `kumoss.yaml` file next
+to the module. See xref:main:reference/root-module-manifest.adoc[Root
+module manifest].
+====
+
+.Why does Kumoss ask for the module's inputs again?
+[%collapsible]
+====
+The inputs form only appears when the module needs something its
+`kumoss.yaml` does not cover. Either the pull request that committed
+`kumoss.yaml` has not been merged yet (Kumoss reads the default branch),
+or the module changed: a new required variable, a new cloud provider, a
+deleted var file you had picked, or a secret whose stored value is
+gone. Only what is missing is asked.
 ====
 --
 
@@ -294,9 +311,11 @@ fresh plan to review.
 .Do the import modes import my existing resources?
 [%collapsible]
 ====
-Yes, on Azure, GCP and AWS. On OCI, Kubernetes and VMware vSphere the
-scope cannot be listed, so an import round finds nothing to import.
-Partial Import and Full Import find the resources in your scope
+Yes, in the Azure subscriptions, GCP projects and AWS accounts the root
+module's `azurerm`, `google` and `aws` providers point at. OCI,
+Kubernetes and VMware vSphere scopes cannot be listed, so an import
+round on a module that uses only those finds nothing to import.
+Partial Import and Full Import find the resources in your scopes
 that Terraform does not manage, write resource blocks for them, and run
 `terraform import` during the round, so they are in the state before the
 pull request is reviewed. Rejected imports are fed back to the generator
@@ -310,7 +329,7 @@ infrastructure].
 ====
 Not in the repository, and not in the working copy Kumoss creates. Out
 of the box, Kumoss keeps state for you, in a bucket dedicated to state
-with one state file per project (repository + cloud scope + path), and
+with one state file per project (repository + root-module path), and
 ignores any `backend` block your repository declares.
 Your platform team can instead configure Kumoss to leave it in the
 remote backend your repository's own Terraform files declare, exactly
@@ -331,9 +350,11 @@ manages state, which is the default: Kumoss then ignores that backend.
 Other causes are that
 your platform team turned off Kumoss-managed state and your repository
 declares no remote backend of its own, that the project's identity
-changed — the root-module path moved, the repository was renamed, or a
-different cloud scope was selected — or that your platform team changed
-the state backend, which Kumoss never migrates. Report it with the
+changed — the root-module path moved or the repository was renamed —
+that your platform team changed the state backend, which Kumoss never
+migrates, or that Kumoss was upgraded from a release whose state keys
+also included the cloud scope and the state was not moved (see
+xref:main:guides/upgrade-notes.adoc[Upgrade notes]). Report it with the
 session id; an operator can check the state location.
 ====
 --

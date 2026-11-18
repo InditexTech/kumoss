@@ -325,7 +325,8 @@ for the account (`AWS_REGION` or `AWS_DEFAULT_REGION` is required on
 AWS anyway, by the account check before every engine command); on GCP
 the
 `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com`
-APIs must be enabled. The core does not call this endpoint today. See
+APIs must be enabled. The core calls it in import rounds, once per
+`azurerm`, `google` or `aws` scope of the root module. See
 xref:main:reference/api/iac.adoc#import-discovery[Import discovery] in
 the IaC sidecar reference.
 
@@ -348,8 +349,9 @@ provider supports.
 |Service principal with client secret. Certificate, OIDC federation,
 and managed identity are other documented provider options.
 *`ARM_SUBSCRIPTION_ID` set here is overwritten* on every `init`,
-`plan`, `apply`, and `import` with the request's scope id, so it only
-takes effect for `validate`, `show`, and `state pull`.
+`plan`, `apply`, and `import` with the root module's `azurerm` scope,
+so it only takes effect for `validate`, `show`, and `state pull` (and
+for modules that do not use `azurerm`).
 
 |Google Cloud (`google`)
 |`GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS`
@@ -357,8 +359,8 @@ takes effect for `validate`, `show`, and `state pull`.
 `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable
 inside the container. Set one of them. *`GOOGLE_PROJECT` set here is
 overwritten* on every `init`, `plan`, `apply`, and `import` with the
-request's scope id, so it only takes effect for `validate`, `show`,
-and `state pull`.
+root module's `google` scope, so it only takes effect for `validate`,
+`show`, and `state pull` (and for modules that do not use `google`).
 
 |AWS (`aws`)
 |`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, or
@@ -383,9 +385,9 @@ xref:main:reference/terraform-providers.adoc[Terraform providers].
 |A dedicated, least-privilege vCenter service account; never
 `administrator@vsphere.local`. `VSPHERE_SERVER` is the vCenter FQDN.
 Leave `VSPHERE_ALLOW_UNVERIFIED_SSL` unset outside a lab with a
-self-signed certificate. Nothing is overwritten per request: the
-request's scope id is the datacenter name, which the code reads, not
-the provider. See
+self-signed certificate. Nothing is overwritten per request: `vsphere`
+has no scope, and the datacenter is named by the code, not the
+provider. See
 xref:main:reference/terraform-providers.adoc[Terraform providers].
 |===
 
@@ -495,17 +497,18 @@ whatever your own implementation needs.
   the core never calls a service and performs an identity passthrough
   itself: it returns the identifier as both `repo_url` and
   `identifier`, echoes back any `terraform_provider` it was sent, and
-  answers `null` for `scope_id` — it knows nothing it was not told, and
-  `null` means "ask the user". Once enabled, a service that times out
-  or is unreachable makes the wizard's resolve step fail with `504` or
-  `502`, and so does a response the core cannot parse or one naming a
-  provider outside the contract's enum; there is no silent fallback.
-* *Authorization.* The core consults the service only from `POST
-  /v1/auth/authorize` (a cloud-project access check) and only when
-  `services.authz.enabled` is `true`. While disabled, the core answers
-  "authorized" without any call; once enabled, an unreachable or slow
-  service makes the preflight fail with `502` or `504` rather than
-  allowing the request. Kumoss's own operation roles (`developer`,
+  answers `null` for `scope_id` — it knows nothing it was not told.
+  Once enabled, a service that times out or is unreachable makes
+  `POST /api/v1/mapping/resolve` fail with `504` or `502`, and so does
+  a response the core cannot parse or one naming a provider outside
+  the contract's enum; there is no silent fallback. The web wizard no
+  longer calls that route.
+* *Authorization.* The core consults the service from the IaC routes,
+  once per provider scope of the session's root module, and only when
+  `services.authz.enabled` is `true`. While disabled, the core treats
+  every check as allowed without any call; once enabled, an unreachable
+  or slow service fails the call with `502` or `504` rather than
+  allowing it. Kumoss's own operation roles (`developer`,
   `devops`) and admin-panel roles (`viewer`, `editor`, `admin`) live in
   the core database, not in this service, and are documented in the
   xref:main:guides/administer-users-and-locks.adoc[Admin portal] guide.

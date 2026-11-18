@@ -92,5 +92,8 @@ live in `core/src/infrastructure/filesystem/root_module_detector.py`.
 
 * xref:main:guides/make-a-request.adoc[Make a request] to see this
   detection from the wizard's side.
+* xref:main:reference/root-module-manifest.adoc[Root module manifest]
+  for what Kumoss reads from the chosen root module and the
+  `kumoss.yaml` it commits there.
 * xref:main:guides-overview.adoc[Guides] for the rest of the session
   inputs.

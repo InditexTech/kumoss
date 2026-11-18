@@ -50,8 +50,8 @@ to boot*, alongside the database, Redis, and artifact-bucket checks.
 the state bucket with a key derived from the project.
 
 |Per project
-|The state key is assigned from a digest of the repository, cloud scope,
-and root-module path — no configuration, no per-repository setup.
+|The state key is assigned from a digest of the repository and the
+root-module path — no configuration, no per-repository setup.
 
 |On apply
 |The pinned workspace is _moved_, not copied, so the override and the
@@ -299,12 +299,29 @@ State is keyed by *project*, not by session or directory:
 <state_bucket>/<project_id>/terraform.tfstate
 ----
 
-`project_id` is the SHA-256 hex digest of three newline-joined values:
+`project_id` is the SHA-256 hex digest of two newline-joined values:
 
 . the *normalized repository URI*, as `host/path`
-. the *cloud scope* (`scope_id` — subscription, project, or account),
-  trimmed and lowercased
 . the *normalized root-module path* within the repository (`root_module_path`)
+
+One state per root module, as Terraform itself assumes. The providers'
+scopes are not part of the key: a module may use several, and a scope
+recorded in its manifest may change without the state moving.
+
+[IMPORTANT]
+====
+Earlier releases hashed the cloud scope (`scope_id`) between the two
+values, so state written by them sits under a different key. It is
+*not* migrated: after upgrading, the first session on a project plans
+against empty state. Before running it, copy each project's
+`<old_project_id>/terraform.tfstate` object to
+`<project_id>/terraform.tfstate` in the state bucket — the old key is
+in the `Terraform state: ... key=` lines an earlier release logged, and
+the new one in the line the upgraded core logs on its first `init` —
+or move it with `tofu state pull`/`state push` as described in
+xref:main:guides/configure-state-backends.adoc#changing-backend-configuration[Change
+models safely]. See xref:main:guides/upgrade-notes.adoc[Upgrade notes].
+====
 
 Normalization means two spellings of the same project never split into
 two states: the repository URI is lowercased, loses a `.git` suffix
@@ -328,7 +345,7 @@ xref:main:reference/repository-layout.adoc#terraform-roots[Repository
 layout]; note that the web application sends `.` for a
 repository whose Terraform files are at the top level, while an API call
 that omits `root_module_path` sends an empty value, and the two are hashed as
-different projects. Because all three inputs matter, a change to *any*
+different projects. Because both inputs matter, a change to *either*
 of them is a different project and therefore a different state file.
 
 == Locking

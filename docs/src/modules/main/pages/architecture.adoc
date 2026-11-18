@@ -89,7 +89,8 @@ deployments are expected to supply their own.
 
 |mapping service
 |Resolves a business identifier to a repository URL, plus a best-effort
-terraform provider and cloud scope (`null` means unknown, ask the user).
+terraform provider and cloud scope (`null` means unknown). The web
+wizard no longer calls it.
 Disabled by default and not bundled: provide your own implementation;
 disabled, the core treats the identifier as the repository URL (identity
 passthrough).

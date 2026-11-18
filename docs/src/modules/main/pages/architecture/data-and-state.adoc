@@ -23,7 +23,10 @@ first administrator access]). There is
 no migration tooling: the schema is created with SQLAlchemy
 `create_all`, so a `core_db_data` volume from a pre-auth stack (sessions
 keyed by a `username` column, no `users` table) must be migrated by
-hand or recreated.
+hand or recreated. The one step the core does run at startup is
+idempotent: it moves `terraform_providers` from the former provider
+enum to Terraform provider type names in a plain column (one row per
+provider of the session's root module, with a nullable `scope_id`).
 
 For the table-by-table breakdown, the enumerated columns, and how
 deletion cascades, see
@@ -86,6 +89,17 @@ with the `RUSTFS` provider, which the repository does not test. For
 repository declare it — see xref:#terraform-state[below]. Presign
 expiry is 48 hours by default, floored at 30 hours so links outlive
 cached session aggregates.
+
+=== Root module secrets
+
+The artifacts bucket also holds the values of the *sensitive* input
+variables users answered for a root module, one JSON object per module
+at `manifests/<sha256 of repository and module path>/secrets.json`. The
+module's committed `kumoss.yaml` names those variables but never holds
+their values; plain values, picked var files and provider scopes live
+in that file, in the repository. Back the bucket up and restrict it
+accordingly. See
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
 
 [#terraform-state]
 === Terraform and OpenTofu state

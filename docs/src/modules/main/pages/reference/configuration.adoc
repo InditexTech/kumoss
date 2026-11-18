@@ -692,6 +692,17 @@ only merges files with that suffix over the rest of the configuration,
 and the gitignore rules the core injects only cover that suffix. The
 file holds the state store credentials, so the agent's file tools can
 neither see nor touch it.
+
+|`paths.manifest_filename`
+|string matching `^[A-Za-z0-9._-]{1,128}\.ya?ml$`
+|`kumoss.yaml`
+|Optional
+|Name of the root module manifest the core reads from, and commits to,
+each root module directory: the module's providers, scopes, picked var
+files and plain variable values (sensitive ones by name only). Changing
+it makes every existing manifest invisible, so each module is set up
+again on its next session. See
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
 |===
 
 Requires restart: yes.

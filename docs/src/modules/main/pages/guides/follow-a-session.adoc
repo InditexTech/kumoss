@@ -136,7 +136,8 @@ cost.
 * *Your sessions list.* Search by project, request text, or session id;
   filter by type and status. Open a row for the timeline of rounds, the
   statuses, the artifacts (report, plan, changed files, viewed inline),
-  the session id, path, scope, repository link, and pull request links.
+  the session id, path, the root module's providers and their scopes,
+  the repository link, and pull request links.
   *Reload Session* reopens it in the wizard so you can create the pull
   request, apply, or continue the conversation. Failed sessions cannot be
   reloaded.

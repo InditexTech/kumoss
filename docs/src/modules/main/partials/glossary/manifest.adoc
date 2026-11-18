@@ -1,0 +1,6 @@
+The `kumoss.yaml` file a session commits in a Terraform root module: the
+module's providers, the scope of each provider that has one, the
+optional var files picked, and the values of its input variables
+(sensitive ones by name only, their values kept in Kumoss's object
+storage). Answered once per root module and reused by every later
+session on it.

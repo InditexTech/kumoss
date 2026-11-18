@@ -5,7 +5,7 @@ The authorization service answers *may this user perform this action on
 this scope?* — asked before every IaC generation, drift detection,
 import, apply, PR creation, and PR merge.
 
-Contract: `contracts/openapi/authz.v1.yaml`, implementing the OpenID
+Contract: `contracts/openapi/authz.v1.yaml` (version 2.0.0), implementing the OpenID
 AuthZEN 1.0 Access Evaluation API (§5). Kumoss bundles no PDP
 implementation: authorization is an optional extension point you deploy
 yourself and point `services.authz.endpoint` at. Bearer token: the
@@ -66,6 +66,34 @@ repository state. The `action.name` value maps to the operation:
 |Apply trigger
 |===
 
+=== One evaluation per provider scope
+
+A session's root module may use several providers, so the core asks
+the PDP once per provider *scope* of the module, and every evaluation
+must allow:
+
+* For each provider with a scope — `azurerm` (subscription), `google`
+  (project), `aws` (account), `oci` (compartment) — one request with
+  `resource.id` set to that scope and `properties.provider` set to the
+  provider's Terraform type name.
+* A module with no scoped provider (only `kubernetes`, `vsphere`,
+  `random`...) gets a single module-level request instead, with an
+  empty `resource.id` and no `properties.provider`; `repo_uri` and
+  `root_module_path` still identify the module.
+
+The pairs come from the module's
+xref:main:reference/root-module-manifest.adoc[manifest], so *when* the
+check runs differs by call:
+
+* *First call* (`generate`, `drift`, `import` with `repo_uri`) — the
+  route answers `202` first, and the session evaluates the pairs right
+  after it has resolved the manifest and before it saves anything
+  (manifest, secrets, commit). A denial ends the session `FAILED` with
+  the PDP's reason, rather than a synchronous `403`.
+* *Iteration calls and `apply`* — evaluated synchronously on the
+  route, from the pairs recorded on the session at its first call; a
+  denial is a `403`.
+
 NOTE: PR routes (`PUT /repository/pr` and `PUT /repository/pr/merge`) are
 governed by Kumoss's own operation roles, not by the authz PDP. See
 xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
@@ -85,7 +113,8 @@ enabled, the core *never* fails open:
 |`502` (bad gateway)
 
 |PDP returns `decision: false`
-|`403` with the PDP's `reason_user` context
+|`403` with the PDP's `reason_user` context (on a first call, the
+session ends `FAILED` with it instead)
 
 |PDP returns `decision: true`
 |The request proceeds
@@ -114,7 +143,7 @@ enabled, the core *never* fails open:
     "type": "scope",
     "id": "my-subscription-id",
     "properties": {
-      "provider": "azure",
+      "provider": "azurerm",
       "repo_uri": "https://dev.azure.com/org/project/_git/infra",
       "root_module_path": "environments/dev"
     }
@@ -174,11 +203,18 @@ xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 
 |`id`
 |Yes
-|The scope identifier (subscription, project, account).
+|The scope identifier (subscription, project, account, compartment).
+Empty in the module-level evaluation of a module with no scoped
+provider.
 
 |`properties.provider`
 |No
-|`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`.
+|Terraform provider type name the scope belongs to (`azurerm`,
+`google`, `aws`, `oci`); any string matching
+`^[a-z0-9][a-z0-9_-]{0,63}$` is valid on the contract. Omitted in the
+module-level evaluation. Contract 2.0.0 changed this from an enum of
+the core's former names (`azure`, `gcp`, `aws`, `oci`, `kubernetes`,
+`vmware`), so a PDP policy matching those values must be updated.
 
 |`properties.repo_uri`
 |No
