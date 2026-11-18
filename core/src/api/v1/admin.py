@@ -19,7 +19,12 @@ from src.domains.dto import AdminSessionDetail, PaginatedSessionSummary
 from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
-from src.shared.constants import OperationType, PanelRole, SessionStatus
+from src.shared.constants import (
+    OperationType,
+    PanelRole,
+    SessionSearchField,
+    SessionStatus,
+)
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(
@@ -52,6 +57,7 @@ async def admin_sessions_list(
     operation: Annotated[OperationType | None, Query()] = None,
     status: Annotated[SessionStatus | None, Query()] = None,
     search: Annotated[str | None, Query(max_length=200)] = None,
+    search_in: Annotated[SessionSearchField, Query()] = SessionSearchField.ALL,
     user_email: Annotated[str | None, Query(max_length=254)] = None,
 ) -> PaginatedSessionSummary:
     """Cross-user paginated session summaries for the admin panel.
@@ -65,6 +71,7 @@ async def admin_sessions_list(
             operation=operation,
             status=status,
             search=search,
+            search_in=search_in,
             user_email=user_email,
             offset=(page - 1) * page_size,
             limit=page_size,

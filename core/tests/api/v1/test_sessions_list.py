@@ -238,3 +238,28 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await fetch(search=str(self.sid)), 1)
         self.assertEqual(await fetch(search=str(self.sid)[:8]), 1)
         self.assertEqual(await fetch(search="no-match-xyz"), 0)
+
+    async def test_list_search_in_one_field(self):
+        async def fetch(search: str, search_in: str) -> int:
+            resp = await self.client.get(
+                "/v1/sessions/list",
+                params={"search": search, "search_in": search_in},
+            )
+            self.assertEqual(resp.status_code, 200, resp.text)
+            return resp.json()["total"]
+
+        sid = str(self.sid)[:8]
+        # Each term only appears in its own field.
+        self.assertEqual(await fetch("resource group", "query"), 1)
+        self.assertEqual(await fetch("resource group", "repository"), 0)
+        self.assertEqual(await fetch("foo.git", "repository"), 1)
+        self.assertEqual(await fetch("foo.git", "query"), 0)
+        self.assertEqual(await fetch(sid, "session_id"), 1)
+        self.assertEqual(await fetch(sid, "query"), 0)
+        self.assertEqual(await fetch("foo.git", "all"), 1)
+
+    async def test_list_search_in_rejects_unknown_field(self):
+        resp = await self.client.get(
+            "/v1/sessions/list", params={"search": "x", "search_in": "owner"}
+        )
+        self.assertEqual(resp.status_code, 422, resp.text)

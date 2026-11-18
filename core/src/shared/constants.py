@@ -72,6 +72,16 @@ class OperationType(Enum):
 
 
 @unique
+class SessionSearchField(Enum):
+    """Which session field a sessions-list ``search`` matches."""
+
+    ALL = "all"  # any of the fields below
+    QUERY = "query"  # the session's first query
+    REPOSITORY = "repository"  # the workspace (repository) URI
+    SESSION_ID = "session_id"
+
+
+@unique
 class SessionStatus(Enum):
     """All possible Session states"""
 

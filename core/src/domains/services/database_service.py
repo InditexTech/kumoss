@@ -68,6 +68,7 @@ from src.shared.constants import (
     OperationType,
     PanelRole,
     ReportType,
+    SessionSearchField,
     SessionStatus,
 )
 from src.shared.logger import logging
@@ -680,6 +681,7 @@ class DatabaseService:
         operation: OperationType | None = None,
         status: SessionStatus | None = None,
         search: str | None = None,
+        search_in: SessionSearchField = SessionSearchField.ALL,
         user_email: str | None = None,
         order_by: str = "created_at",
         order_desc: bool = True,
@@ -688,7 +690,8 @@ class DatabaseService:
     ) -> PaginatedSessionSummary:
         """Paginated summaries. ``user_pk`` None lists across all users
         (admin path); ``user_email`` optionally filters that cross-user
-        listing by owner email."""
+        listing by owner email. ``search`` is a case-insensitive partial
+        match on the field ``search_in`` names, or on any of them."""
         async with db.session() as sess:
             stmt = select(Session)
             if user_pk is not None:
@@ -701,15 +704,17 @@ class DatabaseService:
                 stmt = stmt.where(Session.operation == operation)
             if search:
                 pattern = f"%{search}%"
-                stmt = (
-                    stmt.join(History, History.session_id == Session.id)
-                    .join(Workspace, Workspace.session_id == Session.id)
-                    .where(
-                        History.first_query.ilike(pattern)
-                        | Workspace.uri.ilike(pattern)
-                        | Session.uuid.cast(String).ilike(pattern)
-                    )
-                )
+                every = search_in is SessionSearchField.ALL
+                matches = []
+                if every or search_in is SessionSearchField.QUERY:
+                    stmt = stmt.join(History, History.session_id == Session.id)
+                    matches.append(History.first_query.ilike(pattern))
+                if every or search_in is SessionSearchField.REPOSITORY:
+                    stmt = stmt.join(Workspace, Workspace.session_id == Session.id)
+                    matches.append(Workspace.uri.ilike(pattern))
+                if every or search_in is SessionSearchField.SESSION_ID:
+                    matches.append(Session.uuid.cast(String).ilike(pattern))
+                stmt = stmt.where(or_(*matches))
             if status is not None:
                 # Filter on each session's most recent status row; max(id)
                 # is the append-order proxy for "latest".

@@ -321,9 +321,7 @@ describe("SessionsPage search prefill from URL", () => {
     mockState.addSession(makeSessionDetail());
     renderPage("user", "/user/sessions?search=VM");
 
-    const input = await screen.findByPlaceholderText(
-      "Search by project name, query or session id",
-    );
+    const input = await screen.findByRole("textbox", { name: "Search sessions" });
     expect(input).toHaveValue("VM");
   });
 });

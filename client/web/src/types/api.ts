@@ -191,6 +191,9 @@ export interface PullRequestDTO {
 
 export type OperationType = "generate" | "drift" | "import";
 
+/** Which field a sessions-list `search` matches (`all`: any of them). */
+export type SessionSearchField = "all" | "query" | "repository" | "session_id";
+
 export type SessionStatus =
   | "started"
   | "filtering"
