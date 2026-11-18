@@ -198,7 +198,9 @@ def test_scope_bindings_win_over_var_files_and_values(tmp_path: Path) -> None:
         )
         return CommandResult(ok=True, stdout="", stderr="")
 
-    env = engine.scope_env("oci", "ocid1.compartment.authorized")
+    env = engine.scope_env(
+        [ProviderScope(provider="oci", scope_id="ocid1.compartment.authorized")]
+    )
     inputs = RunInputs(
         var_files=("envs/other.tfvars",),
         variables={"compartment_ocid": "ocid1.compartment.other", "name": "x"},
@@ -218,7 +220,7 @@ def test_scope_bindings_win_over_var_files_and_values(tmp_path: Path) -> None:
 def test_no_values_file_without_inputs(tmp_path: Path) -> None:
     engine = IacEngine(binary="tofu")
     ok = CommandResult(ok=True, stdout="", stderr="")
-    env = engine.scope_env("aws", "123456789012")
+    env = engine.scope_env([ProviderScope(provider="aws", scope_id="123456789012")])
     with patch.object(
         IacEngine, "_run", new_callable=AsyncMock, return_value=ok
     ) as run:
