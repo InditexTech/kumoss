@@ -13,7 +13,7 @@ from .manifest import (
 from .manifest_resolution import ManifestResolution, ProviderChange
 from .page_summary import PageSummary
 from .plan_ref import PlanRef
-from .provider_facts import ProviderFacts
+from .provider_scope import ProviderScope
 from .search_result import SearchResult
 from .status import Status
 from .terraform_doc import TerraformDoc
@@ -33,8 +33,8 @@ __all__ = [
     "PageSummary",
     "PlanRef",
     "ProviderChange",
-    "ProviderFacts",
     "ProviderRequirement",
+    "ProviderScope",
     "RootModuleRef",
     "SearchResult",
     "Status",

@@ -90,7 +90,7 @@ async def create_pr(
             session_id=ctx.id,
             user_id=ctx.user_id,
             branch_name=ctx.branch_name,
-            cloud=ctx.terraform_prv,
+            providers=ctx.provider_types,
             repo_uri=ctx.repo_uri,
             root_module_path=ctx.root_module_path,
             operation=ctx.operation,

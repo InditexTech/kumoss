@@ -22,12 +22,12 @@ import yaml
 from src.infrastructure.exceptions import PromptSeedLoadError
 
 
-Scope = Literal["general", "azure", "gcp", "aws", "oci", "kubernetes", "vmware"]
+# "general", or a Terraform provider type name (azurerm, google, aws...): the
+# provider whose sessions use the prompt. Any provider may have prompts.
+Scope = str
 PromptType = Literal["guidelines", "resources", "compliance"]
 
-_VALID_SCOPES: frozenset[str] = frozenset(
-    {"general", "azure", "gcp", "aws", "oci", "kubernetes", "vmware"}
-)
+_SCOPE_RE: re.Pattern[str] = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _VALID_TYPES: frozenset[str] = frozenset({"guidelines", "resources", "compliance"})
 # Match the constraints the existing fetcher passes to Phoenix.
 _NAME_RE: re.Pattern[str] = re.compile(r"^[a-z0-9_]+$")
@@ -97,9 +97,10 @@ class SeedLoader:
             )
 
         scope, type_, filename = rel_parts
-        if scope not in _VALID_SCOPES:
+        if not _SCOPE_RE.match(scope):
             raise PromptSeedLoadError(
-                message=f"Invalid scope '{scope}' in {path}; expected one of {sorted(_VALID_SCOPES)}",
+                message=f"Invalid scope '{scope}' in {path}; expected 'general' or a "
+                + "Terraform provider type name (e.g. azurerm)",
                 error_code=500,
             )
         if type_ not in _VALID_TYPES:

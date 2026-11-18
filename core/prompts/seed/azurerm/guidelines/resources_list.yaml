@@ -46,5 +46,5 @@ body: |
   - `webapp` — Web App (App Service) with plan, networking, and TLS.
 
   This list is the source of truth. Adding a new
-  `core/prompts/seed/azure/resources/<name>.yaml` requires adding the
+  `core/prompts/seed/azurerm/resources/<name>.yaml` requires adding the
   matching entry here so the compositor knows it exists.

@@ -35,7 +35,6 @@ from src.shared.constants import (
     ContentType,
     OperationType,
     ReportType,
-    TerraformProvider,
 )
 
 _ENDPOINT = "http://object-storage:9000"
@@ -115,8 +114,6 @@ class _RoundBase(unittest.IsolatedAsyncioTestCase):
             user_pk=user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
             root_module_path="infra",

@@ -14,14 +14,15 @@ import unittest
 from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
+from src.domains.value_objects.provider_scope import ProviderScope
 from src.domains.dto import PromptTemplateDTO
 from src.domains.entities import SessionContext
 from src.domains.services.session_service import SessionService
+from src.shared.exceptions import ExceptionHandler
 from src.shared.constants import (
     OperationType,
     PromptsLibrary,
     SessionStatus,
-    TerraformProvider,
 )
 
 CHAT_PROMPT = PromptTemplateDTO(type=PromptsLibrary.CHAT_REPLY, prompt="be brief")
@@ -33,8 +34,7 @@ def _ctx(history: list[dict[str, str]] | None = None) -> SessionContext:
         user_id="user@example.com",
         round_id=1,
         repo_uri="https://example.com/foo.git",
-        scope_id="sub-123",
-        terraform_prv=TerraformProvider.AZURE,
+        providers=(ProviderScope("azurerm", "sub-123"),),
         branch_name="Nebula/x",
         root_module_path="infra",
         operation_type=OperationType.GENERATE,
@@ -88,7 +88,7 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
         await self.svc.save("add a vnet")
 
         kwargs = self.llm.generate_text.await_args.kwargs
-        self.assertEqual(kwargs["query"], "add a vnet")
+        self.assertEqual(kwargs["query"], "My request was: add a vnet\n")
         self.assertIs(kwargs["prompt"], CHAT_PROMPT)
         self.assertIs(kwargs["history"], self.ctx.history)
         self.templates.render.assert_awaited_once_with(PromptsLibrary.CHAT_REPLY)
@@ -123,12 +123,24 @@ class TestSaveEdgeCases(_ServiceBase):
         self.database.update_history.assert_awaited_once_with(self.ctx)
 
     async def test_llm_failure_still_persists_the_internal_history(self):
-        self.llm.generate_text.side_effect = Exception("LLM down")
+        self.llm.generate_text.side_effect = ExceptionHandler(
+            message="LLM down", error_code=500
+        )
         await self.svc.next_round("add a vnet")
         await self.svc.save("add a vnet")
 
         self.assertEqual(self.chat(), [])
         self.database.update_history.assert_awaited_once_with(self.ctx)
+
+    async def test_unexpected_errors_propagate_without_persisting(self):
+        # Only domain errors (ExceptionHandler) are swallowed; anything else
+        # is a bug and must surface.
+        self.llm.generate_text.side_effect = RuntimeError("bug")
+        await self.svc.next_round("add a vnet")
+        with self.assertRaises(RuntimeError):
+            await self.svc.save("add a vnet")
+
+        self.database.update_history.assert_not_awaited()
 
     async def test_a_round_that_raised_still_gets_its_turn(self):
         # Use cases call save() from a finally, so the failure path reaches

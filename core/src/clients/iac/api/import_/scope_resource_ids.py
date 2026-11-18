@@ -98,16 +98,16 @@ def sync_detailed(
     """Enqueue a job listing the resource IDs present in a cloud scope.
 
      Enqueues a job that queries the cloud provider named in
-    `terraform_provider` for the resources that exist in the scope
+    `provider` for the resources that exist in the scope
     `scope_id`, then returns `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: ARM resource, resource-group and role-assignment
+    * `azurerm`: ARM resource, resource-group and role-assignment
       IDs in the subscription `scope_id` (Azure Resource Graph).
       ARM IDs compare case-insensitively.
-    * `gcp`: normalized asset names of the project's resources,
+    * `google`: normalized asset names of the project's resources,
       plus one `<project>/<role>/<member>` entry per project-level
       IAM binding (Cloud Asset Inventory and Resource Manager).
     * `aws`: resource ARNs across the account's indexed regions
@@ -124,14 +124,13 @@ def sync_detailed(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on `plan`, `apply` and
-    `import`) and `terraform_provider` selects which provider is
+    scope a command runs against, as in the `scopes` of `plan`,
+    `apply` and `import`) and `provider` selects which provider is
     queried. The workspace is used to resolve provider credentials;
     the OSS reference impl calls each cloud's inventory API over
     HTTPS with the service's ambient credentials, using no
-    command-line tools. A provider with no inventory query is a
-    normal outcome too: the job ends `succeeded` with a non-zero
-    `exit_code`.
+    command-line tools. `provider` accepts only the providers with
+    an inventory query; any other is rejected with `422`.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -163,16 +162,16 @@ def sync(
     """Enqueue a job listing the resource IDs present in a cloud scope.
 
      Enqueues a job that queries the cloud provider named in
-    `terraform_provider` for the resources that exist in the scope
+    `provider` for the resources that exist in the scope
     `scope_id`, then returns `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: ARM resource, resource-group and role-assignment
+    * `azurerm`: ARM resource, resource-group and role-assignment
       IDs in the subscription `scope_id` (Azure Resource Graph).
       ARM IDs compare case-insensitively.
-    * `gcp`: normalized asset names of the project's resources,
+    * `google`: normalized asset names of the project's resources,
       plus one `<project>/<role>/<member>` entry per project-level
       IAM binding (Cloud Asset Inventory and Resource Manager).
     * `aws`: resource ARNs across the account's indexed regions
@@ -189,14 +188,13 @@ def sync(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on `plan`, `apply` and
-    `import`) and `terraform_provider` selects which provider is
+    scope a command runs against, as in the `scopes` of `plan`,
+    `apply` and `import`) and `provider` selects which provider is
     queried. The workspace is used to resolve provider credentials;
     the OSS reference impl calls each cloud's inventory API over
     HTTPS with the service's ambient credentials, using no
-    command-line tools. A provider with no inventory query is a
-    normal outcome too: the job ends `succeeded` with a non-zero
-    `exit_code`.
+    command-line tools. `provider` accepts only the providers with
+    an inventory query; any other is rejected with `422`.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -223,16 +221,16 @@ async def asyncio_detailed(
     """Enqueue a job listing the resource IDs present in a cloud scope.
 
      Enqueues a job that queries the cloud provider named in
-    `terraform_provider` for the resources that exist in the scope
+    `provider` for the resources that exist in the scope
     `scope_id`, then returns `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: ARM resource, resource-group and role-assignment
+    * `azurerm`: ARM resource, resource-group and role-assignment
       IDs in the subscription `scope_id` (Azure Resource Graph).
       ARM IDs compare case-insensitively.
-    * `gcp`: normalized asset names of the project's resources,
+    * `google`: normalized asset names of the project's resources,
       plus one `<project>/<role>/<member>` entry per project-level
       IAM binding (Cloud Asset Inventory and Resource Manager).
     * `aws`: resource ARNs across the account's indexed regions
@@ -249,14 +247,13 @@ async def asyncio_detailed(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on `plan`, `apply` and
-    `import`) and `terraform_provider` selects which provider is
+    scope a command runs against, as in the `scopes` of `plan`,
+    `apply` and `import`) and `provider` selects which provider is
     queried. The workspace is used to resolve provider credentials;
     the OSS reference impl calls each cloud's inventory API over
     HTTPS with the service's ambient credentials, using no
-    command-line tools. A provider with no inventory query is a
-    normal outcome too: the job ends `succeeded` with a non-zero
-    `exit_code`.
+    command-line tools. `provider` accepts only the providers with
+    an inventory query; any other is rejected with `422`.
 
     Args:
         body (ScopeResourceIdsRequest):
@@ -286,16 +283,16 @@ async def asyncio(
     """Enqueue a job listing the resource IDs present in a cloud scope.
 
      Enqueues a job that queries the cloud provider named in
-    `terraform_provider` for the resources that exist in the scope
+    `provider` for the resources that exist in the scope
     `scope_id`, then returns `202 Accepted` immediately. Poll
     `GET /v1/jobs/{job_id}` for the OperationResult: on exit code
     0, `stdout` is a JSON array of provider-native resource ID
     strings —
 
-    * `azure`: ARM resource, resource-group and role-assignment
+    * `azurerm`: ARM resource, resource-group and role-assignment
       IDs in the subscription `scope_id` (Azure Resource Graph).
       ARM IDs compare case-insensitively.
-    * `gcp`: normalized asset names of the project's resources,
+    * `google`: normalized asset names of the project's resources,
       plus one `<project>/<role>/<member>` entry per project-level
       IAM binding (Cloud Asset Inventory and Resource Manager).
     * `aws`: resource ARNs across the account's indexed regions
@@ -312,14 +309,13 @@ async def asyncio(
     diagnostics in `stderr`.
 
     Here `scope_id` names the scope being listed (rather than the
-    scope a command runs against, as on `plan`, `apply` and
-    `import`) and `terraform_provider` selects which provider is
+    scope a command runs against, as in the `scopes` of `plan`,
+    `apply` and `import`) and `provider` selects which provider is
     queried. The workspace is used to resolve provider credentials;
     the OSS reference impl calls each cloud's inventory API over
     HTTPS with the service's ambient credentials, using no
-    command-line tools. A provider with no inventory query is a
-    normal outcome too: the job ends `succeeded` with a non-zero
-    `exit_code`.
+    command-line tools. `provider` accepts only the providers with
+    an inventory query; any other is rejected with `422`.
 
     Args:
         body (ScopeResourceIdsRequest):

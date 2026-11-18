@@ -122,8 +122,7 @@ class TerraformImportHandler:
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
                 discovery = await self.__import_svc.get_unmanaged_resources(
-                    scope_id=ctx.scope_id,
-                    terraform_provider=ctx.terraform_prv,
+                    ctx.providers
                 )
                 unmanaged_ids = discovery.resource_ids
                 if not unmanaged_ids:

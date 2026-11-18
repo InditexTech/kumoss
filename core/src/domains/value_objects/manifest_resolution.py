@@ -35,6 +35,8 @@ class ManifestResolution:
     ``stale_variables`` are bound but no longer declared, and
     ``exposed_variables`` are bound in plain text but now declared
     sensitive; both are fixed without asking on the next save.
+    ``missing_scopes`` are scoped provider types with no scope id yet;
+    ``stale_scopes`` belong to providers the module no longer uses.
     ``provided`` are the variables the platform injects at run time.
     """
 
@@ -47,6 +49,8 @@ class ManifestResolution:
     missing_var_files: tuple[str, ...] = ()
     stale_variables: tuple[str, ...] = ()
     exposed_variables: tuple[str, ...] = ()
+    missing_scopes: tuple[str, ...] = ()
+    stale_scopes: tuple[str, ...] = ()
     provider_changes: tuple[ProviderChange, ...] = ()
 
     @property
@@ -61,6 +65,6 @@ class ManifestResolution:
         A first setup asks when there are optional var files to pick from;
         afterwards that choice is kept and only missing values are asked.
         """
-        if self.missing_variables or self.missing_var_files:
+        if self.missing_variables or self.missing_var_files or self.missing_scopes:
             return True
         return self.manifest is None and bool(self.selectable_var_files)

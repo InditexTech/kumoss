@@ -8,7 +8,12 @@ from pathlib import Path
 from typing import override
 
 from src.domains.exceptions import ManifestReadError
-from src.domains.value_objects import Manifest, ProviderRequirement, Variable
+from src.domains.value_objects import (
+    Manifest,
+    ProviderRequirement,
+    ProviderScope,
+    Variable,
+)
 from src.infrastructure.filesystem.manifest_file import ManifestFile
 
 MANIFEST = Manifest(
@@ -24,6 +29,11 @@ MANIFEST = Manifest(
         Variable("region", {"location": "westeurope"}),
         Variable("released", "2026-01-01"),
         Variable("unset", None),
+    ),
+    scopes=(
+        # Digits only: must survive YAML as a string.
+        ProviderScope("aws", "123456789012"),
+        ProviderScope("azurerm", "00000000-0000-0000-0000-000000000000"),
     ),
 )
 
@@ -57,6 +67,24 @@ class TestManifestFile(unittest.TestCase):
         self.assertNotIn("\r", text)
         self.assertEqual([p.name for p in self.dir.iterdir()], ["kumoss.yaml"])
 
+    def test_scopes_are_saved_by_provider_type(self):
+        self.file.save(self.dir, MANIFEST)
+        text = (self.dir / "kumoss.yaml").read_text()
+        self.assertIn("scopes:\n", text)
+        self.assertIn("- provider: azurerm\n", text)
+        loaded = self.file.load(self.dir)
+        self.assertEqual(loaded.scope("aws"), "123456789012")
+        self.assertIsNone(loaded.scope("random"))
+
+    def test_hand_written_scopes_are_read(self):
+        self.write(
+            "version: '1'\nfingerprint: sha256:x\n"
+            "scopes:\n  - provider: google\n    scope_id: my-project\n"
+        )
+        self.assertEqual(
+            self.file.load(self.dir).scopes, (ProviderScope("google", "my-project"),)
+        )
+
     def test_unquoted_dates_stay_strings(self):
         self.write(
             "version: '1'\nfingerprint: sha256:x\n"
@@ -86,6 +114,20 @@ class TestManifestFile(unittest.TestCase):
                 "  - {name: pw, sensitive: true, value: hunter2}\n"
             ),
             "Cannot read": "version: [unclosed\n",
+            "more than one scope": (
+                "version: '1'\nfingerprint: x\nscopes:\n"
+                "  - {provider: azurerm, scope_id: a}\n"
+                "  - {provider: azurerm, scope_id: b}\n"
+            ),
+            "'scope_id' must be a non-empty string": (
+                "version: '1'\nfingerprint: x\nscopes:\n  - {provider: azurerm}\n"
+            ),
+            "'provider' must be a non-empty string": (
+                "version: '1'\nfingerprint: x\nscopes:\n  - {scope_id: a}\n"
+            ),
+            "a scope must be a mapping": (
+                "version: '1'\nfingerprint: x\nscopes:\n  - azurerm\n"
+            ),
         }
         for expected, text in cases.items():
             with self.subTest(expected):

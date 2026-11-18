@@ -24,7 +24,6 @@ from src.infrastructure.external.search_summarizer_service import (
     _parse_selection,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
-from src.shared.constants import TerraformProvider
 
 
 def _results() -> list[SearchResult]:
@@ -43,7 +42,7 @@ def _summarizer(llm: MagicMock, top: int = 1) -> SearchResultsSummarizer:
         config.web_search.summarize_top = top
         config.web_search.summarize_max_chars = 1200
         return SearchResultsSummarizer(
-            llm, TemplateAdapter(template_provider=TerraformProvider.AWS, cwd=".")
+            llm, TemplateAdapter(providers=("aws",), cwd=".")
         )
 
 

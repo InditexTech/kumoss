@@ -11,6 +11,7 @@ from src.application.iac_requests import (
     GenerateRequest,
     DriftRequest,
     ApplyRequest,
+    ImportRequest,
     RepoUri,
 )
 
@@ -86,8 +87,6 @@ class TestGenerateRequest(unittest.TestCase):
     def test_first_call_shape(self):
         req = GenerateRequest(
             repo_uri="https://example.com/foo.git",
-            terraform_providers="azure",
-            scope_id="sub-123",
             q="create storage account",
         )
         self.assertEqual(req.repo_uri, "https://example.com/foo.git")
@@ -103,7 +102,6 @@ class TestGenerateRequest(unittest.TestCase):
             GenerateRequest(
                 repo_uri="https://example.com/foo.git",
                 session_id=str(_SID),
-                terraform_providers="azure",
                 q="x",
             )
 
@@ -111,35 +109,18 @@ class TestGenerateRequest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             GenerateRequest(q="x")
 
-    def test_first_call_requires_terraform_providers(self):
-        with self.assertRaises(ValidationError):
-            GenerateRequest(
-                repo_uri="https://example.com/foo.git", scope_id="sub-123", q="x"
-            )
-
-    def test_first_call_requires_scope_id(self):
-        with self.assertRaises(ValidationError):
-            GenerateRequest(
-                repo_uri="https://example.com/foo.git",
-                terraform_providers="azure",
-                q="x",
-            )
-
-    def test_first_call_rejects_a_blank_scope_id(self):
-        with self.assertRaises(ValidationError):
-            GenerateRequest(
-                repo_uri="https://example.com/foo.git",
-                terraform_providers="azure",
-                scope_id="",
-                q="x",
-            )
+    def test_first_call_needs_only_a_repo_uri_and_a_query(self):
+        # Providers and scopes come from the root module's manifest, not
+        # from the request.
+        req = GenerateRequest(repo_uri="https://example.com/foo.git", q="x")
+        self.assertIsNone(req.manifest)
+        for gone in ("terraform_providers", "scope_id"):
+            self.assertNotIn(gone, GenerateRequest.model_fields)
 
     def test_rejects_credentials_embedded_in_the_uri(self):
         with self.assertRaises(ValidationError):
             GenerateRequest(
                 repo_uri="https://user:ghp_secret@example.com/foo.git",
-                terraform_providers="azure",
-                scope_id="sub-123",
                 q="x",
             )
 
@@ -147,8 +128,6 @@ class TestGenerateRequest(unittest.TestCase):
         uri = "https://InditexData@dev.azure.com/InditexData/DevOpsv2/_git/repo"
         req = GenerateRequest(
             repo_uri=uri,
-            terraform_providers="azure",
-            scope_id="sub-123",
             q="x",
         )
         self.assertEqual(req.repo_uri, uri)
@@ -161,8 +140,6 @@ class TestGenerateRequest(unittest.TestCase):
         req = GenerateRequest.model_validate(
             {
                 "repo_uri": "https://example.com/foo.git",
-                "terraform_providers": "azure",
-                "scope_id": "sub-123",
                 "q": "x",
                 "root_module_path": "environments/dev",
             }
@@ -173,8 +150,6 @@ class TestGenerateRequest(unittest.TestCase):
         req = GenerateRequest.model_validate(
             {
                 "repo_uri": "https://example.com/foo.git",
-                "terraform_providers": "azure",
-                "scope_id": "sub-123",
                 "q": "x",
                 "iac_path": "environments/dev",
             }
@@ -186,8 +161,6 @@ class TestGenerateRequest(unittest.TestCase):
             GenerateRequest.model_validate(
                 {
                     "repo_uri": "https://example.com/foo.git",
-                    "terraform_providers": "azure",
-                    "scope_id": "sub-123",
                     "q": "x",
                     "iac_path": "../escape",
                 }
@@ -204,8 +177,6 @@ class TestDriftRequest(unittest.TestCase):
     def test_drift_first_call(self):
         req = DriftRequest(
             repo_uri="https://example.com/foo.git",
-            terraform_providers="azure",
-            scope_id="sub-123",
             q="check drift",
             is_partial=True,
         )
@@ -215,8 +186,6 @@ class TestDriftRequest(unittest.TestCase):
     def test_drift_defaults_to_full(self):
         req = DriftRequest(
             repo_uri="https://example.com/foo.git",
-            terraform_providers="azure",
-            scope_id="sub-123",
             q="detect all drift",
         )
         self.assertFalse(req.is_partial)
@@ -225,10 +194,21 @@ class TestDriftRequest(unittest.TestCase):
         with self.assertRaises(ValidationError):
             DriftRequest(
                 repo_uri="https://example.com/foo.git",
-                terraform_providers="azure",
-                scope_id="sub-123",
                 is_partial=True,
                 q=" ",
+            )
+
+
+class TestImportRequest(unittest.TestCase):
+    def test_first_call_needs_no_scope_id(self):
+        req = ImportRequest(repo_uri="https://example.com/foo.git", q="import all")
+        self.assertFalse(req.is_partial)
+        self.assertNotIn("scope_id", ImportRequest.model_fields)
+
+    def test_partial_with_blank_query_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            ImportRequest(
+                repo_uri="https://example.com/foo.git", q=" ", is_partial=True
             )
 
 
@@ -245,8 +225,6 @@ class TestApplyRequest(unittest.TestCase):
 class TestManifestAnswers(unittest.TestCase):
     FIRST_CALL = {
         "repo_uri": "https://github.com/foo/bar.git",
-        "terraform_providers": "azure",
-        "scope_id": "sub-1",
         "q": "add a bucket",
     }
 
@@ -276,6 +254,35 @@ class TestManifestAnswers(unittest.TestCase):
             _ = GenerateRequest.model_validate(
                 {"session_id": str(_SID), "q": "x", "manifest": {"variables": []}}
             )
+
+    def test_answers_carry_scopes_by_provider_type(self):
+        req = GenerateRequest.model_validate(
+            self.FIRST_CALL
+            | {"manifest": {"scopes": {"azurerm": "sub-1", "google": "proj-1"}}}
+        )
+        assert req.manifest is not None
+        self.assertEqual(req.manifest.scopes, {"azurerm": "sub-1", "google": "proj-1"})
+        self.assertEqual(
+            GenerateRequest.model_validate(
+                self.FIRST_CALL | {"manifest": {"variables": []}}
+            ).manifest.scopes,
+            {},
+        )
+
+    def test_scopes_need_provider_type_names_and_non_empty_ids(self):
+        for scopes in (
+            {"AzureRM": "sub-1"},
+            {"azure rm": "sub-1"},
+            {"-azurerm": "sub-1"},
+            {"azurerm": ""},
+            {"azurerm": "x" * 1025},
+            {f"p{i}": "x" for i in range(65)},
+        ):
+            with self.subTest(scopes=list(scopes)[:2]):
+                with self.assertRaises(ValidationError):
+                    _ = GenerateRequest.model_validate(
+                        self.FIRST_CALL | {"manifest": {"scopes": scopes}}
+                    )
 
     def test_answers_are_unique_and_well_named(self):
         for manifest in (

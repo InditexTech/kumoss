@@ -2,16 +2,13 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from enum import Enum
+from enum import StrEnum
 
 
-class TerraformProvider(str, Enum):
+class ScopeResourceIdsRequestProvider(StrEnum):
     AWS = "aws"
-    AZURE = "azure"
-    GCP = "gcp"
-    KUBERNETES = "kubernetes"
-    VMWARE = "vmware"
-    OCI = "oci"
+    AZURERM = "azurerm"
+    GOOGLE = "google"
 
     def __str__(self) -> str:
         return str(self.value)

@@ -27,7 +27,6 @@ from src.shared.constants import (
     OperationRole,
     OperationType,
     PanelRole,
-    TerraformProvider,
 )
 
 
@@ -78,8 +77,6 @@ class _GatingBase(unittest.IsolatedAsyncioTestCase):
             user_pk=user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
             root_module_path="infra",
@@ -127,8 +124,6 @@ class TestOperationRoleGates(_GatingBase):
             "/v1/iac/drift",
             json={
                 "repo_uri": "https://example.com/foo.git",
-                "terraform_providers": "azure",
-                "scope_id": "dev",
                 "q": "check drift",
             },
         )

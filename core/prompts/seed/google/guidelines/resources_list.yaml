@@ -42,5 +42,5 @@ body: |
   - `vpc_network` — VPC network (custom-mode).
 
   This list is the source of truth. Adding a new
-  `core/prompts/seed/gcp/resources/<name>.yaml` requires adding the
+  `core/prompts/seed/google/resources/<name>.yaml` requires adding the
   matching entry here so the compositor knows it exists.

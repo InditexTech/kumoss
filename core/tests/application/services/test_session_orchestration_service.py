@@ -13,7 +13,7 @@ from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base, User
 from src.infrastructure.redis import redis_client
-from src.shared.constants import OperationType, TerraformProvider
+from src.shared.constants import OperationType
 
 
 class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
@@ -39,8 +39,6 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
     def _first_request(self, **overrides) -> GenerateRequest:
         payload = {
             "repo_uri": "https://example.com/foo.git",
-            "terraform_providers": "azure",
-            "scope_id": "sub-123",
             "root_module_path": "infra",
             "q": "hi",
         }
@@ -52,7 +50,8 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
             self._first_request(), OperationType.GENERATE, self.user_pk
         )
         self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
-        self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
+        # Providers come from the manifest at setup, not from the request.
+        self.assertEqual(ctx.providers, ())
         self.assertTrue(ctx.branch_name.startswith("Kumoss/"))
         owner = await DatabaseService.get_session_owner(ctx.id)
         self.assertEqual(owner, self.user_pk)

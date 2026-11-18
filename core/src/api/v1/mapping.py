@@ -11,10 +11,12 @@ passthrough so the OSS-default deploy keeps working without a
 configured mapper.
 """
 
+from typing import cast
+
 from fastapi import APIRouter, Depends, HTTPException
 
 from src.api.deps import get_current_user
-from src.api.dtos import MappingResolveRequest, MappingResolveResponse
+from src.api.dtos import MappingProvider, MappingResolveRequest, MappingResolveResponse
 from src.infrastructure.external.mapping_service import MappingServiceClient
 from src.shared.exceptions import ExceptionHandler
 
@@ -45,6 +47,7 @@ async def resolve(body: MappingResolveRequest) -> MappingResolveResponse:
     return MappingResolveResponse(
         repo_url=resolved.repo_url,
         identifier=resolved.identifier,
-        terraform_provider=resolved.terraform_provider,
+        # The mapping client only returns values of its contract's enum.
+        terraform_provider=cast(MappingProvider | None, resolved.terraform_provider),
         scope_id=resolved.scope_id,
     )

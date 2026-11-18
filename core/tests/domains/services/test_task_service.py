@@ -75,7 +75,7 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
             "Error: Reference to undeclared input variable",
         )
 
-    async def test_split_errors_numbers_the_operations_above_the_raw_errors(self):
+    async def test_split_errors_numbers_the_operations_without_the_raw_errors(self):
         ops = self._ops(self.group_size + 1)
         self._llm_returns(ops)
 
@@ -91,12 +91,10 @@ class TestTaskService(unittest.IsolatedAsyncioTestCase):
             "Error: Unsupported argument",
         )
         steps = "\n".join(f"{i}. {op}" for i, op in enumerate(ops, 1))
-        self.assertIn(steps, query)
-        self.assertIn(
-            "<terraform_errors>\nError: Unsupported argument\n</terraform_errors>",
-            query,
-        )
-        self.assertLess(query.index(steps), query.index("<terraform_errors>"))
+        # The numbered operations are the whole query: the raw terraform
+        # errors are no longer appended after them.
+        self.assertEqual(query, f"Fix the following errors:\n{steps}\n\n")
+        self.assertNotIn("Error: Unsupported argument", query)
 
     async def test_split_errors_passes_the_errors_through_on_an_empty_split(self):
         self._llm_returns([])

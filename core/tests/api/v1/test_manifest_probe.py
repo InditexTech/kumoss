@@ -21,10 +21,12 @@ from src.domains.value_objects import (
     VariableSpec,
 )
 from src.infrastructure.exceptions import RepositoryUnreachable
-from src.shared.constants import TerraformProvider
 
 REQ = TerraformRequirements(
-    providers=(ProviderRequirement("aws", "hashicorp/aws", (">= 5.0",)),),
+    providers=(
+        ProviderRequirement("aws", "hashicorp/aws", (">= 5.0",)),
+        ProviderRequirement("random", "hashicorp/random"),
+    ),
     variables=(
         VariableSpec("region", "map(string)", required=True, description="Where."),
         VariableSpec("pw", "string", required=True, sensitive=True),
@@ -38,20 +40,15 @@ REQ = TerraformRequirements(
 
 class TestProbeRequest(unittest.TestCase):
     def test_validates_like_the_session_endpoints(self):
-        ok = ManifestProbeRequest.model_validate(
-            {"repo_uri": "https://github.com/o/r", "terraform_provider": "aws"}
-        )
+        ok = ManifestProbeRequest.model_validate({"repo_uri": "https://github.com/o/r"})
         self.assertIsNone(ok.root_module_path)
-        self.assertIs(ok.terraform_provider, TerraformProvider.AWS)
+        # Providers come from the module itself: the request names none.
+        self.assertNotIn("terraform_provider", ManifestProbeRequest.model_fields)
         for bad in (
-            {"repo_uri": "git@github.com:o/r", "terraform_provider": "aws"},
-            {"repo_uri": "https://u:t@github.com/o/r", "terraform_provider": "aws"},
-            {
-                "repo_uri": "https://github.com/o/r",
-                "terraform_provider": "aws",
-                "root_module_path": "../x",
-            },
-            {"repo_uri": "https://github.com/o/r"},
+            {"repo_uri": "git@github.com:o/r"},
+            {"repo_uri": "https://u:t@github.com/o/r"},
+            {"repo_uri": "https://github.com/o/r", "root_module_path": "../x"},
+            {},
         ):
             with self.subTest(bad):
                 with self.assertRaises(ValidationError):
@@ -92,6 +89,10 @@ class TestProbeResponse(unittest.TestCase):
             ],
         )
         self.assertEqual(body["selected_var_files"], [])
+        # Only scoped providers need a scope; random does not.
+        self.assertEqual(
+            body["missing_scopes"], [{"provider": "aws", "source": "hashicorp/aws"}]
+        )
 
     def test_drift_reports_selection_and_provider_changes_but_no_values(self):
         manifest, secrets = reconcile_manifest(
@@ -99,9 +100,13 @@ class TestProbeResponse(unittest.TestCase):
             {"region": VariableAnswer({"a": "b"}), "pw": VariableAnswer("s3cr3t")},
             ["envs/pro.tfvars"],
             {},
+            {"aws": "123456789012"},
         )
         bumped = TerraformRequirements(
-            providers=(ProviderRequirement("aws", "hashicorp/aws", ("~> 6.0",)),),
+            providers=(
+                ProviderRequirement("aws", "hashicorp/aws", ("~> 6.0",)),
+                ProviderRequirement("random", "hashicorp/random"),
+            ),
             variables=REQ.variables,
             var_files=REQ.var_files,
         )
@@ -112,6 +117,7 @@ class TestProbeResponse(unittest.TestCase):
         self.assertEqual(body["status"], "drifted")
         self.assertFalse(body["needs_input"])
         self.assertEqual(body["selected_var_files"], ["envs/pro.tfvars"])
+        self.assertEqual(body["missing_scopes"], [])
         self.assertEqual(
             body["provider_changes"],
             [
@@ -131,6 +137,7 @@ class TestProbeResponse(unittest.TestCase):
             {"region": VariableAnswer({"a": "b"}), "pw": VariableAnswer("s3cr3t")},
             ["envs/pro.tfvars", "envs/dev.tfvars"],
             {},
+            {"aws": "123456789012"},
         )
         body = ManifestProbeResponse.from_resolution(
             resolve_manifest(REQ, manifest, stored_secrets=secrets.keys())
@@ -148,6 +155,7 @@ class TestProbeResponse(unittest.TestCase):
             {"pw": VariableAnswer("s3cr3t")},
             ["envs/dev.tfvars"],
             {},
+            {"aws": "123456789012"},
         )
         resolution = resolve_manifest(REQ, manifest, stored_secrets=())
         self.assertEqual([v.name for v in resolution.missing_variables], ["pw"])
@@ -168,10 +176,7 @@ class TestProbeEndpoint(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaises(HTTPException) as ctx:
                 _ = await probe_manifest(
-                    ManifestProbeRequest(
-                        repo_uri="https://github.com/o/r",
-                        terraform_provider=TerraformProvider.AWS,
-                    )
+                    ManifestProbeRequest(repo_uri="https://github.com/o/r")
                 )
         self.assertEqual(ctx.exception.status_code, 400)
 
@@ -188,12 +193,38 @@ class TestProbeEndpoint(unittest.IsolatedAsyncioTestCase):
                 ManifestProbeRequest(
                     repo_uri="https://github.com/o/r",
                     root_module_path="infra",
-                    terraform_provider=TerraformProvider.AWS,
                 )
             )
         service.probe.assert_awaited_once_with(
             repo_uri="https://github.com/o/r",
             root_module_path="infra",
-            terraform_provider=TerraformProvider.AWS,
         )
         self.assertTrue(response.needs_input)
+        self.assertEqual(
+            [m.model_dump() for m in response.missing_scopes],
+            [{"provider": "aws", "source": "hashicorp/aws"}],
+        )
+
+    async def test_missing_scope_source_is_the_registry_address(self):
+        req = TerraformRequirements(
+            providers=(
+                ProviderRequirement(
+                    "azurerm", "registry.terraform.io/hashicorp/azurerm"
+                ),
+                ProviderRequirement("google", "hashicorp/google"),
+            ),
+        )
+        body = ManifestProbeResponse.from_resolution(
+            resolve_manifest(req, None, stored_secrets=())
+        ).model_dump()
+        self.assertTrue(body["needs_input"])
+        self.assertEqual(
+            body["missing_scopes"],
+            [
+                {
+                    "provider": "azurerm",
+                    "source": "registry.terraform.io/hashicorp/azurerm",
+                },
+                {"provider": "google", "source": "hashicorp/google"},
+            ],
+        )

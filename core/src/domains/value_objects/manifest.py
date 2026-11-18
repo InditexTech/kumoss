@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+from src.domains.value_objects.provider_scope import ProviderScope
 from src.domains.value_objects.terraform_requirements import ProviderRequirement
 
 # A Terraform input value as it travels through JSON/YAML: a primitive,
@@ -42,16 +43,21 @@ class Manifest:
     what changed. ``var_files`` are the optional ``-var-file`` files the
     user picked, in the order they are passed. ``variables`` holds only
     what the user answered: defaults and values set by var files are not
-    repeated here.
+    repeated here. ``scopes`` are the user's scope ids for the scoped
+    providers of the module, one per provider type.
     """
 
     fingerprint: str
     providers: tuple[ProviderRequirement, ...] = ()
     var_files: tuple[str, ...] = ()
     variables: tuple[Variable, ...] = ()
+    scopes: tuple[ProviderScope, ...] = ()
 
     def variable(self, name: str) -> Variable | None:
         return next((v for v in self.variables if v.name == name), None)
+
+    def scope(self, provider: str) -> str | None:
+        return next((s.scope_id for s in self.scopes if s.provider == provider), None)
 
 
 @dataclass(frozen=True)

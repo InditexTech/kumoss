@@ -138,7 +138,7 @@ class ApplicationFactory:
                 temperature=0.5,
             ),
             templates=TemplateAdapter(
-                template_provider=self.__ctx.terraform_prv,
+                providers=self.__ctx.provider_types,
                 cwd=self.__ctx.call_dir.as_posix(),
             ),
         )
@@ -175,7 +175,7 @@ class ApplicationFactory:
         tool_service: ToolOrchestrationService,
     ):
         template_adapter = TemplateAdapter(
-            template_provider=self.__ctx.terraform_prv,
+            providers=self.__ctx.provider_types,
             cwd=call_dir.as_posix(),
         )
         return TemplateOrchestrationService(
@@ -271,11 +271,9 @@ class ApplicationFactory:
         return TerraformFactory(
             project_root=project_root,
             git=self.get_git_utils(self.__ctx.repo_uri, project_root),
-            scope_id=self.__ctx.scope_id,
-            terraform_provider=self.__ctx.terraform_prv,
+            scopes=self.__ctx.providers,
             project_id=TerraformUtils.project_id(
                 repo_uri=self.__ctx.repo_uri,
-                scope_id=self.__ctx.scope_id,
                 root_module_path=self.__ctx.root_module_path,
             ),
             inputs=self.__ctx.terraform_inputs,

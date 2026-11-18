@@ -20,9 +20,11 @@ from src.application.services.terraform_import_service import TerraformImportSer
 from src.domains.dto import (
     PromptTemplateDTO,
     TerraformDiscoveryDTO,
+    TerraformImportAttempt,
     TerraformImportResourceDTO,
 )
-from src.shared.constants import PromptsLibrary, TerraformProvider
+from src.domains.value_objects import ProviderScope
+from src.shared.constants import DISCOVERABLE_PROVIDERS, PromptsLibrary
 
 
 def _discovery(resource_ids: list[str], feedback: str = "") -> TerraformDiscoveryDTO:
@@ -60,8 +62,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "scope-123")]
         )
 
         self.assertEqual(discovery.resource_ids, ["res-a", "res-c"])
@@ -76,33 +77,33 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "scope-123")]
         )
 
         self.assertEqual(discovery.resource_ids, [])
         self.assertIn("could not be listed", discovery.feedback)
         self.assertIn("Error: invalid token", discovery.feedback)
 
-    async def test_empty_scope_is_reported_apart_from_a_failed_query(self):
+    async def test_empty_scope_is_not_reported_as_a_failed_query(self):
         self.import_prv.state_resource_ids.return_value = _discovery([])
         self.import_prv.scope_resource_ids.return_value = _discovery([])
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "scope-123")]
         )
 
         self.assertEqual(discovery.resource_ids, [])
-        self.assertIn("holds no importable resource", discovery.feedback)
+        self.assertNotIn("could not be listed", discovery.feedback)
+        self.assertNotIn("already managed", discovery.feedback)
+        self.assertIn("no importable resource", discovery.feedback)
+        self.assertIn("azurerm scope-123", discovery.feedback)
 
     async def test_fully_managed_scope_is_reported_apart_from_an_empty_one(self):
         self.import_prv.state_resource_ids.return_value = _discovery(["res-a", "res-b"])
         self.import_prv.scope_resource_ids.return_value = _discovery(["res-a", "res-b"])
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "scope-123")]
         )
 
         self.assertEqual(discovery.resource_ids, [])
@@ -123,8 +124,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="s",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "s")]
         )
 
         # The scope's own spelling survives for the eventual import.
@@ -142,8 +142,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="s",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "s")]
         )
 
         self.assertEqual(
@@ -161,8 +160,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="p",
-            terraform_provider=TerraformProvider.GCP,
+            [ProviderScope("google", "p")]
         )
 
         self.assertEqual(discovery.resource_ids, ["projects/p/topics/orders"])
@@ -177,8 +175,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         self.template_svc.render.return_value = _exception_list("res-b", "res-z")
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.GCP,
+            [ProviderScope("google", "scope-123")]
         )
 
         # Withheld in code on every round, so no caller and no selection
@@ -201,8 +198,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="s",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "s")]
         )
 
         self.assertEqual(
@@ -221,8 +217,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="p",
-            terraform_provider=TerraformProvider.GCP,
+            [ProviderScope("google", "p")]
         )
 
         self.assertEqual(discovery.resource_ids, ["projects/p/topics/orders"])
@@ -234,8 +229,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         self.template_svc.render.return_value = _exception_list("res-b")
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AWS,
+            [ProviderScope("aws", "scope-123")]
         )
 
         self.assertEqual(discovery.resource_ids, [])
@@ -247,8 +241,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         self.import_prv.scope_resource_ids.return_value = _discovery(["res-a"])
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "scope-123")]
         )
 
         self.assertIn("already managed", discovery.feedback)
@@ -259,8 +252,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         self.import_prv.scope_resource_ids.return_value = _discovery(["res-a"])
 
         await self.service.get_unmanaged_resources(
-            scope_id="scope-123",
-            terraform_provider=TerraformProvider.AZURE,
+            [ProviderScope("azurerm", "scope-123")]
         )
 
         self.template_svc.render.assert_awaited_once_with(
@@ -290,8 +282,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         )
 
         discovery = await self.service.get_unmanaged_resources(
-            scope_id="s",
-            terraform_provider=TerraformProvider.GCP,
+            [ProviderScope("google", "s")]
         )
 
         # Prose and empty bullets are skipped; backticks and padding are
@@ -316,7 +307,7 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
         # The seeds document the format with an inline example; it must not
         # parse as an exception on a fresh deployment.
         seed_dir = Path(__file__).resolve().parents[3] / "prompts" / "seed"
-        for provider in ("azure", "gcp", "aws", "oci"):
+        for provider in ("azurerm", "google", "aws", "oci"):
             seed = seed_dir / provider / "guidelines" / "import_exceptions.yaml"
             self.template_svc.render.return_value = _exceptions(
                 yaml.safe_load(seed.read_text())["body"]
@@ -324,12 +315,118 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
             self.import_prv.state_resource_ids.return_value = _discovery([])
             self.import_prv.scope_resource_ids.return_value = _discovery(["res-a"])
 
+            # oci scopes are not listed: parse its seed under a listable one.
+            listed_as = provider if provider in DISCOVERABLE_PROVIDERS else "aws"
             discovery = await self.service.get_unmanaged_resources(
-                scope_id="scope-123",
-                terraform_provider=TerraformProvider(provider),
+                [ProviderScope(listed_as, "scope-123")]
             )
 
             self.assertEqual(discovery.excluded, [], provider)
+
+    # --- Several scopes ---
+
+    async def test_every_discoverable_scope_is_listed_and_merged(self):
+        self.import_prv.state_resource_ids.return_value = _discovery(
+            ["/subscriptions/s/resourceGroups/rg-a"]
+        )
+        listed = {
+            "azurerm": _discovery(
+                [
+                    "/subscriptions/s/resourcegroups/RG-A",
+                    "/subscriptions/s/resourceGroups/rg-b",
+                ]
+            ),
+            "google": _discovery(["projects/p/topics/b", "projects/p/topics/a"]),
+        }
+        self.import_prv.scope_resource_ids.side_effect = lambda sc: listed[sc.provider]
+        scopes = [
+            ProviderScope("azurerm", "s"),
+            ProviderScope("random"),
+            ProviderScope("oci", "ocid1.compartment.oc1..x"),
+            ProviderScope("aws"),  # discoverable but without a scope id
+            ProviderScope("google", "p"),
+        ]
+
+        discovery = await self.service.get_unmanaged_resources(scopes)
+
+        self.assertEqual(
+            [c.args[0] for c in self.import_prv.scope_resource_ids.await_args_list],
+            [ProviderScope("azurerm", "s"), ProviderScope("google", "p")],
+        )
+        self.import_prv.state_resource_ids.assert_awaited_once()
+        self.assertEqual(
+            discovery.resource_ids,
+            [
+                "/subscriptions/s/resourceGroups/rg-b",
+                "projects/p/topics/a",
+                "projects/p/topics/b",
+            ],
+        )
+        self.assertEqual(discovery.feedback, "")
+
+    async def test_case_insensitivity_applies_only_to_azurerm_ids(self):
+        self.import_prv.state_resource_ids.return_value = _discovery(
+            ["/subscriptions/s/resourceGroups/rg-a", "projects/p/topics/Orders"]
+        )
+        listed = {
+            "azurerm": _discovery(["/subscriptions/s/resourcegroups/RG-A"]),
+            "google": _discovery(["projects/p/topics/orders"]),
+        }
+        self.import_prv.scope_resource_ids.side_effect = lambda sc: listed[sc.provider]
+        self.template_svc.render.return_value = _exception_list(
+            "PROJECTS/P/TOPICS/ORDERS"
+        )
+
+        discovery = await self.service.get_unmanaged_resources(
+            [ProviderScope("azurerm", "s"), ProviderScope("google", "p")]
+        )
+
+        self.assertEqual(discovery.resource_ids, ["projects/p/topics/orders"])
+        self.assertEqual(discovery.excluded, [])
+
+    async def test_a_scope_that_cannot_be_listed_does_not_hide_the_others(self):
+        self.import_prv.state_resource_ids.return_value = _discovery([])
+        listed = {
+            "azurerm": _discovery([], "Error: invalid token"),
+            "aws": _discovery(["arn:aws:s3:::bucket"]),
+        }
+        self.import_prv.scope_resource_ids.side_effect = lambda sc: listed[sc.provider]
+
+        discovery = await self.service.get_unmanaged_resources(
+            [ProviderScope("azurerm", "sub-1"), ProviderScope("aws", "123456789012")]
+        )
+
+        self.assertEqual(discovery.resource_ids, ["arn:aws:s3:::bucket"])
+        self.assertIn("azurerm scope sub-1 could not be listed", discovery.feedback)
+        self.assertIn("Error: invalid token", discovery.feedback)
+
+    async def test_every_scope_failing_reports_each_failure_only(self):
+        self.import_prv.state_resource_ids.return_value = _discovery([])
+        self.import_prv.scope_resource_ids.side_effect = lambda sc: _discovery(
+            [], f"denied on {sc.scope_id}"
+        )
+
+        discovery = await self.service.get_unmanaged_resources(
+            [ProviderScope("azurerm", "sub-1"), ProviderScope("google", "proj-1")]
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("denied on sub-1", discovery.feedback)
+        self.assertIn("denied on proj-1", discovery.feedback)
+        self.assertNotIn("already managed", discovery.feedback)
+        self.template_svc.render.assert_not_awaited()
+
+    async def test_no_listable_scope_reads_nothing(self):
+        discovery = await self.service.get_unmanaged_resources(
+            [ProviderScope("oci", "ocid1.compartment.oc1..x"), ProviderScope("random")]
+        )
+
+        self.assertEqual(discovery.resource_ids, [])
+        self.assertIn("no provider whose scope can be listed", discovery.feedback)
+        for provider in sorted(DISCOVERABLE_PROVIDERS):
+            self.assertIn(provider, discovery.feedback)
+        self.import_prv.state_resource_ids.assert_not_awaited()
+        self.import_prv.scope_resource_ids.assert_not_awaited()
 
     # --- Import execution ---
 
@@ -341,27 +438,37 @@ class TestTerraformImportService(unittest.IsolatedAsyncioTestCase):
 
         outcome = await self.service.import_resources(
             [
-                ("azurerm_resource_group.main", "res-1"),
-                ("azurerm_storage_account.sta", "res-2"),
+                TerraformImportAttempt(
+                    "azurerm_resource_group.main", "res-1", listed_id="RES-1"
+                ),
+                TerraformImportAttempt(
+                    "azurerm_storage_account.sta", "res-2", listed_id="res-2"
+                ),
             ]
         )
 
         # The service keeps the address/resource id pairing it was given, so
         # the caller never has to recover it from the raw import results.
         self.assertEqual(
-            [(a.address, a.resource_id, a.error) for a in outcome.imported],
-            [("azurerm_resource_group.main", "res-1", "")],
+            [
+                (a.address, a.resource_id, a.listed_id, a.error)
+                for a in outcome.imported
+            ],
+            [("azurerm_resource_group.main", "res-1", "RES-1", "")],
         )
         self.assertEqual(
             [(a.address, a.resource_id, a.error) for a in outcome.failed],
             [("azurerm_storage_account.sta", "res-2", "resource already managed")],
         )
-        self.assertEqual(outcome.addresses, ["azurerm_resource_group.main"])
+        self.assertFalse(outcome.ok)
+        self.import_prv.import_resource.assert_any_await(
+            address="azurerm_resource_group.main", resource_id="res-1"
+        )
 
     async def test_import_resources_with_nothing_to_import(self):
         outcome = await self.service.import_resources([])
 
-        self.assertEqual(outcome.imported, [])
-        self.assertEqual(outcome.failed, [])
-        self.assertEqual(outcome.addresses, [])
+        self.assertEqual(outcome.imported, set())
+        self.assertEqual(outcome.failed, set())
+        self.assertTrue(outcome.ok)
         self.import_prv.import_resource.assert_not_awaited()

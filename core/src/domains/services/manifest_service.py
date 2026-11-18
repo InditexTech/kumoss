@@ -11,12 +11,15 @@ and save their answers (``reconcile_manifest``). Plain values go into the
 manifest, which travels with the code; sensitive ones go to the secret
 store and the manifest keeps only their names.
 
+The module's providers come from its code too: each scoped provider
+(``SCOPED_PROVIDERS``) needs a scope id, asked once and kept in the
+manifest; ``session_providers`` gives a session its provider/scope pairs.
 Provider credentials are not inputs here: they keep arriving as the IaC
-service's environment. A variable the platform injects (see
-``platform_variables``) is never asked either.
+service's environment. A variable the platform injects for a provider's
+scope (see ``platform_variables``) is never asked either.
 """
 
-from collections.abc import Collection, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Collection, Iterable, Mapping, Sequence
 
 from src.domains.exceptions import ManifestInputError, ManifestNotConfigured
 from src.domains.interfaces.config_inspector_interface import IConfigInspector
@@ -32,6 +35,7 @@ from src.domains.value_objects.manifest import (
     Variable,
     VariableAnswer,
 )
+from src.domains.value_objects.provider_scope import ProviderScope
 from src.domains.value_objects.manifest_resolution import (
     ManifestResolution,
     ProviderChange,
@@ -41,14 +45,18 @@ from src.domains.value_objects.terraform_requirements import (
     TerraformRequirements,
     VariableSpec,
 )
-from src.shared.constants import ManifestStatus, TerraformProvider
+from src.shared.constants import SCOPED_PROVIDERS, ManifestStatus
 
-# Input variables the IaC service fills from the session's scope (its
-# ``IacEngine._SCOPE_ENV_VARS``, the ``TF_VAR_*`` entries). Keep in sync.
-_PLATFORM_VARIABLES: dict[TerraformProvider, frozenset[str]] = {
-    TerraformProvider.OCI: frozenset({"compartment_ocid"}),
-    TerraformProvider.AWS: frozenset({"aws_account_id"}),
+# Input variables the IaC service fills from a provider's scope (the
+# ``TF_VAR_*`` entries of the IaC contract's "Scope injection"). Keep in sync.
+_PLATFORM_VARIABLES: dict[str, frozenset[str]] = {
+    "oci": frozenset({"compartment_ocid"}),
+    "aws": frozenset({"aws_account_id"}),
 }
+
+# Called with a session's provider/scope pairs before anything is saved;
+# raises to stop the setup (authorization).
+type Authorize = Callable[[tuple[ProviderScope, ...]], Awaitable[None]]
 
 _NOTHING: frozenset[str] = frozenset()
 _LIST_TYPES = ("list", "set", "tuple")
@@ -56,25 +64,40 @@ _MAP_TYPES = ("map", "object")
 _PRIMITIVE_TYPES = ("string", "number", "bool")
 
 
-def platform_variables(provider: TerraformProvider | None) -> frozenset[str]:
-    """Input variables the platform injects at run time for ``provider``."""
-    return _PLATFORM_VARIABLES.get(provider, _NOTHING) if provider else _NOTHING
+def platform_variables(provider_types: Iterable[str]) -> frozenset[str]:
+    """Input variables the platform injects at run time for these providers."""
+    return frozenset().union(
+        *(_PLATFORM_VARIABLES.get(t, _NOTHING) for t in provider_types)
+    )
+
+
+def session_providers(
+    requirements: TerraformRequirements, manifest: Manifest | None
+) -> tuple[ProviderScope, ...]:
+    """Every provider type the module uses, with its saved scope when it has one."""
+    return tuple(
+        ProviderScope(
+            t, manifest.scope(t) if manifest and t in SCOPED_PROVIDERS else None
+        )
+        for t in requirements.provider_types
+    )
 
 
 def resolve_manifest(
     requirements: TerraformRequirements,
     manifest: Manifest | None,
-    provided: frozenset[str] = _NOTHING,
     *,
     stored_secrets: Collection[str],
 ) -> ManifestResolution:
     """Check ``manifest`` against the module's current ``requirements``.
 
-    ``provided`` are the variables the platform injects; ``stored_secrets``
-    the names whose values the secret store holds. A sensitive binding
-    whose value is gone is reported missing even when the variable has a
-    default, so a lost secret is asked again rather than silently replaced.
+    ``stored_secrets`` are the names whose values the secret store holds.
+    A sensitive binding whose value is gone is reported missing even when
+    the variable has a default, so a lost secret is asked again rather than
+    silently replaced. Variables the platform injects for the module's
+    providers are never reported missing.
     """
+    provided = platform_variables(requirements.provider_types)
     declared = {v.name: v for v in requirements.variables}
     selectable = {f.path for f in requirements.optional_var_files}
     selected = manifest.var_files if manifest else ()
@@ -108,11 +131,15 @@ def resolve_manifest(
             if n in declared and declared[n].sensitive and not b.sensitive
         )
     )
+    scoped = {t for t in requirements.provider_types if t in SCOPED_PROVIDERS}
+    have_scopes = {sc.provider for sc in manifest.scopes} if manifest else set()
+    missing_scopes = tuple(sorted(scoped - have_scopes))
+    stale_scopes = tuple(sorted(have_scopes - scoped))
 
     if manifest is None:
         status = ManifestStatus.NOT_FOUND
     elif manifest.fingerprint == requirements.fingerprint and not (
-        missing or missing_files or stale or exposed
+        missing or missing_files or stale or exposed or missing_scopes or stale_scopes
     ):
         status = ManifestStatus.UP_TO_DATE
     else:
@@ -128,6 +155,8 @@ def resolve_manifest(
         missing_var_files=missing_files,
         stale_variables=stale,
         exposed_variables=exposed,
+        missing_scopes=missing_scopes,
+        stale_scopes=stale_scopes,
         provider_changes=(
             _provider_changes(manifest.providers, requirements.providers)
             if manifest
@@ -141,13 +170,16 @@ def reconcile_manifest(
     answers: Mapping[str, VariableAnswer],
     var_files: Sequence[str] | None,
     stored_secrets: Mapping[str, JsonValue],
+    scopes: Mapping[str, str] | None = None,
 ) -> tuple[Manifest, dict[str, JsonValue]]:
     """The manifest and secret values that result from applying ``answers``.
 
     Starts from the resolution's manifest: bindings of variables no longer
     declared are dropped, plain values of variables now declared sensitive
     move to the secrets, and each answer replaces its variable's binding.
-    ``var_files`` None keeps the current selection.
+    ``var_files`` None keeps the current selection. ``scopes`` answer the
+    scope id of scoped providers by type; scopes of providers the module no
+    longer uses are dropped.
 
     Secret values are never pruned: the store is shared by every branch
     of the repository, and a value this branch no longer binds may still
@@ -159,12 +191,13 @@ def reconcile_manifest(
 
     Raises:
         ManifestInputError: When an answer names an unknown variable, one
-            the platform injects, or has the wrong shape; when a var file
-            cannot be selected; or when something required is still left
-            uncovered.
+            the platform injects, or an unknown or unscoped provider, or has
+            the wrong shape; when a var file cannot be selected; or when
+            something required (a value or a scope) is still left uncovered.
     """
     requirements = resolution.requirements
     declared = {v.name: v for v in requirements.variables}
+    merged_scopes = _merge_scopes(resolution, scopes or {})
 
     unknown = sorted(answers.keys() - declared.keys())
     if unknown:
@@ -211,12 +244,11 @@ def reconcile_manifest(
         providers=requirements.providers,
         var_files=_select_var_files(resolution, var_files),
         variables=tuple(bindings[n] for n in sorted(bindings)),
+        scopes=merged_scopes,
     )
 
-    check = resolve_manifest(
-        requirements, manifest, resolution.provided, stored_secrets=secrets.keys()
-    )
-    if check.missing_variables or check.missing_var_files:
+    check = resolve_manifest(requirements, manifest, stored_secrets=secrets.keys())
+    if check.missing_variables or check.missing_var_files or check.missing_scopes:
         raise ManifestInputError(_incomplete_message(check), 422)
     return manifest, secrets
 
@@ -234,42 +266,48 @@ class ManifestService:
         self.__manifests = manifests
         self.__secrets = secrets
 
-    async def resolve(
-        self, module: RootModuleRef, provided: frozenset[str] = _NOTHING
-    ) -> ManifestResolution:
+    async def resolve(self, module: RootModuleRef) -> ManifestResolution:
         """Where the module's manifest stands; reads only, never writes."""
         requirements, manifest = await self.__read(module)
         stored = await self.__stored_secrets(module, manifest)
-        return resolve_manifest(
-            requirements, manifest, provided, stored_secrets=stored.keys()
-        )
+        return resolve_manifest(requirements, manifest, stored_secrets=stored.keys())
 
     async def sync(
-        self, module: RootModuleRef, provided: frozenset[str] = _NOTHING
+        self, module: RootModuleRef, authorize: Authorize | None = None
     ) -> ManifestResolution:
         """Resolve, and save the manifest whenever that needs no answer from the user.
 
         Covers a first setup with nothing to ask and drift such as a
         provider bump, a removed variable or a variable newly declared
         sensitive. The returned resolution ``needs_input`` otherwise.
+        ``authorize`` sees the session's provider/scope pairs before
+        anything is written, and stops the setup by raising.
         """
         requirements, manifest = await self.__read(module)
         stored = await self.__stored_secrets(module, manifest)
         resolution = resolve_manifest(
-            requirements, manifest, provided, stored_secrets=stored.keys()
+            requirements, manifest, stored_secrets=stored.keys()
         )
-        if resolution.status is ManifestStatus.UP_TO_DATE or resolution.needs_input:
+        if resolution.needs_input:
             return resolution
-        return await self.__save(module, resolution, {}, None, stored)
+        if resolution.status is ManifestStatus.UP_TO_DATE:
+            if authorize is not None:
+                await authorize(session_providers(requirements, manifest))
+            return resolution
+        return await self.__save(module, resolution, {}, None, stored, None, authorize)
 
     async def configure(
         self,
         module: RootModuleRef,
         answers: Mapping[str, VariableAnswer],
         var_files: Sequence[str] | None = None,
-        provided: frozenset[str] = _NOTHING,
+        scopes: Mapping[str, str] | None = None,
+        authorize: Authorize | None = None,
     ) -> ManifestResolution:
-        """Apply the user's ``answers`` (and var file selection) and save the result.
+        """Apply the user's ``answers``, var file selection and ``scopes``, and save.
+
+        ``authorize`` sees the resulting provider/scope pairs before
+        anything is written, and stops the setup by raising.
 
         Raises:
             ManifestInputError: When the answers are invalid or leave
@@ -278,9 +316,11 @@ class ManifestService:
         requirements, manifest = await self.__read(module)
         stored = await self.__stored_secrets(module, manifest)
         resolution = resolve_manifest(
-            requirements, manifest, provided, stored_secrets=stored.keys()
+            requirements, manifest, stored_secrets=stored.keys()
         )
-        return await self.__save(module, resolution, answers, var_files, stored)
+        return await self.__save(
+            module, resolution, answers, var_files, stored, scopes, authorize
+        )
 
     async def inputs(self, module: RootModuleRef) -> TerraformInputs:
         """What a Terraform run of the module is given: var files and every bound value.
@@ -332,8 +372,14 @@ class ManifestService:
         answers: Mapping[str, VariableAnswer],
         var_files: Sequence[str] | None,
         stored: dict[str, JsonValue],
+        scopes: Mapping[str, str] | None,
+        authorize: Authorize | None,
     ) -> ManifestResolution:
-        manifest, secrets = reconcile_manifest(resolution, answers, var_files, stored)
+        manifest, secrets = reconcile_manifest(
+            resolution, answers, var_files, stored, scopes
+        )
+        if authorize is not None:
+            await authorize(session_providers(resolution.requirements, manifest))
         # Secrets first: a manifest naming a secret that failed to save
         # would be reported as up to date with its value missing.
         changed = {
@@ -346,12 +392,8 @@ class ManifestService:
         if manifest != resolution.manifest:
             self.__manifests.save(module.directory, manifest)
         return resolve_manifest(
-            resolution.requirements,
-            manifest,
-            resolution.provided,
-            stored_secrets=secrets.keys(),
+            resolution.requirements, manifest, stored_secrets=secrets.keys()
         )
-
 
     async def __save_secrets(
         self, module: RootModuleRef, changed: Mapping[str, JsonValue]
@@ -365,6 +407,29 @@ class ManifestService:
         """
         latest = await self.__secrets.load(module)
         await self.__secrets.save(module, {**latest, **changed})
+
+
+def _merge_scopes(
+    resolution: ManifestResolution, answers: Mapping[str, str]
+) -> tuple[ProviderScope, ...]:
+    scoped = {
+        t for t in resolution.requirements.provider_types if t in SCOPED_PROVIDERS
+    }
+    unknown = sorted(answers.keys() - scoped)
+    if unknown:
+        raise ManifestInputError(
+            f"The root module uses no scoped provider named: {', '.join(unknown)}.", 422
+        )
+    merged = {
+        sc.provider: sc.scope_id
+        for sc in (resolution.manifest.scopes if resolution.manifest else ())
+        if sc.provider in scoped and sc.scope_id
+    }
+    for provider, scope_id in answers.items():
+        if not scope_id.strip():
+            raise ManifestInputError(f"The scope for {provider} is empty.", 422)
+        merged[provider] = scope_id.strip()
+    return tuple(ProviderScope(p, merged[p]) for p in sorted(merged))
 
 
 def _select_var_files(
@@ -430,4 +495,6 @@ def _incomplete_message(check: ManifestResolution) -> str:
         parts.append(
             f"selected var files no longer exist: {', '.join(check.missing_var_files)}"
         )
+    if check.missing_scopes:
+        parts.append(f"scopes are still needed for: {', '.join(check.missing_scopes)}")
     return "The manifest is incomplete; " + "; ".join(parts) + "."

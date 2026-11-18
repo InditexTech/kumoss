@@ -8,18 +8,18 @@ import unittest
 from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
+from src.infrastructure.exceptions import PhoenixPromptFetchError
 
 from src.shared.config import system_config
 from src.shared.constants import (
     OperationType,
     ReportType,
     TargetGenerationMode,
-    TerraformProvider,
 )
 
 
 PROVIDER_TEST_CASES = {
-    TerraformProvider.AWS: {
+    "aws": {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -35,7 +35,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_lambda_content"],
     },
-    TerraformProvider.AZURE: {
+    "azurerm": {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -51,7 +51,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_app_service_content"],
     },
-    TerraformProvider.GCP: {
+    "google": {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -67,7 +67,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_cloud_run_content"],
     },
-    TerraformProvider.OCI: {
+    "oci": {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -83,7 +83,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_compute_instance_content"],
     },
-    TerraformProvider.K8S: {
+    "kubernetes": {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -99,7 +99,7 @@ PROVIDER_TEST_CASES = {
         ],
         "expected_absent": ["mocked_service_content"],
     },
-    TerraformProvider.VMWARE: {
+    "vsphere": {
         "mock_responses": {
             "abbreviations": "mocked_abbreviations",
             "resources_list": "mocked_resources_list",
@@ -120,15 +120,13 @@ PROVIDER_TEST_CASES = {
 
 class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
-    async def _run_prompt_compositor_test(
-        self, provider: TerraformProvider, mock_fetch: AsyncMock
-    ):
+    async def _run_prompt_compositor_test(self, provider: str, mock_fetch: AsyncMock):
         case = PROVIDER_TEST_CASES[provider]
         mock_fetch.side_effect = lambda prompt_name, **_: case["mock_responses"].get(
             prompt_name, f"default_{prompt_name}_mocked_response"
         )
 
-        adapter = TemplateAdapter(template_provider=provider, cwd="/test/project")
+        adapter = TemplateAdapter(providers=(provider,), cwd="/test/project")
         prompt = await adapter.render_prompt_compositor(
             already_selected_templates=case["selected_templates"],
             already_selected_abbreviations=case["selected_abbreviations"],
@@ -141,22 +139,22 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(absent, prompt)
 
     async def test_render_prompt_compositor_aws(self):
-        await self._run_prompt_compositor_test(TerraformProvider.AWS)
+        await self._run_prompt_compositor_test("aws")
 
-    async def test_render_prompt_compositor_azure(self):
-        await self._run_prompt_compositor_test(TerraformProvider.AZURE)
+    async def test_render_prompt_compositor_azurerm(self):
+        await self._run_prompt_compositor_test("azurerm")
 
-    async def test_render_prompt_compositor_gcp(self):
-        await self._run_prompt_compositor_test(TerraformProvider.GCP)
+    async def test_render_prompt_compositor_google(self):
+        await self._run_prompt_compositor_test("google")
 
     async def test_render_prompt_compositor_oci(self):
-        await self._run_prompt_compositor_test(TerraformProvider.OCI)
+        await self._run_prompt_compositor_test("oci")
 
     async def test_render_prompt_compositor_kubernetes(self):
-        await self._run_prompt_compositor_test(TerraformProvider.K8S)
+        await self._run_prompt_compositor_test("kubernetes")
 
-    async def test_render_prompt_compositor_vmware(self):
-        await self._run_prompt_compositor_test(TerraformProvider.VMWARE)
+    async def test_render_prompt_compositor_vsphere(self):
+        await self._run_prompt_compositor_test("vsphere")
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_requests_filter_generate(self, mock_fetch: AsyncMock):
@@ -164,9 +162,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             f"mocked_{prompt_name}_response"
         )
 
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = await adapter.render_requests_filter(
             operation_type=OperationType.GENERATE,
         )
@@ -188,9 +184,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             f"mocked_{prompt_name}_response"
         )
 
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = await adapter.render_requests_filter(
             operation_type=OperationType.DRIFT,
         )
@@ -217,9 +211,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     }
 
     def _run_pr_generator_test(self, operation_type: OperationType):
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = adapter.render_pr_generator(operation_type=operation_type)
 
         self.assertIsInstance(prompt, str)
@@ -260,9 +252,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     ):
         mock_fetch.return_value = "- mocked impact rule:\n  - mocked nested rule.\n"
 
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = await adapter.render_report_generator(report_type=report_type)
 
         self.assertIsInstance(prompt, str)
@@ -301,9 +291,11 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("diff_history", prompt)
 
     async def test_render_report_generator_import(self):
-        # IMPORT has no dedicated report workflow: no branch is rendered
-        _, mock_fetch = await self._run_report_generator_test(ReportType.IMPORT, None)
+        prompt, mock_fetch = await self._run_report_generator_test(
+            ReportType.IMPORT, "import"
+        )
         mock_fetch.assert_not_awaited()
+        self.assertIn("excluded_resource_ids", prompt)
 
     async def test_render_report_generator_drift(self):
         prompt, mock_fetch = await self._run_report_generator_test(
@@ -327,9 +319,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("diff_history", prompt)
 
     async def test_render_target_generator_session(self):
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = await adapter.render_target_generator(
             mode=TargetGenerationMode.SESSION
         )
@@ -349,9 +339,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         )
 
     def test_render_task_splitter_drift(self):
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = adapter.render_task_splitter(operation_type=OperationType.DRIFT)
 
         self.assertIn("JSON drift report", prompt)
@@ -366,9 +354,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("{%", prompt)
 
     def test_render_task_splitter_terraform_errors(self):
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         for operation_type in (OperationType.GENERATE, OperationType.IMPORT):
             with self.subTest(operation_type=operation_type):
                 prompt = adapter.render_task_splitter(operation_type=operation_type)
@@ -384,9 +370,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("{%", prompt)
 
     def test_render_filter_reconciliation(self):
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = adapter.render_filter_reconciliation()
 
         self.assertIsInstance(prompt, str)
@@ -401,9 +385,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_filter_drift_exceptions(self, mock_fetch: AsyncMock):
         mock_fetch.return_value = "mocked_drift_exceptions"
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AWS, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("aws",), cwd="/test/project")
 
         prompt = await adapter.render_filter_drift_exceptions()
 
@@ -427,15 +409,13 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self, mock_fetch: AsyncMock
     ):
         mock_fetch.return_value = "- /subscriptions/s/resourceGroups/rg-a"
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
 
         body = await adapter.render_import_exceptions()
 
         mock_fetch.assert_awaited_once_with(
             prompt_name="import_exceptions",
-            scope="azure",
+            scope="azurerm",
             type="guidelines",
             tag=system_config.environment,
         )
@@ -446,9 +426,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     async def test_render_import_filter_leaves_exceptions_to_code(
         self, mock_fetch: AsyncMock
     ):
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
 
         prompt = await adapter.render_import_filter(
             unmanaged_ids=["res-1"], resources=[], abbreviations=[]
@@ -461,9 +439,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_render_target_generator_drift(self, mock_fetch: AsyncMock):
         mock_fetch.return_value = "mocked_drift_guidelines"
-        adapter = TemplateAdapter(
-            template_provider=TerraformProvider.AZURE, cwd="/test/project"
-        )
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
         prompt = await adapter.render_target_generator(
             mode=TargetGenerationMode.DRIFT,
             resources=["storage_account"],
@@ -481,6 +457,137 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             mock_fetch.await_args.kwargs["prompt_name"], "targeting_policies"
         )
         self.assertEqual(mock_fetch.await_args.kwargs["scope"], "general")
+
+
+def _not_found(name: str) -> PhoenixPromptFetchError:
+    return PhoenixPromptFetchError(f"prompt {name} not found", 404)
+
+
+class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
+    """A root module may use several providers, or ones without prompts."""
+
+    @staticmethod
+    def _phoenix(prompts: dict[tuple[str, str], str]):
+        """A fetch double serving ``prompts`` by (scope, name); 404 otherwise."""
+
+        async def fetch(prompt_name: str, scope: str, type: str, tag: str) -> str:
+            if (scope, prompt_name) in prompts:
+                return prompts[(scope, prompt_name)]
+            raise _not_found(f"{scope}-{type}-{prompt_name}")
+
+        return fetch
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_guidelines_of_several_providers_are_joined_by_section(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = self._phoenix(
+            {
+                ("azurerm", "import_exceptions"): "- /subscriptions/s/rg-a",
+                ("google", "import_exceptions"): "- projects/p/topics/t",
+            }
+        )
+        adapter = TemplateAdapter(
+            providers=("azurerm", "random", "google"), cwd="/test/project"
+        )
+
+        body = await adapter.render_import_exceptions()
+
+        # random has no prompts: skipped, without a heading of its own.
+        self.assertEqual(
+            body,
+            "## azurerm\n- /subscriptions/s/rg-a\n\n## google\n- projects/p/topics/t",
+        )
+        self.assertEqual(
+            [c.kwargs["scope"] for c in mock_fetch.await_args_list],
+            ["azurerm", "random", "google"],
+        )
+        for c in mock_fetch.await_args_list:
+            self.assertEqual(c.kwargs["type"], "guidelines")
+            self.assertEqual(c.kwargs["prompt_name"], "import_exceptions")
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_a_single_provider_gets_no_section_heading(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = self._phoenix(
+            {("aws", "drift_exceptions"): "mocked_drift_exceptions"}
+        )
+        adapter = TemplateAdapter(providers=("aws",), cwd="/test/project")
+
+        prompt = await adapter.render_filter_drift_exceptions()
+
+        self.assertIn("mocked_drift_exceptions", prompt)
+        self.assertNotIn("## aws", prompt)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_providers_without_prompts_leave_only_the_general_ones(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = self._phoenix(
+            {("general", "requests"): "mocked_requests_response"}
+        )
+        for providers in ((), ("random", "null")):
+            with self.subTest(providers=providers):
+                adapter = TemplateAdapter(providers=providers, cwd="/test/project")
+                prompt = await adapter.render_requests_filter(
+                    operation_type=OperationType.GENERATE
+                )
+                self.assertIn("mocked_requests_response", prompt)
+                self.assertEqual(await adapter.render_import_exceptions(), "")
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_errors_other_than_not_found_are_raised(self, mock_fetch: AsyncMock):
+        mock_fetch.side_effect = PhoenixPromptFetchError("phoenix is down", 502)
+        adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
+
+        with self.assertRaises(PhoenixPromptFetchError) as ctx:
+            await adapter.render_import_exceptions()
+        self.assertEqual(ctx.exception.error_code, 502)
+
+    @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
+    async def test_resource_template_comes_from_the_first_provider_that_has_it(
+        self, mock_fetch: AsyncMock
+    ):
+        mock_fetch.side_effect = self._phoenix(
+            {
+                ("google", "abbreviations"): "google_abbreviations",
+                ("google", "resources_list"): "google_resources_list",
+                ("kubernetes", "abbreviations"): "k8s_abbreviations",
+                ("kubernetes", "resources_list"): "k8s_resources_list",
+                ("kubernetes", "deployment"): "k8s_deployment_content",
+                ("google", "storage_bucket"): "google_storage_bucket_content",
+            }
+        )
+        adapter = TemplateAdapter(
+            providers=("google", "kubernetes"), cwd="/test/project"
+        )
+
+        prompt = await adapter.render_prompt_compositor(
+            already_selected_templates=["deployment", "storage_bucket", "unknown"],
+            already_selected_abbreviations=["deploy-"],
+        )
+
+        for expected in (
+            "## google\ngoogle_abbreviations",
+            "## kubernetes\nk8s_abbreviations",
+            "google_resources_list",
+            "k8s_resources_list",
+            "k8s_deployment_content",
+            "google_storage_bucket_content",
+        ):
+            self.assertIn(expected, prompt)
+        resource_scopes = [
+            c.kwargs["scope"]
+            for c in mock_fetch.await_args_list
+            if c.kwargs["type"] == "resources"
+        ]
+        # deployment: google 404, kubernetes hit; storage_bucket: google hit
+        # (kubernetes never asked); unknown: neither has it.
+        self.assertEqual(
+            resource_scopes,
+            ["google", "kubernetes", "google", "google", "kubernetes"],
+        )
 
 
 if __name__ == "__main__":

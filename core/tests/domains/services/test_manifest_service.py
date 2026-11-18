@@ -10,6 +10,7 @@ The rules are pure functions over value objects and are tested as such;
 
 import unittest
 from collections.abc import Mapping
+from unittest.mock import AsyncMock
 from pathlib import Path
 from typing import override
 
@@ -24,10 +25,12 @@ from src.domains.services.manifest_service import (
     platform_variables,
     reconcile_manifest,
     resolve_manifest,
+    session_providers,
 )
 from src.domains.value_objects import (
     Manifest,
     ProviderRequirement,
+    ProviderScope,
     RootModuleRef,
     TerraformInputs,
     TerraformRequirements,
@@ -37,10 +40,14 @@ from src.domains.value_objects import (
     VariableSpec,
 )
 from src.domains.value_objects.manifest import JsonValue
-from src.shared.constants import ManifestStatus, TerraformProvider
+from src.shared.constants import ManifestStatus
 
 AWS = ProviderRequirement("aws", "hashicorp/aws", (">= 5.0",))
+AZURERM = ProviderRequirement("azurerm", "hashicorp/azurerm", ("~> 4.0",))
+GOOGLE = ProviderRequirement("google", "hashicorp/google")
+OCI = ProviderRequirement("oci", "oracle/oci")
 RANDOM = ProviderRequirement("random", "hashicorp/random")
+NULL = ProviderRequirement("null", "hashicorp/null")
 
 REGION = VariableSpec("region", "map(string)", required=True)
 DB_PASSWORD = VariableSpec("db_password", "string", required=True, sensitive=True)
@@ -51,7 +58,7 @@ NAME = VariableSpec("name", "string", required=True)
 def requirements(
     variables: tuple[VariableSpec, ...] = (REGION, DB_PASSWORD, OWNERS),
     var_files: tuple[VarFile, ...] = (),
-    providers: tuple[ProviderRequirement, ...] = (AWS,),
+    providers: tuple[ProviderRequirement, ...] = (RANDOM,),
 ) -> TerraformRequirements:
     return TerraformRequirements(
         providers=providers, variables=variables, var_files=var_files
@@ -126,13 +133,33 @@ class TestResolve(unittest.TestCase):
 
     def test_platform_injected_variables_are_never_asked(self):
         req = requirements(
+            variables=(
+                VariableSpec("compartment_ocid", "string", required=True),
+                VariableSpec("aws_account_id", "string", required=True),
+            ),
+            providers=(OCI, AWS),
+        )
+        res = resolve_manifest(req, None, stored_secrets=())
+        self.assertEqual(res.missing_variables, ())
+        # Only the scopes they are filled from are asked.
+        self.assertEqual(res.missing_scopes, ("aws", "oci"))
+
+    def test_platform_variables_come_from_the_modules_providers(self):
+        req = requirements(
             variables=(VariableSpec("compartment_ocid", "string", required=True),)
         )
-        provided = platform_variables(TerraformProvider.OCI)
-        res = resolve_manifest(req, None, provided, stored_secrets=())
-        self.assertEqual(res.missing_variables, ())
-        self.assertFalse(res.needs_input)
-        self.assertEqual(platform_variables(None), frozenset())
+        res = resolve_manifest(req, None, stored_secrets=())
+        self.assertEqual([v.name for v in res.missing_variables], ["compartment_ocid"])
+
+    def test_platform_variables_by_provider_type(self):
+        self.assertEqual(platform_variables(["oci"]), frozenset({"compartment_ocid"}))
+        self.assertEqual(platform_variables(["aws"]), frozenset({"aws_account_id"}))
+        self.assertEqual(
+            platform_variables(["aws", "oci", "random"]),
+            frozenset({"aws_account_id", "compartment_ocid"}),
+        )
+        self.assertEqual(platform_variables(["azurerm", "google"]), frozenset())
+        self.assertEqual(platform_variables([]), frozenset())
 
     def test_first_setup_asks_for_var_files_when_there_are_some(self):
         req = requirements(
@@ -154,13 +181,17 @@ class TestResolve(unittest.TestCase):
     def test_provider_bump_drifts_without_asking(self):
         manifest, secrets = configured(requirements())
         bumped = requirements(
-            providers=(ProviderRequirement("aws", "hashicorp/aws", ("~> 6.0",)), RANDOM)
+            providers=(
+                ProviderRequirement("random", "hashicorp/random", ("~> 3.0",)),
+                NULL,
+            )
         )
         res = resolve_manifest(bumped, manifest, stored_secrets=secrets.keys())
         self.assertIs(res.status, ManifestStatus.DRIFTED)
         self.assertFalse(res.needs_input)
-        self.assertEqual([c.name for c in res.provider_changes], ["aws", "random"])
-        self.assertIsNone(res.provider_changes[1].before)
+        self.assertEqual([c.name for c in res.provider_changes], ["null", "random"])
+        self.assertIsNone(res.provider_changes[0].before)
+        self.assertEqual(res.provider_changes[1].before, RANDOM)
 
     def test_new_required_variable_is_the_only_question(self):
         manifest, secrets = configured(requirements())
@@ -301,16 +332,20 @@ class TestReconcile(unittest.TestCase):
         self.assertEqual(secrets, {"db_password": "s3cr3t"})
 
     def test_platform_variable_cannot_be_answered(self):
-        req = requirements(variables=(VariableSpec("compartment_ocid", "string"),))
-        res = resolve_manifest(
-            req,
-            None,
-            platform_variables(TerraformProvider.OCI),
-            stored_secrets=(),
+        # The module uses oci, so the platform injects compartment_ocid.
+        req = requirements(
+            variables=(VariableSpec("compartment_ocid", "string"),),
+            providers=(ProviderRequirement("oci", "oracle/oci"),),
         )
+        res = resolve_manifest(req, None, stored_secrets=())
+        self.assertIn("compartment_ocid", res.provided)
         with self.assertRaises(ManifestInputError) as ctx:
             _ = reconcile_manifest(
-                res, {"compartment_ocid": VariableAnswer("ocid1.other")}, None, {}
+                res,
+                {"compartment_ocid": VariableAnswer("ocid1.other")},
+                None,
+                {},
+                {"oci": "ocid1.compartment.mine"},
             )
         self.assertIn("compartment_ocid", ctx.exception.message)
         self.assertEqual(ctx.exception.error_code, 422)
@@ -392,6 +427,153 @@ class TestReconcile(unittest.TestCase):
         res = resolve_manifest(req, None, stored_secrets=())
         manifest, _ = reconcile_manifest(res, {}, ["b.tfvars", "a.tfvars"], {})
         self.assertEqual(manifest.var_files, ("b.tfvars", "a.tfvars"))
+
+
+SUB = "00000000-0000-0000-0000-000000000001"
+
+
+class TestScopes(unittest.TestCase):
+    def test_scoped_providers_without_a_scope_are_missing(self):
+        req = requirements(variables=(), providers=(AZURERM, RANDOM))
+        res = resolve_manifest(req, None, stored_secrets=())
+        self.assertEqual(res.missing_scopes, ("azurerm",))
+        self.assertEqual(res.stale_scopes, ())
+        self.assertTrue(res.needs_input)
+
+    def test_unscoped_providers_need_no_scope(self):
+        req = requirements(variables=(), providers=(RANDOM, NULL))
+        res = resolve_manifest(req, None, stored_secrets=())
+        self.assertEqual(res.missing_scopes, ())
+        self.assertFalse(res.needs_input)
+
+    def test_reconcile_saves_answered_scopes(self):
+        req = requirements(variables=(), providers=(AZURERM, GOOGLE, RANDOM))
+        res = resolve_manifest(req, None, stored_secrets=())
+        manifest, _ = reconcile_manifest(
+            res, {}, None, {}, {"google": "proj-1", "azurerm": f"  {SUB} "}
+        )
+        self.assertEqual(
+            manifest.scopes,
+            (ProviderScope("azurerm", SUB), ProviderScope("google", "proj-1")),
+        )
+        self.assertEqual(manifest.scope("google"), "proj-1")
+        self.assertIsNone(manifest.scope("random"))
+        self.assertIs(
+            resolve_manifest(req, manifest, stored_secrets=()).status,
+            ManifestStatus.UP_TO_DATE,
+        )
+
+    def test_reconcile_without_a_needed_scope_is_rejected(self):
+        req = requirements(variables=(), providers=(AZURERM, GOOGLE))
+        res = resolve_manifest(req, None, stored_secrets=())
+        with self.assertRaises(ManifestInputError) as ctx:
+            _ = reconcile_manifest(res, {}, None, {}, {"azurerm": SUB})
+        self.assertEqual(ctx.exception.error_code, 422)
+        self.assertIn("google", ctx.exception.message)
+        self.assertNotIn("azurerm", ctx.exception.message)
+
+    def test_scope_for_a_provider_the_module_does_not_scope_is_rejected(self):
+        req = requirements(variables=(), providers=(AZURERM, RANDOM))
+        res = resolve_manifest(req, None, stored_secrets=())
+        for provider in ("random", "google"):
+            with self.assertRaises(ManifestInputError) as ctx:
+                _ = reconcile_manifest(
+                    res, {}, None, {}, {"azurerm": SUB, provider: "x"}
+                )
+            self.assertEqual(ctx.exception.error_code, 422)
+            self.assertIn(provider, ctx.exception.message)
+
+    def test_empty_scope_is_rejected(self):
+        req = requirements(variables=(), providers=(AZURERM,))
+        res = resolve_manifest(req, None, stored_secrets=())
+        with self.assertRaises(ManifestInputError) as ctx:
+            _ = reconcile_manifest(res, {}, None, {}, {"azurerm": "   "})
+        self.assertEqual(ctx.exception.error_code, 422)
+        self.assertIn("azurerm", ctx.exception.message)
+
+    def test_saved_scopes_are_kept_unless_answered_again(self):
+        req = requirements(variables=(), providers=(AZURERM, GOOGLE))
+        res = resolve_manifest(req, None, stored_secrets=())
+        manifest, _ = reconcile_manifest(
+            res, {}, None, {}, {"azurerm": SUB, "google": "proj-1"}
+        )
+        res = resolve_manifest(req, manifest, stored_secrets=())
+        kept, _ = reconcile_manifest(res, {}, None, {})
+        self.assertEqual(kept.scopes, manifest.scopes)
+        changed, _ = reconcile_manifest(res, {}, None, {}, {"google": "proj-2"})
+        self.assertEqual(
+            changed.scopes,
+            (ProviderScope("azurerm", SUB), ProviderScope("google", "proj-2")),
+        )
+
+    def test_scopes_of_providers_no_longer_used_are_stale_and_dropped(self):
+        before = requirements(variables=(), providers=(AZURERM, RANDOM))
+        manifest, _ = reconcile_manifest(
+            resolve_manifest(before, None, stored_secrets=()),
+            {},
+            None,
+            {},
+            {"azurerm": SUB},
+        )
+        after = requirements(variables=(), providers=(RANDOM,))
+        res = resolve_manifest(after, manifest, stored_secrets=())
+        self.assertEqual(res.stale_scopes, ("azurerm",))
+        self.assertEqual(res.missing_scopes, ())
+        self.assertIs(res.status, ManifestStatus.DRIFTED)
+        self.assertFalse(res.needs_input)
+        healed, _ = reconcile_manifest(res, {}, None, {})
+        self.assertEqual(healed.scopes, ())
+
+    def test_switching_provider_asks_for_the_new_scope(self):
+        before = requirements(variables=(), providers=(AZURERM,))
+        manifest, _ = reconcile_manifest(
+            resolve_manifest(before, None, stored_secrets=()),
+            {},
+            None,
+            {},
+            {"azurerm": SUB},
+        )
+        after = requirements(variables=(), providers=(GOOGLE,))
+        res = resolve_manifest(after, manifest, stored_secrets=())
+        self.assertEqual(res.missing_scopes, ("google",))
+        self.assertEqual(res.stale_scopes, ("azurerm",))
+        self.assertTrue(res.needs_input)
+
+    def test_session_providers_pairs_each_type_with_its_scope(self):
+        aliased = ProviderRequirement("azurerm.secondary", "hashicorp/azurerm")
+        req = requirements(variables=(), providers=(AZURERM, aliased, RANDOM))
+        manifest = Manifest(
+            fingerprint=req.fingerprint,
+            providers=req.providers,
+            # A scope saved for an unscoped provider is never used.
+            scopes=(ProviderScope("azurerm", SUB), ProviderScope("random", "x")),
+        )
+        self.assertEqual(
+            session_providers(req, manifest),
+            (ProviderScope("azurerm", SUB), ProviderScope("random")),
+        )
+        self.assertEqual(
+            session_providers(req, None),
+            (ProviderScope("azurerm"), ProviderScope("random")),
+        )
+
+    def test_provider_type_is_the_last_segment_of_the_source(self):
+        self.assertEqual(
+            ProviderRequirement(
+                "azurerm", "registry.terraform.io/hashicorp/azurerm"
+            ).type,
+            "azurerm",
+        )
+        self.assertEqual(ProviderRequirement("x", "local").type, "local")
+        req = requirements(
+            providers=(RANDOM, AZURERM, ProviderRequirement("az2", "hashicorp/azurerm"))
+        )
+        self.assertEqual(req.provider_types, ("azurerm", "random"))
+
+    def test_provider_scope_knows_whether_its_provider_is_scoped(self):
+        self.assertTrue(ProviderScope("oci", "ocid1.compartment.oc1..x").scoped)
+        self.assertTrue(ProviderScope("aws").scoped)
+        self.assertFalse(ProviderScope("kubernetes").scoped)
 
 
 class TestValueObjects(unittest.TestCase):
@@ -500,13 +682,13 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
 
     async def test_sync_heals_drift_that_needs_no_answer(self):
         _ = await self.configure()
-        self.inspector.requirements = requirements(providers=(AWS, RANDOM))
+        self.inspector.requirements = requirements(providers=(RANDOM, NULL))
         self.assertIs(
             (await self.service.resolve(MODULE)).status, ManifestStatus.DRIFTED
         )
         res = await self.service.sync(MODULE)
         self.assertIs(res.status, ManifestStatus.UP_TO_DATE)
-        self.assertIn(RANDOM, self.manifests.stored.providers)
+        self.assertIn(NULL, self.manifests.stored.providers)
 
     async def test_sync_creates_manifest_when_nothing_to_ask(self):
         self.inspector.requirements = requirements(variables=(OWNERS,))
@@ -545,9 +727,83 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
         _ = await self.service.configure(
             MODULE, {"db_password": VariableAnswer("rotated")}
         )
-        self.assertEqual(
-            self.secrets.values, {"db_password": "rotated", "other": "x"}
+        self.assertEqual(self.secrets.values, {"db_password": "rotated", "other": "x"})
+
+    async def test_configure_authorizes_the_pairs_before_saving(self):
+        self.inspector.requirements = requirements(
+            variables=(REGION,), providers=(AZURERM, RANDOM)
         )
+        seen: list[tuple[ProviderScope, ...]] = []
+
+        async def authorize(pairs: tuple[ProviderScope, ...]) -> None:
+            # Nothing is written yet when authorization runs.
+            self.assertIsNone(self.manifests.stored)
+            seen.append(pairs)
+
+        res = await self.service.configure(
+            MODULE,
+            {"region": VariableAnswer({})},
+            scopes={"azurerm": SUB},
+            authorize=authorize,
+        )
+        self.assertEqual(
+            seen, [(ProviderScope("azurerm", SUB), ProviderScope("random"))]
+        )
+        self.assertIs(res.status, ManifestStatus.UP_TO_DATE)
+        self.assertEqual(self.manifests.stored.scopes, (ProviderScope("azurerm", SUB),))
+
+    async def test_nothing_is_saved_when_authorization_fails(self):
+        self.inspector.requirements = requirements(providers=(AZURERM,))
+        authorize = AsyncMock(side_effect=PermissionError("denied"))
+        with self.assertRaises(PermissionError):
+            _ = await self.service.configure(
+                MODULE,
+                {
+                    "region": VariableAnswer({"location": "westeurope"}),
+                    "db_password": VariableAnswer("s3cr3t"),
+                },
+                scopes={"azurerm": SUB},
+                authorize=authorize,
+            )
+        authorize.assert_awaited_once()
+        self.assertIsNone(self.manifests.stored)
+        self.assertEqual(self.manifests.saves, 0)
+        self.assertEqual(self.secrets.values, {})
+
+    async def test_sync_authorizes_an_up_to_date_manifest_without_saving(self):
+        self.inspector.requirements = requirements(variables=(), providers=(AZURERM,))
+        _ = await self.service.configure(MODULE, {}, scopes={"azurerm": SUB})
+        saves = self.manifests.saves
+        authorize = AsyncMock()
+        res = await self.service.sync(MODULE, authorize)
+        self.assertIs(res.status, ManifestStatus.UP_TO_DATE)
+        authorize.assert_awaited_once_with((ProviderScope("azurerm", SUB),))
+        self.assertEqual(self.manifests.saves, saves)
+
+    async def test_sync_authorizes_before_healing_drift(self):
+        self.inspector.requirements = requirements(variables=(), providers=(RANDOM,))
+        _ = await self.service.sync(MODULE)
+        self.inspector.requirements = requirements(
+            variables=(), providers=(RANDOM, NULL)
+        )
+        saves = self.manifests.saves
+        authorize = AsyncMock(side_effect=PermissionError("denied"))
+        with self.assertRaises(PermissionError):
+            _ = await self.service.sync(MODULE, authorize)
+        authorize.assert_awaited_once_with(
+            (ProviderScope("null"), ProviderScope("random"))
+        )
+        self.assertEqual(self.manifests.saves, saves)
+        self.assertNotIn(NULL, self.manifests.stored.providers)
+
+    async def test_sync_that_needs_input_does_not_authorize(self):
+        self.inspector.requirements = requirements(variables=(), providers=(AZURERM,))
+        authorize = AsyncMock()
+        res = await self.service.sync(MODULE, authorize)
+        self.assertTrue(res.needs_input)
+        self.assertEqual(res.missing_scopes, ("azurerm",))
+        authorize.assert_not_awaited()
+        self.assertIsNone(self.manifests.stored)
 
     async def test_inputs_require_a_complete_configuration(self):
         self.assertEqual(await self.service.inputs(MODULE), TerraformInputs())

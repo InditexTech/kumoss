@@ -21,9 +21,8 @@ class _PromptFetcher:
     async def fetch(
         self,
         prompt_name: str,
-        scope: Literal[
-            "general", "azure", "gcp", "aws", "oci", "kubernetes", "vmware"
-        ],
+        # "general", or a Terraform provider type name (azurerm, google...).
+        scope: str,
         type: Literal["resources", "guidelines", "compliance"],
         tag: Environment,
     ) -> str:

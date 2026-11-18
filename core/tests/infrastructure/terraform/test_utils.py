@@ -328,13 +328,10 @@ class TestProjectId(unittest.TestCase):
     """Tests for the state-keying identifier sent to the IaC service."""
 
     REPO = "https://github.example.com/org/infra.git"
-    SCOPE = "11111111-2222-3333-4444-555555555555"
     PATH = "envs/prod"
 
-    def _id(self, repo=REPO, scope=SCOPE, path=PATH) -> str:
-        return TerraformUtils.project_id(
-            repo_uri=repo, scope_id=scope, root_module_path=path
-        )
+    def _id(self, repo=REPO, path=PATH) -> str:
+        return TerraformUtils.project_id(repo_uri=repo, root_module_path=path)
 
     def test_is_a_sha256_hex_digest(self):
         """The IaC contract types project_id as 64 lowercase hex chars."""
@@ -347,22 +344,29 @@ class TestProjectId(unittest.TestCase):
         """Two runs of the same project must land on the same state."""
         self.assertEqual(self._id(), self._id())
 
-    def test_each_part_of_the_triple_changes_it(self):
-        """Repository, scope and root module each identify the project:
-        a different value in any of them is a different state."""
+    def test_each_part_of_the_pair_changes_it(self):
+        """Repository and root module each identify the project: a
+        different value in either is a different state."""
         baseline = self._id()
 
         self.assertNotEqual(
             baseline, self._id(repo="https://github.example.com/org/other.git")
         )
-        self.assertNotEqual(
-            baseline, self._id(scope="99999999-2222-3333-4444-555555555555")
-        )
         self.assertNotEqual(baseline, self._id(path="envs/dev"))
+
+    def test_scopes_are_not_part_of_the_project(self):
+        """A module may target several scopes, and they may change without
+        the state moving: one state per root module, as Terraform assumes."""
+        import inspect
+
+        self.assertEqual(
+            list(inspect.signature(TerraformUtils.project_id).parameters),
+            ["repo_uri", "root_module_path"],
+        )
 
     def test_same_path_in_different_repos_differs(self):
         """The repository is in the seed precisely for this: a shared
-        root module name in one cloud scope must not collide."""
+        root module name across repositories must not collide."""
         self.assertNotEqual(
             self._id(repo="https://github.example.com/org/a.git", path=""),
             self._id(repo="https://github.example.com/org/b.git", path=""),

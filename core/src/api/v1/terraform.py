@@ -9,7 +9,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 
-from src.api.authz import authorize
+from src.api.authz import authorize_providers
 from src.api.deps import (
     assert_session_access,
     get_validated_claims,
@@ -31,6 +31,8 @@ from src.application.services.session_orchestration_service import (
 )
 from src.clients.authz.models.action_name import ActionName
 from src.domains.entities import SessionContext, User
+from src.domains.services.manifest_service import Authorize
+from src.domains.value_objects.provider_scope import ProviderScope
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
 from src.domains.value_objects.token_claims import TokenClaims
@@ -41,7 +43,6 @@ from src.shared.constants import (
     OperationRole,
     OperationType,
     SessionStatus,
-    TerraformProvider,
 )
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -69,23 +70,18 @@ async def _resolve_or_raise(
 ) -> SessionContext:
     """Validate URI, authorize via PDP, and resolve to a SessionContext.
 
-    Every call is checked. First-call (has ``repo_uri``): URI validation →
-    authz (from request body) → session creation, so a rejected request
-    leaves no session behind. Iteration / session-only (has
-    ``session_id``): ownership check → session load → operation check →
-    URI validation → authz (from ``SessionContext``).
+    First-call (has ``repo_uri``): URI validation → session creation, so
+    an unreachable repository leaves no session behind. The providers and
+    scopes to authorize come from the root module's manifest, so authz runs
+    in the session itself, before its setup saves anything (see
+    ``_Inputs``). Iteration / session-only (has ``session_id``): ownership
+    check → session load → operation check → URI validation → authz on
+    every scope recorded at the session's setup.
     """
 
     try:
         if isinstance(request, BaseIacRequest) and request.session_id is None:
-            await _check_access(
-                claims,
-                operation,
-                scope_id=request.scope_id,
-                provider=request.terraform_providers,
-                repo_uri=request.repo_uri,
-                root_module_path=request.root_module_path,
-            )
+            await _workspace.validate_uri(request.repo_uri)
             return await _orchestration.resolve(request, operation, user.id)
 
         await assert_session_access(user, request.session_id, write=True)
@@ -98,8 +94,7 @@ async def _resolve_or_raise(
         await _check_access(
             claims,
             operation,
-            scope_id=ctx.scope_id,
-            provider=ctx.terraform_prv,
+            providers=ctx.providers,
             repo_uri=ctx.repo_uri,
             root_module_path=ctx.root_module_path,
         )
@@ -112,17 +107,16 @@ async def _check_access(
     claims: TokenClaims,
     operation: OperationType,
     *,
-    scope_id: str,
-    provider: TerraformProvider,
+    providers: tuple[ProviderScope, ...],
     repo_uri: str,
     root_module_path: str | None,
 ) -> None:
+    """Validate the repository, then authorize every scope of the session."""
     await _workspace.validate_uri(repo_uri)
-    await authorize(
+    await authorize_providers(
         claims,
         ActionName(operation.value),
-        scope_id=scope_id,
-        provider=provider,
+        providers=providers,
         repo_uri=repo_uri,
         root_module_path=root_module_path,
     )
@@ -130,14 +124,43 @@ async def _check_access(
 
 @dataclass(frozen=True)
 class _Inputs:
-    """How a call puts the root module's inputs in place (see SessionInputsService)."""
+    """How a call puts the root module's inputs in place (see SessionInputsService).
+
+    A first call also authorizes ``action`` for ``claims`` on the providers
+    and scopes its setup finds, before anything is saved.
+    """
 
     first_call: bool
+    claims: TokenClaims
+    action: ActionName
     answers: ManifestAnswers | None = None
 
     @classmethod
-    def of(cls, request: BaseIacRequest) -> "_Inputs":
-        return cls(first_call=request.session_id is None, answers=request.manifest)
+    def of(
+        cls, request: BaseIacRequest, claims: TokenClaims, operation: OperationType
+    ) -> "_Inputs":
+        return cls(
+            first_call=request.session_id is None,
+            claims=claims,
+            action=ActionName(operation.value),
+            answers=request.manifest,
+        )
+
+    def authorizer(self, ctx: SessionContext) -> Authorize:
+        async def authorize_setup(providers: tuple[ProviderScope, ...]) -> None:
+            try:
+                await authorize_providers(
+                    self.claims,
+                    self.action,
+                    providers=providers,
+                    repo_uri=ctx.repo_uri,
+                    root_module_path=ctx.root_module_path,
+                )
+            except HTTPException as e:
+                # The runner reports ExceptionHandler errors on the session.
+                raise ExceptionHandler(str(e.detail), e.status_code) from e
+
+        return authorize_setup
 
 
 def _make_runner(
@@ -170,7 +193,7 @@ def _make_runner(
                 session_id=ctx.id,
                 user_id=ctx.user_id,
                 branch_name=ctx.branch_name,
-                cloud=ctx.terraform_prv,
+                providers=ctx.provider_types,
                 repo_uri=ctx.repo_uri,
                 root_module_path=ctx.root_module_path,
                 operation=ctx.operation,
@@ -186,7 +209,12 @@ def _make_runner(
             if inputs is not None:
                 await ApplicationFactory.get_session_inputs_service(
                     ctx.repo_uri, call_dir
-                ).prepare(ctx, first_call=inputs.first_call, answers=inputs.answers)
+                ).prepare(
+                    ctx,
+                    first_call=inputs.first_call,
+                    answers=inputs.answers,
+                    authorize=inputs.authorizer(ctx) if inputs.first_call else None,
+                )
             run_handler = await build_handler(ctx)
             await run_handler()
             last = await DatabaseService.get_last_status(ctx.id)
@@ -232,7 +260,9 @@ async def generate_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
         return await handler.handle(request.q)
 
-    background_tasks.add_task(_make_runner(ctx, build, _Inputs.of(request)))
+    background_tasks.add_task(
+        _make_runner(ctx, build, _Inputs.of(request, claims, OperationType.GENERATE))
+    )
     return {"session_id": str(ctx.id)}
 
 
@@ -256,7 +286,9 @@ async def drift_detection_remediation(
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
         return await handler.handle(request.q, request.is_partial)
 
-    background_tasks.add_task(_make_runner(ctx, build, _Inputs.of(request)))
+    background_tasks.add_task(
+        _make_runner(ctx, build, _Inputs.of(request, claims, OperationType.DRIFT))
+    )
     return {"session_id": str(ctx.id)}
 
 
@@ -313,5 +345,7 @@ async def import_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()
         return await handler.handle(request.q, request.is_partial)
 
-    background_tasks.add_task(_make_runner(ctx, build, _Inputs.of(request)))
+    background_tasks.add_task(
+        _make_runner(ctx, build, _Inputs.of(request, claims, OperationType.IMPORT))
+    )
     return {"session_id": str(ctx.id)}

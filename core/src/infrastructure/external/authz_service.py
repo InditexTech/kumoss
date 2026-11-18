@@ -26,9 +26,6 @@ from src.clients.authz.models.action import Action
 from src.clients.authz.models.action_name import ActionName
 from src.clients.authz.models.resource import Resource
 from src.clients.authz.models.resource_properties import ResourceProperties
-from src.clients.authz.models.resource_properties_provider import (
-    ResourcePropertiesProvider,
-)
 from src.clients.authz.models.resource_type import ResourceType
 from src.clients.authz.models.subject import Subject
 from src.clients.authz.models.subject_properties import SubjectProperties
@@ -36,7 +33,6 @@ from src.clients.authz.models.subject_type import SubjectType
 from src.clients.authz.types import UNSET, Unset
 from src.domains.value_objects.token_claims import TokenClaims
 from src.shared.config import system_config
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -66,7 +62,7 @@ class AuthzServiceClient:
         action: ActionName,
         *,
         scope_id: str,
-        provider: TerraformProvider,
+        provider: str | None,
         repo_uri: str,
         root_module_path: str | None = None,
     ) -> AuthzDecision:
@@ -89,7 +85,7 @@ class AuthzServiceClient:
         subject_props = SubjectProperties.from_dict(props)
 
         resource_props = ResourceProperties(
-            provider=ResourcePropertiesProvider(provider.value),
+            provider=provider if provider else UNSET,
             repo_uri=repo_uri,
             root_module_path=root_module_path if root_module_path else UNSET,
         )

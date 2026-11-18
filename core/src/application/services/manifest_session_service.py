@@ -18,9 +18,13 @@ from src.domains.entities.session import SessionContext
 from src.domains.exceptions import ManifestInputError
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.domains.services.manifest_service import ManifestService, platform_variables
+from src.domains.services.database_service import DatabaseService
+from src.domains.services.manifest_service import (
+    Authorize,
+    ManifestService,
+    session_providers,
+)
 from src.domains.value_objects import ManifestResolution, RootModuleRef
-from src.shared.constants import TerraformProvider
 
 
 class ManifestProbeService:
@@ -31,18 +35,14 @@ class ManifestProbeService:
         self.__manifests = manifests
 
     async def probe(
-        self,
-        repo_uri: str,
-        root_module_path: str | None,
-        terraform_provider: TerraformProvider,
+        self, repo_uri: str, root_module_path: str | None
     ) -> ManifestResolution:
         """Resolve the module's manifest on the default branch; reads only."""
         await self.__workspace.validate_uri(repo_uri)
         async with self.__workspace.default_branch_clone(repo_uri) as clone:
             directory = self.__workspace.root_module_dir(clone, root_module_path)
             return await self.__manifests.resolve(
-                RootModuleRef(repo_uri, root_module_path or "", directory),
-                platform_variables(terraform_provider),
+                RootModuleRef(repo_uri, root_module_path or "", directory)
             )
 
 
@@ -59,24 +59,37 @@ class SessionInputsService:
         *,
         first_call: bool,
         answers: ManifestAnswers | None = None,
+        authorize: Authorize | None = None,
     ) -> None:
         """Load the inputs into ``ctx``; on a first call, set the manifest up first.
+
+        On a first call the session's providers and scopes come from the
+        manifest: ``authorize`` checks them before anything is saved, and
+        they are recorded on the session. Iteration calls keep the ones
+        recorded then.
 
         Raises:
             ManifestInputError: When the first call leaves something the
                 module needs unanswered (422), or the answers are invalid.
+            Whatever ``authorize`` raises, before anything is saved.
         """
         module = RootModuleRef(ctx.repo_uri, ctx.root_module_path or "", ctx.call_dir)
         if first_call:
-            provided = platform_variables(ctx.terraform_prv)
             if answers is None:
-                resolution = await self.__manifests.sync(module, provided)
+                resolution = await self.__manifests.sync(module, authorize)
             else:
                 resolution = await self.__manifests.configure(
-                    module, answers.answers(), answers.var_files, provided
+                    module,
+                    answers.answers(),
+                    answers.var_files,
+                    answers.scopes,
+                    authorize,
                 )
             if resolution.needs_input:
                 raise ManifestInputError(_needs_input_message(resolution), 422)
+            providers = session_providers(resolution.requirements, resolution.manifest)
+            await DatabaseService.set_session_providers(ctx.id, providers)
+            ctx.set_providers(providers)
             # Lands with the session's work; a no-op when nothing changed.
             await self.__git.commit_and_push(ctx.branch_name)
         ctx.set_terraform_inputs(await self.__manifests.inputs(module))
@@ -93,6 +106,8 @@ def _needs_input_message(resolution: ManifestResolution) -> str:
             + ", ".join(resolution.missing_var_files)
             + ")"
         )
+    if resolution.missing_scopes:
+        parts.append("scopes for " + ", ".join(resolution.missing_scopes))
     if not parts:
         parts.append("a choice of var files")
     return (

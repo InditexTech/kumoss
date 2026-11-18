@@ -33,5 +33,5 @@ body: |
   - `vm_storage_policy` — VM storage policy, including encryption.
 
   This list is the source of truth. Adding a new
-  `core/prompts/seed/vmware/resources/<name>.yaml` requires adding the
+  `core/prompts/seed/vsphere/resources/<name>.yaml` requires adding the
   matching entry here so the compositor knows it exists.

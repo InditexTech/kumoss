@@ -12,7 +12,10 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from src.application.iac_requests import RepoUri
 from src.domains.value_objects import ManifestResolution, ProviderRequirement
-from src.shared.constants import OperationRole, PanelRole, TerraformProvider
+from src.shared.constants import OperationRole, PanelRole
+
+# Providers the mapping contract knows, by Terraform provider type name.
+MappingProvider = Literal["azurerm", "google", "aws", "oci", "kubernetes", "vsphere"]
 
 
 class AuthConfigResponse(BaseModel):
@@ -114,7 +117,7 @@ class MappingResolveRequest(BaseModel):
         max_length=1024,
         description="Business identifier to resolve.",
     )
-    terraform_provider: TerraformProvider | None = Field(
+    terraform_provider: MappingProvider | None = Field(
         default=None,
         description=(
             "Provider the caller already knows the deployment targets, "
@@ -142,7 +145,7 @@ class MappingResolveResponse(BaseModel):
         max_length=1024,
         description="The request's identifier, echoed verbatim.",
     )
-    terraform_provider: TerraformProvider | None = Field(
+    terraform_provider: MappingProvider | None = Field(
         default=None,
         description="Provider the deployment targets, or null if unknown.",
     )
@@ -171,9 +174,6 @@ class ManifestProbeRequest(BaseModel):
         default=None,
         max_length=1024,
         description="Repository-relative path to the Terraform root module; defaults to the repo root.",
-    )
-    terraform_provider: TerraformProvider = Field(
-        description="Cloud the session will run against: decides which variables the platform injects.",
     )
 
     @field_validator("root_module_path", mode="before")
@@ -223,6 +223,15 @@ class ManifestProviderChange(BaseModel):
     )
 
 
+class ManifestScopeNeeded(BaseModel):
+    """A provider of the module that needs a scope id before sessions can run."""
+
+    provider: str = Field(description="Terraform provider type name, e.g. `azurerm`.")
+    source: str = Field(
+        description="Its registry source address, e.g. `hashicorp/azurerm`."
+    )
+
+
 class ManifestProbeResponse(BaseModel):
     """Where a root module's manifest stands, and what the user must answer."""
 
@@ -257,6 +266,12 @@ class ManifestProbeResponse(BaseModel):
     missing_var_files: list[str] = Field(
         description="Picked var files that no longer exist: a new selection is needed.",
     )
+    missing_scopes: list[ManifestScopeNeeded] = Field(
+        description=(
+            "Providers that need a scope id (subscription, project, account or "
+            "compartment); answer with `manifest.scopes` on the first session call."
+        ),
+    )
     provider_changes: list[ManifestProviderChange]
 
     @classmethod
@@ -282,6 +297,10 @@ class ManifestProbeResponse(BaseModel):
             ],
             selected_var_files=[p for p in selected if p in selectable],
             missing_var_files=list(resolution.missing_var_files),
+            missing_scopes=[
+                ManifestScopeNeeded(provider=t, source=_source_of(resolution, t))
+                for t in resolution.missing_scopes
+            ],
             provider_changes=[
                 ManifestProviderChange(
                     name=c.name,
@@ -291,6 +310,17 @@ class ManifestProbeResponse(BaseModel):
                 for c in resolution.provider_changes
             ],
         )
+
+
+def _source_of(resolution: ManifestResolution, provider_type: str) -> str:
+    return next(
+        (
+            p.source
+            for p in resolution.requirements.providers
+            if p.type == provider_type
+        ),
+        provider_type,
+    )
 
 
 def _provider_text(provider: ProviderRequirement | None) -> str | None:

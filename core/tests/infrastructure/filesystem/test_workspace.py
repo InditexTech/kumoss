@@ -236,7 +236,7 @@ class TestPinnedWorkspace(unittest.TestCase):
 
     def test_pinned_plan_path_none_when_plan_file_missing(self):
         clone = self._make_clone()
-        (clone / "iac" / SESSION_PLAN_FILENAME).unlink()
+        (clone / SESSION_PLAN_FILENAME).unlink()
         self.svc.pin_workspace(self.sid, clone)
 
         self.assertIsNone(self.svc.pinned_plan_path(self.sid))

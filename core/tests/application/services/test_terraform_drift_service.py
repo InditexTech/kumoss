@@ -63,7 +63,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.ctx = MagicMock()
         self.session_svc = AsyncMock()
-        self.template_svc = AsyncMock()
         self.validation_svc = AsyncMock()
         self.terraform_svc = AsyncMock()
         self.split_svc = AsyncMock()
@@ -79,7 +78,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.service = TerraformDriftService(
             session_context=self.ctx,
             session_service=self.session_svc,
-            template_service=self.template_svc,
             validation_service=self.validation_svc,
             terraform_service=self.terraform_svc,
             split_service=self.split_svc,
@@ -366,7 +364,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         # sentence that is already prose would buy nothing.
         for call in self._statuses():
             self.assertIsNone(call.get("prompt"))
-        self.template_svc.render.assert_not_awaited()
 
     async def test_an_unreadable_drift_records_no_conclusion(self):
         self.terraform_svc.drift.return_value = _drift(

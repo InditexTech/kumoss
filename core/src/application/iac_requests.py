@@ -20,7 +20,6 @@ from pydantic import (
 )
 
 from src.domains.value_objects.manifest import VariableAnswer
-from src.shared.constants import TerraformProvider
 from src.shared.utils.urls import is_https_url
 
 
@@ -106,6 +105,20 @@ class ManifestAnswers(BaseModel):
         ),
     ] = None
 
+    scopes: Annotated[
+        dict[
+            Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")],
+            Annotated[str, Field(min_length=1, max_length=1024)],
+        ],
+        Field(
+            max_length=64,
+            description=(
+                "Scope ids by Terraform provider type, for the probe's `missing_scopes` "
+                '(e.g. `{"azurerm": "<subscription id>"}`). Saved in the manifest.'
+            ),
+        ),
+    ] = {}
+
     @model_validator(mode="after")
     def _unique_names(self):
         names = [v.name for v in self.variables]
@@ -151,25 +164,6 @@ class BaseIacRequest(BaseModel):
             examples=["Https://github.com/org/iac-repo.git"],
         ),
     ] = None
-    scope_id: Annotated[
-        str | None,
-        Field(
-            min_length=1,
-            description="""Infrastructure scope id (first call only). Required with repo_uri:
-                        - Azure -> subscription id
-                        - GCP -> project id
-                        - AWS -> account id
-                        - OCI -> compartment OCID
-                        - Kubernetes -> no cloud scope; any stable identifier
-                        - VMware -> vSphere datacenter name""",
-        ),
-    ] = None
-    terraform_providers: Annotated[
-        TerraformProvider | None,
-        Field(
-            description="Terraform providers where the operation will take place (first call only)."
-        ),
-    ] = None
     root_module_path: Annotated[
         str | None,
         Field(
@@ -213,10 +207,6 @@ class BaseIacRequest(BaseModel):
             raise ValueError(
                 "Exactly one of `repo_uri` or `session_id` must be provided."
             )
-        if has_uri and (self.terraform_providers is None):
-            raise ValueError("First call (repo_uri) requires `terraform_providers`.")
-        if has_uri and (self.scope_id is None):
-            raise ValueError("First call (repo_uri) requires `scope_id`.")
         if has_sid and self.root_module_path is not None:
             raise ValueError(
                 "root_module_path is set only on the first call; iteration calls inherit it from the session."
@@ -272,14 +262,6 @@ class ImportRequest(BaseIacRequest):
             ],
         ),
     ]
-
-    @model_validator(mode="after")
-    def _scope_id_exist_if_repo_uri(self):
-        if self.repo_uri is not None and (
-            self.scope_id is None or self.scope_id.strip() == ""
-        ):
-            raise ValueError("The `scope_id` must be provided when `repo_uri` is set.")
-        return self
 
     @model_validator(mode="after")
     def _partial_requires_query(self):

@@ -35,7 +35,6 @@ from src.infrastructure.external.mapping_service import (
 from src.main import app
 from src.shared.config import system_config
 from src.shared.config.system_config import ServiceConfig
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 IDENTIFIER = "https://github.com/me/my-iac.git"
@@ -120,9 +119,9 @@ class TestDisabledMappingIsIdentity(MappingClientTestCase):
 
     async def test_requested_provider_survives(self):
         resolved = await MappingServiceClient().resolve(
-            IDENTIFIER, terraform_provider=TerraformProvider.GCP
+            IDENTIFIER, terraform_provider="google"
         )
-        self.assertEqual(resolved.terraform_provider, TerraformProvider.GCP)
+        self.assertEqual(resolved.terraform_provider, "google")
         self.assertIsNone(resolved.scope_id)
 
     async def test_non_https_identifier_is_echoed_unchecked(self):
@@ -135,8 +134,8 @@ class TestDisabledMappingIsIdentity(MappingClientTestCase):
         op.assert_not_awaited()
 
 
-class TestEnabledMappingConvertsEnums(MappingClientTestCase):
-    """`ResolvedRef` speaks core's enum; the wire speaks the client's."""
+class TestEnabledMappingConvertsProviders(MappingClientTestCase):
+    """`ResolvedRef` speaks provider type names; the wire speaks the client's enum."""
 
     def setUp(self):
         self._configure(enabled=True)
@@ -145,14 +144,12 @@ class TestEnabledMappingConvertsEnums(MappingClientTestCase):
         op = self._patch_op(
             return_value=ResolveResponse(repo_url=IDENTIFIER, identifier=IDENTIFIER)
         )
-        await MappingServiceClient().resolve(
-            "my-project", terraform_provider=TerraformProvider.AZURE
-        )
+        await MappingServiceClient().resolve("my-project", terraform_provider="azurerm")
         body = op.await_args.kwargs["body"]
         self.assertEqual(body.identifier, "my-project")
-        self.assertIs(body.terraform_provider, MappingTerraformProvider.AZURE)
-        # Serialises to the contract's vocabulary, not `azurerm`.
-        self.assertEqual(body.to_dict()["terraform_provider"], "azure")
+        self.assertIs(body.terraform_provider, MappingTerraformProvider.AZURERM)
+        # The contract speaks Terraform provider type names too.
+        self.assertEqual(body.to_dict()["terraform_provider"], "azurerm")
 
     async def test_no_provider_is_left_unset_on_the_wire(self):
         op = self._patch_op(
@@ -163,7 +160,7 @@ class TestEnabledMappingConvertsEnums(MappingClientTestCase):
         self.assertIs(body.terraform_provider, UNSET)
         self.assertNotIn("terraform_provider", body.to_dict())
 
-    async def test_inbound_provider_is_converted_to_the_core_enum(self):
+    async def test_inbound_provider_is_converted_to_a_type_name(self):
         self._patch_op(
             return_value=ResolveResponse(
                 repo_url="https://git.example/iac.git",
@@ -178,11 +175,12 @@ class TestEnabledMappingConvertsEnums(MappingClientTestCase):
             ResolvedRef(
                 repo_url="https://git.example/iac.git",
                 identifier="my-project",
-                terraform_provider=TerraformProvider.OCI,
+                terraform_provider="oci",
                 scope_id="ocid1.compartment.oc1..aaaa",
             ),
         )
-        self.assertIsInstance(resolved.terraform_provider, TerraformProvider)
+        # A plain provider type name, not the client's enum.
+        self.assertIs(type(resolved.terraform_provider), str)
 
     async def test_omitted_optional_fields_become_none(self):
         self._patch_op(
@@ -213,19 +211,20 @@ class TestEnabledMappingFailureModes(MappingClientTestCase):
     async def test_provider_outside_the_enum_is_502(self):
         # `anyOf: [$ref, null]` makes the generated parser swallow the
         # ValueError and hand back the raw string, so an implementation
-        # answering `azurerm` reaches us as a `str` where the enum is
-        # declared. Left alone it escapes as an unhandled 500.
+        # answering a pre-2.0 name such as `azure` reaches us as a `str`
+        # where the enum is declared. Left alone it escapes as an
+        # unhandled 500.
         self._patch_op(
             return_value=ResolveResponse(
                 repo_url=IDENTIFIER,
                 identifier=IDENTIFIER,
-                terraform_provider="azurerm",
+                terraform_provider="azure",
             )
         )
         with self.assertRaises(ExceptionHandler) as ctx:
             await MappingServiceClient().resolve(IDENTIFIER)
         self.assertEqual(ctx.exception.error_code, 502)
-        self.assertIn("azurerm", ctx.exception.message)
+        self.assertIn("azure", ctx.exception.message)
 
     async def test_unparseable_body_is_502(self):
         # `response.json()` on a non-JSON 200 raises JSONDecodeError,

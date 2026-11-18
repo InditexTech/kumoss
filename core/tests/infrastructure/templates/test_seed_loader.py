@@ -29,16 +29,16 @@ class TestSeedLoader(unittest.TestCase):
     def test_loads_valid_entry_and_derives_qualified_name(self):
         _write(
             self.root,
-            "azure/guidelines/networking.yaml",
+            "azurerm/guidelines/networking.yaml",
             "description: Net rules\nbody: |\n  Use hub-and-spoke.\n",
         )
         entries = SeedLoader(self.root).load()
         self.assertEqual(len(entries), 1)
         e = entries[0]
-        self.assertEqual(e.scope, "azure")
+        self.assertEqual(e.scope, "azurerm")
         self.assertEqual(e.type, "guidelines")
         self.assertEqual(e.name, "networking")
-        self.assertEqual(e.qualified_name, "azure-guidelines-networking")
+        self.assertEqual(e.qualified_name, "azurerm-guidelines-networking")
         self.assertEqual(e.description, "Net rules")
         self.assertIn("hub-and-spoke", e.body)
 
@@ -56,71 +56,75 @@ class TestSeedLoader(unittest.TestCase):
         self.assertEqual(SeedLoader(self.root).load(), [])
 
     def test_rejects_unknown_scope(self):
-        _write(self.root, "onprem/guidelines/foo.yaml", "body: x\n")
-        with self.assertRaises(PromptSeedLoadError) as ctx:
-            SeedLoader(self.root).load()
-        self.assertIn("Invalid scope 'onprem'", ctx.exception.message)
+        for bad in ("OnPrem", "-azurerm", "azure rm", "azure.rm"):
+            with self.subTest(bad):
+                root = self.root / f"case-{abs(hash(bad))}"
+                _write(root, f"{bad}/guidelines/foo.yaml", "body: x\n")
+                with self.assertRaises(PromptSeedLoadError) as ctx:
+                    SeedLoader(root).load()
+                self.assertIn(f"Invalid scope '{bad}'", ctx.exception.message)
 
     def test_accepts_every_provider_scope(self):
-        for scope in ("azure", "gcp", "aws", "oci", "kubernetes", "vmware"):
+        # "general" or any Terraform provider type name.
+        names = {"general", "azurerm", "google", "aws", "oci", "kubernetes", "vsphere"}
+        names |= {"random", "helm", "my_provider-2"}
+        for scope in names:
             _write(self.root, f"{scope}/guidelines/networking.yaml", "body: x\n")
         scopes = {e.scope for e in SeedLoader(self.root).load()}
-        self.assertEqual(
-            scopes, {"azure", "gcp", "aws", "oci", "kubernetes", "vmware"}
-        )
+        self.assertEqual(scopes, names)
 
     def test_rejects_unknown_type(self):
-        _write(self.root, "azure/snippets/foo.yaml", "body: x\n")
+        _write(self.root, "azurerm/snippets/foo.yaml", "body: x\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("Invalid type 'snippets'", ctx.exception.message)
 
     def test_rejects_wrong_depth(self):
-        _write(self.root, "azure/foo.yaml", "body: x\n")
+        _write(self.root, "azurerm/foo.yaml", "body: x\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("<scope>/<type>/<name>.yaml", ctx.exception.message)
 
     def test_rejects_invalid_name(self):
-        _write(self.root, "azure/guidelines/Bad-Name.yaml", "body: x\n")
+        _write(self.root, "azurerm/guidelines/Bad-Name.yaml", "body: x\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("Invalid prompt name", ctx.exception.message)
 
     def test_rejects_empty_body(self):
-        _write(self.root, "azure/guidelines/foo.yaml", 'body: "   "\n')
+        _write(self.root, "azurerm/guidelines/foo.yaml", 'body: "   "\n')
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("must be a non-empty string", ctx.exception.message)
 
     def test_rejects_missing_body(self):
-        _write(self.root, "azure/guidelines/foo.yaml", "description: only\n")
+        _write(self.root, "azurerm/guidelines/foo.yaml", "description: only\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("must be a non-empty string", ctx.exception.message)
 
     def test_rejects_malformed_yaml(self):
-        _write(self.root, "azure/guidelines/foo.yaml", "body: [unclosed\n")
+        _write(self.root, "azurerm/guidelines/foo.yaml", "body: [unclosed\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("YAML parse error", ctx.exception.message)
 
     def test_rejects_non_mapping_yaml(self):
-        _write(self.root, "azure/guidelines/foo.yaml", "- just\n- a\n- list\n")
+        _write(self.root, "azurerm/guidelines/foo.yaml", "- just\n- a\n- list\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
         self.assertIn("must be a mapping", ctx.exception.message)
 
     def test_loads_full_tree_in_sorted_order(self):
-        _write(self.root, "azure/guidelines/networking.yaml", "body: n\n")
-        _write(self.root, "azure/guidelines/permissions.yaml", "body: p\n")
+        _write(self.root, "azurerm/guidelines/networking.yaml", "body: n\n")
+        _write(self.root, "azurerm/guidelines/permissions.yaml", "body: p\n")
         _write(self.root, "general/guidelines/terraform.yaml", "body: t\n")
         names = [e.qualified_name for e in SeedLoader(self.root).load()]
         self.assertEqual(
             names,
             [
-                "azure-guidelines-networking",
-                "azure-guidelines-permissions",
+                "azurerm-guidelines-networking",
+                "azurerm-guidelines-permissions",
                 "general-guidelines-terraform",
             ],
         )

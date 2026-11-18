@@ -15,14 +15,15 @@ from src.shared.exceptions import ExceptionHandler
 
 class TerraformUtils:
     @staticmethod
-    def project_id(repo_uri: str, scope_id: str, root_module_path: str) -> str:
+    def project_id(repo_uri: str, root_module_path: str) -> str:
         """Identify the Terraform project a session operates on.
 
-        Digest over the triple that decides which state a run belongs
-        to: the repository, the cloud scope it deploys into, and the
-        root module within the repository. Independent of where the
-        repository was cloned, so every call and every session on the
-        same project resolves to the same state — which the clone
+        Digest over what decides which state a run belongs to: the
+        repository and the root module within it, one state per module as
+        Terraform itself assumes. Scopes are left out: a module may target
+        several, and they may change without the state moving. Independent
+        of where the repository was cloned, so every call and every session
+        on the same project resolves to the same state — which the clone
         directory, recreated per call, cannot express.
 
         The repository URI is normalized first: it reaches here in
@@ -33,7 +34,6 @@ class TerraformUtils:
         seed = "\n".join(
             (
                 TerraformUtils.__normalize_repo_uri(repo_uri),
-                scope_id.strip().lower(),
                 TerraformUtils.__normalize_root_module_path(root_module_path or ""),
             )
         )

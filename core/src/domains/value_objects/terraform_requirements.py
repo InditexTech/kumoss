@@ -22,6 +22,11 @@ class ProviderRequirement:
     source: str
     version_constraints: tuple[str, ...] = ()
 
+    @property
+    def type(self) -> str:
+        """The provider type name: the source address's last segment (``azurerm``)."""
+        return self.source.rsplit("/", 1)[-1]
+
 
 @dataclass(frozen=True)
 class VariableSpec:
@@ -71,6 +76,11 @@ class TerraformRequirements:
 
     def variable(self, name: str) -> VariableSpec | None:
         return next((v for v in self.variables if v.name == name), None)
+
+    @property
+    def provider_types(self) -> tuple[str, ...]:
+        """Distinct provider type names, sorted (aliases of one type count once)."""
+        return tuple(sorted({p.type for p in self.providers}))
 
     @property
     def auto_var_files(self) -> tuple[VarFile, ...]:

@@ -10,7 +10,7 @@ from typing import Any, cast
 from uuid import UUID
 
 from pydantic import ValidationError
-from sqlalchemy import String, func, or_, select, update
+from sqlalchemy import String, delete, func, or_, select, update
 from sqlalchemy.engine import CursorResult
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
@@ -20,6 +20,7 @@ from src.domains.dto import (
     CodeChangeRef,
     ComplianceCheckRef,
     PaginatedSessionSummary,
+    ProviderRef,
     PullRequestRef,
     ReportRef,
     RoundDetail,
@@ -36,7 +37,7 @@ from src.domains.exceptions import (
     UserAlreadyExists,
     UserNotFound,
 )
-from src.domains.value_objects import ProviderFacts, Status, WorkspaceFacts
+from src.domains.value_objects import ProviderScope, Status, WorkspaceFacts
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import (
     Artifact,
@@ -68,7 +69,6 @@ from src.shared.constants import (
     PanelRole,
     ReportType,
     SessionStatus,
-    TerraformProvider,
 )
 from src.shared.logger import logging
 
@@ -140,7 +140,8 @@ def _k_workspace(session_id: UUID) -> str:
 
 
 def _k_provider(session_id: UUID) -> str:
-    return f"{_CACHE_NS}:session:{session_id}:provider"
+    # "providers" (plural, a list) replaced the single-provider "provider" key.
+    return f"{_CACHE_NS}:session:{session_id}:providers"
 
 
 def _k_first_query(session_id: UUID) -> str:
@@ -148,9 +149,10 @@ def _k_first_query(session_id: UUID) -> str:
 
 
 def _k_context(session_id: UUID) -> str:
-    # v2: entries carry "root_module_path" (was "iac_path"); a new key keeps
-    # pre-rename caches out, so those sessions are rebuilt from the database.
-    return f"{_CACHE_NS}:session:{session_id}:ctx:v2"
+    # Versioned so entries in an older shape are rebuilt from the database:
+    # v2 renamed "iac_path" to "root_module_path"; v3 replaced the single
+    # provider and scope with the list of the module's providers.
+    return f"{_CACHE_NS}:session:{session_id}:ctx:v3"
 
 
 def _k_last_status(session_id: UUID) -> str:
@@ -182,9 +184,8 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
         "user_id": ctx.user_id,
         "round_id": ctx.round_id,
         "repo_uri": ctx.repo_uri,
-        "scope_id": ctx.scope_id,
+        "providers": [[p.provider, p.scope_id] for p in ctx.providers],
         "operation_type": ctx.operation.value,
-        "terraform_prv": ctx.terraform_prv.value,
         "branch_name": ctx.branch_name,
         "root_module_path": ctx.root_module_path,
         "history": ctx.history.serialize(),
@@ -198,9 +199,8 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
         user_id=data["user_id"],
         round_id=data["round_id"],
         repo_uri=data["repo_uri"],
-        scope_id=data["scope_id"],
+        providers=tuple(ProviderScope(p, s) for p, s in data["providers"]),
         operation_type=OperationType(data["operation_type"]),
-        terraform_prv=TerraformProvider(data["terraform_prv"]),
         branch_name=data["branch_name"],
         root_module_path=data["root_module_path"],
         history=data["history"],
@@ -370,26 +370,50 @@ class DatabaseService:
         return WorkspaceFacts(**data) if data is not None else None
 
     @staticmethod
-    async def __provider_facts(session_id: UUID) -> ProviderFacts | None:
-        """Write-once terraform-provider fields for a session."""
+    async def __providers(session_id: UUID) -> tuple[ProviderScope, ...]:
+        """The session's Terraform providers and scopes; empty before its setup ran."""
 
-        async def _load() -> dict[str, str] | None:
+        async def _load() -> list[list[str | None]]:
             sid = await DatabaseService.__map_session_id(session_id)
-            tp: DbTerraformProvider | None = await db.get_by(
+            rows: list[DbTerraformProvider] = await db.list_by(
                 DbTerraformProvider, session_id=sid
             )
-            if tp is None:
-                return None
-            return {"provider": tp.provider.value, "scope_id": tp.scope_id}
+            return [
+                [r.provider, r.scope_id] for r in sorted(rows, key=lambda r: r.provider)
+            ]
 
         data = await redis_client.get_or_set(
             _k_provider(session_id), _ttl(_TTL_FACTS), _load
         )
-        if data is None:
-            return None
-        return ProviderFacts(
-            provider=TerraformProvider(data["provider"]), scope_id=data["scope_id"]
+        return tuple(ProviderScope(str(p), s) for p, s in data or [])
+
+    @staticmethod
+    async def set_session_providers(
+        session_id: UUID, providers: tuple[ProviderScope, ...]
+    ) -> None:
+        """Record the providers the session's setup found, replacing any.
+
+        Set once per session by its first call, after the root module's
+        manifest is in place (providers come from it, not the request).
+        """
+        sid = await DatabaseService.__map_session_id(session_id)
+        async with db.session() as sess:
+            _ = await sess.execute(
+                delete(DbTerraformProvider).where(DbTerraformProvider.session_id == sid)
+            )
+            sess.add_all(
+                DbTerraformProvider(
+                    session_id=sid, provider=p.provider, scope_id=p.scope_id
+                )
+                for p in providers
+            )
+            await sess.commit()
+        await redis_client.set_json(
+            _k_provider(session_id),
+            [[p.provider, p.scope_id] for p in providers],
+            _ttl(_TTL_FACTS),
         )
+        _ = await redis_client.invalidate(_k_context(session_id), _k_detail(session_id))
 
     @staticmethod
     async def __first_query(session_id: UUID) -> str | None:
@@ -496,8 +520,6 @@ class DatabaseService:
         user_pk: int,
         operation: OperationType,
         repo_uri: str,
-        terraform_prv: TerraformProvider,
-        scope_id: str,
         branch_name: str,
         query: str,
         root_module_path: str | None = None,
@@ -514,12 +536,6 @@ class DatabaseService:
             uri=repo_uri,
             branch=branch_name,
             root_path=root_module_path,
-        )
-        _ = await db.create(
-            DbTerraformProvider,
-            session_id=session.id,
-            provider=terraform_prv,
-            scope_id=scope_id,
         )
         _ = await db.create(History, session_id=session.id, first_query=query)
         round_id = await DatabaseService.create_round(session_id, query)
@@ -543,11 +559,7 @@ class DatabaseService:
                     },
                     _ttl(_TTL_FACTS),
                 ),
-                (
-                    _k_provider(session_id),
-                    {"provider": terraform_prv.value, "scope_id": scope_id},
-                    _ttl(_TTL_FACTS),
-                ),
+                (_k_provider(session_id), [], _ttl(_TTL_FACTS)),
                 (_k_first_query(session_id), query, _ttl(_TTL_FACTS)),
             ]
         )
@@ -562,21 +574,16 @@ class DatabaseService:
                     message=f"Session {session_id} not found.",
                     error_code=404,
                 )
-            username, workspace, provider, history, round_id = await asyncio.gather(
+            username, workspace, providers, history, round_id = await asyncio.gather(
                 DatabaseService.__map_user_email(session.user_id),
                 DatabaseService.__workspace_facts(session_id),
-                DatabaseService.__provider_facts(session_id),
+                DatabaseService.__providers(session_id),
                 DatabaseService.__history_payloads(session_id),
                 DatabaseService.__latest_round_id(session.id),
             )
             if workspace is None:
                 raise SessionTerminal(
                     message=f"Session {session_id} does not have a workspace",
-                    error_code=404,
-                )
-            if provider is None:
-                raise SessionTerminal(
-                    message=f"Session {session_id} does not have an associated cloud provider",
                     error_code=404,
                 )
             if round_id is None:
@@ -594,9 +601,8 @@ class DatabaseService:
                 user_id=username,
                 round_id=round_id,
                 repo_uri=workspace.uri,
-                scope_id=provider.scope_id,
+                providers=providers,
                 operation_type=session.operation,
-                terraform_prv=provider.provider,
                 branch_name=workspace.branch,
                 root_module_path=workspace.root_path,
                 history=history["payload"],
@@ -622,18 +628,18 @@ class DatabaseService:
     async def __construct_summary(s: Session) -> SessionSummary:
         (
             workspace,
-            provider,
+            providers,
             username,
             first_query,
             current_status,
         ) = await asyncio.gather(
             DatabaseService.__workspace_facts(s.uuid),
-            DatabaseService.__provider_facts(s.uuid),
+            DatabaseService.__providers(s.uuid),
             DatabaseService.__map_user_email(s.user_id),
             DatabaseService.__first_query(s.uuid),
             DatabaseService.__current_status(s.uuid),
         )
-        if workspace is None or provider is None:
+        if workspace is None:
             raise SessionTerminal(
                 message=f"Session {s.uuid} is misconfigured",
                 error_code=500,
@@ -642,7 +648,9 @@ class DatabaseService:
             uuid=s.uuid,
             username=username,
             operation=s.operation,
-            provider=provider.provider,
+            providers=[
+                ProviderRef(name=p.provider, scope_id=p.scope_id) for p in providers
+            ],
             first_query=first_query,
             workspace=WorkspaceRef(
                 uri=workspace.uri,
@@ -876,14 +884,13 @@ class DatabaseService:
                 message=f"Session {session_id} not found.",
                 error_code=404,
             )
-        if not s.workspaces or not s.terraform_providers:
+        if not s.workspaces:
             raise SessionTerminal(
                 message=f"Session {session_id} is missconfigured",
                 error_code=500,
             )
 
         workspace = s.workspaces[0]
-        provider = s.terraform_providers[0]
         history = s.histories[0] if s.histories else None
         # max(id) is the append-order proxy for "latest" — the same
         # convention get_last_status and the list_sessions filter use.
@@ -893,7 +900,10 @@ class DatabaseService:
             uuid=s.uuid,
             username=await DatabaseService.__map_user_email(s.user_id),
             operation=s.operation,
-            provider=provider.provider,
+            providers=[
+                ProviderRef(name=p.provider, scope_id=p.scope_id)
+                for p in sorted(s.terraform_providers, key=lambda p: p.provider)
+            ],
             first_query=history.first_query if history else None,
             workspace=WorkspaceRef(
                 uri=workspace.uri,
@@ -905,7 +915,6 @@ class DatabaseService:
             is_blocked=s.is_blocked,
             created_at=s.created_at,
             updated_at=s.updated_at,
-            scope_id=provider.scope_id,
             rounds=[
                 DatabaseService.__round_detail(r)
                 for r in sorted(s.rounds, key=lambda r: (r.number, r.id))

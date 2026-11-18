@@ -39,7 +39,6 @@ async def probe_manifest(request: ManifestProbeRequest) -> ManifestProbeResponse
         resolution = await ApplicationFactory.get_manifest_probe_service().probe(
             repo_uri=request.repo_uri,
             root_module_path=request.root_module_path,
-            terraform_provider=request.terraform_provider,
         )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

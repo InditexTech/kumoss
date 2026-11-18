@@ -18,6 +18,9 @@ Layout (version 1)::
         value: {location: westeurope}
       - name: db_password
         sensitive: true        # value kept in the secret store, never here
+    scopes:
+      - provider: azurerm
+        scope_id: 00000000-0000-0000-0000-000000000000
 
 Reading is strict: anything off-layout is reported rather than guessed,
 since the file is committed and may have been edited by hand.
@@ -33,6 +36,7 @@ import yaml
 from src.domains.exceptions import ManifestReadError
 from src.domains.interfaces.manifest_repository_interface import IManifestRepository
 from src.domains.value_objects.manifest import Manifest, Variable
+from src.domains.value_objects.provider_scope import ProviderScope
 from src.domains.value_objects.terraform_requirements import ProviderRequirement
 from src.shared.config import system_config
 
@@ -116,6 +120,9 @@ def _to_dict(manifest: Manifest) -> dict[str, Any]:
             else {"name": v.name, "value": v.value}
             for v in manifest.variables
         ],
+        "scopes": [
+            {"provider": sc.provider, "scope_id": sc.scope_id} for sc in manifest.scopes
+        ],
     }
 
 
@@ -163,11 +170,23 @@ def _from_dict(data: Any) -> Manifest:
     if len(set(names)) != len(names):
         raise ValueError("a variable is listed more than once")
 
+    scopes: list[ProviderScope] = []
+    for item in _list(data.get("scopes"), "scopes"):
+        item = _mapping(item, "a scope")
+        scopes.append(
+            ProviderScope(
+                provider=_string(item, "provider"), scope_id=_string(item, "scope_id")
+            )
+        )
+    if len({sc.provider for sc in scopes}) != len(scopes):
+        raise ValueError("a provider has more than one scope")
+
     return Manifest(
         fingerprint=fingerprint,
         providers=tuple(providers),
         var_files=var_files,
         variables=tuple(variables),
+        scopes=tuple(scopes),
     )
 
 

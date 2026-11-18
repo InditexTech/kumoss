@@ -20,13 +20,14 @@ from .operation_result import OperationResult
 from .plan_request import PlanRequest
 from .plan_response_400 import PlanResponse400
 from .problem import Problem
+from .provider_scope import ProviderScope
 from .scope_resource_ids_request import ScopeResourceIdsRequest
+from .scope_resource_ids_request_provider import ScopeResourceIdsRequestProvider
 from .scope_resource_ids_response_400 import ScopeResourceIdsResponse400
 from .show_request import ShowRequest
 from .show_response_400 import ShowResponse400
 from .state_resource_ids_request import StateResourceIdsRequest
 from .state_resource_ids_response_400 import StateResourceIdsResponse400
-from .terraform_provider import TerraformProvider
 from .validate_request import ValidateRequest
 from .validate_response_400 import ValidateResponse400
 from .variables import Variables
@@ -48,13 +49,14 @@ __all__ = (
     "PlanRequest",
     "PlanResponse400",
     "Problem",
+    "ProviderScope",
     "ScopeResourceIdsRequest",
+    "ScopeResourceIdsRequestProvider",
     "ScopeResourceIdsResponse400",
     "ShowRequest",
     "ShowResponse400",
     "StateResourceIdsRequest",
     "StateResourceIdsResponse400",
-    "TerraformProvider",
     "ValidateRequest",
     "ValidateResponse400",
     "Variables",

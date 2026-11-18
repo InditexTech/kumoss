@@ -37,15 +37,17 @@ from src.clients.iac.models.job_kind import JobKind
 from src.clients.iac.models.job_status import JobStatus
 from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.problem import Problem
+from src.clients.iac.models.scope_resource_ids_request_provider import (
+    ScopeResourceIdsRequestProvider,
+)
 from src.domains.dto import TerraformDiscoveryDTO
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import TracerService
-from src.domains.value_objects import PlanRef, TerraformInputs
+from src.domains.value_objects import PlanRef, ProviderScope, TerraformInputs
 from src.infrastructure.terraform import terraform as tv
 from src.infrastructure.terraform.backend import TerraformBackend
 from src.shared.config.system_config import IacServiceConfig
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -56,7 +58,9 @@ SESSION_PLAN_FILENAME = "session.plan"
 STATE_BUCKET = "kumoss-state"
 
 SCOPE_ID = "sub-uuid-1234"
-TERRAFORM_PROVIDER = TerraformProvider.AZURE
+# The session's providers: only the ones with a scope id are sent.
+SCOPES = (ProviderScope("azurerm", SCOPE_ID), ProviderScope("random"))
+SENT_SCOPES = [{"provider": "azurerm", "scope_id": SCOPE_ID}]
 
 WORKSPACE = Path("/workspaces/demo")
 
@@ -87,6 +91,11 @@ DRIFTED_PLAN_JSON = json.dumps(
 INIT_REQUIRED_STDERR = (
     'Error: Missing required provider\n\nPlease run "terraform init".'
 )
+
+
+def _scopes(body) -> list[dict[str, str]]:
+    """The provider scopes a request body carries, as the wire sees them."""
+    return body.to_dict().get("scopes", [])
 
 
 def _ok(stdout: str = "", stderr: str = "") -> OperationResult:
@@ -147,8 +156,7 @@ class _TerraformTestCase(unittest.IsolatedAsyncioTestCase):
         return tv.Terraform(
             workspace_path=WORKSPACE,
             git=self.git,
-            scope_id=SCOPE_ID,
-            terraform_provider=TERRAFORM_PROVIDER,
+            scopes=SCOPES,
             backend=self.backend,
         )
 
@@ -268,7 +276,27 @@ class TestTerraformPlan(_TerraformTestCase):
         # Only the commands that reach a cloud API carry the scope.
         for name in ("init", "plan"):
             body = submit_mocks[name].await_args.kwargs["body"]
-            self.assertEqual(body.scope_id, SCOPE_ID, f"{name} body")
+            self.assertEqual(_scopes(body), SENT_SCOPES, f"{name} body")
+        # validate reaches no cloud API: unscoped.
+        validate_body = submit_mocks["validate"].await_args.kwargs["body"]
+        self.assertNotIn("scopes", validate_body.to_dict())
+
+    async def test_a_module_without_scoped_providers_sends_no_scope(self):
+        self._use_config()
+        terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scopes=(ProviderScope("random"), ProviderScope("kubernetes")),
+            backend=self.backend,
+        )
+        submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
+
+        dto = await terraform.plan(targets=[])
+
+        self.assertTrue(dto.ok)
+        for name in ("init", "plan"):
+            body = submit_mocks[name].await_args.kwargs["body"]
+            self.assertEqual(_scopes(body), [], f"{name} body")
 
     async def test_without_inputs_the_plan_carries_no_variables(self):
         self._use_config()
@@ -284,8 +312,7 @@ class TestTerraformPlan(_TerraformTestCase):
         self.terraform = tv.Terraform(
             workspace_path=WORKSPACE,
             git=self.git,
-            scope_id=SCOPE_ID,
-            terraform_provider=TERRAFORM_PROVIDER,
+            scopes=SCOPES,
             backend=self.backend,
             inputs=TerraformInputs(
                 var_files=("envs/dev.tfvars",),
@@ -460,8 +487,7 @@ class TestTerraformOciScope(_TerraformTestCase):
         return tv.Terraform(
             workspace_path=WORKSPACE,
             git=self.git,
-            scope_id=OCI_SCOPE_ID,
-            terraform_provider=TerraformProvider.OCI,
+            scopes=(ProviderScope("oci", OCI_SCOPE_ID), ProviderScope("random")),
             backend=self.backend,
         )
 
@@ -478,6 +504,10 @@ class TestTerraformOciScope(_TerraformTestCase):
 
         self.assertTrue(dto.ok)
         self.assertIsNotNone(dto.plan)
+        self.assertEqual(
+            _scopes(submit_mocks["plan"].await_args.kwargs["body"]),
+            [{"provider": "oci", "scope_id": OCI_SCOPE_ID}],
+        )
         show_body = submit_mocks["show"].await_args.kwargs["body"]
         self.assertEqual(show_body.plan_file, SESSION_PLAN_FILENAME)
 
@@ -518,8 +548,7 @@ class TestTerraformOciScope(_TerraformTestCase):
         terraform = tv.Terraform(
             workspace_path=WORKSPACE,
             git=self.git,
-            scope_id="123456789012",
-            terraform_provider=TerraformProvider.AWS,
+            scopes=(ProviderScope("aws", "123456789012"),),
             backend=self.backend,
         )
         self._patch_ops(init=_ok(), validate=_ok(), plan=_ok(stdout="plan output"))
@@ -527,6 +556,54 @@ class TestTerraformOciScope(_TerraformTestCase):
         dto = await terraform.plan(targets=[])
 
         self.assertTrue(dto.ok)
+
+    async def test_an_oci_pair_without_a_scope_is_not_shown(self):
+        self._use_config()
+        terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scopes=(ProviderScope("oci"),),
+            backend=self.backend,
+        )
+        submit_mocks, _ = self._patch_ops(
+            init=_ok(), validate=_ok(), plan=_ok(stdout="plan output")
+        )
+
+        dto = await terraform.plan(targets=[])
+
+        self.assertTrue(dto.ok)
+        self.assertEqual(_scopes(submit_mocks["plan"].await_args.kwargs["body"]), [])
+
+    async def test_the_compartment_is_checked_beside_other_scopes(self):
+        self._use_config()
+        terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scopes=(
+                ProviderScope("azurerm", SCOPE_ID),
+                ProviderScope("oci", OCI_SCOPE_ID),
+            ),
+            backend=self.backend,
+        )
+        submit_mocks, _ = self._patch_ops(
+            init=_ok(),
+            validate=_ok(),
+            plan=_ok(stdout="plan output"),
+            show=_ok(stdout=_oci_plan_json("ocid1.compartment.oc1..other")),
+        )
+
+        dto = await terraform.plan(targets=[])
+
+        # Checked against the oci pair's compartment, not another scope.
+        self.assertFalse(dto.ok)
+        self.assertIn(f"compartment ({OCI_SCOPE_ID})", dto.feedback)
+        self.assertEqual(
+            _scopes(submit_mocks["plan"].await_args.kwargs["body"]),
+            [
+                {"provider": "azurerm", "scope_id": SCOPE_ID},
+                {"provider": "oci", "scope_id": OCI_SCOPE_ID},
+            ],
+        )
 
 
 class TestTerraformDrift(_TerraformTestCase):
@@ -792,7 +869,7 @@ class TestTerraformStateResourceIds(_ImportTestCase):
         state_body = submit_mocks["state"].await_args.kwargs["body"]
         self.assertEqual(state_body.workspace_path, "/workspaces/demo")
         init_body = submit_mocks["init"].await_args.kwargs["body"]
-        self.assertEqual(init_body.scope_id, SCOPE_ID)
+        self.assertEqual(_scopes(init_body), SENT_SCOPES)
 
     async def test_init_failure_raises(self):
         self._use_config()
@@ -825,8 +902,7 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
         )
 
         discovery = await self.terraform.scope_resource_ids(
-            scope_id="scope-123",
-            terraform_provider="azure",
+            ProviderScope("google", "scope-123")
         )
 
         self.assertEqual(discovery.resource_ids, ["res-1", "res-2", "res-3"])
@@ -835,9 +911,10 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
         # Here scope_id names the scope being listed, so it comes from the
         # argument; the init that precedes it runs under the session scope.
         self.assertEqual(scope_body.scope_id, "scope-123")
-        self.assertEqual(scope_body.terraform_provider, "azure")
+        self.assertIs(scope_body.provider, ScopeResourceIdsRequestProvider.GOOGLE)
+        self.assertEqual(scope_body.to_dict()["provider"], "google")
         init_body = submit_mocks["init"].await_args.kwargs["body"]
-        self.assertEqual(init_body.scope_id, SCOPE_ID)
+        self.assertEqual(_scopes(init_body), SENT_SCOPES)
 
     async def test_init_failure_raises(self):
         self._use_config()
@@ -845,8 +922,7 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
 
         with self.assertRaises(ExceptionHandler) as ctx:
             await self.terraform.scope_resource_ids(
-                scope_id="scope-123",
-                terraform_provider="azure",
+                ProviderScope("google", "scope-123")
             )
         self.assertEqual(ctx.exception.error_code, 502)
 
@@ -861,8 +937,7 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
         )
 
         discovery = await self.terraform.scope_resource_ids(
-            scope_id="scope-123",
-            terraform_provider="azure",
+            ProviderScope("google", "scope-123")
         )
 
         self.assertEqual(discovery.resource_ids, [])
@@ -891,7 +966,7 @@ class TestTerraformImportResource(_ImportTestCase):
         import_body = submit_mocks["import"].await_args.kwargs["body"]
         self.assertEqual(import_body.address, "azurerm_resource_group.main")
         self.assertEqual(import_body.resource_id, "/subscriptions/.../rg/main")
-        self.assertEqual(import_body.scope_id, SCOPE_ID)
+        self.assertEqual(_scopes(import_body), SENT_SCOPES)
 
     async def test_import_failure_maps_to_ok_false(self):
         self._use_config()
@@ -1044,7 +1119,7 @@ class TestTerraformApply(_TerraformTestCase):
 
         apply_body = submit_mocks["apply"].await_args.kwargs["body"]
         self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
-        self.assertEqual(apply_body.scope_id, SCOPE_ID)
+        self.assertEqual(_scopes(apply_body), SENT_SCOPES)
         self.assertEqual(apply_body.plan_file, SESSION_PLAN_FILENAME)
         self.assertRegex(apply_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 
