@@ -58,13 +58,7 @@ func RunStack(ctx context.Context, opts RunOptions) error {
 
 	runner := opts.Docker
 	if runner == nil {
-		runner = &docker.Compose{
-			ProjectDir: opts.Home.Root,
-			Files: []string{
-				rel(opts.Home.Root, opts.Home.ComposeFile()),
-				rel(opts.Home.Root, opts.Home.ComposeOverride()),
-			},
-		}
+		runner = docker.NewCompose(opts.Home)
 	}
 
 	rows, err := runner.PS(ctx)

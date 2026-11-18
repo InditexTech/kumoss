@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/cli"
@@ -53,10 +52,7 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			// A half-written home may lack the compose files, and then there
 			// is nothing running to stop.
 			if _, err := os.Stat(h.ComposeFile()); err == nil {
-				c := &docker.Compose{
-					ProjectDir: h.Root,
-					Files:      []string{rel(h.Root, h.ComposeFile()), rel(h.Root, h.ComposeOverride())},
-				}
+				c := docker.NewCompose(h)
 				if err := c.Down(cmd.Context(), true); err != nil {
 					return err
 				}
@@ -78,15 +74,6 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 	root.AddCommand(cmd)
 	flags.RegisterHome(cmd)
 	return cmd
-}
-
-// rel is filepath.Rel with a fallback, kept local so cmd does not import the
-// pipeline just for one call.
-func rel(base, path string) string {
-	if r, err := filepath.Rel(base, path); err == nil {
-		return r
-	}
-	return path
 }
 
 // confirm reads one line from stdin. EOF or anything but y/yes is a no, so a

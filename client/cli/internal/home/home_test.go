@@ -147,3 +147,45 @@ func TestEnsureCreatesTheSkeleton(t *testing.T) {
 		}
 	}
 }
+
+// Two homes must not share a compose project: the downloaded file fixes
+// `name: kumoss`, so a second home would otherwise reconfigure the first one's
+// containers and share its volumes, and uninstall -v would delete them.
+func TestProjectNameIsStableAndDistinctPerHome(t *testing.T) {
+	dir := isolate(t)
+
+	// The default root keeps the plain name, so an existing install finds its
+	// containers and volumes unchanged.
+	def := Home{Root: filepath.Join(dir, ".kumoss")}
+	if got := def.ProjectName(); got != "kumoss" {
+		t.Errorf("default ProjectName = %q, want kumoss", got)
+	}
+
+	a := Home{Root: filepath.Join(dir, "a")}
+	b := Home{Root: filepath.Join(dir, "b")}
+	if a.ProjectName() == b.ProjectName() {
+		t.Errorf("two homes share project %q", a.ProjectName())
+	}
+	// Stable across calls: a new process must find the same stack.
+	if a.ProjectName() != (Home{Root: filepath.Join(dir, "a")}).ProjectName() {
+		t.Errorf("ProjectName is not stable")
+	}
+}
+
+// With no home directory defaultRoot falls back to a bare `.kumoss`, which is
+// relative. The comparison must expand it, so a home at the directory it
+// resolves to is still treated as the default one.
+func TestProjectNameWhenTheHomeIsUnknown(t *testing.T) {
+	isolate(t)
+	t.Setenv("HOME", "")
+
+	// The bug only shows when the two forms differ, which is a relative
+	// fallback compared against an absolute Root.
+	if defaultRoot() == expand(defaultRoot()) {
+		t.Skip("the home directory is known; nothing to compare")
+	}
+	h := Home{Root: expand(defaultRoot())}
+	if got := h.ProjectName(); got != "kumoss" {
+		t.Errorf("ProjectName = %q for %q, want kumoss", got, h.Root)
+	}
+}

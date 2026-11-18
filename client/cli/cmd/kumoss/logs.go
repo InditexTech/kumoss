@@ -23,10 +23,7 @@ func NewLogsCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			"how far back to read (30m, 2h, 2026-01-02T15:04:05Z). Ctrl-C stops\n" +
 			"following; the stack keeps running.",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			c := &docker.Compose{
-				ProjectDir: flags.Home.Root,
-				Files:      []string{rel(flags.Home.Root, flags.Home.ComposeFile()), rel(flags.Home.Root, flags.Home.ComposeOverride())},
-			}
+			c := docker.NewCompose(flags.Home)
 			if err := c.Logs(cmd.Context(), follow, since, args...); err != nil {
 				return fmt.Errorf("show logs: %w", err)
 			}

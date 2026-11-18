@@ -151,10 +151,7 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 
 	c := opts.Docker
 	if c == nil {
-		c = &docker.Compose{
-			ProjectDir: opts.Home.Root,
-			Files:      []string{rel(opts.Home.Root, opts.Home.ComposeFile()), rel(opts.Home.Root, opts.Home.ComposeOverride())},
-		}
+		c = docker.NewCompose(opts.Home)
 	}
 	// A container whose definition changed only starts with the new one when
 	// it is force-recreated: `up -d` compares the service definition, and a

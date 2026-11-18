@@ -199,13 +199,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 	if run {
 		runner := opts.Docker
 		if runner == nil {
-			runner = &docker.Compose{
-				ProjectDir: opts.Home.Root,
-				Files: []string{
-					rel(opts.Home.Root, opts.Home.ComposeFile()),
-					rel(opts.Home.Root, opts.Home.ComposeOverride()),
-				},
-			}
+			runner = docker.NewCompose(opts.Home)
 		}
 		if err := runner.Pull(ctx); err != nil {
 			return fmt.Errorf("pull images: %w", err)
@@ -337,15 +331,6 @@ func printSection(w io.Writer, path string, content []byte) error {
 		}
 	}
 	return nil
-}
-
-// rel makes path relative to base for the compose -f arguments. Absolute would
-// work too; relative keeps the command line readable.
-func rel(base, path string) string {
-	if r, err := filepath.Rel(base, path); err == nil {
-		return r
-	}
-	return path
 }
 
 // askList flattens the samples' unanswered keys into the form's list. The label

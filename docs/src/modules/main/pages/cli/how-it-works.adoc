@@ -25,8 +25,10 @@ Three ideas explain almost everything the CLI does.
 
 *The home is the unit of installation.* Everything belongs to one directory,
 `~/.kumoss` by default. Two homes are two independent stacks: their own
-answers, their own `.env` files, their own volumes. Point at another with
-`--home <dir>`, `KUMOSS_HOME=<dir>`, or by persisting the choice with
+answers, their own `.env` files, their own volumes. Each home runs under its own
+Compose project — `kumoss` for the default directory, `kumoss-<hash>` anywhere
+else — which is what keeps their containers and volumes apart. Point at another
+with `--home <dir>`, `KUMOSS_HOME=<dir>`, or by persisting the choice with
 `kumoss init --home <new_file_path>` or with `kumoss home --home <new_file_path>`.
 
 *The answers are stored in a file as the source of truth.* `kumoss.yaml` records what you told

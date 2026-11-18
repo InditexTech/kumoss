@@ -13,7 +13,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+
+	"github.com/InditexTech/kumoss/client/cli/internal/home"
 )
 
 // Runner is the seam the pipeline talks to; tests stub it, Compose implements
@@ -37,6 +40,11 @@ type Compose struct {
 	// Relative paths inside both files resolve against the FIRST -f file's
 	// directory, src/ — not against this.
 	ProjectDir string
+	// ProjectName is passed as -p, overriding the `name:` the downloaded
+	// compose file fixes. Without it every home is the same project, so a
+	// second home reconfigures the first one's containers and shares its
+	// volumes.
+	ProjectName string
 	// Files are the -f arguments in order, relative to ProjectDir: the
 	// downloaded compose file, then the generated override.
 	Files []string
@@ -44,13 +52,35 @@ type Compose struct {
 
 var _ Runner = (*Compose)(nil) // compile-time check that Compose satisfies Runner
 
+// NewCompose builds the runner for one home, so no caller can forget the
+// project name and silently share another home's stack.
+func NewCompose(h home.Home) *Compose {
+	return &Compose{
+		ProjectDir:  h.Root,
+		ProjectName: h.ProjectName(),
+		Files:       []string{rel(h.Root, h.ComposeFile()), rel(h.Root, h.ComposeOverride())},
+	}
+}
+
 // args builds the command line shared by every call.
 func (c *Compose) args(sub ...string) []string {
 	args := []string{"compose"}
+	if c.ProjectName != "" {
+		args = append(args, "-p", c.ProjectName)
+	}
 	for _, f := range c.Files {
 		args = append(args, "-f", f)
 	}
 	return append(args, sub...)
+}
+
+// rel makes path relative to base for the -f arguments. Absolute would work
+// too; relative keeps the command line readable.
+func rel(base, path string) string {
+	if r, err := filepath.Rel(base, path); err == nil {
+		return r
+	}
+	return path
 }
 
 // run captures combined output; only the short detached Up uses it. On failure

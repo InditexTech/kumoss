@@ -5,6 +5,8 @@
 package home
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,6 +78,21 @@ func defaultRoot() string {
 
 // StateFile is ~/.kumoss/kumoss.yaml — the persisted, non-secret state.
 func (h Home) StateFile() string { return filepath.Join(h.Root, "kumoss.yaml") }
+
+// ProjectName is the docker compose project this home owns. The downloaded
+// compose file fixes `name: kumoss`, so without it two homes share one
+// project: starting one reconfigures the other's containers, and uninstall
+// deletes the volumes both were using. The default root keeps the plain name,
+// so an existing install finds its containers and volumes unchanged.
+func (h Home) ProjectName() string {
+	// Compare expanded: defaultRoot can return a bare `.kumoss` when the home
+	// directory is unknown, and Root is always absolute.
+	if h.Root == expand(defaultRoot()) {
+		return "kumoss"
+	}
+	sum := sha256.Sum256([]byte(h.Root))
+	return "kumoss-" + hex.EncodeToString(sum[:4])
+}
 
 // SrcDir is src/, which holds the downloaded compose project file.
 func (h Home) SrcDir() string { return filepath.Join(h.Root, "src") }

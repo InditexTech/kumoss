@@ -504,10 +504,18 @@ kumoss uninstall --purge    # no question, for a script
 ```
 
 It runs `docker compose down -v` against the managed home, which stops the
-containers and **deletes the four data volumes** (`kumoss_core_db_data`,
-`kumoss_phoenix_db_data`, `kumoss_object_storage_data`, `kumoss_workspaces`),
-then removes the home directory and the persisted `--home` pointer. The next
-`kumoss init` therefore starts from an empty database, not from the old one.
+containers and **deletes the four data volumes**, then removes the home
+directory and the persisted `--home` pointer. The next `kumoss init` therefore
+starts from an empty database, not from the old one.
+
+Each volume name is the home's Compose project name plus the volume name. On
+the default home the project is `kumoss`, so they are `kumoss_core_db_data`,
+`kumoss_phoenix_db_data`, `kumoss_object_storage_data` and `kumoss_workspaces`;
+on any other home the project is `kumoss-<hash>`, and every volume name starts
+with it.
+
+Only that home is touched: each home runs under its own Compose project, so a
+second home keeps its containers and volumes.
 
 A home with no `src/docker-compose.yml` skips the compose step and is simply
 deleted. Answering anything but `y` leaves everything in place.

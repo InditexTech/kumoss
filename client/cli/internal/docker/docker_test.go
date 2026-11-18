@@ -7,6 +7,8 @@ package docker
 import (
 	"reflect"
 	"testing"
+
+	"github.com/InditexTech/kumoss/client/cli/internal/home"
 )
 
 func TestArgsUseAnExplicitFileList(t *testing.T) {
@@ -55,5 +57,33 @@ func TestUpForegroundDropsDetach(t *testing.T) {
 	}
 	if got := upArgs(true, false); !reflect.DeepEqual(got, []string{"up", "--force-recreate"}) {
 		t.Errorf("foreground recreate args = %v, want no -d", got)
+	}
+}
+
+// Without -p the downloaded file's `name: kumoss` wins and every home is the
+// same project.
+func TestArgsPassTheProjectName(t *testing.T) {
+	c := &Compose{
+		ProjectDir:  "/home/u/lab",
+		ProjectName: "kumoss-abcd1234",
+		Files:       []string{"src/docker-compose.yml"},
+	}
+	got := c.args("down", "-v")
+	want := []string{
+		"compose",
+		"-p", "kumoss-abcd1234",
+		"-f", "src/docker-compose.yml",
+		"down", "-v",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("args = %v, want %v", got, want)
+	}
+}
+
+func TestNewComposeCarriesTheHomeProject(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	c := NewCompose(h)
+	if c.ProjectDir != h.Root || c.ProjectName != h.ProjectName() {
+		t.Errorf("NewCompose = %+v, want root %q and project %q", c, h.Root, h.ProjectName())
 	}
 }

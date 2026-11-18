@@ -46,10 +46,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 	}
 	c := opts.Compose
 	if c == nil {
-		c = &docker.Compose{
-			ProjectDir: opts.Home.Root,
-			Files:      []string{rel(opts.Home.Root, opts.Home.ComposeFile()), rel(opts.Home.Root, opts.Home.ComposeOverride())},
-		}
+		c = docker.NewCompose(opts.Home)
 	}
 	probe := opts.Probe
 	if probe == nil {
