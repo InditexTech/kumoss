@@ -117,7 +117,7 @@ class WorkspaceService(IWorkspace):
         root = (clone / (root_module_path or "")).resolve()
         if not root.is_relative_to(clone) or not root.is_dir():
             raise InvalidRootModulePath(
-                message=f"root_module_path '{root_module_path}' is not a directory inside the repository",
+                message=f"Root module path '{root_module_path}' is not a directory inside the repository",
                 error_code=400,
             )
         return root

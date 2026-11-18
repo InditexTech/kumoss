@@ -43,6 +43,14 @@ class _PromptFetcher:
                 message=f"prompt_name={qualified_name}. {e.args[0]}",
                 error_code=500,
             )
+        except ValueError as e:
+            # The Phoenix client reports a missing prompt (its 404) as a
+            # ValueError; callers tell "absent" apart from failures by 404.
+            missing = str(e).startswith("Prompt not found")
+            raise PhoenixPromptFetchError(
+                message=f"prompt_name={qualified_name}. {e}",
+                error_code=404 if missing else 502,
+            ) from e
         except KeyError:
             raise PhoenixPromptFetchError(
                 message=f"error retrieving prompt from Phoenix API. name={qualified_name}",

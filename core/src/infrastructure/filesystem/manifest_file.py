@@ -74,11 +74,15 @@ class ManifestFile(IManifestRepository):
             with open(path, "r", encoding="utf-8") as f:
                 data = yaml.load(f, Loader=_Loader)
         except (OSError, yaml.YAMLError) as e:
-            raise ManifestReadError(f"Cannot read {self.__filename}: {e}", 422) from e
+            raise ManifestReadError(
+                f"Cannot read the Kumoss manifest ({self.__filename}): {e}", 422
+            ) from e
         try:
             return _from_dict(data)
         except (TypeError, ValueError, KeyError) as e:
-            raise ManifestReadError(f"Invalid {self.__filename}: {e}", 422) from e
+            raise ManifestReadError(
+                f"Invalid Kumoss manifest ({self.__filename}): {e}", 422
+            ) from e
 
     @override
     def save(self, directory: Path, manifest: Manifest) -> None:

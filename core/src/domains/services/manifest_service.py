@@ -342,7 +342,9 @@ class ManifestService:
         ]
         if lost:
             raise ManifestNotConfigured(
-                f"Secret values are missing for: {', '.join(lost)}.", 409
+                "The Kumoss manifest names secrets whose values are missing: "
+                + f"{', '.join(lost)}.",
+                409,
             )
         return TerraformInputs(
             var_files=manifest.var_files,
@@ -497,4 +499,4 @@ def _incomplete_message(check: ManifestResolution) -> str:
         )
     if check.missing_scopes:
         parts.append(f"scopes are still needed for: {', '.join(check.missing_scopes)}")
-    return "The manifest is incomplete; " + "; ".join(parts) + "."
+    return "The Kumoss manifest is incomplete; " + "; ".join(parts) + "."

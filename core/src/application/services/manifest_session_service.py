@@ -111,7 +111,8 @@ def _needs_input_message(resolution: ManifestResolution) -> str:
     if not parts:
         parts.append("a choice of var files")
     return (
-        "The root module needs "
+        "The root module's Kumoss manifest still needs "
         + " and ".join(parts)
-        + ". Probe it with POST /v1/manifest/probe and send the answers in `manifest`."
+        + ". Answer them in the wizard, or probe the root module with POST "
+        + "/v1/manifest/probe and send the answers in `manifest`."
     )

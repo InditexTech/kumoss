@@ -163,7 +163,7 @@ export default function ConfigurationModal({ onClose }: ConfigurationModalProps)
             </p>
           </div>
           <div className={styles.sessionCard}>
-            <p className={styles.sessionLabel}>Path</p>
+            <p className={styles.sessionLabel}>Root module</p>
             <p className={styles.sessionValue}>
               {session.workspace?.root_path || "—"}
             </p>

@@ -74,7 +74,7 @@ const Footer = () => {
         )}
         {rootPath && (
           <div className={styles.containerUnitSmall}>
-            <Typography variant="h3">Path</Typography>
+            <Typography variant="h3">Root module</Typography>
             <span>/</span>
             <Tooltip title={rootPath} arrow>
               <Typography variant="h3" className={styles.mainMsg}>
