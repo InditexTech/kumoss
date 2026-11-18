@@ -10,6 +10,7 @@ package render
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"gopkg.in/yaml.v3"
 
@@ -29,12 +30,21 @@ type Config struct {
 	Example string
 }
 
-// Write fetches the default config.yaml, keeps a verbatim copy at c.Example,
-// overlays the answers in s, and writes the result to c.Path.
+// Write overlays the answers in s onto the existing config.yaml and writes the
+// result to c.Path. On a fresh install there is none yet, so it falls back to
+// the repo's default, keeping a verbatim copy at c.Example.
 func (c *Config) Write(ctx context.Context, s *state.State) error {
-	raw, err := c.Download.Example(ctx, "config.yaml", c.Example)
+	// The file already on disk wins over the shipped default: overlay keeps
+	// every key the forms never ask about, so seeding it from the default would
+	// revert them — oidc's blank issuer_url turns authentication off.
+	raw, err := os.ReadFile(c.Path)
 	if err != nil {
-		return err
+		if !os.IsNotExist(err) {
+			return err
+		}
+		if raw, err = c.Download.Example(ctx, "config.yaml", c.Example); err != nil {
+			return err
+		}
 	}
 	out, err := RenderConfig(raw, s)
 	if err != nil {

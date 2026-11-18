@@ -10,12 +10,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 
-	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
 	"github.com/InditexTech/kumoss/client/cli/internal/render"
-	"github.com/InditexTech/kumoss/client/cli/internal/source"
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
@@ -30,10 +29,9 @@ type ConfigOptions struct {
 	// writes, since the command always confirms first.
 	Confirm func(diff string) (bool, error)
 
-	Download *render.Download
-	Docker   *docker.Compose
-	Out      io.Writer
-	Warn     io.Writer
+	Docker *docker.Compose
+	Out    io.Writer
+	Warn   io.Writer
 }
 
 // RunConfig reopens one section, shows what would change with the secrets
@@ -52,11 +50,6 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 		out = io.Discard
 	}
 
-	dl := opts.Download
-	if dl == nil {
-		dl = &render.Download{Fetch: (&source.Fetcher{}).Fetch, Tag: buildinfo.KumossTag()}
-	}
-
 	old, err := state.Load(opts.Home.StateFile())
 	if err != nil {
 		return err
@@ -70,6 +63,10 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	existing, _ := render.LoadSecrets(paths)
 	render.Fill(s, existing, nil)
 	render.Fill(old, existing, nil)
+	render.FillCloud(s, paths)
+	render.FillCloud(old, paths)
+	fillEnvOnly(s, paths)
+	fillEnvOnly(old, paths)
 
 	// A state change does not migrate what is already stored, and the new
 	// backend would look empty. Say so before asking, not after writing.
@@ -88,10 +85,11 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 		warn(opts.Warn, "notifications disabled: no Slack webhook URL given")
 	}
 
-	samples, err := render.FetchSamples(ctx, dl)
-	if err != nil {
-		warn(opts.Warn, "could not fetch the env samples (%v); falling back to the built-in key list", err)
-	}
+	// The key set comes from the env files on disk, not the repo's samples:
+	// config edits an install that is already there, so it must work offline.
+	env := &render.Env{Samples: localSamples(paths)}
+	envBefore := env.Files(paths, old.Copy())
+	envAfter := env.Files(paths, s)
 
 	// Render everything first: a diff with a half-built file is worse than none.
 	stateBefore, err := state.Render(old)
@@ -102,9 +100,13 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(opts.Home.ConfigExample())
+	// Render from the config.yaml the user actually runs, not the shipped
+	// copy: overlay keeps every key the forms do not own, so seeding it from
+	// the defaults would revert the hand-edited ones — including oidc, whose
+	// blank issuer_url turns authentication off.
+	raw, err := os.ReadFile(opts.Home.ConfigYAML())
 	if err != nil {
-		return fmt.Errorf("read %s: %w", opts.Home.ConfigExample(), err)
+		return fmt.Errorf("read %s: %w", opts.Home.ConfigYAML(), err)
 	}
 	configBefore, err := render.RenderConfig(raw, old)
 	if err != nil {
@@ -114,9 +116,6 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	if err != nil {
 		return err
 	}
-	env := &render.Env{Samples: samples}
-	envBefore := env.Files(paths, old.Copy())
-	envAfter := env.Files(paths, s)
 
 	diff := diffReport(
 		[]fileDiff{
@@ -169,6 +168,66 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	}
 	_, err = fmt.Fprintf(out, "Wrote the files and recreated %v.\n", recreate)
 	return err
+}
+
+// localSamples reads the key set from the env files already on disk, so a
+// section edit needs no network. The values are dropped on purpose: they must
+// not override what the state holds, and the keys are all that matters.
+func localSamples(p render.EnvPaths) *render.Samples {
+	local := func(path string) *render.Sample {
+		vars := render.ReadEnv(path)
+		keys := make([]string, 0, len(vars))
+		for k := range vars {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		s := &render.Sample{}
+		for _, k := range keys {
+			s.Vars = append(s.Vars, render.Var{Key: k})
+		}
+		return s
+	}
+	return &render.Samples{Core: local(p.Core), IAC: local(p.IAC), Notifications: local(p.Notifications)}
+}
+
+// fillEnvOnly restores what kumoss.yaml cannot hold: the values its yaml:"-"
+// fields drop that LoadSecrets and FillCloud do not cover. Without it, editing
+// one section rewrites all three .env files with those values blank, erasing
+// the LLM key, the Git credentials, the storage key and the webhook.
+func fillEnvOnly(s *state.State, p render.EnvPaths) {
+	core := render.ReadEnv(p.Core)
+	iac := render.ReadEnv(p.IAC)
+	s.Git.User = first(s.Git.User, core["GIT_USER"])
+	s.Git.Token = first(s.Git.Token, core["GIT_TOKEN"])
+	s.LLM.Credentials = fillFrom(s.LLM.Credentials, core)
+	s.Storage.Credentials = fillFrom(s.Storage.Credentials, core)
+	s.Storage.BackendCredentials = fillFrom(s.Storage.BackendCredentials, iac)
+	s.Engine.Binary = first(s.Engine.Binary, iac["IAC_BINARY"])
+	s.Notifications.SlackWebhookURL = first(s.Notifications.SlackWebhookURL, render.ReadEnv(p.Notifications)["SLACK_WEBHOOK_URL"])
+}
+
+// fillFrom copies the env vars m does not already hold, so a key the user
+// cleared on purpose in this run stays cleared.
+func fillFrom(m, vars map[string]string) map[string]string {
+	if len(vars) == 0 {
+		return m
+	}
+	if m == nil {
+		m = map[string]string{}
+	}
+	for k, v := range vars {
+		if _, ok := m[k]; !ok {
+			m[k] = v
+		}
+	}
+	return m
+}
+
+func first(a, b string) string {
+	if a != "" {
+		return a
+	}
+	return b
 }
 
 // allServices is every container whose definition the override can change.

@@ -5,10 +5,16 @@
 package pipeline
 
 import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
+	"github.com/InditexTech/kumoss/client/cli/internal/render"
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
@@ -33,6 +39,213 @@ func TestSameDefinitionFollowsTheMounts(t *testing.T) {
 	otherEngine.Engine.Binary = "terraform"
 	if sameDefinition(h, base, otherEngine) {
 		t.Error("a new IaC engine left the definition unchanged")
+	}
+}
+
+// stubSection is a SectionUI whose section leaves the state untouched, so a
+// test can assert on what RunConfig carried over before the form opened.
+type stubSection struct{}
+
+func (stubSection) LLM(*state.State) error           { return nil }
+func (stubSection) Git(*state.State) error           { return nil }
+func (stubSection) Cloud(*state.State) error         { return nil }
+func (stubSection) Engine(*state.State) error        { return nil }
+func (stubSection) State(*state.State) error         { return nil }
+func (stubSection) Notifications(*state.State) error { return nil }
+func (stubSection) RotateSecrets([]Secret) ([]string, error) {
+	return nil, nil
+}
+
+// Every value the yaml drops must be read back from the env files before the
+// section runs, or the write that follows erases it. Editing one section used
+// to clear the LLM key, the Git token, the cloud credentials and the webhook.
+// to clear the LLM key, the Git token, the cloud credentials and the webhook.
+func TestConfigKeepsTheValuesTheYamlCannotHold(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	for _, dir := range []string{h.ConfigDir(), h.CoreDir(), h.ServicesDir("iac"), h.ServicesDir("notifications")} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved := &state.State{
+		LLM:           state.LLM{Model: "anthropic/claude", Credentials: map[string]string{"ANTHROPIC_API_KEY": "llm-key"}},
+		Git:           state.Git{Provider: "GITHUB", User: "me", Token: "git-token"},
+		Cloud:         state.Cloud{AWS: &state.AWSAuth{Method: "static", AccessKey: "AKIA", SecretKey: "aws-secret"}},
+		Notifications: state.Notifications{Enabled: true, SlackWebhookURL: "https://hooks.slack.test/x"},
+		Storage:       state.Storage{Provider: "rustfs", Credentials: map[string]string{"STORAGE_ACCOUNT_KEY": "storage-key"}},
+		Secrets:       state.Secrets{IACToken: "iac-token", NotificationsToken: "notif-token"},
+	}
+	if err := state.Save(h.StateFile(), saved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ConfigExample(), []byte("llm:\n  model: repo\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ConfigYAML(), []byte("llm:\n  model: repo\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// A minimal compose file: the recreate runs `docker compose up` for real.
+	if err := os.WriteFile(h.ComposeFile(), []byte("services:\n  core:\n    image: busybox\n  iac:\n    image: busybox\n  notifications:\n    image: busybox\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ComposeOverride(), []byte("services:\n  core:\n    image: busybox\n  iac:\n    image: busybox\n  notifications:\n    image: busybox\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	env := &render.Env{}
+	if err := env.Write(envPaths(h), saved.Copy()); err != nil {
+		t.Fatal(err)
+	}
+
+	var shown string
+	if err := RunConfig(context.Background(), ConfigOptions{
+		Home:    h,
+		Section: "git",
+		UI:      stubSection{},
+		Docker:  &docker.Compose{},
+		Confirm: func(diff string) (bool, error) {
+			shown = diff
+			return true, nil
+		},
+		Warn: io.Discard,
+		Out:  io.Discard,
+	}); err != nil {
+		t.Fatalf("RunConfig: %v", err)
+	}
+
+	// The preview must not invent changes: the before side is the state the
+	// files actually hold, so an untouched section shows every file unchanged.
+	for _, want := range []string{"kumoss.yaml: unchanged", "config/config.yaml: unchanged"} {
+		if !strings.Contains(shown, want) {
+			t.Errorf("preview does not report %q:\n%s", want, shown)
+		}
+	}
+	for _, leaked := range []string{"llm-key", "git-token", "aws-secret", "storage-key"} {
+		if strings.Contains(shown, leaked) {
+			t.Errorf("preview leaks %q:\n%s", leaked, shown)
+		}
+	}
+
+	core := render.ReadEnv(h.CoreEnv())
+	for _, c := range []struct{ key, want string }{
+		{"ANTHROPIC_API_KEY", "llm-key"},
+		{"GIT_USER", "me"},
+		{"GIT_TOKEN", "git-token"},
+		{"STORAGE_ACCOUNT_KEY", "storage-key"},
+	} {
+		if core[c.key] != c.want {
+			t.Errorf("%s = %q, want %q", c.key, core[c.key], c.want)
+		}
+	}
+	iac := render.ReadEnv(h.ServiceEnv("iac"))
+	if iac["AWS_ACCESS_KEY_ID"] != "AKIA" || iac["AWS_SECRET_ACCESS_KEY"] != "aws-secret" {
+		t.Errorf("cloud credentials lost: %q / %q", iac["AWS_ACCESS_KEY_ID"], iac["AWS_SECRET_ACCESS_KEY"])
+	}
+	if got := render.ReadEnv(h.ServiceEnv("notifications"))["SLACK_WEBHOOK_URL"]; got != "https://hooks.slack.test/x" {
+		t.Errorf("webhook = %q, want the saved one", got)
+	}
+	after, err := state.Load(h.StateFile())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !after.Notifications.Enabled {
+		t.Error("notifications were disabled by editing another section")
+	}
+}
+
+// A section edit must not revert the hand-edited keys the forms never ask
+// about. Rendering from the shipped defaults reset oidc.issuer_url to its blank
+// value, which turns authentication off.
+func TestConfigKeepsTheHandEditedConfig(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	for _, dir := range []string{h.ConfigDir(), h.CoreDir(), h.ServicesDir("iac"), h.ServicesDir("notifications")} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved := &state.State{
+		LLM:     state.LLM{Model: "anthropic/claude", SmallModel: "anthropic/haiku"},
+		Git:     state.Git{Provider: "GITHUB", AuthorName: "Me", AuthorEmail: "me@example.com"},
+		Storage: state.Storage{Provider: "rustfs", Bucket: "kumoss"},
+	}
+	if err := state.Save(h.StateFile(), saved); err != nil {
+		t.Fatal(err)
+	}
+	// The shipped file, as init leaves it in config.yaml.example.
+	shipped := "llm:\n  model: repo\noidc:\n  issuer_url: \"\"\n  client_id: \"\"\nservices:\n  mapping:\n    enabled: false\n"
+	if err := os.WriteFile(h.ConfigExample(), []byte(shipped), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// What the user actually runs, with auth turned on by hand.
+	edited := "llm:\n  model: anthropic/claude\n  model_list:\n    - model_name: fast\noidc:\n  issuer_url: https://login.example.com\n  client_id: kumoss\nservices:\n  mapping:\n    enabled: true\n"
+	if err := os.WriteFile(h.ConfigYAML(), []byte(edited), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ComposeFile(), []byte("services:\n  core:\n    image: busybox\n  iac:\n    image: busybox\n  notifications:\n    image: busybox\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ComposeOverride(), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&render.Env{}).Write(envPaths(h), saved.Copy()); err != nil {
+		t.Fatal(err)
+	}
+
+	var shown string
+	if err := RunConfig(context.Background(), ConfigOptions{
+		Home:    h,
+		Section: "git",
+		UI:      stubSection{},
+		Docker:  &docker.Compose{},
+		Confirm: func(diff string) (bool, error) { shown = diff; return true, nil },
+		Warn:    io.Discard,
+		Out:     io.Discard,
+	}); err != nil {
+		t.Fatalf("RunConfig: %v", err)
+	}
+
+	got, err := os.ReadFile(h.ConfigYAML())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"issuer_url: https://login.example.com",
+		"client_id: kumoss",
+		"model_name: fast",
+		"enabled: true",
+	} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("config.yaml lost %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(shown, "issuer_url") {
+		t.Errorf("the preview claimed an oidc change:\n%s", shown)
+	}
+}
+
+// localSamples must take its key set from the files on disk. A key the built-in
+// fallback list does not know would otherwise be dropped by the next write.
+func TestLocalSamplesKeepEveryKeyOnDisk(t *testing.T) {
+	dir := t.TempDir()
+	p := render.EnvPaths{
+		Core:          filepath.Join(dir, "core.env"),
+		IAC:           filepath.Join(dir, "iac.env"),
+		Notifications: filepath.Join(dir, "notif.env"),
+	}
+	if err := os.WriteFile(p.Core, []byte("A=1\nHAND_ADDED_KEY=v\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s := localSamples(p)
+	if s.Core == nil || len(s.Core.Vars) != 2 {
+		t.Fatalf("core sample = %+v, want the two keys on disk", s.Core)
+	}
+	if s.Core.Vars[1].Key != "HAND_ADDED_KEY" {
+		t.Errorf("sample dropped the local key: %+v", s.Core.Vars)
+	}
+	// Values are dropped: they must not override what the state holds.
+	for _, v := range s.Core.Vars {
+		if v.Value != "" {
+			t.Errorf("%s kept the sample value %q", v.Key, v.Value)
+		}
 	}
 }
 

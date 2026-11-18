@@ -139,6 +139,37 @@ func noFetch(_ context.Context, _, path string) ([]byte, error) {
 	return nil, os.ErrNotExist
 }
 
+// A reconfigure must keep the hand-edited keys the forms never ask about.
+// Rendering from the fetched default reset oidc, whose blank issuer_url turns
+// authentication off.
+func TestReconfigureKeepsTheHandEditedConfig(t *testing.T) {
+	h, _ := install(t)
+	edited := "llm:\n  model: keep/me\noidc:\n  issuer_url: https://login.example.com\n  client_id: kumoss\n"
+	if err := os.WriteFile(h.ConfigYAML(), []byte(edited), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{
+		Home:     h,
+		UI:       &stubUI{mode: tui.ModeReconfigure, regen: true},
+		Docker:   stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+	}
+	if err := RunPipeline(context.Background(), opts); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	got, err := os.ReadFile(h.ConfigYAML())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"issuer_url: https://login.example.com", "client_id: kumoss"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("reconfigure dropped %q:\n%s", want, got)
+		}
+	}
+}
+
 // Enabling with no webhook must downgrade the flag: the service would not
 // boot, and the stack would be unstartable.
 func TestNotificationsEnabledWithoutWebhookIsDowngraded(t *testing.T) {

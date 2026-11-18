@@ -129,7 +129,9 @@ a plain `up -d` would keep the old values.
 === kumoss config <section>
 
 Reopens one wizard section, prefilled from the current files, and applies it.
-The sections and the containers each one recreates:
+It reads the files already under the home — `kumoss.yaml`, `config.yaml` and
+the three `.env` files — so it needs no network and works on a stack you have
+since moved offline. The sections and the containers each one recreates:
 
 [cols="2,3",options="header"]
 |===
@@ -230,7 +232,7 @@ locally goes with it.
 
 === The key set comes from the repository
 
-The wizard does not hardcode the variables. It fetches the three `env.sample`
+`kumoss init` does not hardcode the variables. It fetches the three `env.sample`
 files at the release tag and uses their uncommented keys as the key set for the
 generated files. A variable added to the repository therefore reaches the
 generated files without a new CLI release.
@@ -240,9 +242,13 @@ commented examples, so a key the wizard collected is appended even when the
 sample does not mention it. Otherwise every `VERTEXAI_*` or `ANTHROPIC_*`
 variable would be dropped.
 
-If the fetch fails, the CLI falls back to a built-in key list and warns. That
+If the fetch fails, `init` falls back to a built-in key list and warns. That
 list mirrors the samples at the time of writing and can lag them, so a warning
 here is worth acting on.
+
+`kumoss config <section>` does not fetch anything: the install is already on
+disk, so it takes the key set from the `.env` files it finds there. It needs no
+network, and a key you added by hand survives the edit.
 
 === Each file holds only its own keys
 
@@ -295,9 +301,17 @@ never drops a line because its value is empty.
 === config.yaml is overlaid, not replaced
 
 `config.yaml` is read, the wizard's answers are written into the keys it owns,
-and the result is written back. Every key it does not own keeps the value and
-the comments the project ships: OIDC, the bootstrap administrator, the mapping
-and authorization sidecars, `llm.model_list` and the rest stay hand-edited.
+and the result is written back. Every key it does not own keeps the value it
+already has: OIDC, the bootstrap administrator, the mapping and authorization
+sidecars, `llm.model_list` and the rest stay hand-edited.
+
+On an existing install both `init` (reconfigure) and `config <section>` read
+the `config.yaml` you actually run, never the shipped default, so a key you
+edited by hand survives a section edit. A fresh install has no file yet and
+starts from the repository's copy, kept verbatim at `config.yaml.example` for
+its comments. Because the overlay is seeded from the live file, an edit to the
+wizard's own keys is the only thing a section change rewrites — including
+`oidc.issuer_url`, whose blank value turns authentication off.
 
 That is also why the generated file is bind-mounted over the path the core
 already reads, rather than baked into the image: a change needs a container
