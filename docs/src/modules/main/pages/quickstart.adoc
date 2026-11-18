@@ -6,6 +6,11 @@ using the bundled stack as shipped, and open the running web application.
 To see what a session looks like before you install anything, watch
 xref:main:see-it-in-action.adoc[Kumoss in action].
 
+TIP: Prefer Kubernetes? Each release also publishes a Helm chart,
+`oci://ghcr.io/inditextech/charts/kumoss`. To install it, or to try it on
+a local kind cluster, see xref:main:guides/deploy-with-helm.adoc[Deploy
+with Helm].
+
 == Prerequisites
 
 Before you begin, make sure you meet the
@@ -294,7 +299,8 @@ RustFS.
   secrets].
 * Before sharing the instance with anyone, switch to the production
   deployment model: xref:main:guides/deploy-to-production.adoc[Deploy to
-  production].
+  production]. On Kubernetes, the Helm chart does most of the work:
+  xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
 
 == Troubleshooting
 
