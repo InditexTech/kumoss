@@ -31,40 +31,36 @@ class FakeLister:
         return self._ids
 
 
-def lister_for(terraform_provider: str) -> object | None:
+def lister_for(provider: str) -> object | None:
     async def call() -> object | None:
         async with httpx.AsyncClient() as client:
-            return ScopeDiscovery({})._lister(terraform_provider, client)  # pyright: ignore[reportPrivateUsage]
+            return ScopeDiscovery({})._lister(provider, client)  # pyright: ignore[reportPrivateUsage]
 
     return asyncio.run(call())
 
 
-def resource_ids_for(
-    terraform_provider: str, lister: ScopeLister | None
-) -> list[str] | None:
+def resource_ids_for(provider: str, lister: ScopeLister | None) -> list[str] | None:
     with patch.object(ScopeDiscovery, "_lister", return_value=lister):
-        return asyncio.run(ScopeDiscovery({}).resource_ids(terraform_provider, "s-1"))
+        return asyncio.run(ScopeDiscovery({}).resource_ids(provider, "s-1"))
 
 
 @pytest.mark.parametrize(
-    ("terraform_provider", "expected"),
+    ("provider", "expected"),
     [
-        ("azure", AzurosCloudapi),
-        ("gcp", GcpScopeLister),
+        ("azurerm", AzurosCloudapi),
+        ("google", GcpScopeLister),
         ("aws", AwsScopeLister),
     ],
 )
-def test_each_supported_provider_gets_its_lister(
-    terraform_provider: str, expected: type
-) -> None:
-    assert isinstance(lister_for(terraform_provider), expected)
+def test_each_supported_provider_gets_its_lister(provider: str, expected: type) -> None:
+    assert isinstance(lister_for(provider), expected)
 
 
 @pytest.mark.parametrize(
-    "terraform_provider", ["oci", "kubernetes", "vmware", "", "AZURE"]
+    "provider", ["oci", "kubernetes", "vsphere", "", "AZURERM", "azure", "gcp"]
 )
-def test_other_providers_have_no_lister(terraform_provider: str) -> None:
-    assert lister_for(terraform_provider) is None
+def test_other_providers_have_no_lister(provider: str) -> None:
+    assert lister_for(provider) is None
 
 
 def test_the_client_carries_the_discovery_timeout() -> None:
@@ -80,7 +76,7 @@ def test_resource_ids_deduplicates_in_first_seen_order() -> None:
     resource however many times its cloud names it."""
     lister = FakeLister(["/b", "/a", "/b", "/c", "/a"])
 
-    assert resource_ids_for("azure", lister) == ["/b", "/a", "/c"]
+    assert resource_ids_for("azurerm", lister) == ["/b", "/a", "/c"]
     assert lister.scopes == ["s-1"]
 
 
@@ -88,16 +84,18 @@ def test_a_provider_without_a_lister_has_no_resource_ids() -> None:
     """None is how the factory says it has no inventory query for the
     provider, which is a different answer from an empty scope."""
     assert resource_ids_for("oci", None) is None
-    assert resource_ids_for("azure", FakeLister([])) == []
+    assert resource_ids_for("azurerm", FakeLister([])) == []
 
 
-@pytest.mark.parametrize("terraform_provider", ["azure", "gcp", "oci", "kubernetes", "vmware"])
-def test_only_aws_scopes_are_verified(terraform_provider: str) -> None:
-    """Azure, GCP and OCI commands are pointed at scope_id by an injected
+@pytest.mark.parametrize(
+    "provider", ["azurerm", "google", "oci", "kubernetes", "vsphere", "random"]
+)
+def test_only_aws_scopes_are_verified(provider: str) -> None:
+    """azurerm, google and oci commands are pointed at scope_id by an injected
     variable, and Kubernetes and vSphere name theirs in the code; only an
     AWS account comes from the credentials, so only AWS is checked."""
     with patch.object(AwsScopeLister, "verify_account") as verify_mock:
-        asyncio.run(ScopeDiscovery({}).verify_scope(terraform_provider, "s-1"))
+        asyncio.run(ScopeDiscovery({}).verify_scope(provider, "s-1"))
     verify_mock.assert_not_called()
 
 

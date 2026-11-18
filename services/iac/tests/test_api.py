@@ -5,10 +5,11 @@
 """Unit tests for the IaC reference implementation.
 
 These cover the contract surface: healthz, auth, request validation
-(including the `plan_file` path-traversal guard and the
-`scope_id` / `terraform_provider` pair, required on `init`, `plan` and
-`apply` and rejected everywhere else), per-provider scope injection
-into the engine environment, the 404-on-missing-workspace path,
+(including the `plan_file` path-traversal guard, the optional
+`scopes` list accepted on `init`, `plan`, `apply` and `import` and
+rejected everywhere else, and the `provider` / `scope_id` pair of
+scope discovery), per-provider scope injection into the engine
+environment, the 404-on-missing-workspace path,
 the async job lifecycle (202 submit → poll to terminal), the raw
 {exit_code, stdout, stderr} pass-through for every operation, the
 import endpoints' ID listing and their discovery failure planes,
@@ -37,15 +38,19 @@ from src.jobs import JobRegistry, WorkspaceQueue
 from src import main as service_main
 from src.engine import CommandResult, RunInputs
 from src.discovery import ScopeDiscovery
+from src.discovery._aws import AwsScopeLister
 from src.exceptions import DiscoveryError
 from src.state import StateResourceIds
 
 
-SCOPE: dict[str, str] = {"scope_id": "sub-uuid-1234", "terraform_provider": "azure"}
+SCOPE: dict[str, Any] = {
+    "scopes": [{"provider": "azurerm", "scope_id": "sub-uuid-1234"}]
+}
+DISCOVERY_SCOPE: dict[str, Any] = {"scope_id": "sub-uuid-1234", "provider": "azurerm"}
 
 # (endpoint, engine method to stub, the body fields besides
 # workspace_path that the endpoint documents)
-OPERATIONS: list[tuple[str, str, dict[str, str]]] = [
+OPERATIONS: list[tuple[str, str, dict[str, Any]]] = [
     ("/v1/init", "src.engine.IacEngine.init", {**SCOPE}),
     ("/v1/validate", "src.engine.IacEngine.validate", {}),
     ("/v1/plan", "src.engine.IacEngine.plan", {"plan_file": "x.plan", **SCOPE}),
@@ -62,19 +67,19 @@ OPERATIONS: list[tuple[str, str, dict[str, str]]] = [
     ),
 ]
 
-EXTRA: dict[str, dict[str, str]] = {
+EXTRA: dict[str, dict[str, Any]] = {
     endpoint: extra for endpoint, _, extra in OPERATIONS
 } | {
     "/v1/import/state-resource-ids": {},
-    "/v1/import/scope-resource-ids": {**SCOPE},
+    "/v1/import/scope-resource-ids": {**DISCOVERY_SCOPE},
 }
 
+# The commands that take the optional `scopes` list.
 SCOPED_ENDPOINTS: list[str] = [
     "/v1/init",
     "/v1/plan",
     "/v1/apply",
     "/v1/import",
-    "/v1/import/scope-resource-ids",
 ]
 
 # (endpoint, engine method to stub, extra request fields, expected
@@ -644,7 +649,7 @@ def test_job_expires_after_ttl(tmp_path: Path) -> None:
     ("endpoint", "extra"), [(endpoint, extra) for endpoint, _, extra in OPERATIONS]
 )
 def test_endpoints_accept_their_documented_body(
-    endpoint: str, extra: dict[str, str]
+    endpoint: str, extra: dict[str, Any]
 ) -> None:
     """The body each endpoint documents validates: the only thing wrong
     here is the nonexistent workspace, so the answer is 404 not 422."""
@@ -657,39 +662,80 @@ def test_endpoints_accept_their_documented_body(
 
 
 @pytest.mark.parametrize("endpoint", SCOPED_ENDPOINTS)
-@pytest.mark.parametrize("missing", ["scope_id", "terraform_provider"])
-def test_scoped_endpoints_require_the_scope(endpoint: str, missing: str) -> None:
-    """init, plan, apply, import and import/scope-resource-ids all run
-    against a cloud scope, so omitting either half of the pair is a
-    422."""
-    body: dict[str, object] = {"workspace_path": "/tmp", **EXTRA[endpoint]}
-    del body[missing]
+@pytest.mark.parametrize(
+    "scopes",
+    [
+        pytest.param(None, id="omitted"),
+        pytest.param([], id="empty"),
+        pytest.param(
+            [
+                {"provider": "azurerm", "scope_id": "s"},
+                {"provider": "kubernetes", "scope_id": "ns"},
+                {"provider": "random", "scope_id": "x"},
+            ],
+            id="several-providers",
+        ),
+    ],
+)
+def test_scoped_endpoints_take_scopes_optionally(
+    endpoint: str, scopes: list[dict[str, str]] | None
+) -> None:
+    """`scopes` is optional, may be empty, and names any provider: the
+    only thing wrong here is the nonexistent workspace, so 404 not 422."""
+    body: dict[str, object] = {
+        "workspace_path": "/tmp/does-not-exist",
+        **EXTRA[endpoint],
+    }
+    del body["scopes"]
+    if scopes is not None:
+        body["scopes"] = scopes
 
     with client_with() as client:
         response = client.post(endpoint, json=body)
-    assert response.status_code == 422
-    assert response.headers["content-type"].startswith("application/problem+json")
+    assert response.status_code == 404
 
 
 @pytest.mark.parametrize("endpoint", SCOPED_ENDPOINTS)
 @pytest.mark.parametrize(
-    "bad",
+    "scopes",
     [
-        pytest.param({"scope_id": ""}, id="scope_id-empty"),
-        pytest.param({"terraform_provider": "azurerm"}, id="provider-registry-name"),
-        pytest.param({"terraform_provider": "alibaba"}, id="provider-unknown"),
+        pytest.param([{"provider": "azurerm", "scope_id": ""}], id="scope_id-empty"),
+        pytest.param([{"provider": "azurerm"}], id="scope_id-missing"),
+        pytest.param([{"scope_id": "s"}], id="provider-missing"),
+        pytest.param(
+            [{"provider": "AzureRM", "scope_id": "s"}], id="provider-uppercase"
+        ),
+        pytest.param(
+            [{"provider": "hashicorp/azurerm", "scope_id": "s"}], id="provider-source"
+        ),
+        pytest.param([{"provider": "", "scope_id": "s"}], id="provider-empty"),
+        pytest.param(
+            [{"provider": "azurerm", "scope_id": "s", "region": "x"}],
+            id="extra-field",
+        ),
+        pytest.param(
+            [
+                {"provider": "azurerm", "scope_id": "s-1"},
+                {"provider": "azurerm", "scope_id": "s-2"},
+            ],
+            id="duplicate-provider",
+        ),
+        pytest.param(
+            [{"provider": f"p{i}", "scope_id": "s"} for i in range(65)],
+            id="too-many",
+        ),
+        pytest.param({"provider": "azurerm", "scope_id": "s"}, id="not-a-list"),
     ],
 )
-def test_scoped_endpoints_reject_a_malformed_scope(
-    endpoint: str, bad: dict[str, str]
+def test_scoped_endpoints_reject_malformed_scopes(
+    endpoint: str, scopes: object
 ) -> None:
-    """The pair is typed where it is required: an empty scope_id, or a
-    provider named after the Terraform registry rather than the core's
-    vocabulary, is a 422."""
+    """Each pair is typed: a non-Terraform provider name, an empty
+    scope_id, an unknown key or the same provider twice is a 422."""
     body: dict[str, object] = {
         "workspace_path": "/tmp",
         **EXTRA[endpoint],
-        **bad,
+        "scopes": scopes,
     }
 
     with client_with() as client:
@@ -698,25 +744,82 @@ def test_scoped_endpoints_reject_a_malformed_scope(
     assert response.headers["content-type"].startswith("application/problem+json")
 
 
-@pytest.mark.parametrize("field", ["scope_id", "terraform_provider"])
+def test_a_duplicate_provider_is_named_in_the_422() -> None:
+    with client_with() as client:
+        response = client.post(
+            "/v1/init",
+            json={
+                "workspace_path": "/tmp",
+                "scopes": [
+                    {"provider": "aws", "scope_id": "123456789012"},
+                    {"provider": "aws", "scope_id": "210987654321"},
+                ],
+            },
+        )
+    assert response.status_code == 422
+    assert "'aws' appears more than once" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        pytest.param({"scopes": []}, id="scopes-empty"),
+        pytest.param(SCOPE, id="scopes"),
+        pytest.param({"scope_id": "s"}, id="scope_id"),
+        pytest.param({"provider": "azurerm"}, id="provider"),
+        pytest.param({"terraform_provider": "azure"}, id="terraform_provider"),
+    ],
+)
 @pytest.mark.parametrize(
     ("endpoint", "extra"),
     [(endpoint, extra) for endpoint, _, extra, _ in UNSCOPED_OPERATIONS],
 )
 def test_unscoped_endpoints_reject_a_scope(
-    endpoint: str, extra: dict[str, str], field: str
+    endpoint: str, extra: dict[str, str], field: dict[str, Any]
 ) -> None:
     """validate, show and state-resource-ids declare no scope, so sending
-    either half of the pair is an unknown field — 422, not silently
-    ignored."""
-    body: dict[str, object] = {
-        "workspace_path": "/tmp",
-        **extra,
-        field: SCOPE[field],
-    }
+    `scopes` (even empty) or a 1.x scope field is an unknown field — 422,
+    not silently ignored."""
+    body: dict[str, object] = {"workspace_path": "/tmp", **extra, **field}
 
     with client_with() as client:
         response = client.post(endpoint, json=body)
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize("missing", ["scope_id", "provider"])
+def test_scope_resource_ids_requires_the_scope(missing: str) -> None:
+    body: dict[str, object] = {"workspace_path": "/tmp", **DISCOVERY_SCOPE}
+    del body[missing]
+
+    with client_with() as client:
+        response = client.post("/v1/import/scope-resource-ids", json=body)
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        pytest.param({"scope_id": ""}, id="scope_id-empty"),
+        pytest.param({"provider": "azure"}, id="provider-core-name"),
+        pytest.param({"provider": "gcp"}, id="provider-core-name-gcp"),
+        pytest.param({"provider": "oci"}, id="provider-without-discovery"),
+        pytest.param({"provider": "kubernetes"}, id="provider-kubernetes"),
+        pytest.param({"provider": "alibaba"}, id="provider-unknown"),
+        pytest.param(
+            {"scopes": [{"provider": "azurerm", "scope_id": "s"}]}, id="scopes"
+        ),
+        pytest.param({"terraform_provider": "azure"}, id="terraform_provider"),
+    ],
+)
+def test_scope_resource_ids_rejects_a_malformed_scope(bad: dict[str, object]) -> None:
+    """Discovery takes one provider it can list, by Terraform name."""
+    body: dict[str, object] = {"workspace_path": "/tmp", **DISCOVERY_SCOPE, **bad}
+
+    with client_with() as client:
+        response = client.post("/v1/import/scope-resource-ids", json=body)
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
 
@@ -749,29 +852,12 @@ def test_unscoped_endpoints_run_unscoped(
     mock.assert_awaited_once_with(workspace, *tail)
 
 
-@pytest.mark.parametrize(
-    ("terraform_provider", "expected"),
-    [
-        ("azure", {"ARM_SUBSCRIPTION_ID": "scope-1"}),
-        ("gcp", {"GOOGLE_PROJECT": "scope-1"}),
-        ("aws", {"TF_VAR_aws_account_id": "scope-1"}),
-        ("oci", {"TF_VAR_compartment_ocid": "scope-1"}),
-        ("kubernetes", {}),
-        ("vmware", {}),
-    ],
-)
-def test_scope_is_injected_per_provider(
-    terraform_provider: str, expected: dict[str, str], tmp_path: Path
-) -> None:
-    """scope_id reaches the engine as the environment overlay the
-    request's terraform_provider selects, and only where that cloud has
-    a variable naming a scope: a provider-level one for azure and gcp,
-    an input variable the generated code declares for oci
-    (compartment_ocid) and aws (aws_account_id). kubernetes and vmware
-    have none, so the engine is called with no overlay at all."""
-    workspace = tmp_path / "ws"
-    workspace.mkdir()
-
+def run_plan(workspace: Path, scopes: list[dict[str, str]] | None) -> AsyncMock:
+    """Submit a plan with ``scopes`` (omitted when None), verification
+    stubbed out, and return the engine mock once the job ended."""
+    body: dict[str, object] = {"workspace_path": str(workspace), "plan_file": "x.plan"}
+    if scopes is not None:
+        body["scopes"] = scopes
     ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
     with client_with() as client:
         with (
@@ -780,39 +866,101 @@ def test_scope_is_injected_per_provider(
                 "src.engine.IacEngine.plan", new_callable=AsyncMock, return_value=ok
             ) as plan_mock,
         ):
-            response = client.post(
-                "/v1/plan",
-                json={
-                    "workspace_path": str(workspace),
-                    "plan_file": "x.plan",
-                    "scope_id": "scope-1",
-                    "terraform_provider": terraform_provider,
-                },
-            )
-            assert response.status_code == 202
-            accepted: dict[str, str] = response.json()
-            _ = poll_until_terminal(client, accepted["job_id"])
+            _ = submit_and_poll(client, "/v1/plan", body)
+    return plan_mock
+
+
+@pytest.mark.parametrize(
+    ("provider", "expected"),
+    [
+        ("azurerm", {"ARM_SUBSCRIPTION_ID": "scope-1"}),
+        ("google", {"GOOGLE_PROJECT": "scope-1"}),
+        ("aws", {"TF_VAR_aws_account_id": "scope-1"}),
+        ("oci", {"TF_VAR_compartment_ocid": "scope-1"}),
+        ("kubernetes", {}),
+        ("vsphere", {}),
+        ("random", {}),
+        ("azure", {}),
+        ("gcp", {}),
+    ],
+)
+def test_scope_is_injected_per_provider(
+    provider: str, expected: dict[str, str], tmp_path: Path
+) -> None:
+    """A pair's scope_id reaches the engine as the environment overlay
+    its provider selects, and only where that provider has a variable
+    naming a scope: a provider-level one for azurerm and google, an
+    input variable the generated code declares for oci
+    (compartment_ocid) and aws (aws_account_id). Any other provider is
+    accepted and ignored, including the 1.x cloud names."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    plan_mock = run_plan(workspace, [{"provider": provider, "scope_id": "scope-1"}])
+
     plan_mock.assert_awaited_once_with(workspace, [], "x.plan", expected, RunInputs())
+
+
+def test_several_scopes_are_merged_into_one_overlay(tmp_path: Path) -> None:
+    """A module using several providers gets every pair injected at once;
+    pairs for providers without a variable add nothing."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    plan_mock = run_plan(
+        workspace,
+        [
+            {"provider": "azurerm", "scope_id": "sub-1"},
+            {"provider": "kubernetes", "scope_id": "ns-1"},
+            {"provider": "google", "scope_id": "proj-1"},
+            {"provider": "aws", "scope_id": "123456789012"},
+            {"provider": "oci", "scope_id": "ocid1.compartment.oc1..x"},
+        ],
+    )
+
+    plan_mock.assert_awaited_once_with(
+        workspace,
+        [],
+        "x.plan",
+        {
+            "ARM_SUBSCRIPTION_ID": "sub-1",
+            "GOOGLE_PROJECT": "proj-1",
+            "TF_VAR_aws_account_id": "123456789012",
+            "TF_VAR_compartment_ocid": "ocid1.compartment.oc1..x",
+        },
+        RunInputs(),
+    )
+
+
+@pytest.mark.parametrize("scopes", [None, []], ids=["omitted", "empty"])
+def test_no_scopes_inject_nothing(
+    scopes: list[dict[str, str]] | None, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+
+    plan_mock = run_plan(workspace, scopes)
+
+    plan_mock.assert_awaited_once_with(workspace, [], "x.plan", {}, RunInputs())
 
 
 @pytest.mark.parametrize(
     ("endpoint", "engine_target", "extra"),
-    [op for op in OPERATIONS if "scope_id" in op[2]],
+    [op for op in OPERATIONS if "scopes" in op[2]],
 )
 def test_a_scope_the_credentials_cannot_serve_never_reaches_the_engine(
-    endpoint: str, engine_target: str, extra: dict[str, str], tmp_path: Path
+    endpoint: str, engine_target: str, extra: dict[str, Any], tmp_path: Path
 ) -> None:
     """No variable points an AWS command at an account, so init, plan,
-    apply and import first check the credentials belong to scope_id. A
-    mismatch ends the command with exit code 1 and the reason, and the
-    engine is never started."""
+    apply and import first check the credentials belong to the aws
+    pair's scope_id. A mismatch ends the command with exit code 1 and
+    the reason, and the engine is never started."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
-    body = {
+    body: dict[str, object] = {
         "workspace_path": str(workspace),
         **extra,
-        "scope_id": "123456789012",
-        "terraform_provider": "aws",
+        "scopes": [{"provider": "aws", "scope_id": "123456789012"}],
     }
     refused = DiscoveryError("AWS credentials belong to account 999, not 123456789012")
 
@@ -826,14 +974,91 @@ def test_a_scope_the_credentials_cannot_serve_never_reaches_the_engine(
             ) as verify_mock,
             patch(engine_target, new_callable=AsyncMock) as engine_mock,
         ):
-            response = client.post(endpoint, json=body)
-            assert response.status_code == 202
-            accepted: dict[str, str] = response.json()
-            job = poll_until_terminal(client, accepted["job_id"])
+            job = submit_and_poll(client, endpoint, body)
 
     verify_mock.assert_awaited_once_with("aws", "123456789012")
     engine_mock.assert_not_awaited()
     assert job["status"] == "succeeded"
+    assert job["result"]["exit_code"] == 1
+    assert "belong to account 999" in job["result"]["stderr"]
+
+
+def test_every_pair_is_verified_before_the_engine_starts(tmp_path: Path) -> None:
+    """verify_scope runs once per pair, in order; the real dispatch then
+    asks STS only for the aws pair and lets the engine run."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    scopes = [
+        {"provider": "azurerm", "scope_id": "sub-1"},
+        {"provider": "aws", "scope_id": "123456789012"},
+        {"provider": "kubernetes", "scope_id": "ns-1"},
+    ]
+    ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
+
+    with client_with() as client:
+        with (
+            patch.object(
+                ScopeDiscovery,
+                "verify_scope",
+                autospec=True,
+                side_effect=ScopeDiscovery.verify_scope,
+            ) as verify_mock,
+            patch.object(
+                AwsScopeLister, "verify_account", new_callable=AsyncMock
+            ) as sts_mock,
+            patch(
+                "src.engine.IacEngine.apply", new_callable=AsyncMock, return_value=ok
+            ) as apply_mock,
+        ):
+            job = submit_and_poll(
+                client,
+                "/v1/apply",
+                {
+                    "workspace_path": str(workspace),
+                    "plan_file": "x.plan",
+                    "scopes": scopes,
+                },
+            )
+
+    assert [c.args[1:] for c in verify_mock.await_args_list] == [
+        (s["provider"], s["scope_id"]) for s in scopes
+    ]
+    sts_mock.assert_awaited_once_with("123456789012")
+    apply_mock.assert_awaited_once()
+    assert job["result"]["exit_code"] == 0
+
+
+def test_a_refused_aws_pair_stops_the_command_among_others(tmp_path: Path) -> None:
+    """The STS check applies per pair: an aws pair the credentials do
+    not own refuses the command even when other pairs are fine."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    refused = DiscoveryError("AWS credentials belong to account 999, not 123456789012")
+
+    with client_with() as client:
+        with (
+            patch.object(
+                AwsScopeLister,
+                "verify_account",
+                new_callable=AsyncMock,
+                side_effect=refused,
+            ) as sts_mock,
+            patch("src.engine.IacEngine.init", new_callable=AsyncMock) as init_mock,
+        ):
+            job = submit_and_poll(
+                client,
+                "/v1/init",
+                {
+                    "workspace_path": str(workspace),
+                    "scopes": [
+                        {"provider": "google", "scope_id": "proj-1"},
+                        {"provider": "aws", "scope_id": "123456789012"},
+                    ],
+                },
+            )
+
+    sts_mock.assert_awaited_once_with("123456789012")
+    init_mock.assert_not_awaited()
     assert job["result"]["exit_code"] == 1
     assert "belong to account 999" in job["result"]["stderr"]
 
@@ -902,7 +1127,7 @@ def run_state_resource_ids(pulled: CommandResult, workspace: Path) -> dict[str, 
 
 
 def post_scope_resource_ids(
-    client: TestClient, workspace: Path, terraform_provider: str
+    client: TestClient, workspace: Path, provider: str
 ) -> dict[str, Any]:
     return submit_and_poll(
         client,
@@ -910,7 +1135,7 @@ def post_scope_resource_ids(
         {
             "workspace_path": str(workspace),
             "scope_id": "sub-1",
-            "terraform_provider": terraform_provider,
+            "provider": provider,
         },
     )
 
@@ -918,7 +1143,7 @@ def post_scope_resource_ids(
 def run_scope_resource_ids(lister: FakeLister, workspace: Path) -> dict[str, Any]:
     with client_with() as client:
         with patch.object(ScopeDiscovery, "_lister", return_value=lister):
-            return post_scope_resource_ids(client, workspace, "azure")
+            return post_scope_resource_ids(client, workspace, "azurerm")
 
 
 @pytest.mark.parametrize("endpoint", IMPORT_ENDPOINTS)
@@ -967,8 +1192,7 @@ def test_import_forwards_the_address_resource_id_and_scope(tmp_path: Path) -> No
                     "workspace_path": str(workspace),
                     "address": "google_storage_bucket.assets",
                     "resource_id": "my-assets",
-                    "scope_id": "proj-1",
-                    "terraform_provider": "gcp",
+                    "scopes": [{"provider": "google", "scope_id": "proj-1"}],
                 },
             )
     assert body["status"] == "succeeded"
@@ -1110,24 +1334,23 @@ def test_scope_resource_ids_reports_a_discovery_failure(tmp_path: Path) -> None:
     assert body["result"]["stderr"] == "403 from Resource Graph: denied"
 
 
-@pytest.mark.parametrize("terraform_provider", ["oci", "kubernetes", "vmware"])
-def test_scope_resource_ids_reports_a_provider_without_discovery(
-    terraform_provider: str, tmp_path: Path
+@pytest.mark.parametrize("provider", ["azurerm", "google", "aws"])
+def test_scope_resource_ids_lists_with_the_providers_lister(
+    provider: str, tmp_path: Path
 ) -> None:
-    """oci, kubernetes and vmware have no inventory query here. Exit 2 marks the
-    provider as unsupported, which is a different outcome from a cloud
-    call that went wrong. No patching: this is the real dispatch, and it
-    reaches no network."""
+    """The request's provider picks the lister, and its scope_id is what
+    the lister is asked about."""
     workspace = tmp_path / "ws"
     workspace.mkdir()
+    lister = FakeLister(["/a"])
 
     with client_with() as client:
-        body = post_scope_resource_ids(client, workspace, terraform_provider)
+        with patch.object(ScopeDiscovery, "_lister", return_value=lister) as dispatch:
+            body = post_scope_resource_ids(client, workspace, provider)
 
-    assert body["status"] == "succeeded"
-    assert body["result"]["exit_code"] == 2
-    assert body["result"]["stdout"] == ""
-    assert f"'{terraform_provider}'" in body["result"]["stderr"]
+    assert dispatch.call_args.args[0] == provider
+    assert lister.scopes == ["sub-1"]
+    assert body["result"]["stdout"] == '["/a"]'
 
 
 def test_scope_resource_ids_refuses_a_malformed_scope(tmp_path: Path) -> None:
@@ -1145,7 +1368,7 @@ def test_scope_resource_ids_refuses_a_malformed_scope(tmp_path: Path) -> None:
             {
                 "workspace_path": str(workspace),
                 "scope_id": "../organizations/123456",
-                "terraform_provider": "gcp",
+                "provider": "google",
             },
         )
 

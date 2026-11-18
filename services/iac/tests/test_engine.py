@@ -11,6 +11,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from src.engine import CommandResult, IacEngine, RunInputs
+from src.models import ProviderScope
 
 
 def test_import_resource_passes_address_id_and_scope_overlay() -> None:
@@ -39,6 +40,30 @@ def test_import_resource_passes_address_id_and_scope_overlay() -> None:
         Path("/ws"),
         {"ARM_SUBSCRIPTION_ID": "s"},
     )
+
+
+def test_scope_env_merges_every_pair_and_ignores_unknown_providers() -> None:
+    engine = IacEngine(binary="tofu")
+    env = engine.scope_env(
+        [
+            ProviderScope(provider="azurerm", scope_id="sub-1"),
+            ProviderScope(provider="google", scope_id="proj-1"),
+            ProviderScope(provider="aws", scope_id="123456789012"),
+            ProviderScope(provider="oci", scope_id="ocid1.compartment.oc1..x"),
+            ProviderScope(provider="kubernetes", scope_id="ns"),
+            ProviderScope(provider="random", scope_id="r"),
+        ]
+    )
+    assert env == {
+        "ARM_SUBSCRIPTION_ID": "sub-1",
+        "GOOGLE_PROJECT": "proj-1",
+        "TF_VAR_aws_account_id": "123456789012",
+        "TF_VAR_compartment_ocid": "ocid1.compartment.oc1..x",
+    }
+
+
+def test_scope_env_is_empty_without_scopes() -> None:
+    assert IacEngine(binary="tofu").scope_env([]) == {}
 
 
 def test_state_pull_runs_on_the_unmodified_environment() -> None:

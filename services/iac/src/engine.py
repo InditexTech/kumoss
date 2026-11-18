@@ -14,17 +14,18 @@ locking, custom backends, policy as code) should subclass this or
 substitute their own.
 
 `init`, `plan`, `apply` and `import` may access external services, so they
-run with the request's `scope_id` injected into their environment where the
-cloud has a variable that names a scope (see ``IacEngine.scope_env``): the
-provider-level ``ARM_SUBSCRIPTION_ID`` and ``GOOGLE_PROJECT`` for Azure and
-GCP, and an input variable the generated code declares for OCI
-(``TF_VAR_compartment_ocid``) and AWS (``TF_VAR_aws_account_id``, which the
-code passes to the provider's ``allowed_account_ids``). For AWS the service
-also first checks the ambient credentials belong to account ``scope_id``
-(see ``ScopeDiscovery.verify_scope``). Kubernetes and vSphere have no such
-variable, so nothing is injected and the command runs on the service's
-ambient credentials. `validate`, `show` and `state pull` take no scope at
-all: they run on the service's own environment, unmodified.
+run with the request's ``scopes`` injected into their environment: for each
+(provider, scope_id) pair whose provider has a variable that names a scope
+(see ``IacEngine.scope_env``), the provider-level ``ARM_SUBSCRIPTION_ID``
+(``azurerm``) and ``GOOGLE_PROJECT`` (``google``), or an input variable the
+generated code declares, ``TF_VAR_compartment_ocid`` (``oci``) and
+``TF_VAR_aws_account_id`` (``aws``, which the code passes to the provider's
+``allowed_account_ids``). For an ``aws`` pair the service also first checks
+the ambient credentials belong to that account (see
+``ScopeDiscovery.verify_scope``). Pairs for any other provider (Kubernetes,
+vSphere, ...) inject nothing; those providers run on the service's ambient
+credentials. `validate`, `show` and `state pull` take no scope at all: they
+run on the service's own environment, unmodified.
 The contract's "Scope injection" section is normative.
 """
 
@@ -36,11 +37,13 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Generator, Mapping
+from collections.abc import Generator, Iterable, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
+
+from .models import ProviderScope
 
 
 logger = logging.getLogger("iac.engine")
@@ -124,34 +127,38 @@ class IacEngine:
     # the console log only carries a tail, to stay readable.
     _STDERR_LOG_LIMIT: ClassVar[int] = 500
 
+    # Keyed by Terraform provider type name.
     _SCOPE_ENV_VARS: ClassVar[dict[str, str]] = {
-        "azure": "ARM_SUBSCRIPTION_ID",
-        "gcp": "GOOGLE_PROJECT",
+        "azurerm": "ARM_SUBSCRIPTION_ID",
+        "google": "GOOGLE_PROJECT",
         # Not provider settings: they fill input variables the generated
         # code declares (AWS passes it to `allowed_account_ids`), and are
         # ignored when the code declares none.
-        "oci": "TF_VAR_compartment_ocid",
         "aws": "TF_VAR_aws_account_id",
+        "oci": "TF_VAR_compartment_ocid",
     }
 
     def __init__(self, binary: str, backend_config: str | None = None) -> None:
         self._binary: str = binary
         self._backend_config: str | None = backend_config
 
-    def scope_env(self, terraform_provider: str, scope_id: str) -> dict[str, str]:
-        """Environment overlay scoping one command to ``scope_id``.
+    def scope_env(self, scopes: Iterable[ProviderScope]) -> dict[str, str]:
+        """Environment overlay scoping one command to every pair in ``scopes``.
 
-        Empty for providers with no variable that names a scope, whose
-        commands run on the service's ambient credentials instead.
+        Pairs whose provider has no variable that names a scope add
+        nothing: that provider runs on the service's ambient credentials.
         """
-        var = self._SCOPE_ENV_VARS.get(terraform_provider)
-        if var is None:
-            logger.info(
-                "no scope variable for provider=%s; command runs on ambient credentials",
-                terraform_provider,
-            )
-            return {}
-        return {var: scope_id}
+        env: dict[str, str] = {}
+        for scope in scopes:
+            var = self._SCOPE_ENV_VARS.get(scope.provider)
+            if var is None:
+                logger.debug(
+                    "no scope variable for provider=%s; it runs on ambient credentials",
+                    scope.provider,
+                )
+                continue
+            env[var] = scope.scope_id
+        return env
 
     async def init(self, cwd: Path, env: dict[str, str]) -> CommandResult:
         """Initialize the workspace, always reconfiguring the backend.
@@ -240,7 +247,7 @@ class IacEngine:
         self, args: list[str], cwd: Path, env: dict[str, str] | None = None
     ) -> CommandResult:
         logger.info(
-            "run: %s %s (cwd=%s, scope=%s)",
+            "run: %s %s (cwd=%s, env=%s)",
             self._binary,
             " ".join(args),
             cwd,
