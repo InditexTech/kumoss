@@ -99,6 +99,13 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* The theme toggle sets data-theme on <html>. It must be a stylesheet
+   declaration, not an inline style: the build lowers light-dark() into
+   variables that only flip on color-scheme declared in CSS. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+}
+
 /* Thin, neutral-grey scrollbars everywhere. `scrollbar-color` inherits,
    `scrollbar-width` does not — hence the universal selector. The
    ::-webkit-* rules are a fallback for engines without the standard

@@ -17,6 +17,29 @@ export const PROVIDER_LABELS: Record<string, string> = {
   vsphere: "VMware vSphere",
 };
 
+/**
+ * Helper providers that manage no infrastructure of their own (random ids,
+ * rendered templates, local files…). Compact views leave them out.
+ */
+export const UTILITY_PROVIDERS: ReadonlySet<string> = new Set([
+  "archive",
+  "cloudinit",
+  "external",
+  "http",
+  "local",
+  "null",
+  "random",
+  "template",
+  "terraform",
+  "time",
+  "tls",
+]);
+
+/** Whether `provider` is a helper provider rather than an infrastructure one. */
+export function isUtilityProvider(provider: string): boolean {
+  return UTILITY_PROVIDERS.has(provider.toLowerCase());
+}
+
 /** Display name for a provider type name; unknown names are returned as is. */
 export function providerLabel(provider: string | null | undefined): string {
   if (!provider) return "-";

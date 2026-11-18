@@ -131,7 +131,7 @@ describe("SessionsPage providers", () => {
     mockState.clear();
   });
 
-  it("lists every provider of a session in the table", async () => {
+  it("shows each infrastructure provider of a session as an icon in the table", async () => {
     auth.panelRole = null;
     mockState.addSession(makeSessionDetail({ providers }));
     renderPage("user", "/user/sessions");
@@ -139,11 +139,11 @@ describe("SessionsPage providers", () => {
     await screen.findByText("deploy a VM");
     expect(screen.getByRole("columnheader", { name: "Providers" })).toBeInTheDocument();
     const list = screen.getByRole("list", { name: "Providers" });
-    expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
-      "azurerm",
-      "google",
-      "random",
-    ]);
+    // Icons only, named for assistive tech; the random helper is left out.
+    expect(
+      within(list).getAllByRole("listitem").map((li) => li.getAttribute("aria-label")),
+    ).toEqual(["azurerm", "google"]);
+    expect(list.textContent).toBe("");
   });
 
   it("shows a dash for a session whose setup has not run yet", async () => {

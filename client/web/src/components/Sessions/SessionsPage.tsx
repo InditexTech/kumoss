@@ -91,7 +91,14 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     header: "Providers",
     width: "12%",
     className: styles.secondaryCell,
-    render: (s) => <ProviderList providers={(s.providers ?? []).map((p) => p.name)} />,
+    render: (s) => (
+      <ProviderList
+        providers={(s.providers ?? []).map((p) => p.name)}
+        variant="icons"
+        hideUtilities
+        className={styles.providerIcons}
+      />
+    ),
   },
   {
     key: "status",
@@ -164,7 +171,14 @@ function buildAdminColumns(
       header: "Providers",
       width: "12%",
       className: styles.secondaryCell,
-      render: (s) => <ProviderList providers={(s.providers ?? []).map((p) => p.name)} />,
+      render: (s) => (
+        <ProviderList
+          providers={(s.providers ?? []).map((p) => p.name)}
+          variant="icons"
+          hideUtilities
+          className={styles.providerIcons}
+        />
+      ),
     },
     {
       key: "status",

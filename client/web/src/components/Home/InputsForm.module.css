@@ -14,9 +14,14 @@
   justify-content: center;
   /* Centered content, edge-to-edge rules: sections pad to this. */
   --inputs-gutter: max(40px, calc((100vw - 1120px) / 2 + 40px));
-  /* Brand fill that keeps contrast with white in both themes. */
-  --inputs-accent: light-dark(#0400c3, #7f7edf);
-  background: light-dark(#f7f7f9, #0e1063);
+  /* Neutral fill shared with the app's filled buttons; ink sits on it. */
+  --inputs-accent: light-dark(#1a1a1a, #e0e0e0);
+  --inputs-on-accent: light-dark(#fff, #1a1a1a);
+  /* Frosted glass: the background video stays visible, the app chrome
+     behind turns into an unreadable blur. */
+  background: light-dark(rgba(255, 255, 255, 0.55), rgba(0, 0, 177, 0.45));
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  backdrop-filter: blur(16px) saturate(120%);
   color: var(--color-content-primary);
   animation: overlayIn 0.22s ease-out;
 }
@@ -47,7 +52,6 @@
   gap: 24px;
   padding: 40px var(--inputs-gutter) 24px;
   border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
 }
 
 .heading {
@@ -95,7 +99,7 @@
   flex: none;
   width: 36px;
   height: 36px;
-  border-radius: 50% !important;
+  border-radius: 0 !important;
   color: var(--color-content-secondary) !important;
 }
 
@@ -156,15 +160,15 @@
   margin: 0 0 4px;
   font-size: 13px;
   font-weight: 500;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--color-content-secondary);
 }
 
 .count {
   min-width: 20px;
-  padding: 1px 7px;
-  border-radius: 999px;
+  padding: 1px 6px;
+  border-radius: 0;
   font-size: 12px;
   text-align: center;
   background: var(--color-content-hover-bg);
@@ -179,26 +183,22 @@
   gap: 8px;
   padding: 18px 20px 14px;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface);
-  transition:
-    border-color 150ms ease,
-    box-shadow 150ms ease;
+  border-radius: 0;
+  background: transparent;
+  transition: border-color 150ms ease;
 }
 
 .field:focus-within {
-  border-color: var(--color-heading);
-  box-shadow: 0 0 0 3px light-dark(rgba(4, 0, 195, 0.08), rgba(255, 255, 255, 0.12));
+  border-color: var(--color-content-primary);
 }
 
 .fieldInvalid,
 .fieldInvalid:focus-within {
   border-color: var(--color-danger);
-  box-shadow: none;
 }
 
 .fieldCovered {
-  background: var(--color-surface-subtle);
+  background: var(--color-content-hover-bg);
 }
 
 .fieldHeader {
@@ -223,18 +223,17 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
+  padding: 0 6px;
+  border-radius: 0;
   font-size: 12px;
-  line-height: 18px;
+  line-height: 20px;
   white-space: nowrap;
 }
 
 .typePill {
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-  background: var(--color-content-hover-bg);
   color: var(--color-content-secondary);
-  border: 1px solid var(--color-border);
+  box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
 .scopePill {
@@ -268,7 +267,7 @@
 .typeFull {
   display: block;
   padding: 6px 10px;
-  border-radius: 6px;
+  border-radius: 0;
   font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
   line-height: 1.5;
@@ -283,10 +282,10 @@
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 0;
   font: inherit;
   font-size: 15px;
-  background: light-dark(#fff, rgba(255, 255, 255, 0.04));
+  background: light-dark(rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.06));
   color: var(--color-content-primary);
   transition: border-color 150ms ease;
 }
@@ -301,7 +300,7 @@
 
 .control:focus {
   outline: none;
-  border-color: var(--color-heading);
+  border-color: var(--color-content-primary);
 }
 
 .fieldInvalid .control {
@@ -341,8 +340,8 @@
   position: relative;
   flex: none;
   width: 30px;
-  height: 18px;
-  border-radius: 999px;
+  height: 16px;
+  border-radius: 0;
   background: var(--color-content-subtle);
   transition: background-color 150ms ease;
 }
@@ -352,11 +351,10 @@
   position: absolute;
   top: 2px;
   left: 2px;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  width: 12px;
+  height: 12px;
+  border-radius: 0;
+  background: light-dark(#fff, var(--color-surface));
   transition: transform 150ms ease;
 }
 
@@ -365,11 +363,11 @@
 }
 
 .switchInput:checked + .switch::after {
-  transform: translateX(12px);
+  transform: translateX(14px);
 }
 
 .switchInput:focus-visible + .switch {
-  outline: 2px solid var(--color-heading);
+  outline: 1px solid var(--color-content-primary);
   outline-offset: 2px;
 }
 
@@ -410,8 +408,7 @@
 .panel {
   padding: 18px 20px;
   border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-surface);
+  border-radius: 0;
 }
 
 .panelHelp {
@@ -454,7 +451,7 @@
   gap: 12px;
   padding: 10px 12px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
+  border-radius: 0;
   cursor: pointer;
   transition:
     border-color 150ms ease,
@@ -465,13 +462,9 @@
   background: var(--color-content-hover-bg);
 }
 
-.file:focus-within {
-  border-color: var(--color-heading);
-}
-
+.file:focus-within,
 .filePicked {
-  border-color: var(--color-heading);
-  background: light-dark(rgba(4, 0, 195, 0.04), rgba(255, 255, 255, 0.06));
+  border-color: var(--color-content-primary);
 }
 
 .fileOrder {
@@ -481,7 +474,7 @@
   justify-content: center;
   width: 24px;
   height: 24px;
-  border-radius: 50%;
+  border-radius: 0;
   font-size: 13px;
   font-weight: 500;
   color: var(--color-content-muted);
@@ -489,7 +482,7 @@
 }
 
 .filePicked .fileOrder {
-  color: #fff;
+  color: var(--inputs-on-accent);
   background: var(--inputs-accent);
 }
 
@@ -526,7 +519,6 @@
   gap: 24px;
   padding: 16px var(--inputs-gutter) 24px;
   border-top: 1px solid var(--color-border);
-  background: var(--color-surface);
 }
 
 .progress {
@@ -539,8 +531,8 @@
 
 .progressTrack {
   width: 120px;
-  height: 4px;
-  border-radius: 999px;
+  height: 2px;
+  border-radius: 0;
   overflow: hidden;
   background: var(--color-content-hover-bg);
 }
@@ -548,7 +540,7 @@
 .progressFill {
   display: block;
   height: 100%;
-  background: var(--color-heading);
+  background: var(--inputs-accent);
   transition: width 200ms ease;
 }
 
@@ -563,10 +555,13 @@
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 22px;
-  border-radius: 8px;
+  padding: 12px 28px;
+  border-radius: 0;
   font: inherit;
-  font-size: 15px;
+  font-size: 13px;
+  font-weight: 300;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
   cursor: pointer;
   transition:
     background-color 150ms ease,
@@ -574,17 +569,18 @@
 }
 
 .primary {
-  border: 1px solid var(--color-heading);
-  background: var(--color-heading);
-  color: light-dark(#fff, #131575);
+  border: 1px solid var(--inputs-accent);
+  background: var(--inputs-accent);
+  color: var(--inputs-on-accent);
 }
 
 .primary:hover {
-  opacity: 0.9;
+  border-color: light-dark(#333, #ccc);
+  background: light-dark(#333, #ccc);
 }
 
 .secondary {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--color-content-primary);
   background: transparent;
   color: var(--color-content-primary);
 }
@@ -595,13 +591,13 @@
 
 .primary:focus-visible,
 .secondary:focus-visible {
-  outline: 2px solid var(--color-heading);
+  outline: 1px solid var(--color-content-primary);
   outline-offset: 2px;
 }
 
 .kbd {
   padding: 1px 6px;
-  border-radius: 4px;
+  border-radius: 0;
   font-family: inherit;
   font-size: 11px;
   opacity: 0.75;

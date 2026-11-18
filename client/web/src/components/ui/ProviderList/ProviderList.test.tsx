@@ -26,6 +26,18 @@ describe("ProviderList", () => {
     expect(container).toBeEmptyDOMElement();
   });
 
+  it("leaves out utility providers when asked", () => {
+    render(<ProviderList providers={["azurerm", "random", "template", "helm"]} hideUtilities />);
+    const items = within(screen.getByRole("list", { name: "Providers" })).getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["azurerm", "helm"]);
+  });
+
+  it("keeps utility providers when they are all there is", () => {
+    render(<ProviderList providers={["random", "null"]} hideUtilities />);
+    const items = within(screen.getByRole("list", { name: "Providers" })).getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["random", "null"]);
+  });
+
   it("icons variant names each provider for assistive tech", () => {
     render(<ProviderList providers={["vsphere", "kubernetes"]} variant="icons" />);
     expect(screen.getByLabelText("vsphere")).toBeInTheDocument();

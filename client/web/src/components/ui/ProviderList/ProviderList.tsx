@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Tooltip from "@mui/material/Tooltip";
-import { providerLabel } from "@/constants/providers";
+import { isUtilityProvider, providerLabel } from "@/constants/providers";
 import ProviderIcon from "../ProviderIcon/ProviderIcon";
 import styles from "./ProviderList.module.css";
 
@@ -12,6 +12,11 @@ interface ProviderListProps {
   providers: readonly string[];
   /** `chips`: icon + type name; `icons`: icon only, the name in a tooltip. */
   variant?: "chips" | "icons";
+  /**
+   * Leave out helper providers (random, template, null…), unless they are
+   * all the session has.
+   */
+  hideUtilities?: boolean;
   /** Shown when there are no providers (e.g. setup has not run yet). */
   empty?: string | null;
   className?: string;
@@ -24,19 +29,23 @@ interface ProviderListProps {
 export default function ProviderList({
   providers,
   variant = "chips",
+  hideUtilities = false,
   empty = "—",
   className,
 }: ProviderListProps) {
-  if (providers.length === 0) {
+  const infrastructure = hideUtilities ? providers.filter((p) => !isUtilityProvider(p)) : providers;
+  const shown = infrastructure.length > 0 ? infrastructure : providers;
+
+  if (shown.length === 0) {
     return empty ? <span className={styles.empty}>{empty}</span> : null;
   }
 
   return (
     <ul
-      className={`${styles.list} ${className ?? ""}`}
+      className={`${styles.list} ${variant === "icons" ? styles.listIcons : ""} ${className ?? ""}`}
       aria-label="Providers"
     >
-      {providers.map((name) => {
+      {shown.map((name) => {
         const label = providerLabel(name);
         const title = label === name ? name : `${label} (${name})`;
         return (

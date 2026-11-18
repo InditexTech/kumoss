@@ -5,7 +5,6 @@
 import { useEffect, useMemo } from "react";
 import type { ReactNode } from "react";
 import { createTheme, ThemeProvider } from "@mui/material";
-import { STORAGE_KEYS, THEME } from "@/constants";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ModeProvider } from "@/contexts/ModeContext";
 import { AssistantMsgProvider } from "@/contexts/AssistantMsgContext";
@@ -14,7 +13,6 @@ import { BackgroundAnimation, ErrorBoundary } from "@/components/ui";
 import { ShellProvider, useShell } from "@/contexts/ShellContext";
 import { useBrowserNotification } from "@/hooks/useBrowserNotification";
 import AppContent from "./AppContent";
-import { getLocalItem } from "./services";
 
 declare module "@mui/material/styles" {
   interface TypographyVariants {
@@ -82,15 +80,6 @@ function BrowserNotificationInit() {
 }
 
 function App() {
-  useEffect(() => {
-    document.documentElement.style.setProperty(
-      "color-scheme",
-      getLocalItem(STORAGE_KEYS.THEME) === THEME.DARK
-        ? THEME.DARK
-        : THEME.LIGHT,
-    );
-  }, []);
-
   return (
     <ErrorBoundary>
       <AuthProvider>
