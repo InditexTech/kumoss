@@ -83,7 +83,7 @@ function SupportButton({
 
     const supportContext: SupportContext = {
       user: userInfo,
-      cloud: session.provider,
+      cloud: session.providers?.map((p) => p.name).join(", ") || undefined,
       project: session.workspace?.uri
         ? extractProjectName(session.workspace.uri)
         : undefined,

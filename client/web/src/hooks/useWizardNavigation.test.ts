@@ -15,8 +15,6 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
-      provider: "",
-      scope: "",
       rootModulePath: "",
       inputsChecked: false,
       inputs: null,
@@ -29,8 +27,8 @@ describe("useWizardNavigation", () => {
     act(() => result.current.setStep("repository_url"));
     expect(result.current.step).toBe("repository_url");
 
-    act(() => result.current.setStep("scope"));
-    expect(result.current.step).toBe("scope");
+    act(() => result.current.setStep("inputs"));
+    expect(result.current.step).toBe("inputs");
   });
 
   it("setData merges partial updates", () => {
@@ -78,33 +76,13 @@ describe("useWizardNavigation", () => {
       );
     });
 
-    it("returns provider prompt for provider step", () => {
+    it("returns the inputs prompt for inputs step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("provider"));
+      act(() => result.current.setStep("inputs"));
       expect(result.current.promptMessage()).toBe(
-        STRINGS.wizard.promptProvider,
+        STRINGS.wizard.promptInputs,
       );
     });
-
-    it("returns generic cloud scope prompt when no provider is set", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("scope"));
-      expect(result.current.promptMessage()).toBe(
-        STRINGS.wizard.promptScope,
-      );
-    });
-
-    it("returns the provider's scope jargon for scope step", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => {
-        result.current.setStep("scope");
-        result.current.setData((prev) => ({ ...prev, provider: "azure" }));
-      });
-      expect(result.current.promptMessage()).toBe(
-        STRINGS.wizard.scopeByProvider.azure.prompt,
-      );
-    });
-
   });
 
   describe("placeholder", () => {
@@ -129,29 +107,10 @@ describe("useWizardNavigation", () => {
       expect(result.current.placeholder()).toBe("");
     });
 
-    it("returns empty string for provider step", () => {
+    it("returns empty string for inputs step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("provider"));
+      act(() => result.current.setStep("inputs"));
       expect(result.current.placeholder()).toBe("");
-    });
-
-    it("returns generic cloud scope placeholder when no provider is set", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("scope"));
-      expect(result.current.placeholder()).toBe(
-        STRINGS.wizard.placeholderScope,
-      );
-    });
-
-    it("returns the provider's scope placeholder for scope step", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => {
-        result.current.setStep("scope");
-        result.current.setData((prev) => ({ ...prev, provider: "gcp" }));
-      });
-      expect(result.current.placeholder()).toBe(
-        STRINGS.wizard.scopeByProvider.gcp.placeholder,
-      );
     });
   });
 
@@ -159,18 +118,16 @@ describe("useWizardNavigation", () => {
     const { result } = renderHook(() => useWizardNavigation());
 
     act(() => {
-      result.current.setStep("scope");
+      result.current.setStep("inputs");
       result.current.setData((prev) => ({
         ...prev,
         query: "create vm",
         repositoryUrl: "https://repo.example.com",
-        provider: "azure",
-        scope: "sub-123",
         rootModulePath: "environments/dev",
       }));
     });
 
-    expect(result.current.step).toBe("scope");
+    expect(result.current.step).toBe("inputs");
     expect(result.current.data.query).toBe("create vm");
 
     act(() => result.current.resetNavigation());
@@ -179,8 +136,6 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
-      provider: "",
-      scope: "",
       rootModulePath: "",
       inputsChecked: false,
       inputs: null,

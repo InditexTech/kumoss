@@ -12,19 +12,12 @@ import { FIXED_MODE_QUERIES, isFixedModeQuery } from "@/constants/modes";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { INITIAL_WIZARD_DATA, useWizardNavigation } from "@/hooks/useWizardNavigation";
 import type { WizardData } from "@/hooks/useWizardNavigation";
-import { useMapperResolution } from "@/hooks/useMapperResolution";
+import { useRepositoryScan } from "@/hooks/useRepositoryScan";
 import { useWizardTerraform } from "@/hooks/useWizardTerraform";
 import { nextStep } from "@/hooks/wizardFlow";
 import { isMergeOnlySession } from "@/utils/session";
 import { probeManifest } from "@/services/core/manifest";
-import type { Session } from "@/types/ui";
-import type {
-  ManifestAnswers,
-  ManifestProbeResponse,
-  TerraformProvider,
-} from "@/types/api";
-
-const SCOPE_PATTERN = /^[a-zA-Z0-9-]+$/;
+import type { ManifestAnswers, ManifestProbeResponse } from "@/types/api";
 
 export function useHomeWizard() {
   const { session, updateSession, resetNonce } = useSession();
@@ -34,7 +27,7 @@ export function useHomeWizard() {
   const homeView = useCurrentView() ?? "wizard";
 
   const navigation = useWizardNavigation();
-  const mapper = useMapperResolution();
+  const repo = useRepositoryScan();
   const { handleOutcome } = useWizardTerraform();
 
   const terraform = useTerraformActions();
@@ -66,8 +59,6 @@ export function useHomeWizard() {
         {
           repoUri: data.repositoryUrl,
           query: data.query,
-          terraformProviders: data.provider as TerraformProvider,
-          scopeId: data.scope,
           mode,
           rootModulePath: data.rootModulePath,
           ...(data.inputs ? { manifest: data.inputs } : {}),
@@ -92,7 +83,6 @@ export function useHomeWizard() {
         const result = await probeManifest({
           repo_uri: data.repositoryUrl,
           root_module_path: data.rootModulePath || null,
-          terraform_provider: data.provider as TerraformProvider,
         });
         if (seq !== probeSeq.current) return;
         if (result.needs_input) {
@@ -115,11 +105,6 @@ export function useHomeWizard() {
 
   const advance = useCallback(
     (data: WizardData) => {
-      const patch: Partial<Session> = {};
-      if (data.provider) patch.provider = data.provider;
-      if (data.scope) patch.scope_id = data.scope;
-      if (Object.keys(patch).length > 0) updateSession(patch);
-
       const next = nextStep(data);
       if (next === "complete") {
         start(data);
@@ -128,7 +113,7 @@ export function useHomeWizard() {
       navigation.setStep(next);
       if (next === "inputs") void runProbe(data);
     },
-    [navigation, updateSession, start, runProbe],
+    [navigation, start, runProbe],
   );
 
   const handleInputs = useCallback(
@@ -163,42 +148,34 @@ export function useHomeWizard() {
         }
 
         case "repository_url": {
-          if (!value.trim()) return;
+          const repoUrl = value.trim();
+          if (!repoUrl) return;
           try {
-            const result = await mapper.resolveAndScan(value.trim());
+            const paths = await repo.scan(repoUrl);
 
-            if (result.paths.length === 0) {
-              navigation.applyResolution({ repositoryUrl: result.repoUrl });
-              updateSession({ workspace: { uri: result.repoUrl } });
-              mapper.setMapperError(STRINGS.wizard.noRootModulePaths);
+            if (paths.length === 0) {
+              navigation.applyResolution({ repositoryUrl: repoUrl });
+              updateSession({ workspace: { uri: repoUrl } });
+              repo.setScanError(STRINGS.wizard.noRootModulePaths);
               break;
             }
 
-            const path = result.paths.length === 1 ? result.paths[0] : "";
+            const path = paths.length === 1 ? paths[0] : "";
             const resolved = navigation.applyResolution({
-              repositoryUrl: result.repoUrl,
+              repositoryUrl: repoUrl,
               ...(path ? { rootModulePath: path } : {}),
-              ...(result.provider ? { provider: result.provider } : {}),
-              ...(result.scopeId ? { scope: result.scopeId } : {}),
             });
             updateSession({
               workspace: {
-                uri: result.repoUrl,
+                uri: repoUrl,
                 ...(path ? { root_path: path } : {}),
               },
             });
             advance(resolved);
           } catch (err) {
-            console.error("Mapper resolution failed:", err);
-            mapper.setMapperError(STRINGS.wizard.resolveError);
+            console.error("Repository scan failed:", err);
+            repo.setScanError(STRINGS.wizard.scanError);
           }
-          break;
-        }
-
-        case "scope": {
-          const scope = value.trim().toLowerCase();
-          if (!scope || !SCOPE_PATTERN.test(scope)) return;
-          advance(navigation.applyResolution({ scope }));
           break;
         }
 
@@ -206,7 +183,7 @@ export function useHomeWizard() {
           break;
       }
     },
-    [navigation, mapper, updateSession, advance],
+    [navigation, repo, updateSession, advance],
   );
 
   const handlePath = useCallback(
@@ -215,13 +192,6 @@ export function useHomeWizard() {
       advance(navigation.applyResolution({ rootModulePath: path }));
     },
     [navigation, updateSession, session.workspace, advance],
-  );
-
-  const handleProvider = useCallback(
-    (provider: TerraformProvider) => {
-      advance(navigation.applyResolution({ provider }));
-    },
-    [navigation, advance],
   );
 
   const handleKeyDown = useCallback(
@@ -264,43 +234,41 @@ export function useHomeWizard() {
   const retry = useCallback(() => {
     if (probeError) {
       void runProbe(navigation.data);
-    } else if (mapper.mapperError) {
+    } else if (repo.scanError) {
       navigation.setStep("repository_url");
       navigation.setData((prev) => ({
         ...prev,
         repositoryUrl: "",
-        provider: "",
-        scope: "",
         rootModulePath: "",
         inputsChecked: false,
         inputs: null,
       }));
-      mapper.resetMapper();
+      repo.resetScan();
       resetProbe();
       terraform.reset();
     } else if (terraform.state.status === "error") {
       terraform.reset();
       navigate("/home", { replace: true });
     }
-  }, [terraform, mapper, navigation, navigate, probeError, runProbe, resetProbe]);
+  }, [terraform, repo, navigation, navigate, probeError, runProbe, resetProbe]);
 
   const restart = useCallback(() => {
     const preservedQuery = navigation.data.query;
     navigation.setStep("query");
     navigation.setData({ ...INITIAL_WIZARD_DATA, query: preservedQuery });
-    mapper.resetMapper();
+    repo.resetScan();
     resetProbe();
     terraform.reset();
     navigate("/home", { replace: true });
-  }, [navigation, mapper, terraform, navigate, resetProbe]);
+  }, [navigation, repo, terraform, navigate, resetProbe]);
 
   const reset = useCallback(() => {
     navigation.resetNavigation();
-    mapper.resetMapper();
+    repo.resetScan();
     resetProbe();
     terraform.reset();
     navigate("/home", { replace: true });
-  }, [navigation, mapper, terraform, navigate, resetProbe]);
+  }, [navigation, repo, terraform, navigate, resetProbe]);
 
   const seenResetNonce = useRef(resetNonce);
   useEffect(() => {
@@ -314,7 +282,7 @@ export function useHomeWizard() {
   const placeholder = (): string => navigation.placeholder();
 
   const isLoading =
-    mapper.mapperLoading ||
+    repo.scanLoading ||
     probeLoading ||
     terraform.state.status === "loading";
 
@@ -323,7 +291,7 @@ export function useHomeWizard() {
     : STRINGS.wizard.loadingRepository;
 
   const error =
-    mapper.mapperError ??
+    repo.scanError ??
     probeError ??
     (terraform.state.status === "error" ? terraform.state.message : null);
 
@@ -331,7 +299,7 @@ export function useHomeWizard() {
     step: navigation.step,
     data: navigation.data,
     homeView,
-    scanPaths: mapper.scanPaths,
+    scanPaths: repo.scanPaths,
     probe,
     isLoading,
     loadingMessage,
@@ -342,7 +310,6 @@ export function useHomeWizard() {
     handleKeyDown,
     handleInput,
     handlePath,
-    handleProvider,
     handleInputs,
     iterate,
     applyAfterPr,

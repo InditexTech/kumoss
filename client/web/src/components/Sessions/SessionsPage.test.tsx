@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
@@ -117,6 +117,56 @@ describe("SessionsPage session id column", () => {
     await screen.findByText("deploy a VM");
     expect(screen.queryByRole("columnheader", { name: "Session ID" })).toBeNull();
     expect(screen.queryByTitle(uuid)).toBeNull();
+  });
+});
+
+describe("SessionsPage providers", () => {
+  const providers = [
+    { name: "azurerm", scope_id: "sub-123" },
+    { name: "google", scope_id: "my-project" },
+    { name: "random", scope_id: null },
+  ];
+
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("lists every provider of a session in the table", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ providers }));
+    renderPage("user", "/user/sessions");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.getByRole("columnheader", { name: "Providers" })).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Providers" });
+    expect(within(list).getAllByRole("listitem").map((li) => li.textContent)).toEqual([
+      "azurerm",
+      "google",
+      "random",
+    ]);
+  });
+
+  it("shows a dash for a session whose setup has not run yet", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({ providers: [] }));
+    renderPage("admin", "/admin");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.queryByRole("list", { name: "Providers" })).toBeNull();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the providers and each scope in the detail panel", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ providers }));
+    renderPage("user", "/user/sessions?session=sess-1");
+
+    expect(await screen.findByText("sub-123")).toBeInTheDocument();
+    expect(screen.getByText("Subscription ID")).toBeInTheDocument();
+    expect(screen.getByText("my-project")).toBeInTheDocument();
+    expect(screen.getByText("Project ID")).toBeInTheDocument();
+    // `random` has no scope: no row for it.
+    expect(screen.queryAllByText("Scope", { exact: true })).toHaveLength(0);
   });
 });
 

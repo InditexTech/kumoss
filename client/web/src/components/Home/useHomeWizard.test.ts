@@ -11,22 +11,19 @@ import { ModeProvider, useMode } from "@/contexts/ModeContext";
 import { MODE } from "@/types/ui";
 import { STRINGS } from "@/constants/strings";
 import { useHomeWizard } from "./useHomeWizard";
-import type { ResolveResult } from "@/hooks/useMapperResolution";
-import type { ManifestProbeResponse } from "@/types/api";
+import type { ManifestProbeRequest, ManifestProbeResponse } from "@/types/api";
 
 // ─── Dynamic mock controls ────────────────────────────────────
 const mockTerraformState = vi.fn<() => { status: string; message?: string }>(() => ({ status: "idle" }));
 const mockTerraformRun = vi.fn();
 const mockTerraformReset = vi.fn();
 
-const mockResolveAndScan = vi.fn<
-  (identifier: string) => Promise<ResolveResult>
->();
+const mockScan = vi.fn<(repoUrl: string) => Promise<string[]>>();
 const mockScanPathsValue = vi.fn<() => string[]>(() => []);
-const mockMapperLoadingValue = vi.fn(() => false);
-const mockMapperErrorValue = vi.fn<() => string | null>(() => null);
-const mockSetMapperError = vi.fn();
-const mockResetMapper = vi.fn();
+const mockScanLoadingValue = vi.fn(() => false);
+const mockScanErrorValue = vi.fn<() => string | null>(() => null);
+const mockSetScanError = vi.fn();
+const mockResetScan = vi.fn();
 
 const NOTHING_NEEDED: ManifestProbeResponse = {
   status: "up_to_date",
@@ -36,10 +33,13 @@ const NOTHING_NEEDED: ManifestProbeResponse = {
   selected_var_files: [],
   missing_var_files: [],
   provider_changes: [],
+  missing_scopes: [],
 };
-const mockProbeManifest = vi.fn(async (): Promise<ManifestProbeResponse> => NOTHING_NEEDED);
+const mockProbeManifest = vi.fn(
+  async (_request: ManifestProbeRequest): Promise<ManifestProbeResponse> => NOTHING_NEEDED,
+);
 vi.mock("@/services/core/manifest", () => ({
-  probeManifest: () => mockProbeManifest(),
+  probeManifest: (request: ManifestProbeRequest) => mockProbeManifest(request),
 }));
 
 const mockHandleOutcome = vi.fn();
@@ -57,16 +57,18 @@ vi.mock("@/hooks/use_terraform_actions", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useMapperResolution", () => ({
-  useMapperResolution: () => ({
+vi.mock("@/hooks/useRepositoryScan", () => ({
+  useRepositoryScan: () => ({
     scanPaths: mockScanPathsValue(),
-    mapperLoading: mockMapperLoadingValue(),
-    mapperError: mockMapperErrorValue(),
-    setMapperError: mockSetMapperError,
-    resolveAndScan: mockResolveAndScan,
-    resetMapper: mockResetMapper,
+    scanLoading: mockScanLoadingValue(),
+    scanError: mockScanErrorValue(),
+    setScanError: mockSetScanError,
+    scan: mockScan,
+    resetScan: mockResetScan,
   }),
 }));
+
+const REPO = "https://dev.azure.com/org/repo";
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return React.createElement(
@@ -85,8 +87,8 @@ describe("useHomeWizard orchestrator", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
   it("initializes with query step and wizard homeView", () => {
@@ -144,14 +146,8 @@ describe("useHomeWizard orchestrator", () => {
     expect(result.current.step).toBe("query");
   });
 
-  it("handlePath sets rootModulePath and advances to provider", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev", "environments/pro"],
-    });
+  it("handlePath sets rootModulePath and advances to inputs", async () => {
+    mockScan.mockResolvedValueOnce(["environments/dev", "environments/pro"]);
 
     const { result } = renderHook(
       () => ({
@@ -165,51 +161,24 @@ describe("useHomeWizard orchestrator", () => {
       await result.current.wizard.handleInput("deploy a VM");
     });
     await act(async () => {
-      await result.current.wizard.handleInput("https://dev.azure.com/org/repo");
+      await result.current.wizard.handleInput(REPO);
     });
 
     act(() => {
       result.current.wizard.handlePath("environments/dev");
     });
 
-    expect(result.current.wizard.step).toBe("provider");
+    expect(result.current.wizard.step).toBe("inputs");
     expect(result.current.wizard.data.rootModulePath).toBe("environments/dev");
     expect(result.current.session.session.workspace?.root_path).toBe(
       "environments/dev",
     );
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
   });
 
-  it("handleProvider sets provider and advances to scope", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev"],
-    });
-
-    const { result } = renderHook(
-      () => ({
-        wizard: useHomeWizard(),
-        session: useSession(),
-      }),
-      { wrapper: Wrapper },
-    );
-
-    await act(async () => {
-      await result.current.wizard.handleInput("deploy a VM");
-    });
-    await act(async () => {
-      await result.current.wizard.handleInput("https://dev.azure.com/org/repo");
-    });
-
-    act(() => {
-      result.current.wizard.handleProvider("azure");
-    });
-
-    expect(result.current.wizard.step).toBe("scope");
-    expect(result.current.wizard.data.provider).toBe("azure");
-    expect(result.current.session.session.provider).toBe("azure");
+  it("no longer exposes a provider handler", () => {
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+    expect(result.current).not.toHaveProperty("handleProvider");
   });
 
   it("reset restores wizard state to initial", async () => {
@@ -228,8 +197,6 @@ describe("useHomeWizard orchestrator", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
-      provider: "",
-      scope: "",
       rootModulePath: "",
       inputsChecked: false,
       inputs: null,
@@ -271,23 +238,32 @@ describe("useHomeWizard orchestrator", () => {
   });
 });
 
-describe("useHomeWizard — repository resolution", () => {
+describe("useHomeWizard — repository scan", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
-  it("single root module path auto-advances to provider", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev"],
-    });
+  it("scans the typed URL as is", async () => {
+    mockScan.mockResolvedValueOnce(["environments/dev", "environments/pro"]);
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput(`  ${REPO}  `); });
+
+    expect(mockScan).toHaveBeenCalledWith(REPO);
+    expect(result.current.data.repositoryUrl).toBe(REPO);
+  });
+
+  it("single root module path skips provider/scope and goes straight to inputs", async () => {
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    let answer: (r: ManifestProbeResponse) => void = () => {};
+    mockProbeManifest.mockImplementationOnce(
+      () => new Promise<ManifestProbeResponse>((resolve) => { answer = resolve; }),
+    );
 
     const { result } = renderHook(
       () => ({ wizard: useHomeWizard(), session: useSession() }),
@@ -295,158 +271,42 @@ describe("useHomeWizard — repository resolution", () => {
     );
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
+    await act(async () => { await result.current.wizard.handleInput(REPO); });
 
-    expect(result.current.wizard.step).toBe("provider");
-    expect(result.current.wizard.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
+    expect(result.current.wizard.step).toBe("inputs");
+    expect(result.current.wizard.isLoading).toBe(true);
+    expect(result.current.wizard.loadingMessage).toBe(STRINGS.wizard.loadingInputs);
+    expect(result.current.wizard.data.repositoryUrl).toBe(REPO);
     expect(result.current.wizard.data.rootModulePath).toBe("environments/dev");
     expect(result.current.session.session.workspace).toEqual({
-      uri: "https://dev.azure.com/org/repo",
+      uri: REPO,
       root_path: "environments/dev",
     });
-  });
 
-  it("multiple root module paths go to root_module_path step", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev", "environments/pro"],
-    });
-
-    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
-
-    await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-
-    expect(result.current.step).toBe("root_module_path");
-  });
-
-  it("zero root module paths sets mapper error", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: [],
-    });
-
-    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
-
-    await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-
-    expect(mockSetMapperError).toHaveBeenCalled();
-  });
-
-  it("a mapper-supplied provider skips the provider step", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: "azure",
-      scopeId: null,
-      paths: ["environments/dev"],
-    });
-
-    const { result } = renderHook(
-      () => ({ wizard: useHomeWizard(), session: useSession() }),
-      { wrapper: Wrapper },
-    );
-
-    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.wizard.handleInput("my-project"); });
-
-    expect(result.current.wizard.step).toBe("scope");
-    expect(result.current.wizard.data.provider).toBe("azure");
-    expect(result.current.session.session.provider).toBe("azure");
-    expect(mockTerraformRun).not.toHaveBeenCalled();
-  });
-
-  it("a mapper-supplied scope alone still asks for the provider", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: null,
-      scopeId: "sub-from-catalogue",
-      paths: ["environments/dev"],
-    });
-
-    const { result } = renderHook(
-      () => ({ wizard: useHomeWizard(), session: useSession() }),
-      { wrapper: Wrapper },
-    );
-
-    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.wizard.handleInput("my-project"); });
-
-    expect(result.current.wizard.step).toBe("provider");
-    expect(result.current.wizard.data.scope).toBe("sub-from-catalogue");
-    expect(result.current.session.session.scope_id).toBe("sub-from-catalogue");
-    expect(mockTerraformRun).not.toHaveBeenCalled();
-  });
-
-  it("provider and scope resolved calls terraform.run directly", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: "azure",
-      scopeId: "sub-from-catalogue",
-      paths: ["environments/dev"],
-    });
-
-    const { result } = renderHook(
-      () => ({ wizard: useHomeWizard(), session: useSession() }),
-      { wrapper: Wrapper },
-    );
-
-    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.wizard.handleInput("my-project"); });
-
-    expect(result.current.wizard.step).not.toBe("provider");
-    expect(result.current.wizard.step).not.toBe("scope");
+    await act(async () => { answer(NOTHING_NEEDED); });
     await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
-    expect(mockTerraformRun).toHaveBeenCalledWith(
-      {
-        repoUri: "https://dev.azure.com/org/repo",
-        query: "deploy a VM",
-        terraformProviders: "azure",
-        scopeId: "sub-from-catalogue",
-        mode: "generate",
-        rootModulePath: "environments/dev",
-      },
-      mockHandleOutcome,
-    );
-    expect(result.current.session.session.provider).toBe("azure");
-    expect(result.current.session.session.scope_id).toBe("sub-from-catalogue");
   });
 
-  it("a multi-path repo asks for the path even when the mapper answered both", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: "azure",
-      scopeId: "sub-from-catalogue",
-      paths: ["environments/dev", "environments/pro"],
-    });
+  it("multiple root module paths go to root_module_path, then to inputs", async () => {
+    mockScan.mockResolvedValueOnce(["environments/dev", "environments/pro"]);
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("my-project"); });
+    await act(async () => { await result.current.handleInput(REPO); });
 
     expect(result.current.step).toBe("root_module_path");
+    expect(mockProbeManifest).not.toHaveBeenCalled();
     expect(mockTerraformRun).not.toHaveBeenCalled();
 
     act(() => { result.current.handlePath("environments/pro"); });
 
+    expect(result.current.step).toBe("inputs");
     await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(mockTerraformRun).toHaveBeenCalledWith(
       {
-        repoUri: "https://dev.azure.com/org/repo",
+        repoUri: REPO,
         query: "deploy a VM",
-        terraformProviders: "azure",
-        scopeId: "sub-from-catalogue",
         mode: "generate",
         rootModulePath: "environments/pro",
       },
@@ -454,96 +314,73 @@ describe("useHomeWizard — repository resolution", () => {
     );
   });
 
-  it("does not validate a mapper-supplied scope against the typed-scope pattern", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: "oci",
-      scopeId: "ocid1.compartment.oc1..aaaaExample",
-      paths: ["environments/dev"],
-    });
+  it("zero root module paths reports that none were found", async () => {
+    mockScan.mockResolvedValueOnce([]);
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("my-project"); });
+    await act(async () => { await result.current.handleInput(REPO); });
 
-    expect(result.current.data.scope).toBe("ocid1.compartment.oc1..aaaaExample");
-    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
+    expect(mockSetScanError).toHaveBeenCalledWith(STRINGS.wizard.noRootModulePaths);
+    expect(mockProbeManifest).not.toHaveBeenCalled();
   });
 
-  it("resolve failure sets mapper error", async () => {
-    mockResolveAndScan.mockRejectedValueOnce(new Error("Network error"));
+  it("a failed scan sets the scan error", async () => {
+    mockScan.mockRejectedValueOnce(new Error("Network error"));
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
     await act(async () => { await result.current.handleInput("https://bad-url.com/repo"); });
 
-    expect(mockSetMapperError).toHaveBeenCalled();
+    expect(mockSetScanError).toHaveBeenCalledWith(STRINGS.wizard.scanError);
   });
 });
 
-describe("useHomeWizard — terraform orchestration", () => {
+describe("useHomeWizard — first call", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
-  it("scope input stores the scope and calls terraform.run with correct params", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev"],
-    });
+  it("probes with the repository and root module only: no provider", async () => {
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput(REPO); });
+
+    await waitFor(() => expect(mockProbeManifest).toHaveBeenCalled());
+    const request = mockProbeManifest.mock.calls[0][0];
+    expect(request).toEqual({ repo_uri: REPO, root_module_path: "environments/dev" });
+    expect(request).not.toHaveProperty("terraform_provider");
+  });
+
+  it("starts the session with repo, query and root module, and no provider or scope", async () => {
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
     const { result } = renderHook(
       () => ({ wizard: useHomeWizard(), session: useSession() }),
       { wrapper: Wrapper },
     );
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
-    act(() => { result.current.wizard.handleProvider("azure"); });
-    await act(async () => { await result.current.wizard.handleInput("sub-123"); });
+    await act(async () => { await result.current.wizard.handleInput(REPO); });
 
-    expect(result.current.session.session.scope_id).toBe("sub-123");
     await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
-    expect(mockTerraformRun).toHaveBeenCalledWith(
-      {
-        repoUri: "https://dev.azure.com/org/repo",
-        query: "deploy a VM",
-        terraformProviders: "azure",
-        scopeId: "sub-123",
-        mode: "generate",
-        rootModulePath: "environments/dev",
-      },
-      mockHandleOutcome,
-    );
-  });
-
-  it("scope rejects invalid scope (special chars)", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev"],
+    const params = mockTerraformRun.mock.calls[0][0];
+    expect(params).toEqual({
+      repoUri: REPO,
+      query: "deploy a VM",
+      mode: "generate",
+      rootModulePath: "environments/dev",
     });
-
-    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
-
-    await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
-    act(() => { result.current.handleProvider("azure"); });
-    await act(async () => { await result.current.handleInput("azure!@#"); });
-
-    expect(mockTerraformRun).not.toHaveBeenCalled();
+    expect(params).not.toHaveProperty("terraformProviders");
+    expect(params).not.toHaveProperty("scopeId");
+    expect(result.current.session.session).not.toHaveProperty("providers");
   });
 });
 
@@ -552,8 +389,8 @@ describe("useHomeWizard — full modes skip the query", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
   function renderWizard() {
@@ -607,13 +444,7 @@ describe("useHomeWizard — full modes skip the query", () => {
   });
 
   it("sends the fixed query to the API", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: "azure",
-      scopeId: "sub-123",
-      paths: ["environments/dev"],
-    });
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
     const { result } = renderWizard();
 
     act(() => { result.current.mode.setMode(MODE.IMPORT); });
@@ -634,8 +465,8 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
   it("iterate does nothing without a session uuid", () => {
@@ -656,18 +487,10 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       result.current.session.updateSession({ uuid: "abc-123" });
     });
 
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev"],
-    });
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
-    act(() => { result.current.wizard.handleProvider("azure"); });
-    await act(async () => { await result.current.wizard.handleInput("sub-123"); });
     await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
 
     act(() => { result.current.wizard.iterate("add a database"); });
@@ -700,18 +523,10 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       });
     });
 
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "https://dev.azure.com/org/repo",
-      provider: null,
-      scopeId: null,
-      paths: ["environments/dev"],
-    });
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
-    act(() => { result.current.wizard.handleProvider("azure"); });
-    await act(async () => { await result.current.wizard.handleInput("sub-123"); });
     await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
 
     act(() => { result.current.wizard.applyAfterPr(); });
@@ -766,12 +581,12 @@ describe("useHomeWizard — retry", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
-  it("retry with mapper error resets to repository_url", async () => {
-    mockMapperErrorValue.mockReturnValue("No root modules found");
+  it("retry with scan error resets to repository_url", async () => {
+    mockScanErrorValue.mockReturnValue("No root modules found");
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
@@ -780,7 +595,7 @@ describe("useHomeWizard — retry", () => {
     act(() => { result.current.retry(); });
 
     expect(result.current.step).toBe("repository_url");
-    expect(mockResetMapper).toHaveBeenCalled();
+    expect(mockResetScan).toHaveBeenCalled();
     expect(mockTerraformReset).toHaveBeenCalled();
   });
 
@@ -800,28 +615,20 @@ describe("useHomeWizard — restart", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
   it("restart after full wizard completion clears all fields except query", async () => {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: "azure",
-      scopeId: "sub-from-catalogue",
-      paths: ["environments/dev"],
-    });
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
-    await act(async () => { await result.current.handleInput("my-project"); });
+    await act(async () => { await result.current.handleInput("https://dev.azure.com/org/repo"); });
 
     await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
     expect(result.current.data.repositoryUrl).toBe("https://dev.azure.com/org/repo");
-    expect(result.current.data.provider).toBe("azure");
-    expect(result.current.data.scope).toBe("sub-from-catalogue");
     expect(result.current.data.rootModulePath).toBe("environments/dev");
 
     act(() => { result.current.restart(); });
@@ -829,10 +636,8 @@ describe("useHomeWizard — restart", () => {
     expect(result.current.step).toBe("query");
     expect(result.current.data.query).toBe("deploy a VM");
     expect(result.current.data.repositoryUrl).toBe("");
-    expect(result.current.data.provider).toBe("");
-    expect(result.current.data.scope).toBe("");
     expect(result.current.data.rootModulePath).toBe("");
-    expect(mockResetMapper).toHaveBeenCalled();
+    expect(mockResetScan).toHaveBeenCalled();
     expect(mockTerraformReset).toHaveBeenCalled();
   });
 
@@ -851,12 +656,12 @@ describe("useHomeWizard — aggregated isLoading & error", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
-  it("isLoading is true when mapper is loading", () => {
-    mockMapperLoadingValue.mockReturnValue(true);
+  it("isLoading is true when the scan is loading", () => {
+    mockScanLoadingValue.mockReturnValue(true);
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
     expect(result.current.isLoading).toBe(true);
   });
@@ -867,23 +672,23 @@ describe("useHomeWizard — aggregated isLoading & error", () => {
     expect(result.current.isLoading).toBe(true);
   });
 
-  it("error reflects mapper error first", () => {
-    mockMapperErrorValue.mockReturnValue("Repository not found");
+  it("error reflects scan error first", () => {
+    mockScanErrorValue.mockReturnValue("Repository not found");
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
     expect(result.current.error).toBe("Repository not found");
   });
 
-  it("error reflects terraform error when mapper has none", () => {
+  it("error reflects terraform error when the scan has none", () => {
     mockTerraformState.mockReturnValue({ status: "error", message: "Plan failed" });
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
     expect(result.current.error).toBe("Plan failed");
   });
 
-  it("mapper error takes precedence over terraform error", () => {
-    mockMapperErrorValue.mockReturnValue("Mapper error");
+  it("scan error takes precedence over terraform error", () => {
+    mockScanErrorValue.mockReturnValue("Scan error");
     mockTerraformState.mockReturnValue({ status: "error", message: "TF error" });
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
-    expect(result.current.error).toBe("Mapper error");
+    expect(result.current.error).toBe("Scan error");
   });
 });
 
@@ -892,8 +697,8 @@ describe("useHomeWizard — clear requested from outside", () => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
   it("discards the collected information when the nonce is bumped", async () => {
@@ -916,20 +721,18 @@ describe("useHomeWizard — clear requested from outside", () => {
     expect(result.current.wizard.data).toEqual({
       query: "",
       repositoryUrl: "",
-      provider: "",
-      scope: "",
       rootModulePath: "",
       inputsChecked: false,
       inputs: null,
     });
-    expect(mockResetMapper).toHaveBeenCalled();
+    expect(mockResetScan).toHaveBeenCalled();
     expect(mockTerraformReset).toHaveBeenCalled();
   });
 
   it("does not clear on mount", () => {
     renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
-    expect(mockResetMapper).not.toHaveBeenCalled();
+    expect(mockResetScan).not.toHaveBeenCalled();
     expect(mockTerraformReset).not.toHaveBeenCalled();
   });
 });
@@ -945,27 +748,32 @@ describe("useHomeWizard — root module inputs", () => {
     selected_var_files: [],
     missing_var_files: [],
     provider_changes: [],
+    missing_scopes: [],
+  };
+
+  const NEEDS_SCOPES: ManifestProbeResponse = {
+    ...NOTHING_NEEDED,
+    status: "not_found",
+    needs_input: true,
+    missing_scopes: [
+      { provider: "azurerm", source: "hashicorp/azurerm" },
+      { provider: "google", source: "hashicorp/google" },
+    ],
   };
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockTerraformState.mockReturnValue({ status: "idle" });
     mockScanPathsValue.mockReturnValue([]);
-    mockMapperLoadingValue.mockReturnValue(false);
-    mockMapperErrorValue.mockReturnValue(null);
+    mockScanLoadingValue.mockReturnValue(false);
+    mockScanErrorValue.mockReturnValue(null);
   });
 
   async function reachInputs() {
-    mockResolveAndScan.mockResolvedValueOnce({
-      repoUrl: "https://dev.azure.com/org/repo",
-      identifier: "my-project",
-      provider: "azure",
-      scopeId: "sub-1",
-      paths: ["environments/dev"],
-    });
+    mockScan.mockResolvedValueOnce(["environments/dev"]);
     const rendered = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
     await act(async () => { await rendered.result.current.handleInput("deploy a VM"); });
-    await act(async () => { await rendered.result.current.handleInput("my-project"); });
+    await act(async () => { await rendered.result.current.handleInput("https://dev.azure.com/org/repo"); });
     return rendered;
   }
 
@@ -992,14 +800,37 @@ describe("useHomeWizard — root module inputs", () => {
       {
         repoUri: "https://dev.azure.com/org/repo",
         query: "deploy a VM",
-        terraformProviders: "azure",
-        scopeId: "sub-1",
         mode: "generate",
         rootModulePath: "environments/dev",
         manifest: { variables: [{ name: "region", value: "westeurope" }] },
       },
       mockHandleOutcome,
     );
+  });
+
+  it("missing scopes show the form, and the answered scopes ride in the manifest", async () => {
+    mockProbeManifest.mockResolvedValueOnce(NEEDS_SCOPES);
+    const { result } = await reachInputs();
+    await waitFor(() => expect(result.current.probe).toEqual(NEEDS_SCOPES));
+    expect(mockTerraformRun).not.toHaveBeenCalled();
+
+    const answers = {
+      variables: [],
+      scopes: { azurerm: "sub-123", google: "my-project" },
+    };
+    act(() => { result.current.handleInputs(answers); });
+
+    expect(mockTerraformRun).toHaveBeenCalledTimes(1);
+    const params = mockTerraformRun.mock.calls[0][0];
+    expect(params).toEqual({
+      repoUri: "https://dev.azure.com/org/repo",
+      query: "deploy a VM",
+      mode: "generate",
+      rootModulePath: "environments/dev",
+      manifest: answers,
+    });
+    expect(params).not.toHaveProperty("terraformProviders");
+    expect(params).not.toHaveProperty("scopeId");
   });
 
   it("starts without answers when nothing is needed", async () => {

@@ -14,7 +14,7 @@ const makeFakeSession = (id: string): SessionSummary => ({
   uuid: id,
   username: "user",
   operation: "generate",
-  provider: "azure",
+  providers: [{ name: "azurerm", scope_id: "sub-123" }],
   first_query: "create a resource group",
   workspace: {
     uri: "https://repo.example.com",

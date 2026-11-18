@@ -678,8 +678,10 @@ describe("buildSessionPatch", () => {
     expect(patch).toMatchObject({
       uuid: "sess-1",
       operation: "generate",
-      provider: "azure",
-      scope_id: "sub-123",
+      providers: [
+        { name: "azurerm", scope_id: "sub-123" },
+        { name: "random", scope_id: null },
+      ],
       first_query: "deploy a VM",
       workspace: {
         uri: "https://dev.azure.com/org/project/_git/repo",

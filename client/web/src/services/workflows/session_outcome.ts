@@ -400,8 +400,7 @@ export function buildSessionPatch(outcome: SessionOutcome): Partial<Session> {
   const patch: Partial<Session> = {
     uuid: detail.uuid,
     operation: detail.operation,
-    provider: detail.provider,
-    scope_id: detail.scope_id,
+    providers: detail.providers ?? [],
     first_query: detail.first_query ?? undefined,
     workspace: detail.workspace,
     current_status: detail.current_status,

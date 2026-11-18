@@ -135,56 +135,28 @@ export const STRINGS = {
       "Set up a Kubernetes cluster with autoscaling",
       "Enable diagnostic logging on all resources",
     ],
-    loadingRepository: "Resolving repository...",
+    loadingRepository: "Scanning repository...",
     tryAgain: "Try again",
     startOver: "Start over",
     ariaQuery: "Describe your infrastructure request",
     ariaRepositoryUrl: "Repository URL",
     ariaRootModulePath: "Root module path",
-    ariaProvider: "Cloud provider",
-    ariaScope: "Cloud scope",
     promptQuery: "What do you need?",
     promptRepository: "What is the repository URL?",
     promptRootModulePath: "Which root module?",
-    promptProvider: "Which cloud provider?",
-    promptScope: "What is the cloud scope?",
     placeholderQuery: "Type your request...",
     placeholderRepository: "https://dev.azure.com/org/project/_git/repo",
-    placeholderScope: "azure-subscription-id, gcp-project-id",
-    // scope_id in each provider's own jargon; keys mirror TERRAFORM_PROVIDERS
+    /**
+     * Scope id in each provider's own jargon. Keys are Terraform provider
+     * type names: only these providers take a scope id.
+     */
     scopeByProvider: {
-      azure: {
-        label: "Subscription ID",
-        prompt: "What is the Azure subscription ID?",
-        placeholder: "azure-subscription-id",
-      },
-      gcp: {
-        label: "Project ID",
-        prompt: "What is the GCP project ID?",
-        placeholder: "my-gcp-project-id",
-      },
-      aws: {
-        label: "Account ID",
-        prompt: "What is the AWS account ID?",
-        placeholder: "123456789012",
-      },
-      oci: {
-        label: "Compartment ID",
-        prompt: "What is the OCI compartment name?",
-        placeholder: "my-compartment",
-      },
-      kubernetes: {
-        label: "Namespace",
-        prompt: "Which Kubernetes namespace?",
-        placeholder: "my-namespace",
-      },
-      vmware: {
-        label: "Datacenter",
-        prompt: "Which vSphere datacenter?",
-        placeholder: "dc-01",
-      },
-    },
-    resolveError: "Could not resolve repository. Please try again.",
+      azurerm: { label: "Subscription ID", placeholder: "00000000-0000-0000-0000-000000000000" },
+      google: { label: "Project ID", placeholder: "my-gcp-project-id" },
+      aws: { label: "Account ID", placeholder: "123456789012" },
+      oci: { label: "Compartment OCID", placeholder: "ocid1.compartment.oc1..aaaa…" },
+    } as Record<string, { label: string; placeholder: string } | undefined>,
+    scopeFallbackLabel: "Scope",
     scanError: "Could not scan repository for root modules. Please try again.",
     noRootModulePaths:
       "No root modules found in this repository. Please check the repository and try again.",
@@ -197,6 +169,8 @@ export const STRINGS = {
         "Asked once. Answers are saved to the module's manifest and reused by every later session.",
       driftedIntro:
         "The module changed since it was configured. Only what the change needs is asked.",
+      scopesHeading: "Scopes",
+      scopesHelp: "Where each provider works. Saved to the module's manifest.",
       valuesHeading: "Values",
       varFilesHeading: "Variable files",
       varFilesHelp: "Passed as -var-file in the order picked. Your values apply on top.",

@@ -7,9 +7,6 @@ import Fade from "@mui/material/Fade";
 import Typography from "@mui/material/Typography";
 import type { useHomeWizard } from "./useHomeWizard";
 import { STRINGS } from "@/constants/strings";
-import { providerLabel } from "@/constants/providers";
-import { TERRAFORM_PROVIDERS } from "@/types/api";
-import { ProviderIcon } from "@/components/ui";
 import { extractProjectName } from "@/utils/workspace";
 import InputsForm from "./InputsForm";
 import styles from "./HomeScreen.module.css";
@@ -31,7 +28,6 @@ type WizardProps = Pick<
   | "placeholder"
   | "handleKeyDown"
   | "handlePath"
-  | "handleProvider"
   | "handleInputs"
   | "retry"
   | "restart"
@@ -49,7 +45,6 @@ export default function WizardView({
   placeholder,
   handleKeyDown,
   handlePath,
-  handleProvider,
   handleInputs,
   retry,
   restart,
@@ -78,12 +73,9 @@ export default function WizardView({
     [handlePath],
   );
 
-  const isTextStep =
-    step === "query" || step === "repository_url" || step === "scope";
+  const isTextStep = step === "query" || step === "repository_url";
 
   const isListStep = step === "root_module_path";
-
-  const isProviderStep = step === "provider";
 
   return (
     <div className={styles.center} onClick={() => inputRef.current?.focus()}>
@@ -123,14 +115,12 @@ export default function WizardView({
             className={styles.input}
             defaultValue={step === "query" ? data.query : ""}
             onKeyDown={handleKeyDown}
-            maxLength={step === "scope" ? 64 : 500}
+            maxLength={500}
             placeholder={placeholder()}
             aria-label={
               step === "query"
                 ? STRINGS.wizard.ariaQuery
-                : step === "repository_url"
-                  ? STRINGS.wizard.ariaRepositoryUrl
-                  : STRINGS.wizard.ariaScope
+                : STRINGS.wizard.ariaRepositoryUrl
             }
           />
         </Fade>
@@ -146,30 +136,6 @@ export default function WizardView({
             {scanPaths.map((path) => (
               <Typography variant="h3" component="li" key={path} onClick={handlePathClick} role="option">
                 {path}
-              </Typography>
-            ))}
-          </ul>
-        </Fade>
-      )}
-
-      {!isLoading && !error && isProviderStep && (
-        <Fade in timeout={800}>
-          <ul
-            className={styles.selectContainer}
-            role="listbox"
-            aria-label={STRINGS.wizard.ariaProvider}
-          >
-            {TERRAFORM_PROVIDERS.map((provider) => (
-              <Typography
-                variant="h3"
-                component="li"
-                key={provider}
-                onClick={() => handleProvider(provider)}
-                role="option"
-                className={styles.providerOption}
-              >
-                <ProviderIcon provider={provider} className={styles.providerIcon} />
-                {providerLabel(provider)}
               </Typography>
             ))}
           </ul>

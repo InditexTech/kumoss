@@ -123,8 +123,22 @@
 .main {
   display: flex;
   flex-direction: column;
+  gap: 28px;
+  min-width: 0;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   min-width: 0;
+}
+
+.groupHelp {
+  margin: -8px 0 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-content-secondary);
 }
 
 .aside {
@@ -203,6 +217,7 @@
 }
 
 .typePill,
+.scopePill,
 .sensitivePill,
 .coveredPill {
   display: inline-flex;
@@ -220,6 +235,16 @@
   background: var(--color-content-hover-bg);
   color: var(--color-content-secondary);
   border: 1px solid var(--color-border);
+}
+
+.scopePill {
+  background: light-dark(rgba(4, 0, 195, 0.07), rgba(127, 126, 223, 0.2));
+  color: var(--color-heading);
+}
+
+.source {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
 }
 
 .sensitivePill {

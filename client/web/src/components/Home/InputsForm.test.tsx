@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import InputsForm from "./InputsForm";
 import { STRINGS } from "@/constants/strings";
@@ -25,6 +25,15 @@ const PROBE: ManifestProbeResponse = {
   selected_var_files: [],
   missing_var_files: [],
   provider_changes: [],
+  missing_scopes: [],
+};
+
+const SCOPED: ManifestProbeResponse = {
+  ...PROBE,
+  missing_scopes: [
+    { provider: "azurerm", source: "hashicorp/azurerm" },
+    { provider: "google", source: "hashicorp/google" },
+  ],
 };
 
 function renderForm(props: Partial<React.ComponentProps<typeof InputsForm>> = {}) {
@@ -124,5 +133,81 @@ describe("InputsForm", () => {
     await userEvent.click(screen.getByRole("button", { name: S.close }));
     await userEvent.click(screen.getByRole("button", { name: S.cancel }));
     expect(onCancel).toHaveBeenCalledTimes(3);
+  });
+
+  describe("scopes", () => {
+    it("asks for a scope per provider above the values, labelled by name and jargon", () => {
+      renderForm({ probe: SCOPED });
+      const scopes = screen.getByRole("region", { name: S.scopesHeading });
+      expect(within(scopes).getByLabelText("azurerm")).toBeRequired();
+      expect(within(scopes).getByText("Subscription ID")).toBeInTheDocument();
+      expect(within(scopes).getByLabelText("google")).toBeRequired();
+      expect(within(scopes).getByText("Project ID")).toBeInTheDocument();
+      expect(within(scopes).getByText("hashicorp/azurerm")).toBeInTheDocument();
+      // Scopes come first: the form starts on them.
+      expect(screen.getByLabelText("azurerm")).toHaveFocus();
+      expect(
+        scopes.compareDocumentPosition(screen.getByRole("region", { name: S.valuesHeading })) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    });
+
+    it("counts the scopes in the progress", async () => {
+      renderForm({ probe: SCOPED });
+      expect(screen.getByText(S.progress.replace("{done}", "0").replace("{total}", "4"))).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText("azurerm"), "sub-123");
+      expect(screen.getByText(S.progress.replace("{done}", "1").replace("{total}", "4"))).toBeInTheDocument();
+    });
+
+    it("requires every scope, and focuses the first missing one", async () => {
+      const { onSubmit } = renderForm({ probe: SCOPED });
+
+      await userEvent.type(screen.getByLabelText("azurerm"), "   ");
+      await userEvent.type(screen.getByLabelText("region"), '{{"a": "b"}');
+      await userEvent.type(screen.getByLabelText("db_password"), "s3cr3t");
+      await userEvent.click(screen.getByRole("button", { name: new RegExp(S.submit) }));
+
+      expect(onSubmit).not.toHaveBeenCalled();
+      expect(screen.getAllByText(S.required)).toHaveLength(2);
+      expect(screen.getByLabelText("azurerm")).toHaveAttribute("aria-invalid", "true");
+      expect(screen.getByLabelText("azurerm")).toHaveFocus();
+    });
+
+    it("submits the trimmed scopes as manifest.scopes", async () => {
+      const { onSubmit } = renderForm({ probe: SCOPED });
+
+      await userEvent.type(screen.getByLabelText("azurerm"), " sub-123 ");
+      await userEvent.type(screen.getByLabelText("google"), "my-project");
+      await userEvent.type(screen.getByLabelText("region"), '{{"a": "b"}');
+      await userEvent.type(screen.getByLabelText("db_password"), "s3cr3t");
+      await userEvent.click(screen.getByRole("button", { name: new RegExp(S.submit) }));
+
+      expect(onSubmit).toHaveBeenCalledWith({
+        variables: [
+          { name: "region", value: { a: "b" } },
+          { name: "db_password", value: "s3cr3t" },
+        ],
+        var_files: [],
+        scopes: { azurerm: "sub-123", google: "my-project" },
+      });
+    });
+
+    it("a scopes-only probe shows no values section and falls back to a generic label", async () => {
+      const { onSubmit } = renderForm({
+        probe: {
+          ...PROBE,
+          missing_variables: [],
+          selectable_var_files: [],
+          missing_scopes: [{ provider: "somecloud", source: "acme/somecloud" }],
+        },
+      });
+
+      expect(screen.queryByRole("region", { name: S.valuesHeading })).toBeNull();
+      expect(screen.getByText(STRINGS.wizard.scopeFallbackLabel)).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText("somecloud"), "abc");
+      await userEvent.keyboard("{Control>}{Enter}{/Control}");
+
+      expect(onSubmit).toHaveBeenCalledWith({ variables: [], scopes: { somecloud: "abc" } });
+    });
   });
 });

@@ -4,15 +4,18 @@
 
 // ─── Shared Types ───────────────────────────────────────────
 
-export const TERRAFORM_PROVIDERS = [
-  "azure",
-  "gcp",
-  "aws",
-  "oci",
-  "kubernetes",
-  "vmware",
-] as const;
-export type TerraformProvider = (typeof TERRAFORM_PROVIDERS)[number];
+/**
+ * A Terraform provider type name as declared by the root module
+ * (`azurerm`, `google`, `aws`, `vsphere`, `random`…). Open-ended: the
+ * providers come from the module's manifest, not from a fixed list.
+ */
+export type TerraformProvider = string;
+
+/** A provider a session runs with, and its scope id when it has one. */
+export interface ProviderScopeRef {
+  name: string;
+  scope_id: string | null;
+}
 export type HistoryRole = "user" | "assistant";
 
 export interface HistoryEntry {
@@ -57,15 +60,14 @@ export interface PaginatedResponse<T> {
 }
 
 // ─── IaC Operations (/api/v1/iac/*) ─────────────────────────
-// URI-driven, session-iterating model: first call provides repo_uri +
-// terraform_providers + scope_id (+ optional root_module_path); iteration calls
-// provide session_id only.
+// URI-driven, session-iterating model: first call provides repo_uri
+// (+ optional root_module_path and manifest answers); iteration calls
+// provide session_id only. Providers and their scopes come from the root
+// module's manifest.
 
 export interface BaseIacRequest {
   repo_uri?: string | null;
   session_id?: string | null;
-  scope_id?: string | null;
-  terraform_providers?: TerraformProvider | null;
   q: string;
   root_module_path?: string | null;
   /** First call only: answers for what the manifest probe reported missing. */
@@ -96,12 +98,21 @@ export interface ManifestAnswers {
   variables: ManifestVariableAnswer[];
   /** Optional var files, in order; omit to keep the current selection. */
   var_files?: string[];
+  /** Scope id per provider type name (e.g. `{ azurerm: "<subscription id>" }`). */
+  scopes?: Record<string, string>;
 }
 
 export interface ManifestProbeRequest {
   repo_uri: string;
   root_module_path?: string | null;
-  terraform_provider: TerraformProvider;
+}
+
+/** A provider of the module that needs a scope id and has none saved yet. */
+export interface ManifestMissingScope {
+  /** Provider type name (`azurerm`, `google`, `aws`, `oci`). */
+  provider: string;
+  /** The provider's registry source (e.g. `hashicorp/azurerm`). */
+  source: string;
 }
 
 export interface ManifestVariable {
@@ -136,6 +147,7 @@ export interface ManifestProbeResponse {
   selected_var_files: string[];
   missing_var_files: string[];
   provider_changes: ManifestProviderChange[];
+  missing_scopes: ManifestMissingScope[];
 }
 
 export type GenerateRequest = BaseIacRequest;
@@ -290,7 +302,8 @@ export interface SessionSummary {
   uuid: string;
   username: string | null;
   operation: OperationType;
-  provider: TerraformProvider;
+  /** Empty until the session's setup has run. */
+  providers: ProviderScopeRef[];
   first_query: string | null;
   workspace: WorkspaceRef;
   current_status: SessionStatus;
@@ -311,7 +324,6 @@ export interface SessionSummary {
  * `?include_chat_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
-  scope_id: string;
   rounds: RoundDetail[];
   chat_history?: RawHistoryTurn[] | null;
 }

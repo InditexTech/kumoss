@@ -10,7 +10,13 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import { STRINGS } from "@/constants/strings";
-import type { ManifestAnswers, ManifestProbeResponse, ManifestVariable } from "@/types/api";
+import { scopeLabel, scopePlaceholder } from "@/constants/providers";
+import type {
+  ManifestAnswers,
+  ManifestMissingScope,
+  ManifestProbeResponse,
+  ManifestVariable,
+} from "@/types/api";
 import {
   buildAnswers,
   exampleFor,
@@ -19,6 +25,9 @@ import {
   inputKind,
   isAnswered,
   isSecret,
+  missingScopes,
+  scopeErrorKey,
+  scopeValue,
   setByVarFiles,
   toggleVarFile,
   typeLabel,
@@ -39,8 +48,8 @@ interface InputsFormProps {
 
 /**
  * Full-viewport dialog asking for what the manifest probe reported missing:
- * a value per uncovered variable, whether to keep it as a secret, and which
- * optional var files to pass.
+ * a scope id per provider that has none, a value per uncovered variable,
+ * whether to keep it as a secret, and which optional var files to pass.
  */
 export default function InputsForm({
   probe,
@@ -54,9 +63,14 @@ export default function InputsForm({
   const titleId = useId();
   const formRef = useRef<HTMLFormElement>(null);
 
+  const scopes = missingScopes(probe);
   const setBy = useMemo(() => setByVarFiles(probe, state), [probe, state]);
-  const answered = probe.missing_variables.filter((v) => isAnswered(v, state, setBy)).length;
-  const total = probe.missing_variables.length;
+  const answered =
+    scopes.filter((s) => scopeValue(s.provider, state) !== null).length +
+    probe.missing_variables.filter((v) => isAnswered(v, state, setBy)).length;
+  const total = scopes.length + probe.missing_variables.length;
+  // A scopes-only probe has no values to list.
+  const showValues = probe.missing_variables.length > 0 || scopes.length === 0;
 
   const clearError = useCallback((name: string) => {
     setErrors((prev) => {
@@ -71,6 +85,14 @@ export default function InputsForm({
     (name: string, value: string | boolean) => {
       setState((prev) => ({ ...prev, values: { ...prev.values, [name]: value } }));
       clearError(name);
+    },
+    [clearError],
+  );
+
+  const setScope = useCallback(
+    (provider: string, value: string) => {
+      setState((prev) => ({ ...prev, scopes: { ...prev.scopes, [provider]: value } }));
+      clearError(scopeErrorKey(provider));
     },
     [clearError],
   );
@@ -90,8 +112,12 @@ export default function InputsForm({
       return;
     }
     setErrors(result.errors);
-    const first = probe.missing_variables.find((v) => v.name in result.errors);
-    if (first) document.getElementById(fieldId(titleId, first.name))?.focus();
+    // Focus the first invalid field, in the order they are shown.
+    const firstKey = [
+      ...missingScopes(probe).map((s) => scopeErrorKey(s.provider)),
+      ...probe.missing_variables.map((v) => v.name),
+    ].find((key) => key in result.errors);
+    if (firstKey) document.getElementById(fieldId(titleId, firstKey))?.focus();
   }, [probe, state, onSubmit, titleId]);
 
   const onFormSubmit = useCallback(
@@ -159,25 +185,49 @@ export default function InputsForm({
         </header>
 
         <div className={styles.body}>
-          <section className={styles.main} aria-label={S.valuesHeading}>
-            <h3 className={styles.sectionTitle}>
-              {S.valuesHeading}
-              <span className={styles.count}>{total}</span>
-            </h3>
-            {probe.missing_variables.map((variable) => (
-              <VariableField
-                key={variable.name}
-                id={fieldId(titleId, variable.name)}
-                variable={variable}
-                setBy={setBy.get(variable.name)}
-                value={state.values[variable.name] ?? ""}
-                secret={isSecret(variable, state)}
-                error={errors[variable.name]}
-                onValue={setValue}
-                onSecret={setSecret}
-              />
-            ))}
-          </section>
+          <div className={styles.main}>
+            {scopes.length > 0 && (
+              <section className={styles.group} aria-label={S.scopesHeading}>
+                <h3 className={styles.sectionTitle}>
+                  {S.scopesHeading}
+                  <span className={styles.count}>{scopes.length}</span>
+                </h3>
+                <p className={styles.groupHelp}>{S.scopesHelp}</p>
+                {scopes.map((scope) => (
+                  <ScopeField
+                    key={scope.provider}
+                    id={fieldId(titleId, scopeErrorKey(scope.provider))}
+                    scope={scope}
+                    value={state.scopes[scope.provider] ?? ""}
+                    error={errors[scopeErrorKey(scope.provider)]}
+                    onValue={setScope}
+                  />
+                ))}
+              </section>
+            )}
+
+            {showValues && (
+              <section className={styles.group} aria-label={S.valuesHeading}>
+                <h3 className={styles.sectionTitle}>
+                  {S.valuesHeading}
+                  <span className={styles.count}>{probe.missing_variables.length}</span>
+                </h3>
+                {probe.missing_variables.map((variable) => (
+                  <VariableField
+                    key={variable.name}
+                    id={fieldId(titleId, variable.name)}
+                    variable={variable}
+                    setBy={setBy.get(variable.name)}
+                    value={state.values[variable.name] ?? ""}
+                    secret={isSecret(variable, state)}
+                    error={errors[variable.name]}
+                    onValue={setValue}
+                    onSecret={setSecret}
+                  />
+                ))}
+              </section>
+            )}
+          </div>
 
           <aside className={styles.aside}>
             {(probe.selectable_var_files.length > 0 || probe.missing_var_files.length > 0) && (
@@ -270,6 +320,63 @@ export default function InputsForm({
 
 function fieldId(base: string, name: string): string {
   return `${base}-input-${name}`;
+}
+
+interface ScopeFieldProps {
+  id: string;
+  scope: ManifestMissingScope;
+  value: string;
+  error: string | undefined;
+  onValue: (provider: string, value: string) => void;
+}
+
+/** A required, single-line scope id for one provider. */
+function ScopeField({ id, scope, value, error, onValue }: ScopeFieldProps) {
+  const invalid = error !== undefined;
+  const errorId = `${id}-error`;
+  const sourceId = `${id}-source`;
+  const describedBy = [scope.source ? sourceId : "", invalid ? errorId : ""]
+    .filter(Boolean)
+    .join(" ") || undefined;
+
+  return (
+    <div className={`${styles.field} ${invalid ? styles.fieldInvalid : ""}`}>
+      <div className={styles.fieldHeader}>
+        <label htmlFor={id} className={styles.fieldName}>
+          {scope.provider}
+        </label>
+        <span className={styles.scopePill}>{scopeLabel(scope.provider)}</span>
+      </div>
+
+      {scope.source && (
+        <p id={sourceId} className={styles.description}>
+          <code className={styles.source}>{scope.source}</code>
+        </p>
+      )}
+
+      <input
+        id={id}
+        className={styles.control}
+        type="text"
+        autoComplete="off"
+        spellCheck={false}
+        required
+        value={value}
+        placeholder={scopePlaceholder(scope.provider)}
+        aria-invalid={invalid}
+        aria-describedby={describedBy}
+        onChange={(e) => onValue(scope.provider, e.target.value)}
+      />
+
+      {invalid && (
+        <div className={styles.fieldFooter}>
+          <span id={errorId} className={styles.error} role="alert">
+            {error}
+          </span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface VariableFieldProps {

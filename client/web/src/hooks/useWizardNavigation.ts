@@ -5,25 +5,24 @@
 import { useState, useCallback } from "react";
 import { STRINGS } from "@/constants/strings";
 import type { WizardStep } from "@/types/ui";
-import type { ManifestAnswers, TerraformProvider } from "@/types/api";
+import type { ManifestAnswers } from "@/types/api";
 
 export interface WizardData {
   query: string;
   repositoryUrl: string;
-  provider: TerraformProvider | "";
-  scope: string;
   rootModulePath: string;
   /** The root module's inputs were probed and, if needed, answered. */
   inputsChecked: boolean;
-  /** Answers for the inputs the probe reported missing; null when none were needed. */
+  /**
+   * Answers for the inputs the probe reported missing (variables, var
+   * files and provider scopes); null when none were needed.
+   */
   inputs: ManifestAnswers | null;
 }
 
 export const INITIAL_WIZARD_DATA: WizardData = {
   query: "",
   repositoryUrl: "",
-  provider: "",
-  scope: "",
   rootModulePath: "",
   inputsChecked: false,
   inputs: null,
@@ -41,18 +40,12 @@ export function useWizardNavigation() {
         return STRINGS.wizard.promptRepository;
       case "root_module_path":
         return STRINGS.wizard.promptRootModulePath;
-      case "provider":
-        return STRINGS.wizard.promptProvider;
-      case "scope":
-        return data.provider
-          ? STRINGS.wizard.scopeByProvider[data.provider].prompt
-          : STRINGS.wizard.promptScope;
       case "inputs":
         return STRINGS.wizard.promptInputs;
       default:
         return "";
     }
-  }, [step, data.provider]);
+  }, [step]);
 
   const placeholder = useCallback((): string => {
     switch (step) {
@@ -60,25 +53,17 @@ export function useWizardNavigation() {
         return STRINGS.wizard.placeholderQuery;
       case "repository_url":
         return STRINGS.wizard.placeholderRepository;
-      case "root_module_path":
-        return "";
-      case "provider":
-        return "";
-      case "scope":
-        return data.provider
-          ? STRINGS.wizard.scopeByProvider[data.provider].placeholder
-          : STRINGS.wizard.placeholderScope;
       default:
         return "";
     }
-  }, [step, data.provider]);
+  }, [step]);
 
   /**
    * Merge `patch` into the collected data and hand the result back.
    *
-   * The return value is required, not a convenience: when the mapper
-   * supplies a provider and a scope, both are written and consumed in
-   * the same tick, so `data` still holds the pre-merge value for the
+   * The return value is required, not a convenience: when a repository
+   * has a single root module, its URL and path are written and consumed
+   * in the same tick, so `data` still holds the pre-merge value for the
    * rest of this render. Reading `data` straight after `setData` is
    * safe elsewhere only because each step is a separate interaction in
    * a separate render.

@@ -9,8 +9,6 @@ import type { WizardData } from "./useWizardNavigation";
 const EMPTY: WizardData = {
   query: "",
   repositoryUrl: "",
-  provider: "",
-  scope: "",
   rootModulePath: "",
   inputsChecked: false,
   inputs: null,
@@ -27,15 +25,19 @@ describe("nextStep — first missing input wins", () => {
     expect(nextStep(data({ query: "deploy a VM" }))).toBe("repository_url");
   });
 
+  it("asks for the root module once the repository is in", () => {
+    expect(
+      nextStep(data({ query: "deploy a VM", repositoryUrl: "https://git.example/iac.git" })),
+    ).toBe("root_module_path");
+  });
+
   const filled = {
     query: "deploy a VM",
     repositoryUrl: "https://git.example/iac.git",
     rootModulePath: "environments/dev",
-    provider: "azure" as const,
-    scope: "sub-123",
   };
 
-  it("checks the root module's inputs last, as the probe needs everything else", () => {
+  it("goes straight from the root module to the inputs: no provider or scope step", () => {
     expect(nextStep(data(filled))).toBe("inputs");
   });
 
@@ -44,134 +46,33 @@ describe("nextStep — first missing input wins", () => {
   });
 });
 
-// What the mapper answers decides what the user is asked. A step is
-// skipped precisely because its slot is already filled — there is no
-// skip rule, only "first input still missing".
-describe("nextStep — the skip matrix after repository_url", () => {
+// A step is skipped precisely because its slot is already filled — there
+// is no skip rule, only "first input still missing".
+describe("nextStep — after repository_url", () => {
   const resolved = {
     query: "deploy a VM",
     repositoryUrl: "https://git.example/iac.git",
   };
 
-  const cases: Array<{
-    name: string;
-    paths: number;
-    provider: WizardData["provider"];
-    scope: string;
-    expected: ReturnType<typeof nextStep>;
-  }> = [
-    // Single root module path: the wizard fills rootModulePath itself, so what the
-    // mapper answered is all that is left to decide.
-    {
-      name: "single path, mapper answered neither",
-      paths: 1,
-      provider: "",
-      scope: "",
-      expected: "provider",
-    },
-    {
-      name: "single path, mapper answered provider only",
-      paths: 1,
-      provider: "azure",
-      scope: "",
-      expected: "scope",
-    },
-    {
-      name: "single path, mapper answered scope only",
-      paths: 1,
-      provider: "",
-      scope: "sub-123",
-      expected: "provider",
-    },
-    {
-      name: "single path, mapper answered both",
-      paths: 1,
-      provider: "azure",
-      scope: "sub-123",
-      expected: "inputs",
-    },
-    // Multi-path repos insert root_module_path first, whatever the mapper said.
-    {
-      name: "multi path, mapper answered neither",
-      paths: 2,
-      provider: "",
-      scope: "",
-      expected: "root_module_path",
-    },
-    {
-      name: "multi path, mapper answered provider only",
-      paths: 2,
-      provider: "azure",
-      scope: "",
-      expected: "root_module_path",
-    },
-    {
-      name: "multi path, mapper answered scope only",
-      paths: 2,
-      provider: "",
-      scope: "sub-123",
-      expected: "root_module_path",
-    },
-    {
-      name: "multi path, mapper answered both",
-      paths: 2,
-      provider: "azure",
-      scope: "sub-123",
-      expected: "root_module_path",
-    },
-  ];
+  it("a single root module (filled by the wizard) goes to the inputs", () => {
+    expect(nextStep(data({ ...resolved, rootModulePath: "environments/dev" }))).toBe("inputs");
+  });
 
-  it.each(cases)("$name → $expected", ({ paths, provider, scope, expected }) => {
-    expect(
-      nextStep(
-        data({
-          ...resolved,
-          rootModulePath: paths === 1 ? "environments/dev" : "",
-          provider,
-          scope: scope,
-        }),
-      ),
-    ).toBe(expected);
+  it("several root modules ask for the path first", () => {
+    expect(nextStep(data(resolved))).toBe("root_module_path");
   });
 });
 
-// Once the path is chosen, a multi-path repo behaves like a single-path
-// one: the remaining steps are exactly the slots the mapper left empty.
-describe("nextStep — after root_module_path is chosen", () => {
-  const chosen = {
-    query: "deploy a VM",
-    repositoryUrl: "https://git.example/iac.git",
-    rootModulePath: "environments/pro",
-  };
+describe("nextStep — never yields a removed step", () => {
+  const samples: WizardData[] = [
+    EMPTY,
+    data({ query: "q" }),
+    data({ query: "q", repositoryUrl: "r" }),
+    data({ query: "q", repositoryUrl: "r", rootModulePath: "p" }),
+    data({ query: "q", repositoryUrl: "r", rootModulePath: "p", inputsChecked: true }),
+  ];
 
-  it.each([
-    { provider: "" as const, scope: "", expected: "provider" },
-    { provider: "gcp" as const, scope: "", expected: "scope" },
-    { provider: "" as const, scope: "my-project", expected: "provider" },
-    { provider: "gcp" as const, scope: "my-project", expected: "inputs" },
-  ])(
-    "provider=$provider scope=$scope → $expected",
-    ({ provider, scope, expected }) => {
-      expect(
-        nextStep(data({ ...chosen, provider, scope: scope })),
-      ).toBe(expected);
-    },
-  );
-});
-
-// A scope without a provider must not skip the provider step: the scope
-// prompt is worded per provider, and the plan needs both.
-describe("nextStep — a scope alone never completes the wizard", () => {
-  it("still asks for the provider", () => {
-    expect(
-      nextStep(
-        data({
-          query: "deploy a VM",
-          repositoryUrl: "https://git.example/iac.git",
-          rootModulePath: "environments/dev",
-          scope: "ocid1.compartment.oc1..aaaa",
-        }),
-      ),
-    ).toBe("provider");
+  it.each(samples)("%#", (sample) => {
+    expect(["provider", "scope"]).not.toContain(nextStep(sample));
   });
 });

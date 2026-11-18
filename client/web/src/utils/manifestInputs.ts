@@ -5,6 +5,7 @@
 import { STRINGS } from "@/constants/strings";
 import type {
   ManifestAnswers,
+  ManifestMissingScope,
   ManifestProbeResponse,
   ManifestValue,
   ManifestVariable,
@@ -69,6 +70,27 @@ export interface InputsFormState {
   secret: Record<string, boolean>;
   /** Selected var files, in the order they were picked. */
   varFiles: string[];
+  /** Scope id typed per provider type name. */
+  scopes: Record<string, string>;
+}
+
+/** Providers the probe reported as needing a scope id (none from an older backend). */
+export function missingScopes(probe: ManifestProbeResponse): ManifestMissingScope[] {
+  return probe.missing_scopes ?? [];
+}
+
+/**
+ * Key of a provider's scope in the form's error map. Prefixed, as a
+ * variable could share the provider's name.
+ */
+export function scopeErrorKey(provider: string): string {
+  return `scope:${provider}`;
+}
+
+/** The trimmed scope id typed for `provider`, or null when there is none. */
+export function scopeValue(provider: string, state: InputsFormState): string | null {
+  const value = (state.scopes[provider] ?? "").trim();
+  return value ? value : null;
 }
 
 export function initialFormState(probe: ManifestProbeResponse): InputsFormState {
@@ -78,6 +100,7 @@ export function initialFormState(probe: ManifestProbeResponse): InputsFormState 
     secret: Object.fromEntries(probe.missing_variables.map((v) => [v.name, v.sensitive])),
     // The saved order matters: a later file wins.
     varFiles: [...probe.selected_var_files],
+    scopes: Object.fromEntries(missingScopes(probe).map((s) => [s.provider, ""])),
   };
 }
 
@@ -103,12 +126,21 @@ export type BuildResult =
   | { ok: true; answers: ManifestAnswers }
   | { ok: false; errors: Record<string, string> };
 
-/** The answers to send, or the per-variable errors to show. */
+/**
+ * The answers to send, or the errors to show: keyed by variable name, and
+ * by `scopeErrorKey(provider)` for scopes.
+ */
 export function buildAnswers(
   probe: ManifestProbeResponse,
   state: InputsFormState,
 ): BuildResult {
   const errors: Record<string, string> = {};
+  const scopes: Record<string, string> = {};
+  for (const { provider } of missingScopes(probe)) {
+    const value = scopeValue(provider, state);
+    if (value === null) errors[scopeErrorKey(provider)] = STRINGS.wizard.inputs.required;
+    else scopes[provider] = value;
+  }
   const variables: ManifestAnswers["variables"] = [];
   const setBy = setByVarFiles(probe, state);
   for (const variable of probe.missing_variables) {
@@ -136,6 +168,7 @@ export function buildAnswers(
       ...(probe.selectable_var_files.length > 0 || probe.missing_var_files.length > 0
         ? { var_files: state.varFiles }
         : {}),
+      ...(Object.keys(scopes).length > 0 ? { scopes } : {}),
     },
   };
 }

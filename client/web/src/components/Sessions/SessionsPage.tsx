@@ -38,9 +38,9 @@ import type {
   SessionSummary,
 } from "@/types/api";
 import { panelRoleAtLeast } from "@/types/api";
-import { providerLabel } from "@/constants/providers";
 import {
   StatusBadge,
+  ProviderList,
   SideSheet,
   SessionsTable,
   truncate,
@@ -87,11 +87,11 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     render: (s) => s.operation || "-",
   },
   {
-    key: "cloud",
-    header: "Cloud",
+    key: "providers",
+    header: "Providers",
     width: "12%",
     className: styles.secondaryCell,
-    render: (s) => providerLabel(s.provider),
+    render: (s) => <ProviderList providers={(s.providers ?? []).map((p) => p.name)} />,
   },
   {
     key: "status",
@@ -160,11 +160,11 @@ function buildAdminColumns(
       render: (s) => s.operation,
     },
     {
-      key: "cloud",
-      header: "Cloud",
+      key: "providers",
+      header: "Providers",
       width: "12%",
       className: styles.secondaryCell,
-      render: (s) => providerLabel(s.provider),
+      render: (s) => <ProviderList providers={(s.providers ?? []).map((p) => p.name)} />,
     },
     {
       key: "status",

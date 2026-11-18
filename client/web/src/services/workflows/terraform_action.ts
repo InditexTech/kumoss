@@ -22,11 +22,7 @@ import {
   importInfrastructure,
   applyInfrastructure,
 } from "@/services/core/iac_actions";
-import type {
-  IacSessionResponse,
-  ManifestAnswers,
-  TerraformProvider,
-} from "@/types/api";
+import type { IacSessionResponse, ManifestAnswers } from "@/types/api";
 import type { Mode } from "@/types/ui";
 import { MODE } from "@/types/ui";
 
@@ -37,10 +33,11 @@ export interface ModeActionParams {
   query: string;
   mode: Mode;
   repoUri?: string;
-  terraformProviders?: TerraformProvider;
-  scopeId?: string;
   rootModulePath?: string;
-  /** First call only: answers for the root module's missing inputs. */
+  /**
+   * First call only: answers for the root module's missing inputs,
+   * including the scope id of each provider that had none.
+   */
   manifest?: ManifestAnswers;
   sessionId?: string;
 }
@@ -87,8 +84,6 @@ export async function runTerraformActionWorkflow(
     : {
         repo_uri: params.repoUri,
         q: params.query,
-        terraform_providers: params.terraformProviders,
-        scope_id: params.scopeId,
         root_module_path: params.rootModulePath ?? null,
         ...(params.manifest ? { manifest: params.manifest } : {}),
       };

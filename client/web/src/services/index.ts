@@ -24,8 +24,6 @@ export {
   checkApplyAllowed,
 } from "./core/sessions";
 
-export { resolveProject } from "./mapper/mapper";
-
 export {
   getLocalItem,
   setLocalItem,

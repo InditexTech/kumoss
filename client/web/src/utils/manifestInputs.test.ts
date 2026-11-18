@@ -11,10 +11,12 @@ import {
   inputKind,
   isAnswered,
   parseInput,
+  scopeErrorKey,
   toggleVarFile,
   typeLabel,
 } from "./manifestInputs";
 import type { ManifestProbeResponse } from "@/types/api";
+import { STRINGS } from "@/constants/strings";
 
 const PROBE: ManifestProbeResponse = {
   status: "not_found",
@@ -32,6 +34,7 @@ const PROBE: ManifestProbeResponse = {
   selected_var_files: ["envs/pro.tfvars"],
   missing_var_files: [],
   provider_changes: [],
+  missing_scopes: [],
 };
 
 describe("inputKind", () => {
@@ -196,6 +199,65 @@ describe("buildAnswers", () => {
     state.values.enabled = false;
     const touched = buildAnswers(PROBE, state);
     expect(touched.ok && touched.answers.variables[touched.answers.variables.length - 1]).toEqual({ name: "enabled", value: false });
+  });
+});
+
+describe("buildAnswers — scopes", () => {
+  const SCOPED: ManifestProbeResponse = {
+    ...PROBE,
+    missing_variables: [],
+    selectable_var_files: [],
+    missing_scopes: [
+      { provider: "azurerm", source: "hashicorp/azurerm" },
+      { provider: "google", source: "hashicorp/google" },
+    ],
+  };
+
+  it("starts every asked scope empty", () => {
+    expect(initialFormState(SCOPED).scopes).toEqual({ azurerm: "", google: "" });
+  });
+
+  it("requires a non-blank scope per provider", () => {
+    const state = initialFormState(SCOPED);
+    state.scopes.azurerm = "   ";
+    const result = buildAnswers(SCOPED, state);
+    expect(result).toEqual({
+      ok: false,
+      errors: {
+        [scopeErrorKey("azurerm")]: STRINGS.wizard.inputs.required,
+        [scopeErrorKey("google")]: STRINGS.wizard.inputs.required,
+      },
+    });
+  });
+
+  it("sends the trimmed scopes keyed by provider", () => {
+    const state = initialFormState(SCOPED);
+    state.scopes = { azurerm: " sub-123 ", google: "my-project" };
+    expect(buildAnswers(SCOPED, state)).toEqual({
+      ok: true,
+      answers: { variables: [], scopes: { azurerm: "sub-123", google: "my-project" } },
+    });
+  });
+
+  it("keeps scope errors apart from a variable sharing the provider's name", () => {
+    const probe: ManifestProbeResponse = {
+      ...SCOPED,
+      missing_variables: [
+        { name: "azurerm", type: "string", description: "", required: true, sensitive: false },
+      ],
+      missing_scopes: [{ provider: "azurerm", source: "hashicorp/azurerm" }],
+    };
+    const result = buildAnswers(probe, initialFormState(probe));
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(Object.keys(result.errors).sort()).toEqual(["azurerm", "scope:azurerm"]);
+    }
+  });
+
+  it("sends no scopes when none were asked", () => {
+    const probe = { ...PROBE, missing_variables: [], selectable_var_files: [] };
+    const result = buildAnswers(probe, initialFormState(probe));
+    expect(result.ok && result.answers).not.toHaveProperty("scopes");
   });
 });
 
