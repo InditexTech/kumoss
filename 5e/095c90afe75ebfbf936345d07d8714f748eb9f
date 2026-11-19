@@ -1,0 +1,19 @@
+nginx/Dockerfile
+  s_c13e78bcf90ff7::t_fbf775ac145303 11-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "5e095c90afe75ebfbf936345d07d8714f748eb9f",
+  "prompts": {},
+  "sessions": {
+    "s_c13e78bcf90ff7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dd63ff96-281c-47ed-8963-7b798bbe2d58",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
