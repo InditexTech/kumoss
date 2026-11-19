@@ -70,8 +70,9 @@ your platform team configured.
    value out of the repository; a variable the code declares sensitive
    is always a secret.
 ** *Variable files*: the module's optional `.tfvars` files, if it has
-   any. Picked files are passed as `-var-file` in the order you pick
-   them, and a variable a picked file sets can be left empty.
+   any. Picked files apply in the order you pick them (a later file
+   wins), and a variable a picked file sets can be left empty; a value
+   you type wins over the files.
 +
 The answers are asked once per root module. Plain values and scopes are
 saved in a `kumoss.yaml` file the session commits next to the module;

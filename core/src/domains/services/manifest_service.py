@@ -45,13 +45,13 @@ from src.domains.value_objects.terraform_requirements import (
     TerraformRequirements,
     VariableSpec,
 )
-from src.shared.constants import SCOPED_PROVIDERS, ManifestStatus
+from src.shared.constants import SCOPE_BINDINGS, SCOPED_PROVIDERS, ManifestStatus
 
-# Input variables the IaC service fills from a provider's scope (the
-# ``TF_VAR_*`` entries of the IaC contract's "Scope injection"). Keep in sync.
+# Input variables each run fills from a provider's scope.
 _PLATFORM_VARIABLES: dict[str, frozenset[str]] = {
-    "oci": frozenset({"compartment_ocid"}),
-    "aws": frozenset({"aws_account_id"}),
+    provider: frozenset({binding.name})
+    for provider, binding in SCOPE_BINDINGS.items()
+    if binding.kind == "var"
 }
 
 # Called with a session's provider/scope pairs before anything is saved;

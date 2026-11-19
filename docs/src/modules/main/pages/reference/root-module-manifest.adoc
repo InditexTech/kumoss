@@ -27,7 +27,9 @@ files:
   top level, which Terraform loads on its own, and any other `.tfvars`
   or `.tfvars.json` file up to three directories below the module
   (`envs/dev.tfvars`), which are *optional*: the user may pick them,
-  and they are passed as `-var-file`. Subdirectories that are modules
+  and each run passes them as `-var-file` in the order picked, so
+  Terraform reads them itself, fresh on every command. Kumoss only
+  reads which variables a file sets. Subdirectories that are modules
   themselves, hidden directories and symlinks are skipped.
 
 A configuration with errors is reported as `422` rather than guessed
@@ -41,33 +43,35 @@ need one before a session can run:
 
 [cols="1,2,3",options="header"]
 |===
-|Provider |Scope |Injected by the IaC sidecar as
+|Provider |Scope |Sent to the IaC sidecar as
 
 |`azurerm`
 |subscription id
-|`ARM_SUBSCRIPTION_ID`
+|`ARM_SUBSCRIPTION_ID` in `env`
 
 |`google`
 |project id
-|`GOOGLE_PROJECT`
+|`GOOGLE_PROJECT` in `env`
 
 |`aws`
 |account id
-|`TF_VAR_aws_account_id`, plus an STS check that the sidecar's
-credentials belong to that account
+|`aws_account_id` in `vars`
 
 |`oci`
 |compartment OCID
-|`TF_VAR_compartment_ocid`
+|`compartment_ocid` in `vars`
 |===
 
 The user answers each scope once, in the inputs form; it is saved in
-the manifest and sent with every `init`, `plan`, `apply` and `import`
-the session runs. Because the sidecar fills `aws_account_id` and
-`compartment_ocid` from the scope, those two variables are never asked
-for. Every other provider has no scope and runs on whatever the IaC
-sidecar's ambient credentials and configuration select. See
-xref:main:reference/api/iac.adoc#scope-injection[Scope injection] and
+the manifest. The core turns it into the environment variable of every
+command the session runs, or into an input variable of every `plan` and
+`import`, sent last so no configured value overrides it. Because the
+core fills `aws_account_id` and `compartment_ocid` from the scope, those
+two variables are never asked for. Every other provider has no scope
+and runs on whatever the IaC sidecar's ambient credentials and
+configuration select. See
+xref:main:reference/api/iac.adoc#environment-and-input-variables[Environment
+and input variables] and
 xref:main:reference/terraform-providers.adoc[Terraform providers].
 
 == The manifest file
@@ -149,10 +153,12 @@ secret manager: confidentiality rests on the bucket's access policy and
 server-side encryption.
 
 |Values at run time
-|Sent to the IaC sidecar on `plan` and `import` as `var_files` and
-`variables`; the sidecar writes them to an owner-only temporary file
-outside the workspace for the duration of the command. See
-xref:main:reference/api/iac.adoc#input-variables[Input variables].
+|Sent to the IaC sidecar on `plan` and `import`: the picked var files
+as `var_files`, in the order picked, and the answers as `vars`, which
+win. The sidecar writes `vars` to an owner-only temporary file outside
+the workspace for the duration of the command. See
+xref:main:reference/api/iac.adoc#environment-and-input-variables[Environment
+and input variables].
 |===
 
 A variable declared `sensitive` in the code is always stored as a

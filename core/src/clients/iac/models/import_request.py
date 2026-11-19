@@ -12,8 +12,8 @@ from attrs import define as _attrs_define
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.provider_scope import ProviderScope
-    from ..models.variables import Variables
+    from ..models.env import Env
+    from ..models.vars_ import Vars
 
 
 T = TypeVar("T", bound="ImportRequest")
@@ -31,26 +31,27 @@ class ImportRequest:
             `azurerm_resource_group.main`.
         resource_id (str): Provider-specific identifier of the existing cloud resource,
             e.g. an Azure resource ID or an AWS ARN.
-        scopes (list[ProviderScope] | Unset): Scope of each provider the command should run against, at
-            most one entry per `provider` (a duplicate is rejected with
-            `422`). Optional; an empty list injects nothing. See "Scope
-            injection".
-        var_files (list[str] | Unset): Variable-definition files to pass as `-var-file`, in order.
-            Each is a path relative to `workspace_path` made of plain
-            segments (no `.`/`..`, no hidden segments, no leading `/`),
-            ending in `.tfvars` or `.tfvars.json`. See "Input variables".
-        variables (Variables | Unset): Input variable values by name, of any JSON type. Passed after
-            `var_files`, so they win over them. May contain secrets: never
-            logged, persisted, or written inside the workspace. See
-            "Input variables".
+        env (Env | Unset): Environment variables added to the command's environment. Names
+            the implementation's own environment already sets, and the
+            reserved names listed in "Environment and input variables"
+            (`TF_*` but `TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), are
+            rejected with `422`. May contain secrets.
+        var_files (list[str] | Unset): Variable-definition files to pass as `-var-file`, in order,
+            before `vars`. Each is a path relative to `workspace_path`;
+            absolute paths and `..` segments are rejected. See "Environment
+            and input variables".
+        vars_ (Vars | Unset): Input variable values by name, of any JSON type, passed as the
+            last `-var-file` so they win over every other source. May
+            contain secrets: never logged, persisted, or written inside the
+            workspace. See "Environment and input variables".
     """
 
     workspace_path: str
     address: str
     resource_id: str
-    scopes: list[ProviderScope] | Unset = UNSET
+    env: Env | Unset = UNSET
     var_files: list[str] | Unset = UNSET
-    variables: Variables | Unset = UNSET
+    vars_: Vars | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         workspace_path = self.workspace_path
@@ -59,20 +60,17 @@ class ImportRequest:
 
         resource_id = self.resource_id
 
-        scopes: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.scopes, Unset):
-            scopes = []
-            for scopes_item_data in self.scopes:
-                scopes_item = scopes_item_data.to_dict()
-                scopes.append(scopes_item)
+        env: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.env, Unset):
+            env = self.env.to_dict()
 
         var_files: list[str] | Unset = UNSET
         if not isinstance(self.var_files, Unset):
             var_files = self.var_files
 
-        variables: dict[str, Any] | Unset = UNSET
-        if not isinstance(self.variables, Unset):
-            variables = self.variables.to_dict()
+        vars_: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.vars_, Unset):
+            vars_ = self.vars_.to_dict()
 
         field_dict: dict[str, Any] = {}
 
@@ -83,19 +81,19 @@ class ImportRequest:
                 "resource_id": resource_id,
             }
         )
-        if scopes is not UNSET:
-            field_dict["scopes"] = scopes
+        if env is not UNSET:
+            field_dict["env"] = env
         if var_files is not UNSET:
             field_dict["var_files"] = var_files
-        if variables is not UNSET:
-            field_dict["variables"] = variables
+        if vars_ is not UNSET:
+            field_dict["vars"] = vars_
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.provider_scope import ProviderScope
-        from ..models.variables import Variables
+        from ..models.env import Env
+        from ..models.vars_ import Vars
 
         d = dict(src_dict)
         workspace_path = d.pop("workspace_path")
@@ -104,31 +102,29 @@ class ImportRequest:
 
         resource_id = d.pop("resource_id")
 
-        _scopes = d.pop("scopes", UNSET)
-        scopes: list[ProviderScope] | Unset = UNSET
-        if _scopes is not UNSET:
-            scopes = []
-            for scopes_item_data in _scopes:
-                scopes_item = ProviderScope.from_dict(scopes_item_data)
-
-                scopes.append(scopes_item)
+        _env = d.pop("env", UNSET)
+        env: Env | Unset
+        if isinstance(_env, Unset):
+            env = UNSET
+        else:
+            env = Env.from_dict(_env)
 
         var_files = cast(list[str], d.pop("var_files", UNSET))
 
-        _variables = d.pop("variables", UNSET)
-        variables: Variables | Unset
-        if isinstance(_variables, Unset):
-            variables = UNSET
+        _vars_ = d.pop("vars", UNSET)
+        vars_: Vars | Unset
+        if isinstance(_vars_, Unset):
+            vars_ = UNSET
         else:
-            variables = Variables.from_dict(_variables)
+            vars_ = Vars.from_dict(_vars_)
 
         import_request = cls(
             workspace_path=workspace_path,
             address=address,
             resource_id=resource_id,
-            scopes=scopes,
+            env=env,
             var_files=var_files,
-            variables=variables,
+            vars_=vars_,
         )
 
         return import_request

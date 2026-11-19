@@ -58,9 +58,9 @@ SESSION_PLAN_FILENAME = "session.plan"
 STATE_BUCKET = "kumoss-state"
 
 SCOPE_ID = "sub-uuid-1234"
-# The session's providers: only the ones with a scope id are sent.
+# The session's providers: only the ones with a scope id point the run.
 SCOPES = (ProviderScope("azurerm", SCOPE_ID), ProviderScope("random"))
-SENT_SCOPES = [{"provider": "azurerm", "scope_id": SCOPE_ID}]
+SENT_ENV = {"ARM_SUBSCRIPTION_ID": SCOPE_ID}
 
 WORKSPACE = Path("/workspaces/demo")
 
@@ -93,9 +93,14 @@ INIT_REQUIRED_STDERR = (
 )
 
 
-def _scopes(body) -> list[dict[str, str]]:
-    """The provider scopes a request body carries, as the wire sees them."""
-    return body.to_dict().get("scopes", [])
+def _env(body) -> dict[str, str]:
+    """The environment a request body carries, as the wire sees it."""
+    return body.to_dict().get("env", {})
+
+
+def _vars(body) -> dict[str, object]:
+    """The input variable values a request body carries, as the wire sees them."""
+    return body.to_dict().get("vars", {})
 
 
 def _ok(stdout: str = "", stderr: str = "") -> OperationResult:
@@ -273,13 +278,10 @@ class TestTerraformPlan(_TerraformTestCase):
         self.assertEqual(plan_body.plan_file, SESSION_PLAN_FILENAME)
         # The IaC contract restricts plan_file to a single path segment.
         self.assertRegex(plan_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
-        # Only the commands that reach a cloud API carry the scope.
-        for name in ("init", "plan"):
+        # Every command runs with the scope's environment.
+        for name in ("init", "validate", "plan"):
             body = submit_mocks[name].await_args.kwargs["body"]
-            self.assertEqual(_scopes(body), SENT_SCOPES, f"{name} body")
-        # validate reaches no cloud API: unscoped.
-        validate_body = submit_mocks["validate"].await_args.kwargs["body"]
-        self.assertNotIn("scopes", validate_body.to_dict())
+            self.assertEqual(_env(body), SENT_ENV, f"{name} body")
 
     async def test_a_module_without_scoped_providers_sends_no_scope(self):
         self._use_config()
@@ -295,17 +297,18 @@ class TestTerraformPlan(_TerraformTestCase):
 
         self.assertTrue(dto.ok)
         for name in ("init", "plan"):
-            body = submit_mocks[name].await_args.kwargs["body"]
-            self.assertEqual(_scopes(body), [], f"{name} body")
+            body = submit_mocks[name].await_args.kwargs["body"].to_dict()
+            self.assertNotIn("env", body, f"{name} body")
+            self.assertNotIn("vars", body, f"{name} body")
 
     async def test_without_inputs_the_plan_carries_no_variables(self):
         self._use_config()
         submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
         _ = await self.terraform.plan(targets=[])
         body = submit_mocks["plan"].await_args.kwargs["body"]
-        # Omitted rather than empty, so an IaC service on contract 1.0 accepts it.
+        # Omitted rather than empty.
         self.assertNotIn("var_files", body.to_dict())
-        self.assertNotIn("variables", body.to_dict())
+        self.assertNotIn("vars", body.to_dict())
 
     async def test_configured_inputs_ride_with_the_plan(self):
         self._use_config()
@@ -321,14 +324,34 @@ class TestTerraformPlan(_TerraformTestCase):
         )
         submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
         _ = await self.terraform.plan(targets=[])
-        body = submit_mocks["plan"].await_args.kwargs["body"].to_dict()
-        self.assertEqual(body["var_files"], ["envs/dev.tfvars"])
+        body = submit_mocks["plan"].await_args.kwargs["body"]
+        self.assertEqual(body.to_dict()["var_files"], ["envs/dev.tfvars"])
         self.assertEqual(
-            body["variables"], {"region": {"location": "westeurope"}, "pw": "s3cr3t"}
+            _vars(body), {"region": {"location": "westeurope"}, "pw": "s3cr3t"}
         )
         # validate evaluates no variables: it never receives them.
         validate_body = submit_mocks["validate"].await_args.kwargs["body"].to_dict()
-        self.assertNotIn("variables", validate_body)
+        self.assertNotIn("vars", validate_body)
+
+    async def test_a_scope_variable_wins_over_a_configured_value(self):
+        self._use_config()
+        terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scopes=(ProviderScope("aws", "123456789012"),),
+            backend=self.backend,
+            inputs=TerraformInputs(
+                values={"aws_account_id": "999999999999", "region": "eu-west-1"}
+            ),
+        )
+        submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
+        _ = await terraform.plan(targets=[])
+        body = submit_mocks["plan"].await_args.kwargs["body"]
+        self.assertEqual(
+            _vars(body), {"aws_account_id": "123456789012", "region": "eu-west-1"}
+        )
+        # An aws scope is an input variable, not an environment variable.
+        self.assertEqual(_env(body), {})
 
     async def test_the_revision_is_sampled_after_the_plan_job(self):
         self._use_config()
@@ -504,10 +527,9 @@ class TestTerraformOciScope(_TerraformTestCase):
 
         self.assertTrue(dto.ok)
         self.assertIsNotNone(dto.plan)
-        self.assertEqual(
-            _scopes(submit_mocks["plan"].await_args.kwargs["body"]),
-            [{"provider": "oci", "scope_id": OCI_SCOPE_ID}],
-        )
+        plan_body = submit_mocks["plan"].await_args.kwargs["body"]
+        self.assertEqual(_vars(plan_body), {"compartment_ocid": OCI_SCOPE_ID})
+        self.assertEqual(_env(plan_body), {})
         show_body = submit_mocks["show"].await_args.kwargs["body"]
         self.assertEqual(show_body.plan_file, SESSION_PLAN_FILENAME)
 
@@ -572,7 +594,7 @@ class TestTerraformOciScope(_TerraformTestCase):
         dto = await terraform.plan(targets=[])
 
         self.assertTrue(dto.ok)
-        self.assertEqual(_scopes(submit_mocks["plan"].await_args.kwargs["body"]), [])
+        self.assertEqual(_vars(submit_mocks["plan"].await_args.kwargs["body"]), {})
 
     async def test_the_compartment_is_checked_beside_other_scopes(self):
         self._use_config()
@@ -597,13 +619,9 @@ class TestTerraformOciScope(_TerraformTestCase):
         # Checked against the oci pair's compartment, not another scope.
         self.assertFalse(dto.ok)
         self.assertIn(f"compartment ({OCI_SCOPE_ID})", dto.feedback)
-        self.assertEqual(
-            _scopes(submit_mocks["plan"].await_args.kwargs["body"]),
-            [
-                {"provider": "azurerm", "scope_id": SCOPE_ID},
-                {"provider": "oci", "scope_id": OCI_SCOPE_ID},
-            ],
-        )
+        plan_body = submit_mocks["plan"].await_args.kwargs["body"]
+        self.assertEqual(_env(plan_body), {"ARM_SUBSCRIPTION_ID": SCOPE_ID})
+        self.assertEqual(_vars(plan_body), {"compartment_ocid": OCI_SCOPE_ID})
 
 
 class TestTerraformDrift(_TerraformTestCase):
@@ -869,7 +887,7 @@ class TestTerraformStateResourceIds(_ImportTestCase):
         state_body = submit_mocks["state"].await_args.kwargs["body"]
         self.assertEqual(state_body.workspace_path, "/workspaces/demo")
         init_body = submit_mocks["init"].await_args.kwargs["body"]
-        self.assertEqual(_scopes(init_body), SENT_SCOPES)
+        self.assertEqual(_env(init_body), SENT_ENV)
 
     async def test_init_failure_raises(self):
         self._use_config()
@@ -914,7 +932,7 @@ class TestTerraformScopeResourceIds(_ImportTestCase):
         self.assertIs(scope_body.provider, ScopeResourceIdsRequestProvider.GOOGLE)
         self.assertEqual(scope_body.to_dict()["provider"], "google")
         init_body = submit_mocks["init"].await_args.kwargs["body"]
-        self.assertEqual(_scopes(init_body), SENT_SCOPES)
+        self.assertEqual(_env(init_body), SENT_ENV)
 
     async def test_init_failure_raises(self):
         self._use_config()
@@ -966,7 +984,7 @@ class TestTerraformImportResource(_ImportTestCase):
         import_body = submit_mocks["import"].await_args.kwargs["body"]
         self.assertEqual(import_body.address, "azurerm_resource_group.main")
         self.assertEqual(import_body.resource_id, "/subscriptions/.../rg/main")
-        self.assertEqual(_scopes(import_body), SENT_SCOPES)
+        self.assertEqual(_env(import_body), SENT_ENV)
 
     async def test_import_failure_maps_to_ok_false(self):
         self._use_config()
@@ -1119,7 +1137,7 @@ class TestTerraformApply(_TerraformTestCase):
 
         apply_body = submit_mocks["apply"].await_args.kwargs["body"]
         self.assertEqual(apply_body.workspace_path, "/workspaces/demo")
-        self.assertEqual(_scopes(apply_body), SENT_SCOPES)
+        self.assertEqual(_env(apply_body), SENT_ENV)
         self.assertEqual(apply_body.plan_file, SESSION_PLAN_FILENAME)
         self.assertRegex(apply_body.plan_file, r"^[A-Za-z0-9._-]{1,128}$")
 

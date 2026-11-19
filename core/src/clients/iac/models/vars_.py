@@ -10,15 +10,15 @@ from typing import Any, Self, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-T = TypeVar("T", bound="Variables")
+T = TypeVar("T", bound="Vars")
 
 
 @_attrs_define
-class Variables:
-    """Input variable values by name, of any JSON type. Passed after
-    `var_files`, so they win over them. May contain secrets: never
-    logged, persisted, or written inside the workspace. See
-    "Input variables".
+class Vars:
+    """Input variable values by name, of any JSON type, passed as the
+    last `-var-file` so they win over every other source. May
+    contain secrets: never logged, persisted, or written inside the
+    workspace. See "Environment and input variables".
 
     """
 
@@ -34,10 +34,10 @@ class Variables:
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        variables = cls()
+        vars_ = cls()
 
-        variables.additional_properties = d
-        return variables
+        vars_.additional_properties = d
+        return vars_
 
     @property
     def additional_keys(self) -> list[str]:

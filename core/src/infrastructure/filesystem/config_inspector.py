@@ -16,7 +16,6 @@ that does not exist, so the directory is checked before running it.
 import asyncio
 import json
 import os
-import re
 import shutil
 from pathlib import Path
 from typing import Any, cast, final, override
@@ -40,11 +39,6 @@ _VAR_FILE_SUFFIXES = (".tfvars", ".tfvars.json")
 _MODULE_SUFFIXES = (".tf", ".tf.json")
 # Registry hosts a bare ``namespace/type`` source already implies.
 _DEFAULT_REGISTRIES = ("registry.terraform.io/", "registry.opentofu.org/")
-# Var file paths the IaC contract accepts (``VarFiles`` in iac.v1.yaml):
-# plain segments only. Others are never offered, as they could not be passed.
-_VAR_FILE_PATH = re.compile(
-    r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.tfvars(\.json)?$"
-)
 # How deep under the module to look for optional var files (``envs/dev.tfvars``).
 _MAX_VAR_FILE_DEPTH = 3
 
@@ -194,18 +188,40 @@ def _scan_var_files(directory: Path) -> tuple[VarFile, ...]:
             auto = depth == 0 and (
                 filename in _AUTO_VAR_FILES or filename.endswith(_AUTO_VAR_SUFFIXES)
             )
-            relative = path.relative_to(directory).as_posix()
-            if not auto and not _VAR_FILE_PATH.match(relative):
-                logging.warning("Not offering var file %s: unsupported path", relative)
-                continue
             found.append(
                 VarFile(
-                    path=relative,
+                    path=path.relative_to(directory).as_posix(),
                     auto=auto,
                     assigns=_assigned_names(path, auto),
                 )
             )
     return tuple(found)
+
+
+# Only the assigned names are read: Terraform reads the values itself.
+# No comments, so no metadata keys mix with the variable names.
+_NAMES_ONLY = hcl2.SerializationOptions(with_comments=False)
+
+
+def _read_assignments(path: Path) -> dict[str, Any]:
+    """The assignments of the variables file at ``path``, by variable name.
+
+    Names come back as written; values keep python-hcl2's spelling, which
+    is not Terraform's (strings stay quoted, expressions unevaluated).
+
+    Raises:
+        ValueError: When the file is not a set of assignments.
+        OSError: When it cannot be read.
+    """
+    text = path.read_text(encoding="utf-8")
+    data: Any
+    if path.name.endswith(".json"):
+        data = json.loads(text)
+    else:
+        data = hcl2.loads(text, serialization_options=_NAMES_ONLY)
+    if not isinstance(data, dict):
+        raise ValueError("the top level is not a set of assignments")
+    return cast(dict[str, Any], data)
 
 
 def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
@@ -216,14 +232,7 @@ def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
     as setting nothing, so it cannot block a module that does not use it.
     """
     try:
-        text = path.read_text(encoding="utf-8")
-        data: Any
-        if path.name.endswith(".json"):
-            data = json.loads(text)
-        else:
-            data = hcl2.loads(text)
-        if not isinstance(data, dict):
-            raise ValueError("the top level is not a set of assignments")
+        return frozenset(_read_assignments(path))
     except Exception as e:
         if auto:
             raise ConfigInspectionError(
@@ -231,6 +240,3 @@ def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
             ) from e
         logging.warning("Ignoring unreadable variables file %s: %s", path, e)
         return frozenset()
-    # python-hcl2 adds metadata keys such as ``__comments__``.
-    names = cast(dict[str, Any], data).keys()
-    return frozenset(k for k in names if not k.startswith("__"))

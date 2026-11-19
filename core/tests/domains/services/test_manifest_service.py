@@ -805,6 +805,28 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
         authorize.assert_not_awaited()
         self.assertIsNone(self.manifests.stored)
 
+    async def test_inputs_pass_the_picked_var_files_in_order(self):
+        self.inspector.requirements = requirements(
+            variables=(NAME,),
+            var_files=(
+                VarFile("envs/a.tfvars", False, frozenset({"name"})),
+                VarFile("envs/b.tfvars", False, frozenset({"name"})),
+                VarFile("envs/unpicked.tfvars", False, frozenset({"name"})),
+            ),
+        )
+        _ = await self.service.configure(
+            MODULE,
+            {"name": VariableAnswer("typed")},
+            var_files=["envs/b.tfvars", "envs/a.tfvars"],
+        )
+
+        inputs = await self.service.inputs(MODULE)
+
+        # Terraform reads the files itself, fresh on every command; the
+        # answers ride after them, so they win.
+        self.assertEqual(inputs.var_files, ("envs/b.tfvars", "envs/a.tfvars"))
+        self.assertEqual(inputs.values, {"name": "typed"})
+
     async def test_inputs_require_a_complete_configuration(self):
         self.assertEqual(await self.service.inputs(MODULE), TerraformInputs())
         _ = await self.configure()

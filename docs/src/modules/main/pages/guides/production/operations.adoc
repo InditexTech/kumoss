@@ -168,14 +168,16 @@ Upgrading Kumoss:
   the new seed. Before upgrading, add the `seed` tag in Phoenix to the
   version the seeder created (the prompt's first version) for every
   prompt you curated.
-. AWS deployments: the bundled iac service now checks, before every
-  AWS `init`, `plan`, `apply` and `import`, that its credentials belong
-  to the request's account, and refuses the command otherwise (see
-  xref:main:reference/api/iac.adoc[IaC service API]). Before upgrading,
-  set `AWS_REGION` (or `AWS_DEFAULT_REGION`) on the iac container, make
-  sure every AWS scope is its 12-digit account ID, and
-  run one iac deployment per AWS account: commands for any other
-  account now fail instead of running in the credentials' own account.
+. AWS deployments: the account is enforced by the provider, not by the
+  iac service. Generated code passes `aws_account_id`, which the core
+  sends as the AWS scope, to the provider's `allowed_account_ids`, so a
+  command whose credentials belong to another account fails (see
+  xref:main:reference/api/iac.adoc#environment-and-input-variables[IaC
+  service API]). Existing modules with a bare `provider "aws" {}` are
+  not protected: they run in whatever account the iac service's
+  credentials belong to. Add `allowed_account_ids = [var.aws_account_id]`
+  (and declare the variable) to them, or run one iac deployment per AWS
+  account. Make sure every AWS scope is its 12-digit account ID.
 . Generated code changes shape (see
   xref:main:reference/terraform-providers.adoc[Terraform providers]):
 ** New workspaces get newer provider majors (for example

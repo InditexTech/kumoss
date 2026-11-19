@@ -29,17 +29,19 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 ``exit_code`` is a terraform-level failure reported through the
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
-at the workspace path, which must be visible to the service. ``init``,
-``plan``, ``apply`` and ``import`` reach a cloud API, so they carry the
-session's provider scopes (subscription / project / account /
-compartment, one per scoped provider of the root module): generated
-provider blocks do not name a scope, so the service injects each into
-the engine's environment (azurerm and google as provider settings, oci
-and aws as the input variables the generated code declares).
-``validate`` and ``show`` reach no cloud API and are submitted
-unscoped. An OCI compartment is a resource argument, so when the module
-uses ``oci`` a ``plan`` is followed by a ``show`` of its artifact, and a
-plan that creates resources in another compartment fails validation.
+at the workspace path, which must be visible to the service. The
+service attaches no meaning to providers, so this adapter points every
+command at the session's provider scopes itself (subscription / project
+/ account / compartment, one per scoped provider of the root module):
+each scope becomes the environment variable or input variable its
+provider reads (``SCOPE_BINDINGS``). The environment goes with every
+command; ``plan`` and ``import``, the commands that evaluate input
+variables, also get the picked var files (read by Terraform itself)
+and the root module's configured values, the scope variables last so
+no configured value can retarget them. An OCI compartment is a
+resource argument, so when the module uses ``oci`` a ``plan`` is
+followed by a ``show`` of its artifact, and a plan that creates
+resources in another compartment fails validation.
 
 Import discovery follows the same planes: a ``state pull`` that exits
 non-zero leaves the managed set unknown, so it is raised, while a
@@ -83,7 +85,6 @@ from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.plan_request import PlanRequest
 from src.clients.iac.models.problem import Problem
 from src.clients.iac.models.show_request import ShowRequest
-from src.clients.iac.models.provider_scope import ProviderScope as IacProviderScope
 from src.clients.iac.models.scope_resource_ids_request_provider import (
     ScopeResourceIdsRequestProvider,
 )
@@ -91,8 +92,9 @@ from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRequest
 from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
 from src.clients.iac.models.import_request import ImportRequest
-from src.clients.iac.models.variables import Variables
-from src.clients.iac.types import UNSET
+from src.clients.iac.models.env import Env
+from src.clients.iac.models.vars_ import Vars
+from src.clients.iac.types import UNSET, Unset
 from src.domains.dto import (
     TerraformApplyDTO,
     TerraformDiscoveryDTO,
@@ -105,6 +107,7 @@ from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
 from src.domains.value_objects import PlanRef, ProviderScope, TerraformInputs
 from src.shared.config import system_config
+from src.shared.constants import SCOPE_BINDINGS
 from src.shared.config.system_config import IacServiceConfig
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
@@ -135,14 +138,22 @@ class Terraform(ITerraform):
     ):
         """``inputs`` are the root module's configured variables, passed to
         the commands that evaluate them (``plan``, ``import``). ``scopes`` are
-        the session's providers; those with a scope id are sent with every
-        command that reaches a cloud API."""
+        the session's providers; those with a scope id point every command
+        at it (see ``SCOPE_BINDINGS``)."""
         self.__workspace_path = workspace_path
         self.__inputs = inputs
         self.__git = git
-        self.__scopes = tuple(p for p in scopes if p.scope_id)
+        scoped = [
+            (SCOPE_BINDINGS[p.provider], p.scope_id)
+            for p in scopes
+            if p.scope_id and p.provider in SCOPE_BINDINGS
+        ]
+        self.__env = {b.name: scope_id for b, scope_id in scoped if b.kind == "env"}
+        self.__scope_vars = {
+            b.name: scope_id for b, scope_id in scoped if b.kind == "var"
+        }
         self.__oci_compartment = next(
-            (p.scope_id for p in self.__scopes if p.provider == "oci"), None
+            (p.scope_id for p in scopes if p.provider == "oci" and p.scope_id), None
         )
         self.__backend = backend
         self.__initialized = False
@@ -173,6 +184,7 @@ class Terraform(ITerraform):
                     validate_op,
                     ValidateRequest(
                         workspace_path=self.__workspace_path.as_posix(),
+                        env=self.__env_field(),
                     ),
                     cfg,
                 )
@@ -190,10 +202,11 @@ class Terraform(ITerraform):
                     plan_op,
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
-                        scopes=self.__scope_fields(),
+                        env=self.__env_field(),
+                        var_files=self.__var_files_field(),
+                        vars_=self.__vars_field(),
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
-                        **self.__input_fields(),
                     ),
                     cfg,
                 )
@@ -287,6 +300,7 @@ class Terraform(ITerraform):
                     show_op,
                     ShowRequest(
                         workspace_path=plan.workspace.as_posix(),
+                        env=self.__env_field(),
                         plan_file=plan.plan_file,
                     ),
                     cfg,
@@ -337,7 +351,7 @@ class Terraform(ITerraform):
                     apply_op,
                     ApplyRequest(
                         workspace_path=str(self.__workspace_path),
-                        scopes=self.__scope_fields(),
+                        env=self.__env_field(),
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -379,7 +393,7 @@ class Terraform(ITerraform):
             init_op,
             InitRequest(
                 workspace_path=str(self.__workspace_path),
-                scopes=self.__scope_fields(),
+                env=self.__env_field(),
             ),
             cfg,
         )
@@ -430,6 +444,7 @@ class Terraform(ITerraform):
             show_op,
             ShowRequest(
                 workspace_path=self.__workspace_path.as_posix(),
+                env=self.__env_field(),
                 plan_file=system_config.paths.session_plan_filename,
             ),
             cfg,
@@ -587,10 +602,11 @@ class Terraform(ITerraform):
                     import_op,
                     ImportRequest(
                         workspace_path=workspace,
-                        scopes=self.__scope_fields(),
+                        env=self.__env_field(),
+                        var_files=self.__var_files_field(),
+                        vars_=self.__vars_field(),
                         address=address,
                         resource_id=resource_id,
-                        **self.__input_fields(),
                     ),
                     cfg,
                 )
@@ -611,23 +627,24 @@ class Terraform(ITerraform):
         except httpx.RequestError as e:
             raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
 
-    def __scope_fields(self) -> list[IacProviderScope]:
-        return [
-            IacProviderScope(provider=p.provider, scope_id=p.scope_id or "")
-            for p in self.__scopes
-        ]
+    def __env_field(self) -> Env | Unset:
+        """The scope environment variables; unset when there are none."""
+        return Env.from_dict(self.__env) if self.__env else UNSET
 
-    def __input_fields(self) -> dict[str, Any]:
-        """``var_files``/``variables`` request fields; empty when there are none,
-        so requests to an IaC service older than contract 1.1 stay valid."""
-        fields: dict[str, Any] = {}
-        if self.__inputs is None:
-            return fields
-        if self.__inputs.var_files:
-            fields["var_files"] = list(self.__inputs.var_files)
-        if self.__inputs.values:
-            fields["variables"] = Variables.from_dict(self.__inputs.values)
-        return fields
+    def __var_files_field(self) -> list[str] | Unset:
+        """The picked var files, in order; unset when there are none."""
+        if self.__inputs is None or not self.__inputs.var_files:
+            return UNSET
+        return list(self.__inputs.var_files)
+
+    def __vars_field(self) -> Vars | Unset:
+        """The configured values, then the scope variables so they win; unset
+        when there are none."""
+        values: dict[str, Any] = {
+            **(self.__inputs.values if self.__inputs else {}),
+            **self.__scope_vars,
+        }
+        return Vars.from_dict(values) if values else UNSET
 
     async def __run_op(
         self,

@@ -99,9 +99,11 @@ class VariableAnswer:
 class TerraformInputs:
     """Value object: what a Terraform run of a configured root module is given.
 
-    ``var_files`` go first, as ``-var-file`` in order; ``values`` are
-    written to one ``.tfvars.json`` passed after them, so they win.
-    ``values`` include secrets: never log or persist this object.
+    ``var_files`` go first, as ``-var-file`` in order, read by Terraform
+    itself on every command; ``values`` follow as one more variables
+    file, so they win. Files Terraform loads on its own still apply
+    underneath. ``values`` include secrets: never log or persist this
+    object.
     """
 
     var_files: tuple[str, ...] = ()

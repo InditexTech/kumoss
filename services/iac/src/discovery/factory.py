@@ -35,19 +35,6 @@ class ScopeDiscovery:
                 return None
             return unique(await lister.list_resource_ids(scope_id))
 
-    async def verify_scope(self, provider: str, scope_id: str) -> None:
-        """Raise DiscoveryError when the ambient credentials cannot serve
-        ``scope_id`` for ``provider``; callers apply it to every pair.
-
-        Only ``aws`` is checked: its account comes from the credentials,
-        while ``azurerm``, ``google`` and ``oci`` commands are pointed at
-        ``scope_id`` by the variable the engine injects, and any other
-        provider names its scope in the code or runs on ambient
-        credentials.
-        """
-        if provider == "aws":
-            await AwsScopeLister(self._environ).verify_account(scope_id)
-
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=httpx.Timeout(self._TIMEOUT))
 

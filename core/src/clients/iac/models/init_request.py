@@ -12,7 +12,7 @@ from attrs import define as _attrs_define
 from ..types import UNSET, Unset
 
 if TYPE_CHECKING:
-    from ..models.provider_scope import ProviderScope
+    from ..models.env import Env
 
 
 T = TypeVar("T", bound="InitRequest")
@@ -26,24 +26,22 @@ class InitRequest:
             to the implementation. For the OSS docker-compose deployment,
             this is a path on the shared volume mounted into both the
             core and the IaC service.
-        scopes (list[ProviderScope] | Unset): Scope of each provider the command should run against, at
-            most one entry per `provider` (a duplicate is rejected with
-            `422`). Optional; an empty list injects nothing. See "Scope
-            injection".
+        env (Env | Unset): Environment variables added to the command's environment. Names
+            the implementation's own environment already sets, and the
+            reserved names listed in "Environment and input variables"
+            (`TF_*` but `TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), are
+            rejected with `422`. May contain secrets.
     """
 
     workspace_path: str
-    scopes: list[ProviderScope] | Unset = UNSET
+    env: Env | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
         workspace_path = self.workspace_path
 
-        scopes: list[dict[str, Any]] | Unset = UNSET
-        if not isinstance(self.scopes, Unset):
-            scopes = []
-            for scopes_item_data in self.scopes:
-                scopes_item = scopes_item_data.to_dict()
-                scopes.append(scopes_item)
+        env: dict[str, Any] | Unset = UNSET
+        if not isinstance(self.env, Unset):
+            env = self.env.to_dict()
 
         field_dict: dict[str, Any] = {}
 
@@ -52,30 +50,28 @@ class InitRequest:
                 "workspace_path": workspace_path,
             }
         )
-        if scopes is not UNSET:
-            field_dict["scopes"] = scopes
+        if env is not UNSET:
+            field_dict["env"] = env
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
-        from ..models.provider_scope import ProviderScope
+        from ..models.env import Env
 
         d = dict(src_dict)
         workspace_path = d.pop("workspace_path")
 
-        _scopes = d.pop("scopes", UNSET)
-        scopes: list[ProviderScope] | Unset = UNSET
-        if _scopes is not UNSET:
-            scopes = []
-            for scopes_item_data in _scopes:
-                scopes_item = ProviderScope.from_dict(scopes_item_data)
-
-                scopes.append(scopes_item)
+        _env = d.pop("env", UNSET)
+        env: Env | Unset
+        if isinstance(_env, Unset):
+            env = UNSET
+        else:
+            env = Env.from_dict(_env)
 
         init_request = cls(
             workspace_path=workspace_path,
-            scopes=scopes,
+            env=env,
         )
 
         return init_request

@@ -14,18 +14,17 @@ errors (auth, malformed body, missing workspace) are still reported
 synchronously on the POST; everything after submission surfaces
 through the job.
 
-``init``, ``plan`` and ``apply`` run scoped to the request's
-``scopes``: each (provider, scope_id) pair is injected into the
-engine's environment under the variable its provider selects, if any.
-``validate`` and ``show`` take no scope, so their bodies declare no
-``scopes`` and reject one.
+Every command endpoint takes ``env``, added to the engine's environment
+for that command (never replacing a variable the service already has,
+see ``check_env``), and ``plan`` and ``import`` take ``var_files``,
+passed as ``-var-file`` in order, and ``vars``, passed as the last one. Which scope a command runs against is whatever
+the caller put in them: the service knows nothing about providers.
 
 ``init`` always reconfigures the backend, and passes
 ``IAC_BACKEND_CONFIG`` to ``-backend-config`` when the deployment sets
 one; the backend itself comes from the workspace's own configuration,
 which the caller is free to have written an override for.
 
-``import`` is scoped the same way as ``plan`` and ``apply``.
 ``/v1/import/state-resource-ids`` runs ``state pull`` and answers a
 JSON array of the resource IDs the state tracks.
 ``/v1/import/scope-resource-ids`` is the one endpoint that runs no
@@ -38,7 +37,8 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Awaitable, Callable, Iterable, Mapping
+import re
+from collections.abc import Awaitable, Callable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -52,22 +52,21 @@ from fastapi.security import HTTPAuthorizationCredentials
 from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
 from .discovery import ScopeDiscovery
-from .engine import CommandResult, IacEngine, RunInputs
+from .engine import CommandResult, IacEngine
 from .exceptions import DiscoveryError, StateReadError
 from .jobs import JobRegistry, Pipeline, WorkspaceQueue
 from .models import (
     ApplyRequest,
     Health,
     ImportRequest,
+    CommandRequest,
     InitRequest,
-    InputsRequest,
     Job,
     JobAccepted,
     JobKind,
     OperationResult,
     PlanRequest,
     Problem,
-    ProviderScope,
     ScopeResourceIdsRequest,
     ShowRequest,
     StateResourceIdsRequest,
@@ -239,24 +238,34 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
 
 
-def _inputs(body: InputsRequest) -> RunInputs:
-    return RunInputs(var_files=tuple(body.var_files), variables=body.variables)
+# Variables that change the command or the process rather than add to its
+# environment: the engine's own settings (every ``TF_*`` and ``TOFU_*`` but
+# input variables), code loading, and where the process connects through.
+_RESERVED_ENV = re.compile(
+    r"^(TF_(?!VAR_).*|TOFU_.*|TERRAFORM_CONFIG|LD_.*|DYLD_.*|BASH_ENV|ENV"
+    r"|GODEBUG|SSL_CERT_(FILE|DIR))$"
+    r"|^(?i:(HTTPS?|ALL|NO)_PROXY)$"
+)
 
 
-async def _scoped(
-    discovery: ScopeDiscovery,
-    scopes: Iterable[ProviderScope],
-    command: Callable[[], Awaitable[CommandResult]],
-) -> CommandResult:
-    """Run ``command`` only when the ambient credentials can serve every
-    pair in ``scopes``; otherwise end it as a failed command, the same
-    plane as an engine failure, without starting the engine."""
-    try:
-        for scope in scopes:
-            await discovery.verify_scope(scope.provider, scope.scope_id)
-    except DiscoveryError as exc:
-        return CommandResult(ok=False, stdout="", stderr=str(exc), exit_code=1)
-    return await command()
+def check_env(body: CommandRequest) -> Mapping[str, str]:
+    """The request's ``env``, once it is known to replace nothing.
+
+    A request adds to the service's environment and never overrides it:
+    a name the service already sets (its credentials, ``PATH``) could
+    swap the identity a command runs as, and the reserved ones would
+    change the command line. Either is a 422 at submission.
+    """
+    clashing = sorted(
+        name for name in body.env if name in os.environ or _RESERVED_ENV.match(name)
+    )
+    if clashing:
+        raise HTTPException(
+            status_code=422,
+            detail="env cannot set variables the service reserves or already sets: "
+            + ", ".join(clashing),
+        )
+    return body.env
 
 
 async def _scope_resource_ids(
@@ -286,20 +295,10 @@ async def init(
     body: InitRequest,
     workspace: Workspace,
     engine: Engine,
-    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.scopes)
-    return _submit(
-        "init",
-        workspace,
-        response,
-        lambda: _scoped(
-            discovery,
-            body.scopes,
-            lambda: engine.init(workspace, env),
-        ),
-    )
+    env = check_env(body)
+    return _submit("init", workspace, response, lambda: engine.init(workspace, env))
 
 
 @app.post(
@@ -310,16 +309,14 @@ async def init(
     dependencies=[Authenticated],
 )
 async def validate(
-    body: ValidateRequest,  # pyright: ignore[reportUnusedParameter]
+    body: ValidateRequest,
     workspace: Workspace,
     engine: Engine,
     response: Response,
 ) -> JobAccepted:
+    env = check_env(body)
     return _submit(
-        "validate",
-        workspace,
-        response,
-        lambda: engine.validate(workspace),
+        "validate", workspace, response, lambda: engine.validate(workspace, env)
     )
 
 
@@ -334,20 +331,15 @@ async def plan(
     body: PlanRequest,
     workspace: Workspace,
     engine: Engine,
-    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.scopes)
+    env = check_env(body)
     return _submit(
         "plan",
         workspace,
         response,
-        lambda: _scoped(
-            discovery,
-            body.scopes,
-            lambda: engine.plan(
-                workspace, body.targets, body.plan_file, env, _inputs(body)
-            ),
+        lambda: engine.plan(
+            workspace, body.targets, body.plan_file, env, body.var_files, body.vars
         ),
     )
 
@@ -365,11 +357,12 @@ async def show(
     engine: Engine,
     response: Response,
 ) -> JobAccepted:
+    env = check_env(body)
     return _submit(
         "show",
         workspace,
         response,
-        lambda: engine.show_plan_json(workspace, body.plan_file),
+        lambda: engine.show_plan_json(workspace, body.plan_file, env),
     )
 
 
@@ -384,19 +377,14 @@ async def apply(
     body: ApplyRequest,
     workspace: Workspace,
     engine: Engine,
-    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.scopes)
+    env = check_env(body)
     return _submit(
         "apply",
         workspace,
         response,
-        lambda: _scoped(
-            discovery,
-            body.scopes,
-            lambda: engine.apply(workspace, body.plan_file, env),
-        ),
+        lambda: engine.apply(workspace, body.plan_file, env),
     )
 
 
@@ -411,20 +399,15 @@ async def import_resource(
     body: ImportRequest,
     workspace: Workspace,
     engine: Engine,
-    discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.scopes)
+    env = check_env(body)
     return _submit(
         "import",
         workspace,
         response,
-        lambda: _scoped(
-            discovery,
-            body.scopes,
-            lambda: engine.import_resource(
-                workspace, body.address, body.resource_id, env, _inputs(body)
-            ),
+        lambda: engine.import_resource(
+            workspace, body.address, body.resource_id, env, body.var_files, body.vars
         ),
     )
 

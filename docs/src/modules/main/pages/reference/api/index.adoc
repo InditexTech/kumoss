@@ -32,8 +32,8 @@ requires and the shape it returns.
 [card]
 .xref:main:reference/api/iac.adoc[IaC sidecar API]
 The mandatory sidecar: one IaC engine command per asynchronous job,
-polled by the core. Scope injection, import discovery, and state
-backends.
+polled by the core. Environment and input variables, import discovery,
+and state backends.
 
 [card]
 .xref:main:reference/api/notifications.adoc[Notifications sidecar API]

@@ -85,21 +85,3 @@ def test_a_provider_without_a_lister_has_no_resource_ids() -> None:
     provider, which is a different answer from an empty scope."""
     assert resource_ids_for("oci", None) is None
     assert resource_ids_for("azurerm", FakeLister([])) == []
-
-
-@pytest.mark.parametrize(
-    "provider", ["azurerm", "google", "oci", "kubernetes", "vsphere", "random"]
-)
-def test_only_aws_scopes_are_verified(provider: str) -> None:
-    """azurerm, google and oci commands are pointed at scope_id by an injected
-    variable, and Kubernetes and vSphere name theirs in the code; only an
-    AWS account comes from the credentials, so only AWS is checked."""
-    with patch.object(AwsScopeLister, "verify_account") as verify_mock:
-        asyncio.run(ScopeDiscovery({}).verify_scope(provider, "s-1"))
-    verify_mock.assert_not_called()
-
-
-def test_an_aws_scope_is_verified_against_the_credentials() -> None:
-    with patch.object(AwsScopeLister, "verify_account") as verify_mock:
-        asyncio.run(ScopeDiscovery({}).verify_scope("aws", "123456789012"))
-    verify_mock.assert_awaited_once_with("123456789012")

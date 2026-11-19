@@ -153,11 +153,25 @@ class TestScanVarFiles(unittest.TestCase):
         self.assertFalse(files["envs/sub.auto.tfvars"].auto)
         self.assertEqual(files["envs/dev.tfvars"].assigns, frozenset({"dev"}))
 
-    def test_paths_the_iac_contract_rejects_are_not_offered(self):
+    def test_any_file_name_is_offered(self):
+        # The core reads picked files itself, so no path shape is excluded.
         self.put("envs/my env.tfvars", "a = 1")
         self.put("envs/ok.tfvars", "a = 1")
         self.assertEqual(
-            [f.path for f in _scan_var_files(self.dir)], ["envs/ok.tfvars"]
+            [f.path for f in _scan_var_files(self.dir)],
+            ["envs/my env.tfvars", "envs/ok.tfvars"],
+        )
+
+    def test_names_starting_with_underscores_are_kept(self):
+        self.put("terraform.tfvars", "__size = 4\n# a comment\n")
+        self.put("envs/x.tfvars.json", '{"__region": "weu"}')
+        files = {f.path: f.assigns for f in _scan_var_files(self.dir)}
+        self.assertEqual(
+            files,
+            {
+                "terraform.tfvars": frozenset({"__size"}),
+                "envs/x.tfvars.json": frozenset({"__region"}),
+            },
         )
 
     def test_unreadable_optional_file_is_ignored(self):
