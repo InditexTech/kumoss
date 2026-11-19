@@ -16,7 +16,7 @@ SPDX-License-Identifier: Apache-2.0
 | AKS workload identity | `ARM_USE_AKS_WORKLOAD_IDENTITY=true`, `ARM_CLIENT_ID`, `ARM_TENANT_ID` |
 | Local dev (`az login`) | none |
 
-No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it mandatory: `init`, `plan`, `apply` and `import` carry the `azurerm` pair in `scopes`, and the service injects its `scope_id` as `ARM_SUBSCRIPTION_ID` into the engine subprocess for that one command, overriding whatever the container has. Set the credential variables in each row and leave the subscription to the request. See "Scope injection" in `README.md`.
+No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it mandatory: the Kumoss core sends it in each command's `env`, and the service adds it to the engine subprocess for that one command. A request may not replace a variable the container already sets, so leave it unset there: with it set, every request carrying it is rejected with `422`. Set the credential variables in each row and leave the subscription to the request. See "Environment and input variables" in `README.md`.
 
 OIDC rows leave out `ARM_OIDC_REQUEST_URL`/`_TOKEN` because the CI runner injects them.
 
@@ -36,7 +36,7 @@ Import discovery (`/v1/import/scope-resource-ids`) reads the *credential* variab
 | ECS task role | `AWS_REGION` only |
 | LocalStack | `AWS_ACCESS_KEY_ID=test`, `AWS_SECRET_ACCESS_KEY=test`, `AWS_REGION`, `AWS_ENDPOINT_URL` |
 
-`AWS_REGION` is the only universal requirement. Do not set `TF_VAR_aws_account_id`: no environment variable redirects the provider to an account, so the service injects the `aws` pair's `scope_id` as `TF_VAR_aws_account_id` for `init`, `plan`, `apply` and `import`, and the generated code passes it to the provider's `allowed_account_ids`. The service also checks the account first: those four commands call STS `GetCallerIdentity` and end with exit code 1, without starting the engine, when the container's credentials belong to another account. One deployment serves one AWS account; for LocalStack the `aws` `scope_id` is `000000000000` (`README.md`, "Scope injection").
+`AWS_REGION` is the only universal requirement. Do not set `TF_VAR_aws_account_id`: no environment variable redirects the provider to an account, so the Kumoss core sends the account as the `aws_account_id` input variable in the `vars` of `plan` and `import`, and the generated code passes it to the provider's `allowed_account_ids`, which makes the provider refuse to run in any other account. The service itself checks nothing before a command runs. One deployment serves the one AWS account its credentials belong to; for LocalStack the account is `000000000000` (`README.md`, "Environment and input variables").
 
 Import discovery additionally requires AWS Resource Explorer to be enabled for the account, with an aggregator index and a default view. Every row above works for it except LocalStack, which has no Resource Explorer to query, since boto3's default chain resolves the same credentials the provider does. Two details are discovery's alone: it reads the region from `AWS_REGION`/`AWS_DEFAULT_REGION` only, so the region a profile names does not satisfy it, and it does not select the account either — it calls STS and fails if the resolved account is not the requested `scope_id`. See "Import discovery" in `README.md`.
 
@@ -53,7 +53,7 @@ Import discovery additionally requires AWS Resource Explorer to be enabled for t
 
 `GOOGLE_REGION`/`GOOGLE_ZONE` are optional but leaving them out forces explicit `region`/`zone` on many resources.
 
-No row carries `GOOGLE_PROJECT` either, for the same reason as `ARM_SUBSCRIPTION_ID` above: the service injects the `google` pair's `scope_id` under that name for `init`, `plan`, `apply` and `import`. It sets `GOOGLE_PROJECT` specifically, which outranks the `GOOGLE_CLOUD_PROJECT`/`GCLOUD_PROJECT`/`CLOUDSDK_CORE_PROJECT` aliases (`FULL_PROVIDERS.md`), so an ambient alias cannot quietly win. Set the credential variables in each row and leave the project to the request.
+No row carries `GOOGLE_PROJECT` either, for the same reason as `ARM_SUBSCRIPTION_ID` above: the Kumoss core sends the project under that name in each command's `env`. It sets `GOOGLE_PROJECT` specifically, which outranks the `GOOGLE_CLOUD_PROJECT`/`GCLOUD_PROJECT`/`CLOUDSDK_CORE_PROJECT` aliases (`FULL_PROVIDERS.md`), so an ambient alias cannot quietly win. Set the credential variables in each row and leave the project to the request.
 
 Import discovery reads the *credential* variables through `google-auth`, including `GOOGLE_OAUTH_ACCESS_TOKEN` and `GOOGLE_IMPERSONATE_SERVICE_ACCOUNT`, and falls back to application-default credentials exactly as the provider does — so the `gcloud auth application-default login` row works for it too. The project it lists is the request's `scope_id`; the project that application-default credentials name is deliberately discarded. It needs `cloudasset.googleapis.com` and `cloudresourcemanager.googleapis.com` enabled on that project.
 
@@ -67,7 +67,7 @@ Import discovery reads the *credential* variables through `google-auth`, includi
 | Resource principal (Functions) | `TF_VAR_auth=ResourcePrincipal` — `OCI_RESOURCE_PRINCIPAL_*` injected by runtime |
 | OKE workload identity | `TF_VAR_auth=OkeWorkloadIdentity`, `TF_VAR_region` |
 
-Do not set `TF_VAR_compartment_ocid`: `init`, `plan`, `apply` and `import` carry the `oci` pair in `scopes`, whose `scope_id` is the compartment OCID, and the service injects it as `TF_VAR_compartment_ocid` for that one command, overriding whatever the container has. It is not a provider setting; it fills the `compartment_ocid` input variable the generated code declares. `TF_VAR_tenancy_ocid` stays in the container: it belongs to the credential (API-key auth requires it), and one deployment serves one tenancy. The generated code reads it for root-compartment resources and for the home-region lookup behind every identity write (compartments, policies, dynamic groups, groups, tag namespaces), so set it for the other auth rows too when requests touch identity resources. See "Scope injection" in `README.md`.
+Do not set `TF_VAR_compartment_ocid`: the Kumoss core sends the compartment OCID as the `compartment_ocid` input variable in the `vars` of `plan` and `import`, which outrank any `TF_VAR_*`. It is not a provider setting; it fills the `compartment_ocid` input variable the generated code declares. `TF_VAR_tenancy_ocid` stays in the container: it belongs to the credential (API-key auth requires it), and one deployment serves one tenancy. The generated code reads it for root-compartment resources and for the home-region lookup behind every identity write (compartments, policies, dynamic groups, groups, tag namespaces), so set it for the other auth rows too when requests touch identity resources. See "Environment and input variables" in `README.md`.
 
 ## VMware vSphere — provider minimum
 
@@ -80,7 +80,7 @@ Variable names are the `vmware/vsphere` provider's own (formerly `hashicorp/vsph
 
 Leave `VSPHERE_ALLOW_UNVERIFIED_SSL` unset anywhere else. Use a dedicated vCenter service account in an SSO group, holding a custom role scoped to the folders, resource pools, datastores and networks Kumoss manages — never `administrator@vsphere.local`.
 
-The provider type is `vsphere`. It has no scope: a `vsphere` pair in `scopes` is accepted and ignored, and the core sends none. The generated code names the datacenter itself, through a `data "vsphere_datacenter"` data source, rather than a provider setting. Every command runs against whatever vCenter the variables above point at, so the deployment must make that vCenter and the module's datacenter agree. There is no vSphere state backend; state stays in whichever backend the repository already declares. Import discovery has no vSphere implementation: `/v1/import/scope-resource-ids` accepts only `azurerm`, `google` and `aws` as `provider`, and rejects `vsphere` (like any other) with `422`.
+The provider type is `vsphere`. It has no scope: the core sends nothing for it. The generated code names the datacenter itself, through a `data "vsphere_datacenter"` data source, rather than a provider setting. Every command runs against whatever vCenter the variables above point at, so the deployment must make that vCenter and the module's datacenter agree. There is no vSphere state backend; state stays in whichever backend the repository already declares. Import discovery has no vSphere implementation: `/v1/import/scope-resource-ids` accepts only `azurerm`, `google` and `aws` as `provider`, and rejects `vsphere` (like any other) with `422`.
 
 ## Backend minimums
 
@@ -97,7 +97,7 @@ The provider type is `vsphere`. It has no scope: a `vsphere` pair in `scopes` is
 
 Non-env HCL always needed: `resource_group_name`, `storage_account_name`, `container_name`, `key`.
 
-Add `subscription_id` too when the state storage account lives in a different subscription than the resources being managed. The backend resolves the account through `ARM_SUBSCRIPTION_ID`, and `init` runs with that variable overlaid from the request's `azurerm` scope — so a backend that does not name its subscription explicitly looks for the storage account in the *workload's* subscription and fails. Pin it in the backend block or in the file `IAC_BACKEND_CONFIG` points at. The `ARM_ACCESS_KEY` and `ARM_SAS_TOKEN` rows are unaffected: they address the account directly rather than resolving it through a subscription.
+Add `subscription_id` too when the state storage account lives in a different subscription than the resources being managed. The backend resolves the account through `ARM_SUBSCRIPTION_ID`, and `init` runs with that variable from the request's `env` — so a backend that does not name its subscription explicitly looks for the storage account in the *workload's* subscription and fails. Pin it in the backend block or in the file `IAC_BACKEND_CONFIG` points at. The `ARM_ACCESS_KEY` and `ARM_SAS_TOKEN` rows are unaffected: they address the account directly rather than resolving it through a subscription.
 
 ### s3
 
@@ -123,7 +123,7 @@ No project or region needed — bucket names are globally unique. Non-env HCL: `
 
 ## Copy-paste: typical CI setups
 
-These are the sets for this service. The scope variable is deliberately absent: `ARM_SUBSCRIPTION_ID`, `GOOGLE_PROJECT`, `TF_VAR_compartment_ocid` and `TF_VAR_aws_account_id` arrive with each request's `scopes`. Add them only when you run the engine yourself.
+These are the sets for this service. The scope variable is deliberately absent: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` arrive in each request's `env`, and the AWS account and OCI compartment in its `vars`. Add them only when you run the engine yourself.
 
 Azure, GitHub Actions OIDC, RBAC state access:
 
@@ -154,4 +154,4 @@ export GOOGLE_REGION=europe-west1
 
 **Backend env vars are usually a subset of provider ones** — with `ARM_ACCESS_KEY` and `GOOGLE_BACKEND_CREDENTIALS` being the deliberate exceptions for splitting identities. If you set the full provider set, `init` almost always works too; the reverse is not true.
 
-**The scope this service injects reaches the azurerm backend as well**, because provider and backend read the same `ARM_SUBSCRIPTION_ID`. Split state — a state account outside the managed subscription — therefore needs `subscription_id` in the backend config, not just provider credentials. GCP has no equivalent problem: the `gcs` backend needs no project.
+**The subscription a request sends reaches the azurerm backend as well**, because provider and backend read the same `ARM_SUBSCRIPTION_ID`. Split state — a state account outside the managed subscription — therefore needs `subscription_id` in the backend config, not just provider credentials. GCP has no equivalent problem: the `gcs` backend needs no project.

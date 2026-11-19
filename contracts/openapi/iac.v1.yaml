@@ -38,119 +38,55 @@ info:
     concurrently. A submission is never rejected because the
     workspace is busy — it queues.
 
-    ## Scope injection
+    ## Environment and input variables
 
-    A Terraform root module may use several providers, and each
-    provider Kumoss can scope has its own scope. Only the commands that
-    reach a cloud API need to know which scopes they run against, and
-    only those accept `scopes`: a list of `ProviderScope` pairs, each
-    naming a provider by its Terraform provider type name (`provider`,
-    the last segment of its source address, e.g. `azurerm` for
-    `hashicorp/azurerm`) and the scope it runs against (`scope_id`).
-    Each provider appears at most once; a request naming one twice is
-    rejected with `422`.
+    The request mirrors what the Terraform CLI itself takes: the
+    workspace it runs in, environment variables, and input variable
+    values. The service attaches no meaning to either; deciding which
+    scope a command runs against (a subscription, a project, an
+    account) is the caller's job, done through these two fields.
 
-    | Endpoint                        | Scope         | Why                                                |
-    |---------------------------------|---------------|----------------------------------------------------|
-    | `/v1/init`                      | `scopes`      | may access external services during initialization |
-    | `/v1/plan`                      | `scopes`      | refreshes state against the API                    |
-    | `/v1/apply`                     | `scopes`      | creates and changes resources                      |
-    | `/v1/import`                    | `scopes`      | reads the live resource                            |
-    | `/v1/import/scope-resource-ids` | one, required | enumerates a scope (`provider` + `scope_id`)       |
-    | `/v1/validate`                  | not accepted  | local configuration check                          |
-    | `/v1/show`                      | not accepted  | reads the local plan file                          |
-    | `/v1/import/state-resource-ids` | not accepted  | reads terraform state                              |
+    - `env` (every command endpoint): environment variables added to
+      the command's environment, e.g. `ARM_SUBSCRIPTION_ID` or
+      `GOOGLE_PROJECT`. A request may add variables but never replace
+      one: a name the implementation's own environment already sets
+      (its provider credentials, `PATH`, ...) is rejected with `422`,
+      and so are names that would change the command or the process
+      rather than add to its environment: every `TF_*` and `TOFU_*`
+      except `TF_VAR_*`, `TERRAFORM_CONFIG`, `LD_*`, `DYLD_*`,
+      `BASH_ENV`, `ENV`, `GODEBUG`, `SSL_CERT_FILE`, `SSL_CERT_DIR`,
+      and `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` in any
+      case. Deployments therefore
+      leave scope variables such as `ARM_SUBSCRIPTION_ID` unset and
+      let each request carry them.
+    - `vars` (`plan` and `import`, the commands that evaluate the
+      configuration): input variable values by name, of any JSON type.
+      The implementation writes them to one variables file passed as
+      the last `-var-file`, so they win over every other source; files
+      Terraform loads on its own (`terraform.tfvars`, `*.auto.tfvars`)
+      still apply underneath. Since they arrive as a file, a value for
+      a variable the configuration does not declare is only a warning.
 
-    Every request schema sets `additionalProperties: false`, so the
-    endpoints that take no scope reject `scopes` with a `422` rather
-    than accepting it as a no-op. A field appears on a request only
-    where the operation acts on it.
+    `vars` and `env` may hold secrets. Implementations MUST NOT log or
+    persist their values, nor write them inside `workspace_path` (which
+    may be committed or shared); the reference implementation writes
+    `vars` to an owner-only temporary file outside the workspace for
+    the duration of the command. Values are never echoed back in a job
+    result beyond what Terraform itself prints.
 
-    Generated provider blocks do not name a scope, so for each pair
-    whose provider has an environment variable that names one, the
-    implementation injects `scope_id` into the engine's environment for
-    that command only:
-
-    | `provider` | Environment variable       | Scope it sets |
-    |------------|----------------------------|---------------|
-    | `azurerm`  | `ARM_SUBSCRIPTION_ID`      | subscription  |
-    | `google`   | `GOOGLE_PROJECT`           | project       |
-    | `aws`      | `TF_VAR_aws_account_id`    | account       |
-    | `oci`      | `TF_VAR_compartment_ocid`  | compartment   |
-
-    Pairs for any other provider (`kubernetes`, `vsphere`, `random`,
-    ...) are accepted and ignored: nothing is injected for them.
-
-    `azurerm` and `google` read theirs as provider settings. The `oci`
-    and `aws` variables are input variables instead, which the engine
-    ignores when the code declares no such variable. An OCI
-    compartment is a resource argument, not a provider setting: the
-    variable fills the `compartment_ocid` variable the code passes to
-    its resources. An AWS account is implicit in the credentials the
-    provider resolves, so nothing can redirect a command to one: the
-    variable fills the `aws_account_id` variable the code passes to the
-    provider's `allowed_account_ids`, which makes the provider refuse
-    to run in any other account. For an `aws` pair this implementation
-    also checks before the engine starts: before `init`, `plan`,
-    `apply` and `import` it asks STS which account its own credentials
-    belong to and, when that is not the pair's `scope_id`, ends the
-    command with exit code 1 and the reason on stderr, without starting
-    the engine. That check requires `AWS_REGION` (or
-    `AWS_DEFAULT_REGION`) and a 12-digit `scope_id`. It compares the
-    service's ambient credentials, not any role the code might assume,
-    so one deployment of this implementation serves exactly the AWS
-    account its credentials belong to; generated provider blocks never
-    assume a role. A provider with no pair, or whose pair injects
-    nothing (a Kubernetes namespace or a vSphere datacenter is a
-    resource argument the code names itself), runs against whatever
-    scope the deployment's ambient credentials and configuration
-    select, and making those agree with the intended scope is the
-    deployment's responsibility. Callers should still state the scope
-    of every provider they know one for, so implementations that can
-    enforce it have what they need.
-
-    Implementations MAY scope a command by another mechanism instead
-    (an AWS AssumeRole into the account, a provider alias, a credential
-    broker), as long as the command runs against each pair's
-    `scope_id` — callers need to know nothing about which mechanism was
-    used.
+    Every request schema sets `additionalProperties: false`: a field
+    appears on a request only where the operation acts on it, and
+    sending another one is a `422`.
 
     ## Versioning
 
-    2.0.0 (breaking) replaced the single required `scope_id` /
-    `terraform_provider` pair on `init`, `plan`, `apply` and `import`
-    with the optional `scopes` list, and moved provider names from the
-    core's cloud vocabulary (`azure`, `gcp`, `vmware`, ...) to
-    Terraform provider type names (`azurerm`, `google`, `vsphere`,
-    ...), including on `/v1/import/scope-resource-ids`, whose field is
-    now `provider`.
-
-    ## Input variables
-
-    `plan` and `import` evaluate the configuration, so a root module
-    whose input variables have no default needs values for them. Both
-    requests accept two optional fields for that (since 1.1.0):
-
-    - `var_files`: variable-definition files of the workspace, passed
-      as `-var-file` in the order given. Paths are relative to
-      `workspace_path` and cannot leave it.
-    - `variables`: values by variable name. The implementation passes
-      them as one more variables file, after `var_files`, so they win
-      over them; files Terraform loads on its own
-      (`terraform.tfvars`, `*.auto.tfvars`) still apply underneath.
-
-    When either field is set, the input variables of "Scope injection"
-    (`compartment_ocid` for OCI, `aws_account_id` for AWS) are written
-    into that last file too, after `variables`: a `-var-file` outranks
-    `TF_VAR_*`, and a request's own inputs MUST NOT override the scope
-    it was authorized for.
-
-    `variables` may hold secrets. Implementations MUST NOT log or
-    persist them, nor write them inside `workspace_path` (which may be
-    committed or shared); the reference implementation writes them to
-    an owner-only temporary file outside the workspace for the duration
-    of the command. Values are never echoed back in a job result beyond
-    what Terraform itself prints.
+    2.0.0 (breaking) made the request a plain description of a CLI
+    invocation: the `scope_id` / `terraform_provider` pair on `init`,
+    `plan`, `apply` and `import`, and the `var_files` / `variables`
+    fields of `plan` and `import`, gave way to `env` on every command
+    and `vars` on `plan` and `import`. `/v1/import/scope-resource-ids`
+    names its cloud by Terraform provider type name (`azurerm`,
+    `google`, `aws`) in its `provider` field.
 
     Two failure planes are kept distinct:
 
@@ -842,10 +778,9 @@ paths:
         the job ends `succeeded` with a non-zero `exit_code` and
         diagnostics in `stderr`.
 
-        Here `scope_id` names the scope being listed (rather than the
-        scope a command runs against, as in the `scopes` of `plan`,
-        `apply` and `import`) and `provider` selects which provider is
-        queried. The workspace is used to resolve provider credentials;
+        Here `scope_id` names the scope being listed and `provider`
+        selects which provider is queried. This is the one endpoint
+        that runs no Terraform command. The workspace is used to resolve provider credentials;
         the OSS reference impl calls each cloud's inventory API over
         HTTPS with the service's ambient credentials, using no
         command-line tools. `provider` accepts only the providers with
@@ -1024,17 +959,8 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scopes:
-          type: array
-          description: |
-            Scope of each provider the command should run against, at
-            most one entry per `provider` (a duplicate is rejected with
-            `422`). Optional; an empty list injects nothing. See "Scope
-            injection".
-          items:
-            $ref: "#/components/schemas/ProviderScope"
-          maxItems: 64
-          default: []
+        env:
+          $ref: "#/components/schemas/Env"
 
     ValidateRequest:
       type: object
@@ -1051,6 +977,8 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
+        env:
+          $ref: "#/components/schemas/Env"
 
     PlanRequest:
       type: object
@@ -1067,17 +995,8 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scopes:
-          type: array
-          description: |
-            Scope of each provider the command should run against, at
-            most one entry per `provider` (a duplicate is rejected with
-            `422`). Optional; an empty list injects nothing. See "Scope
-            injection".
-          items:
-            $ref: "#/components/schemas/ProviderScope"
-          maxItems: 64
-          default: []
+        env:
+          $ref: "#/components/schemas/Env"
         targets:
           type: array
           description: |
@@ -1098,32 +1017,33 @@ components:
             escape the workspace.
           pattern: "^[A-Za-z0-9._-]{1,128}$"
           examples: ["a1b2c3d4e5f6.plan"]
-        var_files:
-          $ref: "#/components/schemas/VarFiles"
-        variables:
-          $ref: "#/components/schemas/Variables"
+        vars:
+          $ref: "#/components/schemas/Vars"
 
-    VarFiles:
-      type: array
-      description: |
-        Variable-definition files to pass as `-var-file`, in order.
-        Each is a path relative to `workspace_path` made of plain
-        segments (no `.`/`..`, no hidden segments, no leading `/`),
-        ending in `.tfvars` or `.tfvars.json`. See "Input variables".
-      items:
-        type: string
-        maxLength: 1024
-        pattern: "^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\\.tfvars(\\.json)?$"
-        examples: ["envs/dev.tfvars"]
-      maxItems: 64
-
-    Variables:
+    Env:
       type: object
       description: |
-        Input variable values by name, of any JSON type. Passed after
-        `var_files`, so they win over them. May contain secrets: never
-        logged, persisted, or written inside the workspace. See
-        "Input variables".
+        Environment variables added to the command's environment. Names
+        the implementation's own environment already sets, and the
+        reserved names listed in "Environment and input variables"
+        (`TF_*` but `TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), are
+        rejected with `422`. May contain secrets.
+      propertyNames:
+        pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$"
+      additionalProperties:
+        type: string
+        maxLength: 32768
+      maxProperties: 256
+      examples:
+        - ARM_SUBSCRIPTION_ID: 00000000-0000-0000-0000-000000000000
+
+    Vars:
+      type: object
+      description: |
+        Input variable values by name, of any JSON type, passed as the
+        last `-var-file` so they win over every other source. May
+        contain secrets: never logged, persisted, or written inside the
+        workspace. See "Environment and input variables".
       propertyNames:
         pattern: "^[A-Za-z_][A-Za-z0-9_-]{0,127}$"
       additionalProperties: true
@@ -1144,6 +1064,8 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
+        env:
+          $ref: "#/components/schemas/Env"
         plan_file:
           type: string
           description: |
@@ -1168,17 +1090,8 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scopes:
-          type: array
-          description: |
-            Scope of each provider the command should run against, at
-            most one entry per `provider` (a duplicate is rejected with
-            `422`). Optional; an empty list injects nothing. See "Scope
-            injection".
-          items:
-            $ref: "#/components/schemas/ProviderScope"
-          maxItems: 64
-          default: []
+        env:
+          $ref: "#/components/schemas/Env"
         plan_file:
           type: string
           description: |
@@ -1204,17 +1117,8 @@ components:
           minLength: 1
           maxLength: 4096
           examples: ["/workspaces/my-iac_a1b2c3"]
-        scopes:
-          type: array
-          description: |
-            Scope of each provider the command should run against, at
-            most one entry per `provider` (a duplicate is rejected with
-            `422`). Optional; an empty list injects nothing. See "Scope
-            injection".
-          items:
-            $ref: "#/components/schemas/ProviderScope"
-          maxItems: 64
-          default: []
+        env:
+          $ref: "#/components/schemas/Env"
         address:
           type: string
           description: |
@@ -1229,10 +1133,8 @@ components:
             e.g. an Azure resource ID or an AWS ARN.
           minLength: 1
           maxLength: 4096
-        var_files:
-          $ref: "#/components/schemas/VarFiles"
-        variables:
-          $ref: "#/components/schemas/Variables"
+        vars:
+          $ref: "#/components/schemas/Vars"
 
     StateResourceIdsRequest:
       type: object
@@ -1283,32 +1185,6 @@ components:
             Terraform provider type name of the cloud the scope query
             targets. Only the providers with an inventory query are
             accepted.
-
-    ProviderScope:
-      type: object
-      description: |
-        The scope one provider of the root module runs against (see
-        "Scope injection").
-      required: [provider, scope_id]
-      additionalProperties: false
-      properties:
-        provider:
-          type: string
-          pattern: "^[a-z0-9][a-z0-9_-]{0,63}$"
-          description: |
-            Terraform provider type name (the last segment of its
-            source address, e.g. `azurerm` for `hashicorp/azurerm`).
-            Any name is accepted; only `azurerm`, `google`, `aws` and
-            `oci` have their scope injected.
-          examples: ["azurerm"]
-        scope_id:
-          type: string
-          description: |
-            Scope the provider's resources live in — `azurerm`:
-            subscription id, `google`: project id, `aws`: account id,
-            `oci`: compartment OCID.
-          minLength: 1
-          maxLength: 1024
 
     OperationResult:
       type: object

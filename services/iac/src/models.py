@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
@@ -21,22 +21,11 @@ ScopeIdStr = Annotated[str, Field(min_length=1, max_length=1024)]
 AddressStr = Annotated[str, Field(min_length=1, max_length=4096)]
 ResourceIdStr = Annotated[str, Field(min_length=1, max_length=4096)]
 
-# Relative to the workspace, plain segments only (no `.`, `..`, hidden
-# or leading `/`), so a var file can neither escape the workspace nor be
-# confused with anything Terraform itself manages. Mirrors the contract.
-VarFileStr = Annotated[
-    str,
-    Field(
-        max_length=1024,
-        pattern=r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.tfvars(\.json)?$",
-    ),
-]
 VariableNameStr = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_-]{0,127}$")]
+EnvNameStr = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
+EnvValueStr = Annotated[str, Field(max_length=32768)]
 
-# Terraform provider type name: the last segment of its source address
-# (`azurerm` for `hashicorp/azurerm`). Any provider is accepted.
-ProviderStr = Annotated[str, Field(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")]
-# The providers scope discovery can list.
+# The providers scope discovery can list, by Terraform provider type name.
 DiscoveryProvider = Literal["azurerm", "google", "aws"]
 
 
@@ -53,56 +42,37 @@ class WorkspaceRequest(BaseModel):
     workspace_path: str = Field(min_length=1, max_length=4096)
 
 
-class ProviderScope(BaseModel):
-    """The scope one provider of the root module runs against."""
+class CommandRequest(WorkspaceRequest):
+    """Base for the endpoints that run one engine command.
 
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    provider: ProviderStr
-    scope_id: ScopeIdStr
-
-
-class ScopedRequest(WorkspaceRequest):
-    """Base for the commands whose scopes decide what they run against.
-
-    The commands that take no scope extend ``WorkspaceRequest``
-    directly: they declare no ``scopes``, and ``extra="forbid"`` makes
-    sending one a 422.
+    ``env`` is added to the command's environment; the endpoint rejects
+    names that would replace one (see ``main.check_env``). Values may be
+    secrets: excluded from ``repr`` and never logged.
     """
 
-    scopes: list[ProviderScope] = Field(default_factory=list, max_length=64)
-
-    @field_validator("scopes")
-    @classmethod
-    def _one_scope_per_provider(
-        cls, scopes: list[ProviderScope]
-    ) -> list[ProviderScope]:
-        seen: set[str] = set()
-        for scope in scopes:
-            if scope.provider in seen:
-                raise ValueError(f"provider '{scope.provider}' appears more than once")
-            seen.add(scope.provider)
-        return scopes
+    env: dict[EnvNameStr, EnvValueStr] = Field(
+        default_factory=dict, max_length=256, repr=False
+    )
 
 
-class InputsRequest(ScopedRequest):
+class InputsRequest(CommandRequest):
     """Base for the commands that evaluate the configuration's input variables.
 
-    ``variables`` may hold secrets: it is excluded from ``repr`` and
-    must never be logged (see the contract's "Input variables").
+    ``vars`` may hold secrets: it is excluded from ``repr`` and must
+    never be logged (see the contract's "Environment and input
+    variables").
     """
 
-    var_files: list[VarFileStr] = Field(default_factory=list, max_length=64)
-    variables: dict[VariableNameStr, JsonValue] = Field(
+    vars: dict[VariableNameStr, JsonValue] = Field(
         default_factory=dict, max_length=1024, repr=False
     )
 
 
-class InitRequest(ScopedRequest):
+class InitRequest(CommandRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
-class ValidateRequest(WorkspaceRequest):
+class ValidateRequest(CommandRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
 
@@ -113,13 +83,13 @@ class PlanRequest(InputsRequest):
     plan_file: PlanFileStr
 
 
-class ShowRequest(WorkspaceRequest):
+class ShowRequest(CommandRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     plan_file: PlanFileStr
 
 
-class ApplyRequest(ScopedRequest):
+class ApplyRequest(CommandRequest):
     model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
 
     plan_file: PlanFileStr
