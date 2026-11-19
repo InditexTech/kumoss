@@ -132,6 +132,9 @@ jobs:
               "-Dsonar.test.inclusions=**/test_*.py,**/test_conformance.py,**/conftest.py"
               "-Dsonar.python.coverage.reportPaths=${SONAR_COVERAGE_PATHS}"
               "-Dsonar.coverage.exclusions=core/src/**,core/tests/**"
+              # Generated from contracts/openapi: the request models repeat
+              # each other by construction.
+              "-Dsonar.cpd.exclusions=core/src/clients/**"
             )
           else
             args+=(
