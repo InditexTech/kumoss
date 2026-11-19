@@ -305,3 +305,72 @@ func TestSectionsMapToTheContainersThatReadThem(t *testing.T) {
 		t.Errorf("registry has %d sections, want %d", len(Sections), len(want))
 	}
 }
+
+// A cloud edit that adds a credential file must also write the mount that
+// carries it into the container. The env var pointed at a path that nothing
+// mounted, and recreating the container could not fix a missing mount.
+func TestConfigCloudEditWritesTheNewMount(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	for _, dir := range []string{h.ConfigDir(), h.CoreDir(), h.ServicesDir("iac"), h.ServicesDir("notifications")} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved := &state.State{
+		LLM:     state.LLM{Model: "anthropic/claude"},
+		Git:     state.Git{Provider: "GITHUB"},
+		Storage: state.Storage{Provider: "rustfs"},
+	}
+	if err := state.Save(h.StateFile(), saved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ConfigYAML(), []byte("llm:\n  model: anthropic/claude\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ComposeFile(), []byte("services:\n  core:\n    image: busybox\n  iac:\n    image: busybox\n  notifications:\n    image: busybox\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// The override init wrote: no mounts yet.
+	if err := os.WriteFile(h.ComposeOverride(), []byte("services:\n  core:\n    image: busybox\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&render.Env{}).Write(envPaths(h), saved.Copy()); err != nil {
+		t.Fatal(err)
+	}
+
+	var shown string
+	if err := RunConfig(context.Background(), ConfigOptions{
+		Home:    h,
+		Section: "cloud",
+		UI:      gcpKeySection{keyFile: "/keys/sa.json"},
+		Docker:  &docker.Compose{},
+		Confirm: func(diff string) (bool, error) { shown = diff; return true, nil },
+		Warn:    io.Discard,
+		Out:     io.Discard,
+	}); err != nil {
+		t.Fatalf("RunConfig: %v", err)
+	}
+
+	override, err := os.ReadFile(h.ComposeOverride())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(override), "/keys") {
+		t.Errorf("override has no mount for the new key file:\n%s", override)
+	}
+	if !strings.Contains(shown, "compose.override.yml") || strings.Contains(shown, "compose.override.yml: unchanged") {
+		t.Errorf("the preview does not show the override change:\n%s", shown)
+	}
+}
+
+// gcpKeySection adds a GCP key file in the cloud form, the edit the override
+// has to carry as a mount.
+type gcpKeySection struct {
+	stubSection
+	keyFile string
+}
+
+func (s gcpKeySection) Cloud(st *state.State) error {
+	st.Cloud.GCP = &state.GCPAuth{Method: "file", KeyFile: s.keyFile}
+	return nil
+}

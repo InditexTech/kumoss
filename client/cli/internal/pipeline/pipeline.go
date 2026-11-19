@@ -177,13 +177,11 @@ func RunPipeline(ctx context.Context, opts Options) error {
 			}
 		}
 		if write {
-			override := &render.Compose{
-				Path:       path,
-				ConfigPath: "../config/config.yaml",
-				HostCerts:  opts.HostCerts,
-				Mounts:     iacMounts(opts.Home, s),
+			override, err := renderCompose(opts.Home, s, opts.HostCerts)
+			if err != nil {
+				return err
 			}
-			if err := override.Write(); err != nil {
+			if err := os.WriteFile(path, override, 0o644); err != nil {
 				return err
 			}
 		}
@@ -288,11 +286,7 @@ func dryRun(ctx context.Context, opts Options) error {
 		}
 	}
 
-	override, err := (&render.Compose{
-		ConfigPath: "../config/config.yaml",
-		HostCerts:  opts.HostCerts,
-		Mounts:     iacMounts(opts.Home, s),
-	}).Render()
+	override, err := renderCompose(opts.Home, s, opts.HostCerts)
 	if err != nil {
 		return err
 	}
@@ -376,6 +370,17 @@ func iacMounts(h home.Home, s *state.State) []render.Mount {
 		out = append(out, m)
 	}
 	return out
+}
+
+// renderCompose builds compose.override.yml for this home and state, for init
+// to write and for config to diff. HostCerts is a separate answer the cloud
+// forms never ask about.
+func renderCompose(h home.Home, s *state.State, hostCerts bool) ([]byte, error) {
+	return (&render.Compose{
+		ConfigPath: "../config/config.yaml",
+		HostCerts:  hostCerts,
+		Mounts:     iacMounts(h, s),
+	}).Render()
 }
 
 // envPaths is where each env file lives under the managed home.

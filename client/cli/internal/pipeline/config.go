@@ -117,6 +117,23 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 		return err
 	}
 
+	// The override carries the credential mounts, so a cloud edit has to
+	// rewrite it. Without the new mount, a recreated container still lacks the
+	// credential file its env var points at.
+	overrideBefore, err := renderCompose(opts.Home, old, false)
+	if err != nil {
+		return err
+	}
+	overrideAfter, err := renderCompose(opts.Home, s, false)
+	if err != nil {
+		return err
+	}
+
+	recreate := section.Services
+	if !sameDefinition(opts.Home, s, old) {
+		recreate = allServices
+	}
+
 	diff := diffReport(
 		[]fileDiff{
 			{opts.Home.StateFile(), string(stateBefore), string(stateAfter)},
@@ -124,7 +141,8 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 			{paths.Core, string(render.RenderEnvFile(envBefore[paths.Core])), string(render.RenderEnvFile(envAfter[paths.Core]))},
 			{paths.IAC, string(render.RenderEnvFile(envBefore[paths.IAC])), string(render.RenderEnvFile(envAfter[paths.IAC]))},
 			{paths.Notifications, string(render.RenderEnvFile(envBefore[paths.Notifications])), string(render.RenderEnvFile(envAfter[paths.Notifications]))},
-		}, section.Services)
+			{opts.Home.ComposeOverride(), string(overrideBefore), string(overrideAfter)},
+		}, recreate)
 
 	if opts.Confirm != nil {
 		ok, err := opts.Confirm(diff)
@@ -148,6 +166,14 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	if err := env.Write(paths, s); err != nil {
 		return err
 	}
+	if string(overrideBefore) != string(overrideAfter) {
+		// Only when the mounts changed: the override may hold host-certs
+		// wiring this command never asked about, and rewriting it wholesale
+		// would silently drop that.
+		if err := os.WriteFile(opts.Home.ComposeOverride(), overrideAfter, 0o644); err != nil {
+			return err
+		}
+	}
 
 	c := opts.Docker
 	if c == nil {
@@ -156,10 +182,6 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	// A container whose definition changed only starts with the new one when
 	// it is force-recreated: `up -d` compares the service definition, and a
 	// rewritten env_file or mount is not part of it.
-	recreate := section.Services
-	if !sameDefinition(opts.Home, s, old) {
-		recreate = allServices
-	}
 	if err := c.Recreate(ctx, recreate...); err != nil {
 		return err
 	}
