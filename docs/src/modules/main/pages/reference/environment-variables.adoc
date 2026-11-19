@@ -344,23 +344,21 @@ provider supports.
 |Cloud |Typical variables |Provider chain (examples, not a complete list)
 
 |Azure (`azurerm`, `azuread`)
-|`ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`,
-`ARM_SUBSCRIPTION_ID`
+|`ARM_CLIENT_ID`, `ARM_CLIENT_SECRET`, `ARM_TENANT_ID`
 |Service principal with client secret. Certificate, OIDC federation,
 and managed identity are other documented provider options.
-*`ARM_SUBSCRIPTION_ID` set here is overwritten* on every `init`,
-`plan`, `apply`, and `import` with the root module's `azurerm` scope,
-so it only takes effect for `validate`, `show`, and `state pull` (and
-for modules that do not use `azurerm`).
+*Leave `ARM_SUBSCRIPTION_ID` unset*: each request carries the root
+module's `azurerm` scope under that name in its `env`, which cannot
+replace a variable set here, so setting it gets every request that
+carries the scope refused with `422`.
 
 |Google Cloud (`google`)
 |`GOOGLE_APPLICATION_CREDENTIALS` or `GOOGLE_CREDENTIALS`
 |`GOOGLE_CREDENTIALS` holds the service-account key as JSON content;
 `GOOGLE_APPLICATION_CREDENTIALS` holds a path to a key file readable
-inside the container. Set one of them. *`GOOGLE_PROJECT` set here is
-overwritten* on every `init`, `plan`, `apply`, and `import` with the
-root module's `google` scope, so it only takes effect for `validate`,
-`show`, and `state pull` (and for modules that do not use `google`).
+inside the container. Set one of them. *Leave `GOOGLE_PROJECT` unset*,
+for the same reason: each request carries the root module's `google`
+scope under that name.
 
 |AWS (`aws`)
 |`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, or
@@ -819,7 +817,7 @@ IAC_BINARY=tofu
 ARM_CLIENT_ID=00000000-0000-0000-0000-000000000000
 ARM_CLIENT_SECRET=example-not-a-real-client-secret
 ARM_TENANT_ID=00000000-0000-0000-0000-000000000001
-ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000002
+# No ARM_SUBSCRIPTION_ID: each request carries the root module's scope.
 
 # State-backend grant: the storage account the target repository's own
 # azurerm backend block names. Backend-only, and enough on its own.

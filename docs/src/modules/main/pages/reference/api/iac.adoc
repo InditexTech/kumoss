@@ -1,5 +1,5 @@
 = IaC sidecar API
-:description: The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.
+:description: The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, import discovery, state backends, and engine selection in the bundled implementation.
 
 The IaC service is a *raw executor* for an IaC engine's command-line
 interface. It is the one mandatory sidecar: without it the core cannot
@@ -98,31 +98,25 @@ it*, 1 to 4096 characters. Required on every POST. In the compose
 deployment this is a path on the volume mounted into both the core and
 this service, for example `/workspaces/my-iac_a1b2c3`.
 
-|`scopes`
-|`init`, `plan`, `apply` and `import` only, optional. A list of up to
-64 `{provider, scope_id}` pairs: the scope each provider of the root
-module runs against. `provider` is a Terraform provider type name (the
-last segment of the source address, `azurerm` for `hashicorp/azurerm`)
-and `scope_id` is 1 to 1024 characters — `azurerm` subscription id,
-`google` project id, `aws` account id, `oci` compartment OCID. A
-provider may appear at most once (a duplicate is `422`). An empty or
-omitted list injects nothing. See <<scope-injection>>.
+|`env`
+|Every endpoint that runs an engine command (`init`, `validate`,
+`plan`, `show`, `apply`, `import`), optional. Up to 256 environment
+variables added to the command's environment, names matching
+`^[A-Za-z_][A-Za-z0-9_]{0,127}$`, string values. A name the service's
+own environment already sets, or a reserved name (`TF_*` but
+`TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), is `422`. May hold
+secrets. See <<environment-and-input-variables>>.
 
 |`provider` + `scope_id`
 |`scope-resource-ids` only, both required. The one scope to list:
 `provider` is `azurerm`, `google` or `aws`, any other value is `422`.
 See <<import-discovery>>.
 
-|`var_files`
-|`plan` and `import` only, optional. Up to 64 variable-definition files
-of the workspace, passed as `-var-file` in the order given. Each is a
-path relative to `workspace_path` made of plain segments, ending in
-`.tfvars` or `.tfvars.json`. See <<input-variables>>.
-
-|`variables`
-|`plan` and `import` only, optional. Input variable values by name, of
-any JSON type. They win over `var_files`. May hold secrets. See
-<<input-variables>>.
+|`vars`
+|`plan` and `import` only, optional. Up to 1024 input variable values
+by name, of any JSON type, passed as the last `-var-file` so they win
+over every other source. May hold secrets. See
+<<environment-and-input-variables>>.
 
 |`plan_file`
 |A *filename*, not a path, matching `^[A-Za-z0-9._-]{1,128}$` so it
@@ -146,21 +140,21 @@ Which endpoint takes which:
 
 [cols="3,1,1,1,1,1,1",options="header"]
 |===
-|Endpoint |`workspace_path` |`scopes`
+|Endpoint |`workspace_path` |`env`
 |`plan_file` |`targets` |`address` + `resource_id`
-|`var_files` + `variables`
+|`vars`
 
 |`POST /v1/init`
 |required |optional |— |— |— |—
 
 |`POST /v1/validate`
-|required |not accepted |— |— |— |—
+|required |optional |— |— |— |—
 
 |`POST /v1/plan`
 |required |optional |required |optional |— |optional
 
 |`POST /v1/show`
-|required |not accepted |required |— |— |—
+|required |optional |required |— |— |—
 
 |`POST /v1/apply`
 |required |optional |required |— |— |—
@@ -172,7 +166,7 @@ Which endpoint takes which:
 |required |not accepted |— |— |— |—
 
 |`POST /v1/import/scope-resource-ids`
-|required |`provider` + `scope_id` required |— |— |— |—
+|required |not accepted; `provider` + `scope_id` required |— |— |— |—
 |===
 
 === Submission responses
@@ -315,117 +309,96 @@ engine command hangs, the core stops waiting once the timeout elapses,
 while the job stays `running` and the command keeps running in the
 sidecar until it exits on its own.
 
-[#scope-injection]
-== Scope injection
+[#environment-and-input-variables]
+== Environment and input variables
 
-A Terraform root module may use several providers, and each provider
-Kumoss can scope has its own scope. Only the commands that reach a
-cloud API need to know which scopes they run against, and only those
-accept `scopes`, a list of `{provider, scope_id}` pairs:
+The request mirrors what the Terraform CLI itself takes: the workspace
+it runs in, environment variables, and input variable values. The
+service attaches no meaning to either. Deciding which scope a command
+runs against (a subscription, a project, an account, a compartment) is
+the caller's job, done through these two fields.
 
-[cols="3,1,3",options="header"]
+* `env` — every engine command. Environment variables added to the
+  command's environment, for example `ARM_SUBSCRIPTION_ID` or
+  `GOOGLE_PROJECT`. A request may add variables but never replace one:
+  a name the implementation's own environment already sets (its
+  provider credentials, `PATH`, ...) is rejected with `422`, and so are
+  names that would change the command or the process rather than add to
+  its environment: every `TF_*` and `TOFU_*` except `TF_VAR_*`,
+  `TERRAFORM_CONFIG`, `LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `GODEBUG`,
+  `SSL_CERT_FILE`, `SSL_CERT_DIR`, and `HTTP_PROXY`, `HTTPS_PROXY`,
+  `ALL_PROXY`, `NO_PROXY` in any case. Deployments therefore leave scope variables such
+  as `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` unset on the service
+  and let each request carry them.
+* `vars` — `plan` and `import`, the commands that evaluate the
+  configuration. Input variable values by name, of any JSON type. The
+  implementation writes them to one variables file passed as the last
+  `-var-file`, so they win over every other source; the files Terraform
+  loads on its own (`terraform.tfvars`, `*.auto.tfvars`) still apply
+  underneath. Since they arrive as a file, a value for a variable the
+  configuration does not declare is only a warning.
+
+`env` and `vars` may hold secrets. An implementation must not log or
+persist their values, nor write them inside `workspace_path`, which may
+be committed or shared. The bundled implementation logs only the names
+in `env`, and writes `vars` to an owner-only temporary file outside the
+workspace for the duration of the command.
+
+=== How the core fills them
+
+Generated provider blocks do not name a scope, so the core points every
+command at the session's scopes itself. Each scoped provider of the
+root module becomes either an environment variable the provider reads
+as a setting, or an input variable the code passes on:
+
+[cols="1,1,2,2",options="header"]
 |===
-|Endpoint |Scope |Why
-
-|`POST /v1/init`
-|`scopes`
-|May access external services during initialization.
-
-|`POST /v1/plan`
-|`scopes`
-|Refreshes state against the API.
-
-|`POST /v1/apply`
-|`scopes`
-|Creates and changes resources.
-
-|`POST /v1/import`
-|`scopes`
-|Reads the live resource.
-
-|`POST /v1/import/scope-resource-ids`
-|one, required
-|Enumerates a scope (`provider` + `scope_id`).
-
-|`POST /v1/validate`
-|not accepted
-|Local configuration check.
-
-|`POST /v1/show`
-|not accepted
-|Reads the local plan file.
-
-|`POST /v1/import/state-resource-ids`
-|not accepted
-|Reads Terraform state.
-|===
-
-Generated provider blocks do not name a scope. So for each pair whose
-provider has an environment variable that names one, the
-implementation injects `scope_id` into the engine's environment for
-that command only:
-
-[cols="1,2,2",options="header"]
-|===
-|`provider` |Environment variable |Scope it sets
+|Provider |Field |Name |Scope it sets
 
 |`azurerm`
+|`env`
 |`ARM_SUBSCRIPTION_ID`
 |subscription
 
 |`google`
+|`env`
 |`GOOGLE_PROJECT`
 |project
 
 |`aws`
-|`TF_VAR_aws_account_id`
+|`vars`
+|`aws_account_id`
 |account
 
 |`oci`
-|`TF_VAR_compartment_ocid`
+|`vars`
+|`compartment_ocid`
 |compartment
 |===
 
-Pairs for any other provider (`kubernetes`, `vsphere`, `random`, ...)
-are accepted and ignored: nothing is injected for them. The core only
-ever sends pairs for the four above, since those are the only providers
-it asks a scope for.
+The `env` entries go with every engine command except the import
+discovery ones. The `vars` sent with `plan` and `import` are the root
+module's configured values — the optional var files picked in its
+xref:main:reference/root-module-manifest.adoc[manifest], read by the
+core in the order picked, then the manifest's answers — with the scope
+variables last, so no configured value can retarget the scope.
 
-`azurerm` and `google` read theirs as provider settings. The `oci` and
-`aws` variables are Terraform input variables instead, which the engine
-ignores when the code declares none. An OCI compartment is a resource
-argument: the variable fills the `compartment_ocid` variable the code
-passes to its resources. An AWS account is implicit in the credentials
-the provider resolves, so nothing redirects a command to one: the
-variable fills the `aws_account_id` variable the code passes to the
-provider's `allowed_account_ids`, which makes the provider refuse to
-run in any other account.
+An OCI compartment is a resource argument: the variable fills the
+`compartment_ocid` variable the code passes to its resources. An AWS
+account is implicit in the credentials the provider resolves, so
+nothing redirects a command to one: the variable fills the
+`aws_account_id` variable the code passes to the provider's
+`allowed_account_ids`, which makes the provider refuse to run in any
+other account. One deployment of the bundled implementation therefore
+serves the AWS account its own credentials belong to; generated
+provider blocks never assume a role.
 
-The bundled implementation also checks an `aws` pair before the engine
-starts: before `init`, `plan`, `apply`, and `import` it asks STS which
-account its own credentials belong to and, when that is not the pair's
-`scope_id`, ends the command with exit code 1 and the reason on stderr.
-That check needs `AWS_REGION` (or `AWS_DEFAULT_REGION`) and a 12-digit
-`scope_id`, so a LocalStack deployment uses its account id
-`000000000000`. It compares the service's own credentials, not a role
-the code might assume, so one deployment serves exactly the AWS account
-its credentials belong to; generated provider blocks never assume a
-role.
-
-A provider with no pair, or whose pair injects nothing (a Kubernetes
-namespace or a vSphere datacenter is a resource or data-source argument
-the code names itself), runs against whatever the deployment's ambient
-credentials and configuration select, and making those agree with the
-intended target is the deployment's responsibility.
-
-An implementation may scope a command by another mechanism instead —
-an AWS AssumeRole into the account, a provider alias, a credential
-broker — as long as the command runs against each pair's `scope_id`.
-Callers need to know nothing about which mechanism was used.
-
-Where the overlay is applied it sits on top of the service's own
-environment, so it wins over an `ARM_SUBSCRIPTION_ID` set on the
-container. Ambient provider credentials are otherwise untouched.
+Any other provider (`kubernetes`, `vsphere`, `random`, ...) gets
+nothing: a Kubernetes namespace or a vSphere datacenter is a resource
+or data-source argument the code names itself, and the provider runs
+against whatever the deployment's ambient credentials and
+configuration select. Making those agree with the intended target is
+the deployment's responsibility.
 
 `ARM_SUBSCRIPTION_ID` is also the `azurerm` backend's, so `init`
 resolves the state storage account in the `azurerm` scope's
@@ -434,44 +407,26 @@ to name `subscription_id` in its backend configuration; see
 xref:main:reference/terraform-providers.adoc#backend-minimums[Backend
 minimums].
 
-`POST /v1/import/scope-resource-ids` is the exception: it launches no
-subprocess, so there is no environment to overlay. Its `scope_id` is
-the argument of the inventory query itself — the subscription,
-project, or account whose contents are listed.
-
-[#input-variables]
-== Input variables
-
-`plan` and `import` evaluate the configuration, so a root module whose
-input variables have no default needs values for them. Both accept two
-optional fields for that (since contract 1.1.0):
-
-* `var_files` — variable-definition files of the workspace, passed as
-  `-var-file` in the order given. Paths are relative to
-  `workspace_path` and cannot leave it.
-* `variables` — values by variable name. The implementation passes
-  them as one more variables file, after `var_files`, so they win over
-  them; the files Terraform loads on its own (`terraform.tfvars`,
-  `*.auto.tfvars`) still apply underneath.
-
-`variables` may hold secrets. An implementation must not log or
-persist them, nor write them inside `workspace_path`, which may be
-committed or shared. The bundled implementation writes them to an
-owner-only temporary file outside the workspace for the duration of
-the command. The core fills both fields from the root module's
-xref:main:reference/root-module-manifest.adoc[manifest].
+`POST /v1/import/scope-resource-ids` takes no `env`: it launches no
+subprocess. Its `scope_id` is the argument of the inventory query
+itself — the subscription, project, or account whose contents are
+listed.
 
 [#versioning]
 == Versioning
 
 Contract 2.0.0 is a breaking change from 1.x:
 
-* `init`, `plan`, `apply` and `import` no longer take the single
-  required `scope_id` + `terraform_provider` pair; they take the
-  optional `scopes` list instead.
-* Providers are named by Terraform provider type (`azurerm`, `google`,
-  `aws`, `oci`, `kubernetes`, `vsphere`, ...) rather than the core's
-  former vocabulary (`azure`, `gcp`, `vmware`).
+* The request is a plain description of a CLI invocation. The single
+  required `scope_id` + `terraform_provider` pair on `init`, `plan`,
+  `apply` and `import`, and the `var_files` + `variables` fields of
+  `plan` and `import`, are gone. Every engine command takes an
+  optional `env`, and `plan` and `import` take an optional `vars`. The
+  service no longer knows any provider: the core maps each scope to
+  `env` or `vars` itself.
+* The bundled implementation no longer checks the AWS account with STS
+  before `init`, `plan`, `apply` and `import`; the provider's
+  `allowed_account_ids` still refuses any other account.
 * `/v1/import/scope-resource-ids` takes `provider` (one of `azurerm`,
   `google`, `aws`) instead of `terraform_provider`, and rejects any
   other provider with `422` instead of ending the job with exit code
@@ -836,8 +791,10 @@ from the workspace itself.
 |Provider credentials, read directly by the engine's providers and
 identical for OpenTofu and Terraform. Provide whichever your modules
 need; without them `plan` and `apply` fail with the engine's own
-authentication errors in the result's `stderr`. The per-request scope
-variables are layered on top of these.
+authentication errors in the result's `stderr`. Leave scope variables
+such as `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` unset: each request
+carries them in `env`, which may add variables but never replace one
+the service already has.
 |===
 
 Everything else is a property of the service rather than of a

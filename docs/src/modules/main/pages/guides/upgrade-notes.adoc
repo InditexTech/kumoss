@@ -83,9 +83,16 @@ A custom implementation of any of them must be upgraded with the core.
 |Contract |Breaking change
 
 |IaC (`iac.v1.yaml`)
-|`init`, `plan`, `apply` and `import` take an optional
-`scopes: [{provider, scope_id}]` list instead of the required
-`scope_id` + `terraform_provider` pair, and inject each pair's scope.
+|The request is a plain CLI invocation. `init`, `plan`, `apply` and
+`import` drop the required `scope_id` + `terraform_provider` pair, and
+`plan` and `import` drop `var_files` + `variables`. Every engine command
+takes an optional `env` (environment variables it may add but never
+replace) and `plan` and `import` an optional `vars` (input variable
+values, passed as the last `-var-file`). The service knows no provider:
+the core sends each scope as `env` or `vars`, so a deployment must
+leave `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` unset on the service.
+The bundled service no longer checks the AWS account with STS before
+each command.
 `/v1/import/scope-resource-ids` takes `provider` (`azurerm`, `google`
 or `aws`) instead of `terraform_provider`, and rejects any other
 provider with `422` instead of answering exit code `2`. See
