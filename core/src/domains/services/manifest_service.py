@@ -323,10 +323,7 @@ class ManifestService:
         )
 
     async def inputs(self, module: RootModuleRef) -> TerraformInputs:
-        """The input variable values a Terraform run of the module is given.
-
-        The picked var files are read here, in order, and the manifest's
-        answers override them.
+        """What a Terraform run of the module is given: var files and every bound value.
 
         Call after ``sync`` or ``configure`` reported the manifest up to
         date. A module without a manifest (one set up before manifests
@@ -349,18 +346,13 @@ class ManifestService:
                 + f"{', '.join(lost)}.",
                 409,
             )
-        values: dict[str, JsonValue] = {}
-        for var_file in manifest.var_files:
-            values.update(
-                await self.__inspector.var_file_values(module.directory, var_file)
-            )
-        values.update(
-            {
+        return TerraformInputs(
+            var_files=manifest.var_files,
+            values={
                 v.name: stored[v.name] if v.sensitive else v.value
                 for v in manifest.variables
-            }
+            },
         )
-        return TerraformInputs(values=values)
 
     async def __read(
         self, module: RootModuleRef

@@ -307,6 +307,7 @@ class TestTerraformPlan(_TerraformTestCase):
         _ = await self.terraform.plan(targets=[])
         body = submit_mocks["plan"].await_args.kwargs["body"]
         # Omitted rather than empty.
+        self.assertNotIn("var_files", body.to_dict())
         self.assertNotIn("vars", body.to_dict())
 
     async def test_configured_inputs_ride_with_the_plan(self):
@@ -317,12 +318,14 @@ class TestTerraformPlan(_TerraformTestCase):
             scopes=SCOPES,
             backend=self.backend,
             inputs=TerraformInputs(
+                var_files=("envs/dev.tfvars",),
                 values={"region": {"location": "westeurope"}, "pw": "s3cr3t"},
             ),
         )
         submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
         _ = await self.terraform.plan(targets=[])
         body = submit_mocks["plan"].await_args.kwargs["body"]
+        self.assertEqual(body.to_dict()["var_files"], ["envs/dev.tfvars"])
         self.assertEqual(
             _vars(body), {"region": {"location": "westeurope"}, "pw": "s3cr3t"}
         )

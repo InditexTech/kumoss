@@ -5,7 +5,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Self, TypeVar
+from typing import TYPE_CHECKING, Any, Self, TypeVar, cast
 
 from attrs import define as _attrs_define
 
@@ -32,10 +32,14 @@ class ImportRequest:
         resource_id (str): Provider-specific identifier of the existing cloud resource,
             e.g. an Azure resource ID or an AWS ARN.
         env (Env | Unset): Environment variables added to the command's environment. Names
-            the implementation's own environment already sets, and
-            `TF_CLI_ARGS`, `TF_CLI_ARGS_*` and `TF_DATA_DIR`, are rejected
-            with `422`. May contain secrets. See "Environment and input
-            variables".
+            the implementation's own environment already sets, and the
+            reserved names listed in "Environment and input variables"
+            (`TF_*` but `TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), are
+            rejected with `422`. May contain secrets.
+        var_files (list[str] | Unset): Variable-definition files to pass as `-var-file`, in order,
+            before `vars`. Each is a path relative to `workspace_path`;
+            absolute paths and `..` segments are rejected. See "Environment
+            and input variables".
         vars_ (Vars | Unset): Input variable values by name, of any JSON type, passed as the
             last `-var-file` so they win over every other source. May
             contain secrets: never logged, persisted, or written inside the
@@ -46,6 +50,7 @@ class ImportRequest:
     address: str
     resource_id: str
     env: Env | Unset = UNSET
+    var_files: list[str] | Unset = UNSET
     vars_: Vars | Unset = UNSET
 
     def to_dict(self) -> dict[str, Any]:
@@ -58,6 +63,10 @@ class ImportRequest:
         env: dict[str, Any] | Unset = UNSET
         if not isinstance(self.env, Unset):
             env = self.env.to_dict()
+
+        var_files: list[str] | Unset = UNSET
+        if not isinstance(self.var_files, Unset):
+            var_files = self.var_files
 
         vars_: dict[str, Any] | Unset = UNSET
         if not isinstance(self.vars_, Unset):
@@ -74,6 +83,8 @@ class ImportRequest:
         )
         if env is not UNSET:
             field_dict["env"] = env
+        if var_files is not UNSET:
+            field_dict["var_files"] = var_files
         if vars_ is not UNSET:
             field_dict["vars"] = vars_
 
@@ -98,6 +109,8 @@ class ImportRequest:
         else:
             env = Env.from_dict(_env)
 
+        var_files = cast(list[str], d.pop("var_files", UNSET))
+
         _vars_ = d.pop("vars", UNSET)
         vars_: Vars | Unset
         if isinstance(_vars_, Unset):
@@ -110,6 +123,7 @@ class ImportRequest:
             address=address,
             resource_id=resource_id,
             env=env,
+            var_files=var_files,
             vars_=vars_,
         )
 

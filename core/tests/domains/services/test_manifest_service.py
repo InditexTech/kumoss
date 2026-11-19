@@ -597,15 +597,10 @@ class TestValueObjects(unittest.TestCase):
 class FakeInspector(IConfigInspector):
     def __init__(self, req: TerraformRequirements):
         self.requirements = req
-        self.var_files: dict[str, dict[str, JsonValue]] = {}
 
     @override
     async def inspect(self, directory: Path) -> TerraformRequirements:
         return self.requirements
-
-    @override
-    async def var_file_values(self, directory: Path, path: str) -> dict[str, JsonValue]:
-        return dict(self.var_files[path])
 
 
 class FakeManifests(IManifestRepository):
@@ -810,7 +805,7 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
         authorize.assert_not_awaited()
         self.assertIsNone(self.manifests.stored)
 
-    async def test_inputs_flatten_the_picked_var_files_in_order(self):
+    async def test_inputs_pass_the_picked_var_files_in_order(self):
         self.inspector.requirements = requirements(
             variables=(NAME,),
             var_files=(
@@ -819,32 +814,17 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
                 VarFile("envs/unpicked.tfvars", False, frozenset({"name"})),
             ),
         )
-        self.inspector.var_files = {
-            "envs/a.tfvars": {"name": "a", "only_a": 1},
-            "envs/b.tfvars": {"name": "b", "extra": ["x"]},
-            "envs/unpicked.tfvars": {"name": "never"},
-        }
         _ = await self.service.configure(
-            MODULE, {}, var_files=["envs/a.tfvars", "envs/b.tfvars"]
+            MODULE,
+            {"name": VariableAnswer("typed")},
+            var_files=["envs/b.tfvars", "envs/a.tfvars"],
         )
 
         inputs = await self.service.inputs(MODULE)
 
-        # The later file wins, as with -var-file; unpicked files are not read.
-        self.assertEqual(inputs.values, {"name": "b", "only_a": 1, "extra": ["x"]})
-
-    async def test_an_answer_wins_over_a_picked_var_file(self):
-        self.inspector.requirements = requirements(
-            variables=(NAME,),
-            var_files=(VarFile("envs/a.tfvars", False, frozenset({"name"})),),
-        )
-        self.inspector.var_files = {"envs/a.tfvars": {"name": "from-file"}}
-        _ = await self.service.configure(
-            MODULE, {"name": VariableAnswer("typed")}, var_files=["envs/a.tfvars"]
-        )
-
-        inputs = await self.service.inputs(MODULE)
-
+        # Terraform reads the files itself, fresh on every command; the
+        # answers ride after them, so they win.
+        self.assertEqual(inputs.var_files, ("envs/b.tfvars", "envs/a.tfvars"))
         self.assertEqual(inputs.values, {"name": "typed"})
 
     async def test_inputs_require_a_complete_configuration(self):

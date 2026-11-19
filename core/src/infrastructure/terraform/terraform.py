@@ -35,9 +35,10 @@ command at the session's provider scopes itself (subscription / project
 / account / compartment, one per scoped provider of the root module):
 each scope becomes the environment variable or input variable its
 provider reads (``SCOPE_BINDINGS``). The environment goes with every
-command; input variables go, with the root module's configured values,
-to ``plan`` and ``import``, the commands that evaluate them, the scope
-last so no configured value can retarget it. An OCI compartment is a
+command; ``plan`` and ``import``, the commands that evaluate input
+variables, also get the picked var files (read by Terraform itself)
+and the root module's configured values, the scope variables last so
+no configured value can retarget them. An OCI compartment is a
 resource argument, so when the module uses ``oci`` a ``plan`` is
 followed by a ``show`` of its artifact, and a plan that creates
 resources in another compartment fails validation.
@@ -202,6 +203,7 @@ class Terraform(ITerraform):
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
                         env=self.__env_field(),
+                        var_files=self.__var_files_field(),
                         vars_=self.__vars_field(),
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
@@ -601,6 +603,7 @@ class Terraform(ITerraform):
                     ImportRequest(
                         workspace_path=workspace,
                         env=self.__env_field(),
+                        var_files=self.__var_files_field(),
                         vars_=self.__vars_field(),
                         address=address,
                         resource_id=resource_id,
@@ -627,6 +630,12 @@ class Terraform(ITerraform):
     def __env_field(self) -> Env | Unset:
         """The scope environment variables; unset when there are none."""
         return Env.from_dict(self.__env) if self.__env else UNSET
+
+    def __var_files_field(self) -> list[str] | Unset:
+        """The picked var files, in order; unset when there are none."""
+        if self.__inputs is None or not self.__inputs.var_files:
+            return UNSET
+        return list(self.__inputs.var_files)
 
     def __vars_field(self) -> Vars | Unset:
         """The configured values, then the scope variables so they win; unset

@@ -153,11 +153,25 @@ class TestScanVarFiles(unittest.TestCase):
         self.assertFalse(files["envs/sub.auto.tfvars"].auto)
         self.assertEqual(files["envs/dev.tfvars"].assigns, frozenset({"dev"}))
 
-    def test_paths_the_iac_contract_rejects_are_not_offered(self):
+    def test_any_file_name_is_offered(self):
+        # The core reads picked files itself, so no path shape is excluded.
         self.put("envs/my env.tfvars", "a = 1")
         self.put("envs/ok.tfvars", "a = 1")
         self.assertEqual(
-            [f.path for f in _scan_var_files(self.dir)], ["envs/ok.tfvars"]
+            [f.path for f in _scan_var_files(self.dir)],
+            ["envs/my env.tfvars", "envs/ok.tfvars"],
+        )
+
+    def test_names_starting_with_underscores_are_kept(self):
+        self.put("terraform.tfvars", "__size = 4\n# a comment\n")
+        self.put("envs/x.tfvars.json", '{"__region": "weu"}')
+        files = {f.path: f.assigns for f in _scan_var_files(self.dir)}
+        self.assertEqual(
+            files,
+            {
+                "terraform.tfvars": frozenset({"__size"}),
+                "envs/x.tfvars.json": frozenset({"__region"}),
+            },
         )
 
     def test_unreadable_optional_file_is_ignored(self):
@@ -178,61 +192,6 @@ class TestScanVarFiles(unittest.TestCase):
         (self.dir / "link.tfvars").symlink_to(Path(outside.name) / "x.tfvars")
         (self.dir / "linkdir").symlink_to(outside.name)
         self.assertEqual(_scan_var_files(self.dir), ())
-
-
-class TestVarFileValues(unittest.IsolatedAsyncioTestCase):
-    """The values of a picked var file, as the core sends them in ``vars``."""
-
-    @override
-    def setUp(self):
-        self._tmp = tempfile.TemporaryDirectory()
-        self.dir = Path(self._tmp.name)
-        (self.dir / "envs").mkdir()
-
-    @override
-    def tearDown(self):
-        self._tmp.cleanup()
-
-    async def _values(self, name: str, text: str):
-        _ = (self.dir / "envs" / name).write_text(text)
-        return await TerraformConfigInspector().var_file_values(
-            self.dir, f"envs/{name}"
-        )
-
-    async def test_hcl_values_come_back_as_terraform_reads_them(self):
-        values = await self._values(
-            "weu.tfvars",
-            'location = "westeurope" # where\n'
-            "days = 7\n"
-            "on = true\n"
-            'ips = ["1.2.3.4/32"]\n'
-            'net = { allowed = ["a"], bypass = false }\n',
-        )
-        self.assertEqual(
-            values,
-            {
-                "location": "westeurope",
-                "days": 7,
-                "on": True,
-                "ips": ["1.2.3.4/32"],
-                "net": {"allowed": ["a"], "bypass": False},
-            },
-        )
-
-    async def test_json_var_files_are_read_as_json(self):
-        values = await self._values("x.tfvars.json", '{"a": {"b": [1]}}')
-        self.assertEqual(values, {"a": {"b": [1]}})
-
-    async def test_an_unreadable_file_is_an_error(self):
-        with self.assertRaises(ConfigInspectionError) as ctx:
-            _ = await self._values("bad.tfvars", "not = = valid")
-        self.assertEqual(ctx.exception.error_code, 422)
-
-    async def test_a_file_outside_the_module_is_refused(self):
-        with self.assertRaises(ConfigInspectionError):
-            _ = await TerraformConfigInspector().var_file_values(
-                self.dir, "../elsewhere.tfvars"
-            )
 
 
 @unittest.skipUnless(

@@ -30,10 +30,10 @@ class ShowRequest:
             `plan` job on this workspace. Restricted to a single path
             segment so it cannot escape the workspace.
         env (Env | Unset): Environment variables added to the command's environment. Names
-            the implementation's own environment already sets, and
-            `TF_CLI_ARGS`, `TF_CLI_ARGS_*` and `TF_DATA_DIR`, are rejected
-            with `422`. May contain secrets. See "Environment and input
-            variables".
+            the implementation's own environment already sets, and the
+            reserved names listed in "Environment and input variables"
+            (`TF_*` but `TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), are
+            rejected with `422`. May contain secrets.
     """
 
     workspace_path: str

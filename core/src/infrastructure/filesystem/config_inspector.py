@@ -16,7 +16,6 @@ that does not exist, so the directory is checked before running it.
 import asyncio
 import json
 import os
-import re
 import shutil
 from pathlib import Path
 from typing import Any, cast, final, override
@@ -40,11 +39,6 @@ _VAR_FILE_SUFFIXES = (".tfvars", ".tfvars.json")
 _MODULE_SUFFIXES = (".tf", ".tf.json")
 # Registry hosts a bare ``namespace/type`` source already implies.
 _DEFAULT_REGISTRIES = ("registry.terraform.io/", "registry.opentofu.org/")
-# Var file paths offered to the user: plain segments only (no hidden
-# segments, spaces or other unusual characters). Others are never offered.
-_VAR_FILE_PATH = re.compile(
-    r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.tfvars(\.json)?$"
-)
 # How deep under the module to look for optional var files (``envs/dev.tfvars``).
 _MAX_VAR_FILE_DEPTH = 3
 
@@ -56,20 +50,6 @@ class TerraformConfigInspector(IConfigInspector):
     def __init__(self, binary: str = "terraform-config-inspect", timeout: int = 60):
         self.__binary = binary
         self.__timeout = timeout
-
-    @override
-    async def var_file_values(self, directory: Path, path: str) -> dict[str, Any]:
-        file = directory / path
-        if not file.resolve().is_relative_to(directory.resolve()):
-            raise ConfigInspectionError(
-                f"Variables file {path} is outside the root module", 422
-            )
-        try:
-            return await asyncio.to_thread(_read_assignments, file)
-        except Exception as e:
-            raise ConfigInspectionError(
-                f"Cannot read variables file {path}: {e}", 422
-            ) from e
 
     @override
     async def inspect(self, directory: Path) -> TerraformRequirements:
@@ -208,13 +188,9 @@ def _scan_var_files(directory: Path) -> tuple[VarFile, ...]:
             auto = depth == 0 and (
                 filename in _AUTO_VAR_FILES or filename.endswith(_AUTO_VAR_SUFFIXES)
             )
-            relative = path.relative_to(directory).as_posix()
-            if not auto and not _VAR_FILE_PATH.match(relative):
-                logging.warning("Not offering var file %s: unsupported path", relative)
-                continue
             found.append(
                 VarFile(
-                    path=relative,
+                    path=path.relative_to(directory).as_posix(),
                     auto=auto,
                     assigns=_assigned_names(path, auto),
                 )
@@ -222,18 +198,16 @@ def _scan_var_files(directory: Path) -> tuple[VarFile, ...]:
     return tuple(found)
 
 
-# Strings come back unquoted and heredocs as their text, the way Terraform
-# reads them (python-hcl2 keeps the source spelling by default).
-_VALUES = hcl2.SerializationOptions(
-    with_comments=False,
-    strip_string_quotes=True,
-    preserve_heredocs=False,
-    preserve_scientific_notation=False,
-)
+# Only the assigned names are read: Terraform reads the values itself.
+# No comments, so no metadata keys mix with the variable names.
+_NAMES_ONLY = hcl2.SerializationOptions(with_comments=False)
 
 
 def _read_assignments(path: Path) -> dict[str, Any]:
     """The assignments of the variables file at ``path``, by variable name.
+
+    Names come back as written; values keep python-hcl2's spelling, which
+    is not Terraform's (strings stay quoted, expressions unevaluated).
 
     Raises:
         ValueError: When the file is not a set of assignments.
@@ -244,13 +218,10 @@ def _read_assignments(path: Path) -> dict[str, Any]:
     if path.name.endswith(".json"):
         data = json.loads(text)
     else:
-        data = hcl2.loads(text, serialization_options=_VALUES)
+        data = hcl2.loads(text, serialization_options=_NAMES_ONLY)
     if not isinstance(data, dict):
         raise ValueError("the top level is not a set of assignments")
-    # python-hcl2 may add metadata keys such as ``__comments__``.
-    return {
-        k: v for k, v in cast(dict[str, Any], data).items() if not k.startswith("__")
-    }
+    return cast(dict[str, Any], data)
 
 
 def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
