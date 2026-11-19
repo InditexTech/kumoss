@@ -13,6 +13,7 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/cli"
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
+	"github.com/InditexTech/kumoss/client/cli/internal/state"
 	"github.com/spf13/cobra"
 )
 
@@ -22,6 +23,8 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 		Use:   "uninstall [--purge]",
 		Short: "Stop the stack and delete the managed home",
 		Long: "Stop the Kumoss stack and delete the managed home directory.\n\n" +
+			"A directory without a kumoss.yaml is refused: --home takes any path, so\n" +
+			"only a home that init created is ever deleted.\n\n" +
 			"It runs `docker compose down -v` against the managed home, which stops\n" +
 			"the containers and deletes the data volumes, then removes the home and\n" +
 			"the persisted --home pointer. The binary and the pulled images are left\n" +
@@ -37,6 +40,15 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Nothing to uninstall: %s does not exist.\n", h.Root)
 				return nil
+			}
+			// --home takes any path, so a typo must not cost a directory.
+			// kumoss.yaml is what init writes and nothing else creates.
+			managed, err := state.StateFileExist(h.StateFile())
+			if err != nil {
+				return err
+			}
+			if !managed {
+				return fmt.Errorf("%s is not a Kumoss home (no %s); refusing to delete it", h.Root, h.StateFile())
 			}
 			if !purge {
 				ok, err := confirm(cmd, fmt.Sprintf("Stop the stack and delete %s, including its data volumes?", h.Root))
