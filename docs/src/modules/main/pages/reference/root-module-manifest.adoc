@@ -27,8 +27,9 @@ files:
   top level, which Terraform loads on its own, and any other `.tfvars`
   or `.tfvars.json` file up to three directories below the module
   (`envs/dev.tfvars`), which are *optional*: the user may pick them,
-  and the core reads their values, in the order picked, into the
-  values each run is given. Subdirectories that are modules
+  and each run passes them as `-var-file` in the order picked, so
+  Terraform reads them itself, fresh on every command. Kumoss only
+  reads which variables a file sets. Subdirectories that are modules
   themselves, hidden directories and symlinks are skipped.
 
 A configuration with errors is reported as `422` rather than guessed
@@ -152,10 +153,10 @@ secret manager: confidentiality rests on the bucket's access policy and
 server-side encryption.
 
 |Values at run time
-|Sent to the IaC sidecar on `plan` and `import` as `vars`: the picked
-var files' values, read by the core in the order picked, then the
-answers, which win. The sidecar writes them to an owner-only temporary
-file outside the workspace for the duration of the command. See
+|Sent to the IaC sidecar on `plan` and `import`: the picked var files
+as `var_files`, in the order picked, and the answers as `vars`, which
+win. The sidecar writes `vars` to an owner-only temporary file outside
+the workspace for the duration of the command. See
 xref:main:reference/api/iac.adoc#environment-and-input-variables[Environment
 and input variables].
 |===

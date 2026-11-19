@@ -173,8 +173,11 @@ Upgrading Kumoss:
   sends as the AWS scope, to the provider's `allowed_account_ids`, so a
   command whose credentials belong to another account fails (see
   xref:main:reference/api/iac.adoc#environment-and-input-variables[IaC
-  service API]). Run one iac deployment per AWS account, and make sure
-  every AWS scope is its 12-digit account ID.
+  service API]). Existing modules with a bare `provider "aws" {}` are
+  not protected: they run in whatever account the iac service's
+  credentials belong to. Add `allowed_account_ids = [var.aws_account_id]`
+  (and declare the variable) to them, or run one iac deployment per AWS
+  account. Make sure every AWS scope is its 12-digit account ID.
 . Generated code changes shape (see
   xref:main:reference/terraform-providers.adoc[Terraform providers]):
 ** New workspaces get newer provider majors (for example

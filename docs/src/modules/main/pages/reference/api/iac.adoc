@@ -104,18 +104,27 @@ this service, for example `/workspaces/my-iac_a1b2c3`.
 variables added to the command's environment, names matching
 `^[A-Za-z_][A-Za-z0-9_]{0,127}$`, string values. A name the service's
 own environment already sets, or a reserved name (`TF_*` but
-`TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), is `422`. May hold
-secrets. See <<environment-and-input-variables>>.
+`TF_VAR_*`, `TOFU_*`, `LD_*`, proxies, ...), or a value containing a NUL
+character, is `422`. May hold secrets. See
+<<environment-and-input-variables>>.
 
 |`provider` + `scope_id`
 |`scope-resource-ids` only, both required. The one scope to list:
 `provider` is `azurerm`, `google` or `aws`, any other value is `422`.
 See <<import-discovery>>.
 
+|`var_files`
+|`plan` and `import` only, optional. Up to 64 variable-definition files
+of the workspace, passed as `-var-file` in the order given, so a later
+one wins. Each is a path relative to `workspace_path`, 1 to 1024
+characters, of any shape (spaces included); an absolute path, a `..`
+segment or a NUL character is `422`. See
+<<environment-and-input-variables>>.
+
 |`vars`
 |`plan` and `import` only, optional. Up to 1024 input variable values
-by name, of any JSON type, passed as the last `-var-file` so they win
-over every other source. May hold secrets. See
+by name, of any JSON type, passed as the last `-var-file`, after
+`var_files`, so they win over every other source. May hold secrets. See
 <<environment-and-input-variables>>.
 
 |`plan_file`
@@ -142,7 +151,7 @@ Which endpoint takes which:
 |===
 |Endpoint |`workspace_path` |`env`
 |`plan_file` |`targets` |`address` + `resource_id`
-|`vars`
+|`var_files` + `vars`
 
 |`POST /v1/init`
 |required |optional |— |— |— |—
@@ -313,10 +322,10 @@ sidecar until it exits on its own.
 == Environment and input variables
 
 The request mirrors what the Terraform CLI itself takes: the workspace
-it runs in, environment variables, and input variable values. The
-service attaches no meaning to either. Deciding which scope a command
-runs against (a subscription, a project, an account, a compartment) is
-the caller's job, done through these two fields.
+it runs in, environment variables, variable files and input variable
+values. The service attaches no meaning to them. Deciding which scope a
+command runs against (a subscription, a project, an account, a
+compartment) is the caller's job, done through `env` and `vars`.
 
 * `env` — every engine command. Environment variables added to the
   command's environment, for example `ARM_SUBSCRIPTION_ID` or
@@ -327,16 +336,25 @@ the caller's job, done through these two fields.
   its environment: every `TF_*` and `TOFU_*` except `TF_VAR_*`,
   `TERRAFORM_CONFIG`, `LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `GODEBUG`,
   `SSL_CERT_FILE`, `SSL_CERT_DIR`, and `HTTP_PROXY`, `HTTPS_PROXY`,
-  `ALL_PROXY`, `NO_PROXY` in any case. Deployments therefore leave scope variables such
-  as `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` unset on the service
-  and let each request carry them.
-* `vars` — `plan` and `import`, the commands that evaluate the
-  configuration. Input variable values by name, of any JSON type. The
-  implementation writes them to one variables file passed as the last
-  `-var-file`, so they win over every other source; the files Terraform
-  loads on its own (`terraform.tfvars`, `*.auto.tfvars`) still apply
-  underneath. Since they arrive as a file, a value for a variable the
-  configuration does not declare is only a warning.
+  `ALL_PROXY`, `NO_PROXY` in any case. A value containing a NUL
+  character is `422` too. Deployments therefore leave scope variables
+  such as `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` unset on the
+  service and let each request carry them.
+* `var_files` — `plan` and `import`, the commands that evaluate the
+  configuration. Variable-definition files of the workspace, passed as
+  `-var-file` in the order given, so a later one wins; Terraform reads
+  them itself on every command. Each is a path relative to
+  `workspace_path`: an absolute path, a `..` segment or a NUL character
+  is rejected with `422`, and a path that resolves outside the
+  workspace (through a symlink) ends the job with exit code 1 without
+  running the engine.
+* `vars` — `plan` and `import`. Input variable values by name, of any
+  JSON type. The implementation writes them to one variables file
+  passed as the last `-var-file`, after `var_files`, so they win over
+  every other source; the files Terraform loads on its own
+  (`terraform.tfvars`, `*.auto.tfvars`) still apply underneath. Since
+  they arrive as a file, a value for a variable the configuration does
+  not declare is only a warning.
 
 `env` and `vars` may hold secrets. An implementation must not log or
 persist their values, nor write them inside `workspace_path`, which may
@@ -377,10 +395,10 @@ as a setting, or an input variable the code passes on:
 |===
 
 The `env` entries go with every engine command except the import
-discovery ones. The `vars` sent with `plan` and `import` are the root
-module's configured values — the optional var files picked in its
-xref:main:reference/root-module-manifest.adoc[manifest], read by the
-core in the order picked, then the manifest's answers — with the scope
+discovery ones. `plan` and `import` also get the optional var files
+picked in the root module's
+xref:main:reference/root-module-manifest.adoc[manifest] as `var_files`,
+in the order picked, and its answers as `vars`, with the scope
 variables last, so no configured value can retarget the scope.
 
 An OCI compartment is a resource argument: the variable fills the
@@ -389,9 +407,14 @@ account is implicit in the credentials the provider resolves, so
 nothing redirects a command to one: the variable fills the
 `aws_account_id` variable the code passes to the provider's
 `allowed_account_ids`, which makes the provider refuse to run in any
-other account. One deployment of the bundled implementation therefore
-serves the AWS account its own credentials belong to; generated
-provider blocks never assume a role.
+other account. Generated code declares that variable and passes it on;
+code that does not is not protected. An existing module with a bare
+`provider "aws" {}` gets only an "undeclared variable" warning and runs
+in whatever account the service's credentials belong to, so such a
+module must declare `aws_account_id` and set
+`allowed_account_ids = [var.aws_account_id]`, or the deployment must
+run one IaC service per AWS account. Generated provider blocks never
+assume a role.
 
 Any other provider (`kubernetes`, `vsphere`, `random`, ...) gets
 nothing: a Kubernetes namespace or a vSphere datacenter is a resource
@@ -419,14 +442,17 @@ Contract 2.0.0 is a breaking change from 1.x:
 
 * The request is a plain description of a CLI invocation. The single
   required `scope_id` + `terraform_provider` pair on `init`, `plan`,
-  `apply` and `import`, and the `var_files` + `variables` fields of
-  `plan` and `import`, are gone. Every engine command takes an
-  optional `env`, and `plan` and `import` take an optional `vars`. The
-  service no longer knows any provider: the core maps each scope to
-  `env` or `vars` itself.
+  `apply` and `import`, and the `variables` field of `plan` and
+  `import`, are gone. Every engine command takes an optional `env`,
+  and `plan` and `import` take an optional `vars`; `var_files` stays,
+  now with any path shape inside the workspace. The service no longer
+  knows any provider: the core maps each scope to `env` or `vars`
+  itself.
 * The bundled implementation no longer checks the AWS account with STS
-  before `init`, `plan`, `apply` and `import`; the provider's
-  `allowed_account_ids` still refuses any other account.
+  before `init`, `plan`, `apply` and `import`. The provider's
+  `allowed_account_ids` refuses any other account only in code that
+  passes `var.aws_account_id` to it, as generated code does; existing
+  modules need that line, or one IaC deployment per AWS account.
 * `/v1/import/scope-resource-ids` takes `provider` (one of `azurerm`,
   `google`, `aws`) instead of `terraform_provider`, and rejects any
   other provider with `422` instead of ending the job with exit code

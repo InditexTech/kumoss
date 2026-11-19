@@ -151,9 +151,14 @@ provider "aws" {
 }
 ----
 
-One deployment therefore serves the AWS account its credentials belong
-to; generated provider blocks never assume a role. For LocalStack the
-`aws` scope is its account id, `000000000000`.
+Only code that declares `aws_account_id` and passes it on this way is
+protected. An existing module with a bare `provider "aws" {}` gets only
+an "undeclared variable" warning and runs in whatever account the iac
+container's credentials belong to: add the variable and
+`allowed_account_ids = [var.aws_account_id]` to it, or run one iac
+deployment per AWS account. Generated provider blocks never assume a
+role. For LocalStack the `aws` scope is its account id,
+`000000000000`.
 
 *Region.* The region is not part of the scope. The provider takes the
 first of:
