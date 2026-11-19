@@ -180,6 +180,61 @@ class TestScanVarFiles(unittest.TestCase):
         self.assertEqual(_scan_var_files(self.dir), ())
 
 
+class TestVarFileValues(unittest.IsolatedAsyncioTestCase):
+    """The values of a picked var file, as the core sends them in ``vars``."""
+
+    @override
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self._tmp.name)
+        (self.dir / "envs").mkdir()
+
+    @override
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    async def _values(self, name: str, text: str):
+        _ = (self.dir / "envs" / name).write_text(text)
+        return await TerraformConfigInspector().var_file_values(
+            self.dir, f"envs/{name}"
+        )
+
+    async def test_hcl_values_come_back_as_terraform_reads_them(self):
+        values = await self._values(
+            "weu.tfvars",
+            'location = "westeurope" # where\n'
+            "days = 7\n"
+            "on = true\n"
+            'ips = ["1.2.3.4/32"]\n'
+            'net = { allowed = ["a"], bypass = false }\n',
+        )
+        self.assertEqual(
+            values,
+            {
+                "location": "westeurope",
+                "days": 7,
+                "on": True,
+                "ips": ["1.2.3.4/32"],
+                "net": {"allowed": ["a"], "bypass": False},
+            },
+        )
+
+    async def test_json_var_files_are_read_as_json(self):
+        values = await self._values("x.tfvars.json", '{"a": {"b": [1]}}')
+        self.assertEqual(values, {"a": {"b": [1]}})
+
+    async def test_an_unreadable_file_is_an_error(self):
+        with self.assertRaises(ConfigInspectionError) as ctx:
+            _ = await self._values("bad.tfvars", "not = = valid")
+        self.assertEqual(ctx.exception.error_code, 422)
+
+    async def test_a_file_outside_the_module_is_refused(self):
+        with self.assertRaises(ConfigInspectionError):
+            _ = await TerraformConfigInspector().var_file_values(
+                self.dir, "../elsewhere.tfvars"
+            )
+
+
 @unittest.skipUnless(
     shutil.which("terraform-config-inspect"),
     "terraform-config-inspect is not installed",

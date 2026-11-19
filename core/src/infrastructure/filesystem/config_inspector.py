@@ -40,8 +40,8 @@ _VAR_FILE_SUFFIXES = (".tfvars", ".tfvars.json")
 _MODULE_SUFFIXES = (".tf", ".tf.json")
 # Registry hosts a bare ``namespace/type`` source already implies.
 _DEFAULT_REGISTRIES = ("registry.terraform.io/", "registry.opentofu.org/")
-# Var file paths the IaC contract accepts (``VarFiles`` in iac.v1.yaml):
-# plain segments only. Others are never offered, as they could not be passed.
+# Var file paths offered to the user: plain segments only (no hidden
+# segments, spaces or other unusual characters). Others are never offered.
 _VAR_FILE_PATH = re.compile(
     r"^[A-Za-z0-9_-][A-Za-z0-9._-]*(/[A-Za-z0-9_-][A-Za-z0-9._-]*)*\.tfvars(\.json)?$"
 )
@@ -56,6 +56,20 @@ class TerraformConfigInspector(IConfigInspector):
     def __init__(self, binary: str = "terraform-config-inspect", timeout: int = 60):
         self.__binary = binary
         self.__timeout = timeout
+
+    @override
+    async def var_file_values(self, directory: Path, path: str) -> dict[str, Any]:
+        file = directory / path
+        if not file.resolve().is_relative_to(directory.resolve()):
+            raise ConfigInspectionError(
+                f"Variables file {path} is outside the root module", 422
+            )
+        try:
+            return await asyncio.to_thread(_read_assignments, file)
+        except Exception as e:
+            raise ConfigInspectionError(
+                f"Cannot read variables file {path}: {e}", 422
+            ) from e
 
     @override
     async def inspect(self, directory: Path) -> TerraformRequirements:
@@ -208,6 +222,37 @@ def _scan_var_files(directory: Path) -> tuple[VarFile, ...]:
     return tuple(found)
 
 
+# Strings come back unquoted and heredocs as their text, the way Terraform
+# reads them (python-hcl2 keeps the source spelling by default).
+_VALUES = hcl2.SerializationOptions(
+    with_comments=False,
+    strip_string_quotes=True,
+    preserve_heredocs=False,
+    preserve_scientific_notation=False,
+)
+
+
+def _read_assignments(path: Path) -> dict[str, Any]:
+    """The assignments of the variables file at ``path``, by variable name.
+
+    Raises:
+        ValueError: When the file is not a set of assignments.
+        OSError: When it cannot be read.
+    """
+    text = path.read_text(encoding="utf-8")
+    data: Any
+    if path.name.endswith(".json"):
+        data = json.loads(text)
+    else:
+        data = hcl2.loads(text, serialization_options=_VALUES)
+    if not isinstance(data, dict):
+        raise ValueError("the top level is not a set of assignments")
+    # python-hcl2 may add metadata keys such as ``__comments__``.
+    return {
+        k: v for k, v in cast(dict[str, Any], data).items() if not k.startswith("__")
+    }
+
+
 def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
     """Names of the variables ``path`` sets.
 
@@ -216,14 +261,7 @@ def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
     as setting nothing, so it cannot block a module that does not use it.
     """
     try:
-        text = path.read_text(encoding="utf-8")
-        data: Any
-        if path.name.endswith(".json"):
-            data = json.loads(text)
-        else:
-            data = hcl2.loads(text)
-        if not isinstance(data, dict):
-            raise ValueError("the top level is not a set of assignments")
+        return frozenset(_read_assignments(path))
     except Exception as e:
         if auto:
             raise ConfigInspectionError(
@@ -231,6 +269,3 @@ def _assigned_names(path: Path, auto: bool) -> frozenset[str]:
             ) from e
         logging.warning("Ignoring unreadable variables file %s: %s", path, e)
         return frozenset()
-    # python-hcl2 adds metadata keys such as ``__comments__``.
-    names = cast(dict[str, Any], data).keys()
-    return frozenset(k for k in names if not k.startswith("__"))

@@ -6,12 +6,11 @@
 """The provider vocabulary is repeated at every boundary the core crosses.
 
 Providers are Terraform provider type names everywhere. The core keeps the
-sets it knows more about (``SCOPED_PROVIDERS``, ``DISCOVERABLE_PROVIDERS``)
+ones it knows more about (``SCOPE_BINDINGS``, ``DISCOVERABLE_PROVIDERS``)
 and passes names to the generated clients by value, so a provider missing
 from a contract or a stale client fails only at runtime.
 """
 
-import re
 import unittest
 from pathlib import Path
 from typing import Any
@@ -27,7 +26,7 @@ from src.clients.mapping.models.terraform_provider import (
 )
 from src.shared.constants import (
     DISCOVERABLE_PROVIDERS,
-    LEGACY_PROVIDER_NAMES,
+    SCOPE_BINDINGS,
     SCOPED_PROVIDERS,
 )
 
@@ -39,15 +38,6 @@ _OLD_NAMES = {"azure", "gcp", "vmware"}
 
 def _contract(service: str) -> dict[str, Any]:
     return yaml.safe_load((CONTRACTS_DIR / f"{service}.v1.yaml").read_text())
-
-
-def _section(markdown: str, heading: str) -> str:
-    """The body of the ``## heading`` section of a markdown text."""
-    match = re.search(
-        rf"^## {re.escape(heading)}\n(.*?)(?=^## |\Z)", markdown, re.M | re.S
-    )
-    assert match, f"no '## {heading}' section"
-    return match.group(1)
 
 
 class TestIacVocabulary(unittest.TestCase):
@@ -63,24 +53,24 @@ class TestIacVocabulary(unittest.TestCase):
             {p.value for p in ScopeResourceIdsRequestProvider}, DISCOVERABLE_PROVIDERS
         )
 
-    def test_scoped_providers_match_the_scope_injection_table(self):
-        section = _section(self.spec["info"]["description"], "Scope injection")
-        # First-column cells naming a provider (the endpoint table's cells
-        # are paths, and `provider` is the header).
-        injected = set(
-            re.findall(r"^\|\s*`([a-z0-9][a-z0-9_-]*)`\s*\|", section, re.M)
-        ) - {"provider"}
-        self.assertEqual(injected, SCOPED_PROVIDERS)
+    def test_scope_bindings_fit_the_request_fields(self):
+        # The IaC service knows no providers: each scope reaches it as an
+        # `env` or `vars` entry, so its name must be one those accept.
+        schemas = self.spec["components"]["schemas"]
+        patterns = {
+            "env": schemas["Env"]["propertyNames"]["pattern"],
+            "var": schemas["Vars"]["propertyNames"]["pattern"],
+        }
+        for provider, binding in SCOPE_BINDINGS.items():
+            self.assertRegex(binding.name, patterns[binding.kind], provider)
 
     def test_every_discoverable_provider_is_scoped(self):
         self.assertLessEqual(DISCOVERABLE_PROVIDERS, SCOPED_PROVIDERS)
 
-    def test_provider_scopes_take_any_provider_type_name(self):
-        schema = self.spec["components"]["schemas"]["ProviderScope"]
-        provider = schema["properties"]["provider"]
-        self.assertEqual(provider["type"], "string")
-        self.assertNotIn("enum", provider)
-        self.assertNotIn("TerraformProvider", self.spec["components"]["schemas"])
+    def test_the_service_takes_no_provider_vocabulary(self):
+        schemas = self.spec["components"]["schemas"]
+        self.assertNotIn("ProviderScope", schemas)
+        self.assertNotIn("TerraformProvider", schemas)
 
 
 class TestMappingVocabulary(unittest.TestCase):
@@ -113,14 +103,6 @@ class TestAuthzVocabulary(unittest.TestCase):
         # The generated client carries it as a string too.
         resource = ResourceProperties(repo_uri="https://x/y", provider="vsphere")
         self.assertEqual(resource.to_dict()["provider"], "vsphere")
-
-
-class TestLegacyNames(unittest.TestCase):
-    def test_legacy_names_map_to_terraform_names(self):
-        self.assertEqual(set(LEGACY_PROVIDER_NAMES), _OLD_NAMES)
-        self.assertEqual(
-            set(LEGACY_PROVIDER_NAMES.values()), {"azurerm", "google", "vsphere"}
-        )
 
 
 if __name__ == "__main__":

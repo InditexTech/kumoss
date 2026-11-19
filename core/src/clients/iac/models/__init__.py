@@ -6,6 +6,7 @@
 
 from .apply_request import ApplyRequest
 from .apply_response_400 import ApplyResponse400
+from .env import Env
 from .health import Health
 from .health_status import HealthStatus
 from .import_request import ImportRequest
@@ -20,7 +21,6 @@ from .operation_result import OperationResult
 from .plan_request import PlanRequest
 from .plan_response_400 import PlanResponse400
 from .problem import Problem
-from .provider_scope import ProviderScope
 from .scope_resource_ids_request import ScopeResourceIdsRequest
 from .scope_resource_ids_request_provider import ScopeResourceIdsRequestProvider
 from .scope_resource_ids_response_400 import ScopeResourceIdsResponse400
@@ -30,11 +30,12 @@ from .state_resource_ids_request import StateResourceIdsRequest
 from .state_resource_ids_response_400 import StateResourceIdsResponse400
 from .validate_request import ValidateRequest
 from .validate_response_400 import ValidateResponse400
-from .variables import Variables
+from .vars_ import Vars
 
 __all__ = (
     "ApplyRequest",
     "ApplyResponse400",
+    "Env",
     "Health",
     "HealthStatus",
     "ImportRequest",
@@ -49,7 +50,6 @@ __all__ = (
     "PlanRequest",
     "PlanResponse400",
     "Problem",
-    "ProviderScope",
     "ScopeResourceIdsRequest",
     "ScopeResourceIdsRequestProvider",
     "ScopeResourceIdsResponse400",
@@ -59,5 +59,5 @@ __all__ = (
     "StateResourceIdsResponse400",
     "ValidateRequest",
     "ValidateResponse400",
-    "Variables",
+    "Vars",
 )

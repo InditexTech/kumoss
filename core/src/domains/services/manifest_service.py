@@ -45,13 +45,13 @@ from src.domains.value_objects.terraform_requirements import (
     TerraformRequirements,
     VariableSpec,
 )
-from src.shared.constants import SCOPED_PROVIDERS, ManifestStatus
+from src.shared.constants import SCOPE_BINDINGS, SCOPED_PROVIDERS, ManifestStatus
 
-# Input variables the IaC service fills from a provider's scope (the
-# ``TF_VAR_*`` entries of the IaC contract's "Scope injection"). Keep in sync.
+# Input variables each run fills from a provider's scope.
 _PLATFORM_VARIABLES: dict[str, frozenset[str]] = {
-    "oci": frozenset({"compartment_ocid"}),
-    "aws": frozenset({"aws_account_id"}),
+    provider: frozenset({binding.name})
+    for provider, binding in SCOPE_BINDINGS.items()
+    if binding.kind == "var"
 }
 
 # Called with a session's provider/scope pairs before anything is saved;
@@ -323,7 +323,10 @@ class ManifestService:
         )
 
     async def inputs(self, module: RootModuleRef) -> TerraformInputs:
-        """What a Terraform run of the module is given: var files and every bound value.
+        """The input variable values a Terraform run of the module is given.
+
+        The picked var files are read here, in order, and the manifest's
+        answers override them.
 
         Call after ``sync`` or ``configure`` reported the manifest up to
         date. A module without a manifest (one set up before manifests
@@ -346,13 +349,18 @@ class ManifestService:
                 + f"{', '.join(lost)}.",
                 409,
             )
-        return TerraformInputs(
-            var_files=manifest.var_files,
-            values={
+        values: dict[str, JsonValue] = {}
+        for var_file in manifest.var_files:
+            values.update(
+                await self.__inspector.var_file_values(module.directory, var_file)
+            )
+        values.update(
+            {
                 v.name: stored[v.name] if v.sensitive else v.value
                 for v in manifest.variables
-            },
+            }
         )
+        return TerraformInputs(values=values)
 
     async def __read(
         self, module: RootModuleRef

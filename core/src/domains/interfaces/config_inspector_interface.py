@@ -4,6 +4,7 @@
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+from typing import Any
 
 from src.domains.value_objects.terraform_requirements import TerraformRequirements
 
@@ -20,4 +21,13 @@ class IConfigInspector(ABC):
         Raises:
             InvalidRootModulePath: When ``directory`` is not a Terraform module.
             ConfigInspectionError: When the configuration cannot be parsed.
+        """
+
+    @abstractmethod
+    async def var_file_values(self, directory: Path, path: str) -> dict[str, Any]:
+        """The values the variables file ``path`` (relative to ``directory``) assigns.
+
+        Raises:
+            ConfigInspectionError: When the file cannot be read or parsed,
+                or lies outside ``directory``.
         """

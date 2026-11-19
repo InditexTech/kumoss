@@ -2,6 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Literal
 
@@ -38,21 +39,37 @@ class PanelRole(Enum):
 # of their source address (``azurerm`` for ``hashicorp/azurerm``). Any name
 # is valid; these are the ones the platform knows more about.
 
+
+@dataclass(frozen=True)
+class ScopeBinding:
+    """How a Terraform run is pointed at a provider's scope.
+
+    ``env``: an environment variable the provider reads as a setting.
+    ``var``: an input variable the code passes on itself (an OCI
+    compartment is a resource argument; an AWS account goes to the
+    provider's ``allowed_account_ids``, which refuses any other account).
+    """
+
+    kind: Literal["env", "var"]
+    name: str
+
+
 # Providers whose scope (subscription, project, account, compartment) the
-# user is asked for once and the IaC service injects into each command
-# (contracts/openapi/iac.v1.yaml, "Scope injection").
-SCOPED_PROVIDERS: frozenset[str] = frozenset({"azurerm", "google", "aws", "oci"})
+# user is asked for once, and how each run is pointed at it. The IaC
+# service attaches no meaning to providers: the core turns each scope into
+# the ``env`` or ``vars`` of the request (contracts/openapi/iac.v1.yaml,
+# "Environment and input variables").
+SCOPE_BINDINGS: dict[str, ScopeBinding] = {
+    "azurerm": ScopeBinding("env", "ARM_SUBSCRIPTION_ID"),
+    "google": ScopeBinding("env", "GOOGLE_PROJECT"),
+    "aws": ScopeBinding("var", "aws_account_id"),
+    "oci": ScopeBinding("var", "compartment_ocid"),
+}
+SCOPED_PROVIDERS: frozenset[str] = frozenset(SCOPE_BINDINGS)
 
 # Providers whose scopes the IaC service can list resources of, for import
 # (``ScopeResourceIdsRequest.provider`` in the same contract).
 DISCOVERABLE_PROVIDERS: frozenset[str] = frozenset({"azurerm", "google", "aws"})
-
-# Provider names before they matched Terraform's, still found in stored data.
-LEGACY_PROVIDER_NAMES: dict[str, str] = {
-    "azure": "azurerm",
-    "gcp": "google",
-    "vmware": "vsphere",
-}
 
 
 @unique

@@ -97,12 +97,12 @@ class VariableAnswer:
 
 @dataclass(frozen=True)
 class TerraformInputs:
-    """Value object: what a Terraform run of a configured root module is given.
+    """Value object: the input variable values a Terraform run of a configured root module is given.
 
-    ``var_files`` go first, as ``-var-file`` in order; ``values`` are
-    written to one ``.tfvars.json`` passed after them, so they win.
-    ``values`` include secrets: never log or persist this object.
+    The picked optional var files, in order, then the manifest's answers,
+    so a later source wins. Files Terraform loads on its own are not
+    included: it still reads them, underneath these. ``values`` include
+    secrets: never log or persist this object.
     """
 
-    var_files: tuple[str, ...] = ()
     values: dict[str, JsonValue] = field(default_factory=dict, repr=False)
