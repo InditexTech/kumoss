@@ -16,8 +16,8 @@ through the job.
 
 Every command endpoint takes ``env``, added to the engine's environment
 for that command (never replacing a variable the service already has,
-see ``check_env``), and ``plan`` and ``import`` take ``vars``, passed as
-the last ``-var-file``. Which scope a command runs against is whatever
+see ``check_env``), and ``plan`` and ``import`` take ``var_files``,
+passed as ``-var-file`` in order, and ``vars``, passed as the last one. Which scope a command runs against is whatever
 the caller put in them: the service knows nothing about providers.
 
 ``init`` always reconfigures the backend, and passes
@@ -338,7 +338,9 @@ async def plan(
         "plan",
         workspace,
         response,
-        lambda: engine.plan(workspace, body.targets, body.plan_file, env, body.vars),
+        lambda: engine.plan(
+            workspace, body.targets, body.plan_file, env, body.var_files, body.vars
+        ),
     )
 
 
@@ -405,7 +407,7 @@ async def import_resource(
         workspace,
         response,
         lambda: engine.import_resource(
-            workspace, body.address, body.resource_id, env, body.vars
+            workspace, body.address, body.resource_id, env, body.var_files, body.vars
         ),
     )
 

@@ -80,6 +80,70 @@ def test_env_values_are_strings() -> None:
         _ = InitRequest.model_validate({"workspace_path": "/ws", "env": {"X": 1}})
 
 
+def test_env_values_cannot_hold_nul() -> None:
+    # The OS cannot pass a NUL to a process; caught here, not in the job.
+    with pytest.raises(ValidationError):
+        _ = InitRequest.model_validate(
+            {"workspace_path": "/ws", "env": {"X": "a\x00b"}}
+        )
+
+
+@pytest.mark.parametrize(
+    ("model", "extra"),
+    [
+        (PlanRequest, {"plan_file": "p.plan"}),
+        (ImportRequest, {"address": "a.b", "resource_id": "i"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "path",
+    [
+        "dev.tfvars",
+        "envs/dev.tfvars.json",
+        "envs/my env.tfvars",
+        "envs/.hidden.tfvars",
+        "a..b.tfvars",
+        "no-suffix",
+    ],
+)
+def test_var_files_take_any_relative_path_inside_the_workspace(
+    model: Any, extra: dict[str, Any], path: str
+) -> None:
+    request = model.model_validate(
+        {"workspace_path": "/ws", "var_files": [path, "z.tfvars"], **extra}
+    )
+    assert request.var_files == [path, "z.tfvars"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", "/etc/x.tfvars", "../x.tfvars", "envs/../../x.tfvars", "envs/..", "a\x00b"],
+)
+def test_var_files_cannot_leave_the_workspace(path: str) -> None:
+    with pytest.raises(ValidationError):
+        _ = PlanRequest.model_validate(
+            {"workspace_path": "/ws", "plan_file": "p.plan", "var_files": [path]}
+        )
+
+
+@pytest.mark.parametrize(
+    ("model", "extra"),
+    [
+        (InitRequest, {}),
+        (ValidateRequest, {}),
+        (ShowRequest, {"plan_file": "p.plan"}),
+        (ApplyRequest, {"plan_file": "p.plan"}),
+    ],
+)
+def test_commands_that_evaluate_nothing_reject_var_files(
+    model: Any, extra: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError):
+        _ = model.model_validate(
+            {"workspace_path": "/ws", "var_files": ["a.tfvars"], **extra}
+        )
+
+
 def test_vars_take_any_json_value_and_stay_out_of_repr() -> None:
     request = PlanRequest.model_validate(
         {
@@ -119,7 +183,6 @@ def test_commands_that_evaluate_nothing_reject_vars(
     "field",
     [
         {"scopes": [{"provider": "azurerm", "scope_id": "s"}]},
-        {"var_files": ["envs/dev.tfvars"]},
         {"variables": {"a": 1}},
     ],
 )

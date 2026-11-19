@@ -29,7 +29,8 @@ subcommands against that binary instead (e.g. `terraform init`).
 - `POST /v1/init` — enqueues `tofu init`.
 - `POST /v1/validate` — enqueues `tofu validate`.
 - `POST /v1/plan` — enqueues `tofu plan -out <plan_file>` with
-  optional `-target=` filters.
+  optional `-target=` filters and `-var-file` arguments (see
+  "Environment and input variables").
 - `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
 - `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
@@ -67,7 +68,7 @@ subcommands against that binary instead (e.g. `terraform init`).
 ## Environment and input variables
 
 A request describes a CLI invocation and nothing more: the service
-attaches no meaning to providers or scopes. Two fields carry what a
+attaches no meaning to providers or scopes. Three fields carry what a
 caller would otherwise put on the command line or in the shell:
 
 - `env` (every command endpoint: `init`, `validate`, `plan`, `show`,
@@ -80,21 +81,32 @@ caller would otherwise put on the command line or in the shell:
   every `TF_*` and `TOFU_*` except `TF_VAR_*`, `TERRAFORM_CONFIG`,
   `LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `GODEBUG`, `SSL_CERT_FILE`,
   `SSL_CERT_DIR`, and the proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`,
-  `ALL_PROXY`, `NO_PROXY`, any case). The check happens at submission,
-  so no job is created.
-- `vars` (`plan` and `import`, the commands that evaluate the
-  configuration) — input variable values by name, of any JSON type.
-  They are written to an owner-only temporary `.tfvars.json` outside
-  the workspace, passed as the last `-var-file` (so they win over every
-  other source), and removed when the command ends. Files the engine
+  `ALL_PROXY`, `NO_PROXY`, any case). A value may not contain a NUL
+  character, which no process can receive. Both checks happen at
+  submission, so no job is created.
+- `var_files` (`plan` and `import`, the commands that evaluate the
+  configuration) — variable-definition files of the workspace, passed
+  as `-var-file` in the order given, so a later one wins. Any path
+  relative to `workspace_path` is accepted (spaces included: the path
+  is one argument, never seen by a shell); an absolute path, a `..`
+  segment or a NUL character is a `422`. A path that resolves outside
+  the workspace through a symlink ends the job with exit code 1 and
+  `var file <path> resolves outside the workspace` on `stderr`,
+  without starting the engine. The engine reads the files itself on
+  every command, so a file edited between commands is read afresh.
+- `vars` (`plan` and `import`) — input variable values by name, of any
+  JSON type. They are written to an owner-only temporary `.tfvars.json`
+  outside the workspace, passed as the last `-var-file`, after
+  `var_files` (so they win over every other source), and removed when
+  the command ends. Files the engine
   loads on its own (`terraform.tfvars`, `*.auto.tfvars`) still apply
   underneath. Because they arrive as a file, a value for a variable the
   configuration does not declare is only a warning.
 
 Both may hold secrets: the engine log line for each command names the
 `env` keys it added, never their values, and `vars` are never logged.
-`import/state-resource-ids` and `import/scope-resource-ids` take
-neither.
+`import/state-resource-ids` and `import/scope-resource-ids` take none
+of the three.
 
 Scoping a command is the caller's job. The Kumoss core sends the
 subscription and project as `env` (`ARM_SUBSCRIPTION_ID` for
@@ -112,9 +124,16 @@ subscription; a deployment keeping state outside the managed
 subscription has to name `subscription_id` in its backend config. See
 "Backend minimums" in `PROVIDERS.md`.
 
-There is no check of the AWS account before a command runs: the
-`allowed_account_ids` the generated code sets from `aws_account_id`
-makes the provider itself refuse any other account.
+There is no check of the AWS account before a command runs. The
+account is enforced only by code that declares `aws_account_id` and
+passes it to the provider's `allowed_account_ids`, as the generated
+code does; the provider then refuses any other account. An existing
+module with a bare `provider "aws" {}` ignores the `aws_account_id`
+it is sent (an undeclared variable is only a warning) and runs in
+whatever account the service's credentials belong to. Such modules
+must add `allowed_account_ids = [var.aws_account_id]` to their AWS
+provider blocks (and declare the variable), or run against an IaC
+deployment that serves exactly one AWS account.
 
 `import/scope-resource-ids` is the exception to all of this: it takes
 one required `provider` (`azurerm`, `google` or `aws` — the providers

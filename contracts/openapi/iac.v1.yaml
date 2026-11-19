@@ -41,10 +41,11 @@ info:
     ## Environment and input variables
 
     The request mirrors what the Terraform CLI itself takes: the
-    workspace it runs in, environment variables, and input variable
-    values. The service attaches no meaning to either; deciding which
-    scope a command runs against (a subscription, a project, an
-    account) is the caller's job, done through these two fields.
+    workspace it runs in, environment variables, variable files and
+    input variable values. The service attaches no meaning to them;
+    deciding which scope a command runs against (a subscription, a
+    project, an account) is the caller's job, done through `env` and
+    `vars`.
 
     - `env` (every command endpoint): environment variables added to
       the command's environment, e.g. `ARM_SUBSCRIPTION_ID` or
@@ -56,16 +57,23 @@ info:
       except `TF_VAR_*`, `TERRAFORM_CONFIG`, `LD_*`, `DYLD_*`,
       `BASH_ENV`, `ENV`, `GODEBUG`, `SSL_CERT_FILE`, `SSL_CERT_DIR`,
       and `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` in any
-      case. Deployments therefore
-      leave scope variables such as `ARM_SUBSCRIPTION_ID` unset and
-      let each request carry them.
-    - `vars` (`plan` and `import`, the commands that evaluate the
-      configuration): input variable values by name, of any JSON type.
-      The implementation writes them to one variables file passed as
-      the last `-var-file`, so they win over every other source; files
-      Terraform loads on its own (`terraform.tfvars`, `*.auto.tfvars`)
-      still apply underneath. Since they arrive as a file, a value for
-      a variable the configuration does not declare is only a warning.
+      case. A value may not contain a NUL character. Deployments
+      therefore leave scope variables such as `ARM_SUBSCRIPTION_ID`
+      unset and let each request carry them.
+    - `var_files` (`plan` and `import`, the commands that evaluate the
+      configuration): variable-definition files of the workspace,
+      passed as `-var-file` in the order given, so a later one wins.
+      Each is a path relative to `workspace_path`; an absolute path, a
+      `..` segment or a NUL character is rejected with `422`, and a
+      path that resolves outside the workspace (through a symlink) ends
+      the job with exit code 1 without running the engine.
+    - `vars` (`plan` and `import`): input variable values by name, of
+      any JSON type. The implementation writes them to one variables
+      file passed as the last `-var-file`, after `var_files`, so they
+      win over every other source; files Terraform loads on its own
+      (`terraform.tfvars`, `*.auto.tfvars`) still apply underneath.
+      Since they arrive as a file, a value for a variable the
+      configuration does not declare is only a warning.
 
     `vars` and `env` may hold secrets. Implementations MUST NOT log or
     persist their values, nor write them inside `workspace_path` (which
@@ -82,9 +90,10 @@ info:
 
     2.0.0 (breaking) made the request a plain description of a CLI
     invocation: the `scope_id` / `terraform_provider` pair on `init`,
-    `plan`, `apply` and `import`, and the `var_files` / `variables`
-    fields of `plan` and `import`, gave way to `env` on every command
-    and `vars` on `plan` and `import`. `/v1/import/scope-resource-ids`
+    `plan`, `apply` and `import`, and the `variables` field of `plan`
+    and `import`, gave way to `env` on every command and `vars` on
+    `plan` and `import`; `var_files` stays, with any path shape inside
+    the workspace. `/v1/import/scope-resource-ids`
     names its cloud by Terraform provider type name (`azurerm`,
     `google`, `aws`) in its `provider` field.
 
@@ -1017,6 +1026,8 @@ components:
             escape the workspace.
           pattern: "^[A-Za-z0-9._-]{1,128}$"
           examples: ["a1b2c3d4e5f6.plan"]
+        var_files:
+          $ref: "#/components/schemas/VarFiles"
         vars:
           $ref: "#/components/schemas/Vars"
 
@@ -1033,9 +1044,25 @@ components:
       additionalProperties:
         type: string
         maxLength: 32768
+        pattern: "^[^\\u0000]*$"
       maxProperties: 256
       examples:
         - ARM_SUBSCRIPTION_ID: 00000000-0000-0000-0000-000000000000
+
+    VarFiles:
+      type: array
+      description: |
+        Variable-definition files to pass as `-var-file`, in order,
+        before `vars`. Each is a path relative to `workspace_path`;
+        absolute paths and `..` segments are rejected. See "Environment
+        and input variables".
+      items:
+        type: string
+        minLength: 1
+        maxLength: 1024
+        pattern: "^(?!/)(?!.*(^|/)\\.\\.(/|$))[^\\u0000]+$"
+        examples: ["envs/dev.tfvars"]
+      maxItems: 64
 
     Vars:
       type: object
@@ -1133,6 +1160,8 @@ components:
             e.g. an Azure resource ID or an AWS ARN.
           minLength: 1
           maxLength: 4096
+        var_files:
+          $ref: "#/components/schemas/VarFiles"
         vars:
           $ref: "#/components/schemas/Vars"
 

@@ -72,7 +72,7 @@ One table per cloud — a single combined table would be ~90% empty cells. Group
 | `AWS_USE_DUALSTACK_ENDPOINT` | Behaviour | IPv6 dual-stack |
 | `AWS_STS_REGIONAL_ENDPOINTS` | Behaviour | `regional` / `legacy` |
 
-No `AWS_ACCOUNT_ID` — the account is implicit in the credential. The generated code instead declares an `aws_account_id` input variable for the provider's `allowed_account_ids`; the Kumoss core sends it per request in the `vars` of `plan` and `import` — do not set `TF_VAR_aws_account_id`.
+No `AWS_ACCOUNT_ID` — the account is implicit in the credential. The generated code instead declares an `aws_account_id` input variable for the provider's `allowed_account_ids`; the Kumoss core sends it per request in the `vars` of `plan` and `import` — do not set `TF_VAR_aws_account_id`. Only code that passes it to `allowed_account_ids` is held to that account: a module with a bare `provider "aws" {}` runs in whatever account the credentials belong to until it adds `allowed_account_ids = [var.aws_account_id]`.
 
 ### GCP (`google`, `google-beta`)
 

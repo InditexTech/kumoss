@@ -14,8 +14,9 @@ locking, custom backends, policy as code) should subclass this or
 substitute their own.
 
 Every command but `state pull` runs with the request's ``env`` added to
-the service's own environment, and `plan` and `import` with its ``vars``
-as the last ``-var-file``. Neither is interpreted here: which scope a
+the service's own environment, and `plan` and `import` with its
+``var_files`` as ``-var-file`` in order, then its ``vars`` as the last
+one. Neither is interpreted here: which scope a
 command runs against is whatever the caller put in them (see the
 contract's "Environment and input variables").
 """
@@ -28,7 +29,7 @@ import logging
 import os
 import tempfile
 import time
-from collections.abc import Generator, Mapping
+from collections.abc import Generator, Mapping, Sequence
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,22 +47,36 @@ class CommandResult:
     exit_code: int = 0
 
 
-@contextmanager
-def _vars_file_args(variables: Mapping[str, Any]) -> Generator[list[str]]:
-    """The ``-var-file`` argument for ``variables``, valid while the context is open.
+class _OutsideWorkspace(Exception):
+    pass
 
-    The values are written to an owner-only temporary file outside the
+
+@contextmanager
+def _var_file_args(
+    cwd: Path, var_files: Sequence[str], variables: Mapping[str, Any]
+) -> Generator[list[str]]:
+    """The ``-var-file`` arguments, valid while the context is open.
+
+    ``var_files`` come first, in order; a file that resolves outside the
+    workspace (through a symlink) raises ``_OutsideWorkspace``. Then
+    ``variables``, written to an owner-only temporary file outside the
     workspace (the workspace may be committed or shared) and removed on
-    exit. No values, no argument.
+    exit, so they win.
     """
+    root = cwd.resolve()
+    args: list[str] = []
+    for var_file in var_files:
+        if not (cwd / var_file).resolve().is_relative_to(root):
+            raise _OutsideWorkspace(var_file)
+        args.append(f"-var-file={var_file}")
     if not variables:
-        yield []
+        yield args
         return
     fd, path = tempfile.mkstemp(prefix="iac-vars-", suffix=".tfvars.json")
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             json.dump(dict(variables), f)
-        yield [f"-var-file={path}"]
+        yield [*args, f"-var-file={path}"]
     finally:
         Path(path).unlink(missing_ok=True)
 
@@ -100,13 +115,13 @@ class IacEngine:
         targets: list[str],
         plan_file: str,
         env: Mapping[str, str],
+        var_files: Sequence[str],
         variables: Mapping[str, Any],
     ) -> CommandResult:
         args = ["plan", "-no-color", "-input=false", "-out", plan_file]
         for t in targets:
             args.extend(["-target", t])
-        with _vars_file_args(variables) as var_args:
-            return await self._run([*args, *var_args], cwd, env)
+        return await self._run_with_inputs(args, cwd, env, var_files, variables)
 
     async def show_plan_json(
         self, cwd: Path, plan_file: str, env: Mapping[str, str]
@@ -128,21 +143,37 @@ class IacEngine:
         address: str,
         resource_id: str,
         env: Mapping[str, str],
+        var_files: Sequence[str],
         variables: Mapping[str, Any],
     ) -> CommandResult:
-        with _vars_file_args(variables) as var_args:
-            # Options must precede the positional address and id.
-            return await self._run(
-                [
-                    "import",
-                    "-no-color",
-                    "-input=false",
-                    *var_args,
-                    address,
-                    resource_id,
-                ],
-                cwd,
-                env,
+        # Options must precede the positional address and id.
+        return await self._run_with_inputs(
+            ["import", "-no-color", "-input=false"],
+            cwd,
+            env,
+            var_files,
+            variables,
+            positional=[address, resource_id],
+        )
+
+    async def _run_with_inputs(
+        self,
+        args: list[str],
+        cwd: Path,
+        env: Mapping[str, str],
+        var_files: Sequence[str],
+        variables: Mapping[str, Any],
+        positional: Sequence[str] = (),
+    ) -> CommandResult:
+        try:
+            with _var_file_args(cwd, var_files, variables) as var_args:
+                return await self._run([*args, *var_args, *positional], cwd, env)
+        except _OutsideWorkspace as exc:
+            return CommandResult(
+                ok=False,
+                stdout="",
+                stderr=f"var file {exc} resolves outside the workspace",
+                exit_code=1,
             )
 
     async def state_pull(self, cwd: Path) -> CommandResult:

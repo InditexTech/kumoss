@@ -34,6 +34,7 @@ def test_import_resource_passes_address_id_and_env() -> None:
                 "azurerm_resource_group.main",
                 "/subscriptions/s/resourceGroups/rg",
                 ENV,
+                [],
                 {},
             )
         )
@@ -79,7 +80,7 @@ def _commands(engine: IacEngine) -> list[tuple[Awaitable[CommandResult], list[st
             ["apply", "-no-color", "-input=false", "-auto-approve", "p.plan"],
         ),
         (
-            engine.plan(ws, [], "p.plan", ENV, {}),
+            engine.plan(ws, [], "p.plan", ENV, [], {}),
             ["plan", "-no-color", "-input=false", "-out", "p.plan"],
         ),
     ]
@@ -145,7 +146,7 @@ def test_plan_passes_vars_as_the_last_var_file(tmp_path: Path) -> None:
     variables = {"region": {"location": "x"}, "pw": "s3cr3t"}
     with patch.object(IacEngine, "_run", side_effect=fake_run):
         result = asyncio.run(
-            engine.plan(tmp_path, ["module.a"], "p.plan", {}, variables)
+            engine.plan(tmp_path, ["module.a"], "p.plan", {}, [], variables)
         )
 
     assert result.ok
@@ -178,7 +179,7 @@ def test_vars_file_is_removed_when_the_command_fails(tmp_path: Path) -> None:
 
     with patch.object(IacEngine, "_run", side_effect=boom):
         with pytest.raises(RuntimeError):
-            _ = asyncio.run(engine.plan(tmp_path, [], "p.plan", {}, {"a": 1}))
+            _ = asyncio.run(engine.plan(tmp_path, [], "p.plan", {}, [], {"a": 1}))
     assert paths and not paths[0].exists()
 
 
@@ -195,7 +196,9 @@ def test_import_places_the_vars_file_before_the_address_and_id(
         return OK
 
     with patch.object(IacEngine, "_run", side_effect=fake_run):
-        _ = asyncio.run(engine.import_resource(tmp_path, "a.b", "id-1", {}, {"x": 1}))
+        _ = asyncio.run(
+            engine.import_resource(tmp_path, "a.b", "id-1", {}, [], {"x": 1})
+        )
     args = seen[0]
     assert args[:3] == ["import", "-no-color", "-input=false"]
     assert args[3].startswith("-var-file=")
@@ -207,7 +210,106 @@ def test_no_vars_file_without_vars(tmp_path: Path) -> None:
     with patch.object(
         IacEngine, "_run", new_callable=AsyncMock, return_value=OK
     ) as run:
-        _ = asyncio.run(engine.plan(tmp_path, [], "p.plan", ENV, {}))
+        _ = asyncio.run(engine.plan(tmp_path, [], "p.plan", ENV, [], {}))
     run.assert_awaited_once_with(
         ["plan", "-no-color", "-input=false", "-out", "p.plan"], tmp_path, ENV
     )
+
+
+def _seen_args(
+    engine: IacEngine, command: Any
+) -> tuple[list[list[str]], CommandResult]:
+    """Run ``command(engine)`` with ``_run`` recording each argv."""
+    seen: list[list[str]] = []
+
+    async def fake_run(
+        args: list[str], _cwd: Path, _env: Mapping[str, str] | None = None
+    ) -> CommandResult:
+        seen.append(args)
+        return OK
+
+    with patch.object(IacEngine, "_run", side_effect=fake_run):
+        result = asyncio.run(command(engine))
+    return seen, result
+
+
+def test_plan_passes_var_files_in_order_then_vars(tmp_path: Path) -> None:
+    (tmp_path / "envs").mkdir()
+    seen, _ = _seen_args(
+        IacEngine(binary="tofu"),
+        lambda e: e.plan(
+            tmp_path,
+            [],
+            "p.plan",
+            {},
+            ["envs/b.tfvars", "envs/my env.tfvars", "a.tfvars.json"],
+            {"x": 1},
+        ),
+    )
+    args = seen[0]
+    assert args[5:8] == [
+        "-var-file=envs/b.tfvars",
+        "-var-file=envs/my env.tfvars",
+        "-var-file=a.tfvars.json",
+    ]
+    assert args[8].startswith("-var-file=") and args[8].endswith(".tfvars.json")
+    assert not Path(args[8].removeprefix("-var-file=")).is_relative_to(tmp_path)
+    assert len(args) == 9
+
+
+def test_var_files_without_vars_add_no_values_file(tmp_path: Path) -> None:
+    seen, _ = _seen_args(
+        IacEngine(binary="tofu"),
+        lambda e: e.plan(tmp_path, [], "p.plan", {}, ["dev.tfvars"], {}),
+    )
+    assert seen[0] == [
+        "plan",
+        "-no-color",
+        "-input=false",
+        "-out",
+        "p.plan",
+        "-var-file=dev.tfvars",
+    ]
+
+
+def test_import_puts_var_files_and_vars_before_the_address_and_id(
+    tmp_path: Path,
+) -> None:
+    seen, _ = _seen_args(
+        IacEngine(binary="tofu"),
+        lambda e: e.import_resource(
+            tmp_path, "a.b", "id-1", {}, ["envs/dev.tfvars"], {"x": 1}
+        ),
+    )
+    args = seen[0]
+    assert args[:4] == [
+        "import",
+        "-no-color",
+        "-input=false",
+        "-var-file=envs/dev.tfvars",
+    ]
+    assert args[4].startswith("-var-file=")
+    assert args[5:] == ["a.b", "id-1"]
+
+
+@pytest.mark.parametrize("command", ["plan", "import"])
+def test_a_var_file_escaping_the_workspace_fails_without_running(
+    command: str, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    outside = tmp_path / "secret.tfvars"
+    _ = outside.write_text('a = "b"\n')
+    (workspace / "link.tfvars").symlink_to(outside)
+    engine = IacEngine(binary="tofu")
+
+    def run(e: IacEngine) -> Awaitable[CommandResult]:
+        if command == "plan":
+            return e.plan(workspace, [], "p.plan", {}, ["link.tfvars"], {"x": 1})
+        return e.import_resource(workspace, "a.b", "id", {}, ["link.tfvars"], {})
+
+    seen, result = _seen_args(engine, run)
+    assert seen == []
+    assert result.exit_code == 1
+    assert not result.ok
+    assert result.stderr == "var file link.tfvars resolves outside the workspace"

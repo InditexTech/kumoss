@@ -341,7 +341,7 @@ def test_plan_invokes_engine_with_targets_plan_file_and_env(tmp_path: Path) -> N
     assert body["status"] == "succeeded"
     assert body["result"]["exit_code"] == 0
     plan_mock.assert_awaited_once_with(
-        workspace, ["module.db"], "abc123.plan", ENV_VALUES, {}
+        workspace, ["module.db"], "abc123.plan", ENV_VALUES, [], {}
     )
 
 
@@ -389,13 +389,107 @@ def test_rejected_vars_are_not_echoed() -> None:
 @pytest.mark.parametrize(
     "endpoint", ["/v1/init", "/v1/validate", "/v1/show", "/v1/apply"]
 )
-def test_only_plan_and_import_take_vars(endpoint: str) -> None:
+@pytest.mark.parametrize(
+    "field",
+    [
+        pytest.param({"vars": {"a": 1}}, id="vars"),
+        pytest.param({"var_files": ["a.tfvars"]}, id="var_files"),
+    ],
+)
+def test_only_plan_and_import_take_inputs(endpoint: str, field: dict[str, Any]) -> None:
     with client_with() as client:
         response = client.post(
             endpoint,
-            json={"workspace_path": "/tmp", **EXTRA[endpoint], "vars": {"a": 1}},
+            json={"workspace_path": "/tmp", **EXTRA[endpoint], **field},
         )
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("endpoint", ["/v1/plan", "/v1/import"])
+def test_var_files_reach_the_engine_in_order(endpoint: str, tmp_path: Path) -> None:
+    """Any path shape inside the workspace is passed on as given."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    target = dict((e, t) for e, t, _ in OPERATIONS)[endpoint]
+    var_files = ["envs/b.tfvars", "envs/my env.tfvars", "a.tfvars.json"]
+
+    ok = CommandResult(ok=True, stdout="", stderr="", exit_code=0)
+    with client_with() as client:
+        with patch(target, new_callable=AsyncMock, return_value=ok) as mock:
+            body = submit_and_poll(
+                client,
+                endpoint,
+                {
+                    "workspace_path": str(workspace),
+                    **EXTRA[endpoint],
+                    "var_files": var_files,
+                    "vars": {"x": 1},
+                },
+            )
+    assert body["status"] == "succeeded"
+    assert mock.await_args is not None
+    assert mock.await_args.args[-2:] == (var_files, {"x": 1})
+
+
+@pytest.mark.parametrize("endpoint", ["/v1/plan", "/v1/import"])
+@pytest.mark.parametrize(
+    "path",
+    [
+        pytest.param("/etc/x.tfvars", id="absolute"),
+        pytest.param("../x.tfvars", id="parent"),
+        pytest.param("envs/../../x.tfvars", id="nested-parent"),
+        pytest.param("a\x00b.tfvars", id="nul"),
+        pytest.param("", id="empty"),
+    ],
+)
+def test_var_files_outside_the_workspace_are_422(
+    endpoint: str, path: str, tmp_path: Path
+) -> None:
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    with client_with() as client:
+        response = client.post(
+            endpoint,
+            json={
+                "workspace_path": str(workspace),
+                **EXTRA[endpoint],
+                "var_files": [path],
+            },
+        )
+    assert response.status_code == 422
+    assert response.headers["content-type"].startswith("application/problem+json")
+    assert "location" not in response.headers
+
+
+@pytest.mark.parametrize("endpoint", ["/v1/plan", "/v1/import"])
+def test_a_var_file_symlinked_out_of_the_workspace_fails_the_command(
+    endpoint: str, tmp_path: Path
+) -> None:
+    """Caught when the job runs: exit code 1, and the engine never starts."""
+    workspace = tmp_path / "ws"
+    workspace.mkdir()
+    outside = tmp_path / "secret.tfvars"
+    _ = outside.write_text('a = "b"\n')
+    (workspace / "link.tfvars").symlink_to(outside)
+
+    with client_with() as client:
+        with patch("src.engine.IacEngine._run", new_callable=AsyncMock) as run:
+            body = submit_and_poll(
+                client,
+                endpoint,
+                {
+                    "workspace_path": str(workspace),
+                    **EXTRA[endpoint],
+                    "var_files": ["link.tfvars"],
+                },
+            )
+    run.assert_not_awaited()
+    assert body["status"] == "succeeded"
+    assert body["result"] == {
+        "exit_code": 1,
+        "stdout": "",
+        "stderr": "var file link.tfvars resolves outside the workspace",
+    }
 
 
 def test_init_invokes_engine_with_the_request_env(tmp_path: Path) -> None:
@@ -677,6 +771,7 @@ def test_env_cannot_replace_or_reserve(
         pytest.param({"1X": "x"}, id="leading-digit"),
         pytest.param({"A-B": "x"}, id="dash"),
         pytest.param({"A": 1}, id="non-string-value"),
+        pytest.param({"A": "a\x00b"}, id="nul-in-value"),
         pytest.param(["A=x"], id="not-an-object"),
     ],
 )
@@ -687,6 +782,8 @@ def test_command_endpoints_reject_malformed_env(endpoint: str, env: object) -> N
         )
     assert response.status_code == 422
     assert response.headers["content-type"].startswith("application/problem+json")
+    # Rejected at submission: no job was created.
+    assert "location" not in response.headers
 
 
 @pytest.mark.parametrize("endpoint", COMMAND_ENDPOINTS)
@@ -696,7 +793,6 @@ def test_command_endpoints_reject_malformed_env(endpoint: str, env: object) -> N
         pytest.param({"scopes": []}, id="scopes"),
         pytest.param({"scope_id": "s"}, id="scope_id"),
         pytest.param({"terraform_provider": "azure"}, id="terraform_provider"),
-        pytest.param({"var_files": ["a.tfvars"]}, id="var_files"),
         pytest.param({"variables": {"a": 1}}, id="variables"),
     ],
 )
@@ -942,6 +1038,7 @@ def test_import_forwards_the_address_resource_id_and_env(tmp_path: Path) -> None
         "google_storage_bucket.assets",
         "my-assets",
         {"GOOGLE_PROJECT": "proj-1"},
+        [],
         {},
     )
 

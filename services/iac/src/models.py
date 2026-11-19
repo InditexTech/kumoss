@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Annotated, ClassVar, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, JsonValue
 
 
 TargetStr = Annotated[str, Field(min_length=1, max_length=1024)]
@@ -23,7 +23,25 @@ ResourceIdStr = Annotated[str, Field(min_length=1, max_length=4096)]
 
 VariableNameStr = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_-]{0,127}$")]
 EnvNameStr = Annotated[str, Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]{0,127}$")]
-EnvValueStr = Annotated[str, Field(max_length=32768)]
+# No NUL: the OS cannot pass one to a process, so it would fail the job.
+EnvValueStr = Annotated[str, Field(max_length=32768, pattern=r"^[^\x00]*$")]
+
+
+def _relative_var_file(path: str) -> str:
+    """Relative to the workspace, without `..` segments or NUL.
+
+    Any other shape is fine: the path is one argv entry, never seen by a
+    shell. The engine still checks it resolves inside the workspace
+    (symlinks).
+    """
+    if path.startswith("/") or ".." in path.split("/") or "\x00" in path:
+        raise ValueError("must be relative to the workspace, without '..' or NUL")
+    return path
+
+
+VarFileStr = Annotated[
+    str, Field(min_length=1, max_length=1024), AfterValidator(_relative_var_file)
+]
 
 # The providers scope discovery can list, by Terraform provider type name.
 DiscoveryProvider = Literal["azurerm", "google", "aws"]
@@ -63,6 +81,7 @@ class InputsRequest(CommandRequest):
     variables").
     """
 
+    var_files: list[VarFileStr] = Field(default_factory=list, max_length=64)
     vars: dict[VariableNameStr, JsonValue] = Field(
         default_factory=dict, max_length=1024, repr=False
     )
