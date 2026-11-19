@@ -241,8 +241,11 @@ func firstLine(s string) string {
 	return s
 }
 
-// runOutput runs one command and returns its combined output.
+// runOutput runs one command and returns its combined output. Only the fixed
+// command lines built by the checks reach here; arguments are passed as separate
+// argv entries, so no shell ever parses them.
 func runOutput(ctx context.Context, name string, args ...string) (string, error) {
+	// nosemgrep: go.lang.security.audit.dangerous-exec-command.dangerous-exec-command
 	out, err := exec.CommandContext(ctx, name, args...).CombinedOutput()
 	return string(out), err
 }
