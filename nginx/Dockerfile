@@ -10,7 +10,7 @@ RUN  npm ci && npm run build
 
 # Keep the tag next to the digest so the nginx version is visible in reviews
 # and scans (the digest alone is what Docker resolves). 1.31.9 fixes the
-# HTTP/2 CVE-2026-123007 "nginx2root" (affects 1.31.0-1.31.8).
+# HTTP/2 CVE-2026-123007 "nginx2root" (affects 1.9.5-1.31.8).
 FROM nginx:1.31.9@sha256:08f354a3b44c422021a5c0f5efb3e27f8f90236b5447d3bac4053f5f50ab6760
 
 RUN rm /etc/nginx/conf.d/default.conf
