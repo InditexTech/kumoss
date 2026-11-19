@@ -9,7 +9,7 @@ from typing import Any, Self, TypeVar
 
 from attrs import define as _attrs_define
 
-from ..models.terraform_provider import TerraformProvider
+from ..models.scope_resource_ids_request_provider import ScopeResourceIdsRequestProvider
 
 T = TypeVar("T", bound="ScopeResourceIdsRequest")
 
@@ -23,27 +23,26 @@ class ScopeResourceIdsRequest:
             this is a path on the shared volume mounted into both the
             core and the IaC service. Used to resolve the provider
             credentials the scope query runs with.
-        scope_id (str): Cloud provider scope to list — Azure: subscription id, GCP:
-            project id, AWS: account id. Each is validated for its
+        scope_id (str): Cloud provider scope to list — `azurerm`: subscription id,
+            `google`: project id, `aws`: account id. Each is validated for its
             cloud's shape, and a scope the credentials do not own ends
             the job with exit code 1. Names the scope being listed
             rather than the scope a command runs against.
-        terraform_provider (TerraformProvider): Cloud provider a request targets. Values follow the core's
-            provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
-            `kubernetes`, `vmware`), not Terraform registry provider names
-            (`azurerm`, `google`).
+        provider (ScopeResourceIdsRequestProvider): Terraform provider type name of the cloud the scope query
+            targets. Only the providers with an inventory query are
+            accepted.
     """
 
     workspace_path: str
     scope_id: str
-    terraform_provider: TerraformProvider
+    provider: ScopeResourceIdsRequestProvider
 
     def to_dict(self) -> dict[str, Any]:
         workspace_path = self.workspace_path
 
         scope_id = self.scope_id
 
-        terraform_provider = self.terraform_provider.value
+        provider = self.provider.value
 
         field_dict: dict[str, Any] = {}
 
@@ -51,7 +50,7 @@ class ScopeResourceIdsRequest:
             {
                 "workspace_path": workspace_path,
                 "scope_id": scope_id,
-                "terraform_provider": terraform_provider,
+                "provider": provider,
             }
         )
 
@@ -64,12 +63,12 @@ class ScopeResourceIdsRequest:
 
         scope_id = d.pop("scope_id")
 
-        terraform_provider = TerraformProvider(d.pop("terraform_provider"))
+        provider = ScopeResourceIdsRequestProvider(d.pop("provider"))
 
         scope_resource_ids_request = cls(
             workspace_path=workspace_path,
             scope_id=scope_id,
-            terraform_provider=terraform_provider,
+            provider=provider,
         )
 
         return scope_resource_ids_request

@@ -50,6 +50,11 @@ Minimum environment variables per cloud and state backend, plus the
 exhaustive variable reference.
 
 [card]
+.xref:main:reference/root-module-manifest.adoc[Root module manifest]
+How Kumoss reads a root module's providers and inputs, asks for its
+scopes and variable values once, and keeps them in `kumoss.yaml`.
+
+[card]
 .xref:main:reference/api/index.adoc[HTTP APIs]
 Every route the core exposes under `/api/v1`, and the sidecar
 OpenAPI contracts it consumes as a client (IaC, searxng as search enginge, notifications,
@@ -65,8 +70,8 @@ repository mapping, authorization).
 |Request and follow-up text
 |500 characters
 
-|Cloud scope
-|64 characters, letters, digits, and hyphens
+|Provider scope (subscription, project, account, compartment)
+|1024 characters
 
 |Support message
 |500 characters

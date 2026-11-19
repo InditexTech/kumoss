@@ -55,8 +55,12 @@ Phoenix. Operators customise the runtime prompts; the layouts are code.
 core/prompts/seed/<scope>/<type>/<name>.yaml
 ----
 
-* `<scope>` is one of `general`, `aws`, `azure`, `gcp`, `oci`,
-  `kubernetes`, `vmware`.
+* `<scope>` is `general` or a Terraform provider type name — the last
+  segment of the provider's source address, such as `azurerm` for
+  `hashicorp/azurerm` — matching `^[a-z0-9][a-z0-9_-]{0,63}$`. The
+  shipped seeds use `general`, `aws`, `azurerm`, `google`, `oci`,
+  `kubernetes` and `vsphere`; any other provider (`helm`, `datadog`...)
+  can be given prompts by adding a folder with its type name.
 * `<type>` is one of `guidelines`, `resources`, `compliance`.
 * `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits,
   underscores).
@@ -95,14 +99,14 @@ the file, so a misfiled prompt cannot misreport its identity:
 |`aws/resources/s3_bucket.yaml`
 |`aws-resources-s3_bucket`
 
-|`azure/resources/storage_account.yaml`
-|`azure-resources-storage_account`
+|`azurerm/resources/storage_account.yaml`
+|`azurerm-resources-storage_account`
 
 |`kubernetes/resources/deployment.yaml`
 |`kubernetes-resources-deployment`
 
-|`vmware/resources/virtual_machine.yaml`
-|`vmware-resources-virtual_machine`
+|`vsphere/resources/virtual_machine.yaml`
+|`vsphere-resources-virtual_machine`
 
 |`general/guidelines/terraform.yaml`
 |`general-guidelines-terraform`
@@ -214,9 +218,20 @@ version. There is no cache: every session sees the current tagged
 version, so editing a prompt in Phoenix takes effect on the next run
 without rebuilding or restarting the core.
 
-If a requested prompt (or a version with the right tag) does not exist,
-the Phoenix client raises `Prompt not found: <name>` and the background
-run stops. This error is not one the runner converts into a failed
+Which provider prompts a session uses depends on its root module: the
+core asks for the `<provider>-*` prompts of every provider the module's
+`required_providers` declares. A provider prompt that does not exist is
+simply left out, so a provider without prompts — `random`, `helm`, or a
+module that declares no provider yet — gets the `general-*` prompts
+only. When a module uses several providers that have the same
+guideline (for example `azurerm` and `kubernetes` both have
+`forbidden_actions`), the agent receives all of them, each as a
+section headed by its provider name. A resource template the
+compositor picks is taken from the first provider that has it.
+
+If a requested `general-*` prompt (or a version with the right tag)
+does not exist, the Phoenix client raises `Prompt not found: <name>`
+and the background run stops. This error is not one the runner converts into a failed
 round: the session keeps its last status (for example `filtering`), no
 failure message or notification is produced, and the browser's event
 stream stays open until its timeout. The workspace is cleaned up and the
@@ -225,9 +240,10 @@ the prompt exists. There is no fallback to seed files at runtime.
 
 == Prompt categories
 
-=== Provider-wide guidelines (`<cloud>-guidelines-*`)
+=== Provider-wide guidelines (`<provider>-guidelines-*`)
 
-One set per cloud scope, applied across all resources of that cloud:
+One set per Terraform provider type, applied across all resources of
+that provider in every session whose root module uses it:
 
 [cols="1,3,2",options="header"]
 |===
@@ -248,7 +264,7 @@ drift pre-check
 |Resource IDs an import round must never bring under Terraform, one
 Markdown bullet per ID. Parsed by the core, not read by a model; see
 <<import-exception-list>>. Ships as a placeholder with no exceptions,
-for every cloud except `kubernetes` and `vmware`.
+for `aws`, `azurerm`, `google` and `oci`.
 |Import scope diff, in every import round that finds unmanaged
 resources
 
@@ -272,7 +288,7 @@ patterns).
 |IaC generator, compliance checker
 
 |`resources_list`
-|Catalogue of the `<cloud>-resources-*` prompts the compositor may
+|Catalogue of the `<provider>-resources-*` prompts the compositor may
 select. Source of truth for discovery.
 |Prompt compositor
 |===
@@ -319,20 +335,19 @@ check locks the session.
 |Report generator, generate reports only
 |===
 
-=== Component and resource prompts (`<cloud>-resources-<name>`)
+=== Component and resource prompts (`<provider>-resources-<name>`)
 
 One prompt per resource type, holding the default configuration the
 model should produce unless the user asks otherwise. Examples that ship
-today: `aws-resources-s3_bucket`, `azure-resources-storage_account`,
-`gcp-resources-cloud_run`, `oci-resources-compute_instance`,
-`kubernetes-resources-deployment`, `vmware-resources-virtual_machine`.
+today: `aws-resources-s3_bucket`, `azurerm-resources-storage_account`,
+`google-resources-cloud_run`, `oci-resources-compute_instance`,
+`kubernetes-resources-deployment`, `vsphere-resources-virtual_machine`.
 
 == Shipped seed inventory
 
-The `aws`, `azure`, `gcp` and `oci` scopes ship the same eight guideline
-prompts; `kubernetes` and `vmware` ship seven, without
-`import_exceptions`. The
-resource prompts differ per cloud.
+The `aws`, `azurerm`, `google` and `oci` scopes ship the same eight
+guideline prompts; `kubernetes` and `vsphere` ship seven, without
+`import_exceptions`. The resource prompts differ per provider.
 
 [cols="1,3,4,1",options="header"]
 |===
@@ -357,7 +372,7 @@ resource prompts differ per cloud.
 `waf_web_acl`
 |none
 
-|`azure`
+|`azurerm`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
@@ -372,7 +387,7 @@ resource prompts differ per cloud.
 `virtual_network`, `vm_scale_set`, `webapp`
 |none
 
-|`gcp`
+|`google`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`,
 `import_exceptions`, `networking`, `permissions`, `resource_creation`,
 `resources_list`
@@ -411,7 +426,7 @@ resource prompts differ per cloud.
 `service_account`, `stateful_set`, `storage_class`
 |none
 
-|`vmware`
+|`vsphere`
 |`abbreviations`, `drift_exceptions`, `forbidden_actions`, `networking`,
 `permissions`, `resource_creation`, `resources_list`
 |`compute_cluster`, `compute_cluster_host_group`,
@@ -426,40 +441,46 @@ resource prompts differ per cloud.
 |===
 
 [#guideline-prompts]
-=== Guideline prompts every cloud scope must provide
+=== Which guideline prompts are read, and when
 
-The core requests these guideline prompts unconditionally for the
-session's cloud, so every scope must have all of them in Phoenix or its
-sessions abort with `Prompt not found`:
+For each provider of the session's root module the core reads these
+guideline prompts when it has them; a missing one is skipped, not an
+error:
 
 [cols="2,3",options="header"]
 |===
 |Requested by |Prompt
 
 |Prompt compositor (every generate and drift round)
-|`<cloud>-guidelines-abbreviations`, `<cloud>-guidelines-resources_list`
+|`<provider>-guidelines-abbreviations`,
+`<provider>-guidelines-resources_list`
 
 |Request filter (every generate round and every partial drift round)
-|`<cloud>-guidelines-forbidden_actions`
+|`<provider>-guidelines-forbidden_actions`
 
 |IaC generator and compliance checker
-|`<cloud>-guidelines-resource_creation`, `<cloud>-guidelines-networking`,
-`<cloud>-guidelines-permissions`; plus
-`<cloud>-guidelines-forbidden_actions` in generate rounds
+|`<provider>-guidelines-resource_creation`,
+`<provider>-guidelines-networking`, `<provider>-guidelines-permissions`;
+plus `<provider>-guidelines-forbidden_actions` in generate rounds
 
 |Drift exception filter (every drift round and every generate round's
 drift pre-check)
-|`<cloud>-guidelines-drift_exceptions`
+|`<provider>-guidelines-drift_exceptions`
 
 |Import scope diff (every import round that finds unmanaged resources)
-|`<cloud>-guidelines-import_exceptions`
+|`<provider>-guidelines-import_exceptions`
 |===
 
+Because a missing provider prompt is skipped, deleting one in Phoenix
+does not break sessions — it silently removes that provider's
+conventions from them. The `general-*` prompts are the opposite: they
+are read for every session and a missing one aborts the run with
+`Prompt not found`.
+
 The import exception list is only read once the scope listing has
-returned resources that the state does not track. Only Azure, GCP and
-AWS have a scope listing, so an `oci`, `kubernetes`, or `vmware` import
-round stops before it would ask for the prompt, and `kubernetes` and
-`vmware` ship without one.
+returned resources that the state does not track. Only `azurerm`,
+`google` and `aws` scopes can be listed, so `kubernetes` and `vsphere`
+ship without one.
 
 Keep this in mind when you delete a prompt in Phoenix or trim the seed
 set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
@@ -467,13 +488,21 @@ set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
 an already seeded Phoenix database does not receive them until the core
 restarts, because only new names are pushed.)
 
+NOTE: Prompt scopes were renamed from the core's former provider names
+to Terraform provider type names: `azure-*` is now `azurerm-*`, `gcp-*`
+is `google-*` and `vmware-*` is `vsphere-*`. The seeder creates the new
+names on the next boot from the seed files, but versions you curated
+under the old names stay where they are and are no longer read; copy
+them to the new names. See xref:main:guides/upgrade-notes.adoc[Upgrade
+notes].
+
 Also note that the loader's name pattern permits a leading underscore
 while Phoenix rejects names starting with `_`; avoid them.
 
 [#drift-exception-rules]
 == Drift exception rules
 
-`<cloud>-guidelines-drift_exceptions` is the list of things drift
+`<provider>-guidelines-drift_exceptions` is the list of things drift
 remediation must never touch. It is read by a dedicated *drift exception
 filter*: after the task splitter turns a drift report into operations,
 and after the reconciliation filter has removed the session's own
@@ -488,9 +517,8 @@ change alone is the intended result.
 
 The filter runs on *every* drift round, full or partial, and on the
 drift pre-check inside every generate round, so a generate round cannot
-silently "fix" an excluded resource either. That also makes the prompt
-mandatory for every cloud scope: a missing one aborts the round with
-`Prompt not found`.
+silently "fix" an excluded resource either. With several providers in
+the root module, the filter receives the rules of each of them.
 
 This is not the same brake as `general-guidelines-targeting_policies`.
 Targeting policies decide which resources a *partial* drift round plans
@@ -550,7 +578,7 @@ involuntarily.
 [#import-exception-list]
 == Import exception list
 
-`<cloud>-guidelines-import_exceptions` names the resources an import
+`<provider>-guidelines-import_exceptions` names the resources an import
 round must never bring under Terraform, even when they exist in the
 cloud scope and the state does not track them. Unlike every other
 prompt, it is not written for a model. The core parses the body itself
@@ -619,9 +647,9 @@ For a generate or drift round the core builds the conventions in two
 model passes and then renders the layouts:
 
 . *First compositor pass.* The `prompt_compositor` layout is rendered
-  with the cloud's `resources_list` (as the list of available
-  templates) and `abbreviations` (as the list of available
-  abbreviations). The small model reads the user's request and calls
+  with the `resources_list` (as the list of available templates) and
+  `abbreviations` (as the list of available abbreviations) of every
+  provider of the root module that has them. The small model reads the user's request and calls
   the `construct_information` tool with the resource template names and
   abbreviations it considers relevant. Names must match the
   `resources_list` entries exactly.
@@ -633,37 +661,39 @@ model passes and then renders the layouts:
   the round's conventions.
 . *Rendering the agent layouts.* The IaC generator layout (and the
   compliance checker layout) receives `general-guidelines-terraform`,
-  the cloud's `resource_creation`, `networking`, and `permissions`
+  each provider's `resource_creation`, `networking`, and `permissions`
   guidelines, `forbidden_actions` in generate rounds (drift rounds omit
   it), and a concrete-implementation section built from the selected
-  `<cloud>-resources-*` prompts and abbreviations. The compliance
+  `<provider>-resources-*` prompts and abbreviations. The compliance
   checker additionally receives `general-compliance-report`; the
   report generator receives `general-compliance-impact` for generate
   reports; the drift target generator receives
   `general-guidelines-targeting_policies`; the drift exception filter
-  receives the cloud's `drift_exceptions`; the request filter receives
-  `general-guidelines-requests` and the cloud's `forbidden_actions`.
+  receives each provider's `drift_exceptions`; the request filter
+  receives `general-guidelines-requests` and each provider's
+  `forbidden_actions`.
 
 The layouts also carry fixed content that is not in Phoenix: the
 agent's role, the tools it may call, output format rules, and the
 working directory. Those change only with a core rebuild.
 
-`<cloud>-guidelines-import_exceptions` is the one prompt that is never
+`<provider>-guidelines-import_exceptions` is the one prompt that is never
 rendered into a layout: the core reads the IDs out of it, and the
 `import_filter` layout only receives what is left after they are
 removed.
 
 *Discovery depends on `resources_list`.* Nothing enumerates the
-`<cloud>-resources-*` prompts that exist in Phoenix. The compositor can
-only pick names that appear in `resources_list`, and every name it
-picks is then fetched, so a name listed there without a matching
-resource prompt aborts the run. The reverse is just as important: a
-resource prompt that exists but is not named in the cloud's
-`resources_list` is never selected — the compositor has no other way to
+`<provider>-resources-*` prompts that exist in Phoenix. The compositor
+can only pick names that appear in `resources_list`, and every name it
+picks is then fetched from the module's providers in order; a name
+listed there without a matching resource prompt is logged as a warning
+and its conventions are missing from the round. The reverse is just as
+important: a resource prompt that exists but is not named in its
+provider's `resources_list` is never selected — the compositor has no other way to
 discover it, and the loader does no cross-check between the seed files
 on disk and the `resources_list` catalogue at startup. Whenever you add
 a resource seed, add its name to `resources_list` in the same change,
-for every cloud you edit. The Azure `resources_list` now names all 16
+for every provider you edit. The Azure `resources_list` now names all 16
 shipped Azure resource seeds; keep it that way as you add more.
 
 == Examples
@@ -751,10 +781,10 @@ body: |
 The name in backticks must equal the `<name>` part of the resource
 prompt exactly, and it must exist on both sides: a resource prompt with
 no `resources_list` entry is never selected, and a `resources_list`
-entry with no matching resource prompt aborts the run when picked.
+entry with no matching resource prompt contributes nothing when picked.
 
-*List style is not uniform across clouds.* AWS, Azure, GCP, OCI, and
-VMware name entries in backticks with a trailing description, as above;
+*List style is not uniform across providers.* AWS, Azure, GCP, OCI, and
+vSphere name entries in backticks with a trailing description, as above;
 the Kubernetes `resources_list` uses plain bullets with no backticks at all
 (`- namespace`, `- deployment`, and so on). There is no enforced format
 — the compositor only needs the bare name to appear somewhere in the
@@ -763,29 +793,29 @@ in that specific file rather than copying another cloud's convention.
 
 === Adding a new component prompt to a fresh deployment
 
-. Create `core/prompts/seed/<cloud>/resources/<name>.yaml` with
+. Create `core/prompts/seed/<provider>/resources/<name>.yaml` with
   `description` and `body`.
 . Add the `<name>` entry to
-  `core/prompts/seed/<cloud>/guidelines/resources_list.yaml`.
+  `core/prompts/seed/<provider>/guidelines/resources_list.yaml`.
 . Rebuild the core image (`docker compose build core`) so the new seed
   files are inside it, and start the stack. The seeder creates
-  `<cloud>-resources-<name>` and, because `resources_list` does not
+  `<provider>-resources-<name>` and, because `resources_list` does not
   exist yet either, the updated catalogue.
 
 === Adding or changing a prompt on an already running deployment
 
-The seeder will not touch `<cloud>-guidelines-resources_list` once it
+The seeder will not touch `<provider>-guidelines-resources_list` once it
 exists, so the catalogue must be edited in Phoenix:
 
 . Open Phoenix (`/monitoring/` in the default stack) and go to
   *Prompts*.
 . For a new component: either add the seed file and restart the core
   (new names are created), or create the prompt
-  `<cloud>-resources-<name>` directly in Phoenix. In both cases the
+  `<provider>-resources-<name>` directly in Phoenix. In both cases the
   new version must carry the deployment's `environment` tag
   (`development` by default); the seeder tags what it creates with all
   three environments, a manual creation must be tagged by hand.
-. Open `<cloud>-guidelines-resources_list`, create a new version with
+. Open `<provider>-guidelines-resources_list`, create a new version with
   the extra line, and move the environment tag to it.
 . Run a session that mentions the new resource. No core rebuild or
   restart is needed for step 3 to take effect.

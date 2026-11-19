@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import os
 from enum import Enum
+from typing import Annotated
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, StringConstraints
 
 app = FastAPI(title="Stub AuthZEN PDP")
 
@@ -72,13 +73,9 @@ class ResourceType(str, Enum):
     scope = "scope"
 
 
-class Provider(str, Enum):
-    azure = "azure"
-    gcp = "gcp"
-    aws = "aws"
-    oci = "oci"
-    kubernetes = "kubernetes"
-    vmware = "vmware"
+# Terraform provider type name (e.g. ``azurerm``, ``google``), per the
+# contract's ``ResourceProperties.provider`` pattern.
+Provider = Annotated[str, StringConstraints(pattern=r"^[a-z0-9][a-z0-9_-]{0,63}$")]
 
 
 class SubjectProperties(BaseModel):
@@ -104,7 +101,7 @@ class ResourceProperties(BaseModel):
     model_config = {"extra": "allow"}
     provider: Provider | None = None
     repo_uri: str | None = None
-    iac_path: str | None = None
+    root_module_path: str | None = None
 
 
 class Resource(BaseModel):

@@ -13,12 +13,15 @@ from pydantic import ValidationError
 
 from src.models import (
     ImportRequest,
+    InitRequest,
     JobKind,
+    ProviderScope,
     ScopeResourceIdsRequest,
     StateResourceIdsRequest,
 )
 
-SCOPE: dict[str, Any] = {"scope_id": "sub-1", "terraform_provider": "azure"}
+SCOPE: dict[str, Any] = {"scopes": [{"provider": "azurerm", "scope_id": "sub-1"}]}
+DISCOVERY_SCOPE: dict[str, Any] = {"scope_id": "sub-1", "provider": "azurerm"}
 
 
 def test_import_request_carries_address_and_resource_id() -> None:
@@ -32,9 +35,9 @@ def test_import_request_carries_address_and_resource_id() -> None:
     assert request.resource_id == "/subscriptions/x/resourceGroups/y"
 
 
-@pytest.mark.parametrize("missing", ["address", "resource_id", "scope_id"])
+@pytest.mark.parametrize("missing", ["address", "resource_id"])
 def test_import_request_requires_every_field(missing: str) -> None:
-    body: dict[str, str] = {
+    body: dict[str, Any] = {
         "workspace_path": "/ws",
         "address": "azurerm_resource_group.main",
         "resource_id": "/subscriptions/x/resourceGroups/y",
@@ -52,12 +55,61 @@ def test_import_request_rejects_empty_address() -> None:
         )
 
 
-@pytest.mark.parametrize("field", ["scope_id", "terraform_provider"])
-def test_state_resource_ids_request_rejects_scope_fields(field: str) -> None:
-    with pytest.raises(ValidationError):
-        _ = StateResourceIdsRequest.model_validate(
-            {"workspace_path": "/ws", field: SCOPE[field]}
+def test_scopes_default_to_empty() -> None:
+    assert InitRequest(workspace_path="/ws").scopes == []
+
+
+def test_scopes_keep_their_order() -> None:
+    request = InitRequest.model_validate(
+        {
+            "workspace_path": "/ws",
+            "scopes": [
+                {"provider": "google", "scope_id": "p"},
+                {"provider": "azurerm", "scope_id": "s"},
+            ],
+        }
+    )
+    assert request.scopes == [
+        ProviderScope(provider="google", scope_id="p"),
+        ProviderScope(provider="azurerm", scope_id="s"),
+    ]
+
+
+def test_a_provider_may_appear_only_once() -> None:
+    with pytest.raises(ValidationError, match="'google' appears more than once"):
+        _ = InitRequest.model_validate(
+            {
+                "workspace_path": "/ws",
+                "scopes": [
+                    {"provider": "google", "scope_id": "p-1"},
+                    {"provider": "google", "scope_id": "p-2"},
+                ],
+            }
         )
+
+
+@pytest.mark.parametrize(
+    "provider",
+    ["azurerm", "google", "aws", "oci", "kubernetes", "vsphere", "a", "my_prov-1"],
+)
+def test_provider_scope_accepts_terraform_type_names(provider: str) -> None:
+    assert ProviderScope(provider=provider, scope_id="s").provider == provider
+
+
+@pytest.mark.parametrize(
+    "provider", ["", "AzureRM", "hashicorp/azurerm", "-x", "_x", "a" * 65, "a b"]
+)
+def test_provider_scope_rejects_other_names(provider: str) -> None:
+    with pytest.raises(ValidationError):
+        _ = ProviderScope(provider=provider, scope_id="s")
+
+
+@pytest.mark.parametrize(
+    "field", [SCOPE, {"scopes": []}, {"scope_id": "s"}, {"provider": "azurerm"}]
+)
+def test_state_resource_ids_request_rejects_scope_fields(field: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        _ = StateResourceIdsRequest.model_validate({"workspace_path": "/ws", **field})
 
 
 def test_state_resource_ids_request_needs_only_the_workspace() -> None:
@@ -65,9 +117,9 @@ def test_state_resource_ids_request_needs_only_the_workspace() -> None:
     assert request.workspace_path == "/ws"
 
 
-@pytest.mark.parametrize("missing", ["scope_id", "terraform_provider"])
+@pytest.mark.parametrize("missing", ["scope_id", "provider"])
 def test_scope_resource_ids_request_requires_the_scope(missing: str) -> None:
-    body: dict[str, str] = {"workspace_path": "/ws", **SCOPE}
+    body: dict[str, str] = {"workspace_path": "/ws", **DISCOVERY_SCOPE}
     del body[missing]
     with pytest.raises(ValidationError):
         _ = ScopeResourceIdsRequest.model_validate(body)
@@ -76,7 +128,17 @@ def test_scope_resource_ids_request_requires_the_scope(missing: str) -> None:
 def test_scope_resource_ids_request_forbids_extra_fields() -> None:
     with pytest.raises(ValidationError):
         _ = ScopeResourceIdsRequest.model_validate(
-            {"workspace_path": "/ws", "address": "x", **SCOPE}
+            {"workspace_path": "/ws", "address": "x", **DISCOVERY_SCOPE}
+        )
+
+
+@pytest.mark.parametrize("provider", ["azure", "gcp", "oci", "kubernetes"])
+def test_scope_resource_ids_request_takes_only_listable_providers(
+    provider: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        _ = ScopeResourceIdsRequest.model_validate(
+            {"workspace_path": "/ws", "scope_id": "s", "provider": provider}
         )
 
 

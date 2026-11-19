@@ -114,10 +114,10 @@ class TestSearchServiceClient(_NoCrawlCase):
         self.assertEqual(asearch.call_args.kwargs["search_provider"], "searxng")
         self.assertEqual(asearch.call_args.kwargs["api_base"], "http://searxng:8888")
         self.assertEqual(asearch.call_args.kwargs["timeout"], 30.0)
-        # `max_results` is deliberately not forwarded: the adapter ignores
-        # it and returns the engine's full first page either way, so the
-        # cap is applied here instead (see the slicing case below).
-        self.assertNotIn("max_results", asearch.call_args.kwargs)
+        # `max_results` is forwarded for the providers that honour it; the
+        # SearXNG adapter ignores it, so the cap is also applied locally
+        # (see the slicing case below).
+        self.assertEqual(asearch.call_args.kwargs["max_results"], 10)
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0].title, "Title")
         self.assertEqual(results[0].url, "https://x")

@@ -18,6 +18,7 @@ from src.domains.exceptions import (
     SessionTerminal,
 )
 from src.domains.services.database_service import DatabaseService
+from src.domains.value_objects import ProviderScope
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base, PullRequest, Round, Session, User
 from src.infrastructure.redis import redis_client
@@ -26,7 +27,6 @@ from src.shared.constants import (
     OperationType,
     ReportType,
     SessionStatus,
-    TerraformProvider,
 )
 
 
@@ -54,11 +54,9 @@ class _SessionBase(unittest.IsolatedAsyncioTestCase):
             user_pk=self.user_pk,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
 
     async def asyncTearDown(self):
@@ -103,10 +101,10 @@ class TestSessionContextFreshness(_SessionBase):
         self.assertEqual(ctx.id, self.sid)
         self.assertEqual(ctx.user_id, self.username)
         self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
-        self.assertEqual(ctx.scope_id, "sub-123")
-        self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
+        # Providers come from the manifest at setup: none until recorded.
+        self.assertEqual(ctx.providers, ())
         self.assertEqual(ctx.branch_name, "Kumoss/x")
-        self.assertEqual(ctx.iac_path, "infra")
+        self.assertEqual(ctx.root_module_path, "infra")
         self.assertEqual(len(ctx.history), 0)
 
         # Second read is served from the cache and must agree.
@@ -131,11 +129,9 @@ class TestSessionContextFreshness(_SessionBase):
             user_pk=self.user_pk,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/bar.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-456",
             branch_name="Kumoss/y",
             query="another one",
-            iac_path="infra",
+            root_module_path="infra",
         )
 
         ctx = await DatabaseService.get_session_context(self.sid)
@@ -169,7 +165,7 @@ class TestSessionContextFreshness(_SessionBase):
         ctx.chat_history.append_turn(user_msg="add a vnet", assistant_msg="Done.")
         await DatabaseService.update_history(ctx)
         _ = await redis_client.connection.client.delete(
-            f"kumoss:v1:session:{self.sid}:ctx",
+            f"kumoss:v1:session:{self.sid}:ctx:v2",
             f"kumoss:v1:session:{self.sid}:history:v2",
         )
 
@@ -183,6 +179,44 @@ class TestSessionContextFreshness(_SessionBase):
             [t["user"] for t in final.chat_history.serialize()],
             ["add a vnet", "and a subnet"],
         )
+
+
+class TestSessionProviders(_SessionBase):
+    _PROVIDERS = (ProviderScope("azurerm", "sub-123"), ProviderScope("random"))
+
+    async def test_new_session_has_no_providers(self):
+        summary = await DatabaseService.get_session_summary(self.sid)
+        self.assertEqual(summary.providers, [])
+
+    async def test_set_providers_reaches_context_summary_and_detail(self):
+        # Warm the caches first: recording the providers must refresh them.
+        _ = await DatabaseService.get_session_context(self.sid)
+        _ = await DatabaseService.get_session_summary(self.sid)
+
+        await DatabaseService.set_session_providers(self.sid, self._PROVIDERS)
+
+        ctx = await DatabaseService.get_session_context(self.sid)
+        self.assertEqual(set(ctx.providers), set(self._PROVIDERS))
+        self.assertEqual(ctx.scopes, (ProviderScope("azurerm", "sub-123"),))
+        summary = await DatabaseService.get_session_summary(self.sid)
+        self.assertEqual(
+            [(p.name, p.scope_id) for p in summary.providers],
+            [("azurerm", "sub-123"), ("random", None)],
+        )
+        detail = await DatabaseService.get_session_detail(self.sid)
+        self.assertEqual(
+            [(p.name, p.scope_id) for p in detail.providers],
+            [("azurerm", "sub-123"), ("random", None)],
+        )
+
+    async def test_set_providers_replaces_previous_ones(self):
+        await DatabaseService.set_session_providers(self.sid, self._PROVIDERS)
+        await DatabaseService.set_session_providers(
+            self.sid, (ProviderScope("google", "proj-1"),)
+        )
+
+        ctx = await DatabaseService.get_session_context(self.sid)
+        self.assertEqual(ctx.providers, (ProviderScope("google", "proj-1"),))
 
 
 class TestPullRequestFreshness(_SessionBase):
@@ -380,7 +414,7 @@ class TestFinishedSessionDetailCache(_SessionBase):
             "uuid": str(self.sid),
             "username": self.username,
             "operation": OperationType.GENERATE.value,
-            "provider": TerraformProvider.AZURE.value,
+            "provider": "azure",
             "first_query": None,
             "workspace_uri": "https://example.com/foo.git",
             "current_status": SessionStatus.FAILED.value,

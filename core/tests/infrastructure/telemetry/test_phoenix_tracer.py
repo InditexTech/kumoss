@@ -26,7 +26,7 @@ from src.infrastructure.telemetry.phoenix.phoenix_tracer import (
     PhoenixTracer,
     _serialize,
 )
-from src.shared.constants import TerraformProvider, PromptsLibrary, OperationType
+from src.shared.constants import PromptsLibrary, OperationType
 
 
 PLAN_TEXT = "the full terraform plan text"
@@ -46,9 +46,9 @@ def _make_tracer(**overrides) -> PhoenixTracer:
     defaults = dict(
         session_id=uuid4(),
         user_id="test-user",
-        cloud=TerraformProvider.AZURE,
+        providers=("azurerm",),
         repo_uri="https://example.com/repo.git",
-        iac_path="/workspaces/test",
+        root_module_path="/workspaces/test",
         operation=OperationType.GENERATE,
         branch_name="feat/test",
     )

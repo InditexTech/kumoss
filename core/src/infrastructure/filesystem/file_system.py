@@ -21,9 +21,9 @@ class FileSystemUtils(IFileSystem):
     """Tool-oriented filesystem implementation for individual file operations."""
 
     def __init__(self, root: Path, file_ext: list[str] | None = None):
-        """Caller MUST pass the actual IaC root directory; no discovery is performed.
+        """Caller MUST pass the actual root module directory; no discovery is performed.
 
-        :param root: Absolute path to the IaC root directory.
+        :param root: Absolute path to the root module directory.
         :param file_ext: Allowed file extensions.
         """
         self.__file_ext = file_ext if file_ext else ["tf", "tfvars"]

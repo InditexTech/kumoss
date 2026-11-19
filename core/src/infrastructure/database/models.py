@@ -27,9 +27,6 @@ from src.shared.constants import (
     ReportType,
     SessionStatus,
 )
-from src.shared.constants import (
-    TerraformProvider as TP,
-)
 
 
 class Base(DeclarativeBase):
@@ -131,13 +128,17 @@ class Workspace(Base):
 
 @final
 class TerraformProvider(Base):
-    """"""
+    """One Terraform provider a session's root module uses, by type name.
+
+    ``scope_id`` is set for the providers the platform scopes (azurerm,
+    google, aws, oci) and null for the others.
+    """
 
     __tablename__ = "terraform_providers"
 
     session_id: Mapped[int] = mapped_column(ForeignKey("sessions.id"), index=True)
-    provider: Mapped[TP] = mapped_column()
-    scope_id: Mapped[str] = mapped_column(String(1016))
+    provider: Mapped[str] = mapped_column(String(64))
+    scope_id: Mapped[str | None] = mapped_column(String(1016), nullable=True)
 
     @override
     def __repr__(self) -> str:

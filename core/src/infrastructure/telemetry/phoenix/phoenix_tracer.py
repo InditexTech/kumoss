@@ -4,7 +4,7 @@
 
 import dataclasses
 import json
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any, Literal, override
 from uuid import UUID
 
@@ -33,7 +33,7 @@ from src.domains.entities.history import History
 from src.domains.interfaces.tracer_interface import ITracer, TracedTerraformResult
 from src.infrastructure.telemetry._initializer import get_tracer
 from src.infrastructure.exceptions import TracerRootContextError
-from src.shared.constants import OperationType, TerraformProvider
+from src.shared.constants import OperationType
 
 
 class PhoenixTracer(ITracer):
@@ -41,9 +41,9 @@ class PhoenixTracer(ITracer):
         self,
         session_id: UUID,
         user_id: str,
-        cloud: TerraformProvider,
+        providers: Sequence[str],
         repo_uri: str,
-        iac_path: str,
+        root_module_path: str,
         operation: OperationType,
         branch_name: str,
     ):
@@ -59,9 +59,11 @@ class PhoenixTracer(ITracer):
         self.__tracer: Tracer = get_tracer(operation)
         self.__session_id: str = str(session_id)
         self.__user_id: str = user_id
-        self.__terraform_prv: TerraformProvider = cloud
+        # Terraform provider types of the root module; empty on a first call,
+        # whose providers are only known once its setup has run.
+        self.__providers: tuple[str, ...] = tuple(providers)
         self.__repo_uri: str = repo_uri
-        self.__iac_path: str = iac_path
+        self.__root_module_path: str = root_module_path
         self.__branch_name: str = branch_name
         self.__root_context: Context | None = None
 
@@ -81,9 +83,9 @@ class PhoenixTracer(ITracer):
                 {
                     "session_id": self.__session_id,
                     "user_id": self.__user_id,
-                    "cloud": self.__terraform_prv.name,
+                    "providers": list(self.__providers),
                     "repo_uri": self.__repo_uri,
-                    "iac_path": self.__iac_path,
+                    "root_module_path": self.__root_module_path,
                     "branch_name": self.__branch_name,
                     **kwargs,
                 }
@@ -253,7 +255,7 @@ def _serialize(payload: Any) -> tuple[str, str]:
             json.dumps(payload, ensure_ascii=False, default=str),
             OpenInferenceMimeTypeValues.JSON.value,
         )
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return str(payload), OpenInferenceMimeTypeValues.TEXT.value
 
 

@@ -17,8 +17,9 @@ import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
+from src.infrastructure.exceptions import TerraformBackendError
 from src.infrastructure.terraform.backend import TerraformBackend
 from src.shared.config import system_config
 from src.shared.config.system_config import StorageConfig
@@ -74,11 +75,31 @@ def _azure_config(**overrides) -> StorageConfig:
         )
 
 
+def _backend(project_id: str, storage: StorageConfig) -> TerraformBackend:
+    """A backend built against ``storage`` instead of the deployment's."""
+    config = MagicMock(storage=storage, paths=system_config.paths)
+    with patch("src.infrastructure.terraform.backend.system_config", config):
+        return TerraformBackend(project_id)
+
+
+def _render(project_id: str, storage: StorageConfig) -> str:
+    """What ``apply`` writes for ``storage``, read back from a workspace."""
+    with TemporaryDirectory() as tmp:
+        workspace = Path(tmp)
+        with patch(
+            "src.infrastructure.terraform.backend.system_config",
+            MagicMock(storage=storage, paths=system_config.paths),
+        ):
+            TerraformBackend(project_id).apply(workspace)
+        override = workspace / system_config.paths.backend_override_filename
+        return override.read_text(encoding="utf-8")
+
+
 class TestStateKey(unittest.TestCase):
     def test_state_is_keyed_by_project(self):
         """Clone directories are per-call, so two runs of one project are
         brought together by the project digest instead."""
-        backend = TerraformBackend(PROJECT_ID, _rustfs_config())
+        backend = _backend(PROJECT_ID, _rustfs_config())
         self.assertEqual(backend.state_key, f"{PROJECT_ID}/terraform.tfstate")
 
     def test_the_filename_is_an_override(self):
@@ -92,7 +113,7 @@ class TestStateKey(unittest.TestCase):
 
 class TestRustfsRendering(unittest.TestCase):
     def setUp(self):
-        self.rendered = TerraformBackend(PROJECT_ID, _rustfs_config()).render() or ""
+        self.rendered = _render(PROJECT_ID, _rustfs_config())
 
     def test_it_is_the_s3_backend_on_the_bundled_store(self):
         self.assertIn('backend "s3"', self.rendered)
@@ -125,7 +146,7 @@ class TestS3Rendering(unittest.TestCase):
             for name in (_AK_ENV, _SK_ENV):
                 if name not in env:
                     _ = os.environ.pop(name, None)
-            return TerraformBackend(PROJECT_ID, _s3_config()).render() or ""
+            return _render(PROJECT_ID, _s3_config())
 
     def test_aws_gets_no_custom_endpoint(self):
         """boto3 and Terraform both build the regional endpoint
@@ -155,7 +176,7 @@ class TestS3Rendering(unittest.TestCase):
 class TestStorageAccountRendering(unittest.TestCase):
     def test_it_is_the_azurerm_backend_on_the_state_container(self):
         with patch.dict(os.environ, {_ACCOUNT_KEY_ENV: "azure-key"}):
-            rendered = TerraformBackend(PROJECT_ID, _azure_config()).render() or ""
+            rendered = _render(PROJECT_ID, _azure_config())
         self.assertIn('backend "azurerm"', rendered)
         self.assertIn('storage_account_name = "kumossacct"', rendered)
         self.assertIn('container_name       = "tfstate"', rendered)
@@ -168,19 +189,9 @@ class TestStorageAccountRendering(unittest.TestCase):
         config = _azure_config()
         with patch.dict(os.environ, {}, clear=False):
             _ = os.environ.pop(_ACCOUNT_KEY_ENV, None)
-            rendered = TerraformBackend(PROJECT_ID, config).render() or ""
+            rendered = _render(PROJECT_ID, config)
         self.assertIn("use_azuread_auth     = true", rendered)
         self.assertNotIn("access_key", rendered)
-
-
-class TestUnmanagedState(unittest.TestCase):
-    def test_an_empty_bucket_renders_nothing(self):
-        """Managed state off: every workspace keeps the backend its own
-        configuration declares."""
-        for raw in ("", "   "):
-            with self.subTest(terraform_state_bucket=raw):
-                config = _rustfs_config(terraform_state_bucket=raw)
-                self.assertIsNone(TerraformBackend(PROJECT_ID, config).render())
 
 
 class TestApply(unittest.TestCase):
@@ -190,38 +201,35 @@ class TestApply(unittest.TestCase):
         self.workspace = Path(temp.name)
 
     def test_it_writes_the_override_into_the_workspace(self):
-        backend = TerraformBackend(PROJECT_ID, _rustfs_config())
-
-        self.assertTrue(backend.apply(self.workspace))
+        _backend(PROJECT_ID, _rustfs_config()).apply(self.workspace)
 
         override = self.workspace / system_config.paths.backend_override_filename
-        self.assertEqual(override.read_text(encoding="utf-8"), backend.render())
+        self.assertEqual(
+            override.read_text(encoding="utf-8"),
+            _render(PROJECT_ID, _rustfs_config()),
+        )
 
     def test_it_rewrites_a_stale_override(self):
         """A pinned workspace re-inited for another project must not keep
         the previous project's state key."""
         other = "b" * 64
         config = _rustfs_config()
-        _ = TerraformBackend(other, config).apply(self.workspace)
-        _ = TerraformBackend(PROJECT_ID, config).apply(self.workspace)
+        _backend(other, config).apply(self.workspace)
+        _backend(PROJECT_ID, config).apply(self.workspace)
 
         override = self.workspace / system_config.paths.backend_override_filename
         rendered = override.read_text(encoding="utf-8")
         self.assertIn(PROJECT_ID, rendered)
         self.assertNotIn(other, rendered)
 
-    def test_it_writes_nothing_when_state_is_unmanaged(self):
-        config = _rustfs_config(terraform_state_bucket="")
+    def test_an_unwritable_workspace_raises(self):
+        """A run without the managed backend would use the workspace's
+        own one and scatter state: a failed write stops it."""
+        backend = _backend(PROJECT_ID, _rustfs_config())
 
-        self.assertFalse(TerraformBackend(PROJECT_ID, config).apply(self.workspace))
-        self.assertEqual(list(self.workspace.iterdir()), [])
-
-    def test_an_unwritable_workspace_does_not_raise(self):
-        """`init` reports a missing backend far more legibly than an
-        exception from here would, so a failed write is only logged."""
-        backend = TerraformBackend(PROJECT_ID, _rustfs_config())
-
-        self.assertFalse(backend.apply(self.workspace / "does-not-exist"))
+        with self.assertRaises(TerraformBackendError) as ctx:
+            backend.apply(self.workspace / "does-not-exist")
+        self.assertEqual(ctx.exception.error_code, 500)
 
 
 if __name__ == "__main__":

@@ -13,9 +13,11 @@ limits.
   on every request. See
   xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
   for the complete role matrix.
-* A repository URL, the target cloud, a scope id, and request text, as
-  covered in xref:main:guides/make-a-request.adoc[Make a request]. The IaC
-  path is optional.
+* A repository URL and request text, as covered in
+  xref:main:guides/make-a-request.adoc[Make a request]. The root module
+  path is optional. The first session on a root module may also ask for
+  its scopes and variable values (see
+  xref:main:reference/root-module-manifest.adoc[Root module manifest]).
 
 == Use case
 
@@ -31,7 +33,7 @@ bucket for application logs", "open port 443 on the web security group",
   out-of-scope, prohibited, or ambiguous request is declined with an
   explanation and the round ends `uncompleted`.
 . *Prompt composition.* The compositor selects the relevant resource
-  prompts and abbreviations for the target cloud from Phoenix, in two
+  prompts and abbreviations for the root module's providers from Phoenix, in two
   passes (see xref:main:guides/customize-prompts.adoc[Customize prompts]).
 . *Generate and validate loop.* The main model edits files in the
   workspace; changed files are uploaded as code-change artifacts and
@@ -46,7 +48,7 @@ bucket for application logs", "open port 443 on the web security group",
   previous step left in the workspace rather than planning again. Drift
   that corresponds to the session's own changes is filtered out; anything
   else is reconciled so that the plan reflects only intended changes.
-  Operations covered by the cloud's `drift_exceptions` rules are then
+  Operations covered by the providers' `drift_exceptions` rules are then
   dropped before anything is remediated, and logged.
 . *Report.* The main model turns the plan into a JSON report with a
   change summary (create, update, delete, recreate), detailed changes, an
@@ -86,7 +88,7 @@ another generate round that passes cleanly clears the lock.
 == Example
 
 Repository `\https://git.example.invalid/platform/demo-iac.git`, cloud
-`aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a
+`aws`, scope `123456789012`, root module path `envs/dev`. Request: "Create a
 private S3 bucket named `demo-platform-logs` with versioning and default
 encryption for application logs." The round produces `s3_logs.tf` on
 branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a
@@ -98,10 +100,12 @@ create the pull request, merge it, and apply.
 * Validation and plan run against the credentials in
   `services/iac/.env`; missing cloud credentials surface as engine errors
   in the session, not at startup.
-* Every cloud scope needs its seven guideline prompts in Phoenix; a missing
-  one aborts the round with `Prompt not found`. See
+* The round follows the guideline prompts of the root module's providers
+  that have them in Phoenix; a provider without prompts gets only the
+  `general-*` ones, and a missing `general-*` prompt aborts the round
+  with `Prompt not found`. See
   xref:main:guides/customize-prompts.adoc#guideline-prompts[Guideline
-  prompts] for the list every cloud scope must provide.
+  prompts].
 * A `high` impact or a failed compliance check does not stop the round,
   it locks the session; review the report before asking for an unlock.
 

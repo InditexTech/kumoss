@@ -147,6 +147,13 @@ Upgrading Kumoss:
   xref:main:architecture/data-and-state.adoc[Data and state]: migrate
   or drop the affected volume by hand before you point a current core
   at it.
+. Read xref:main:guides/upgrade-notes.adoc[Upgrade notes]. Upgrading to
+  the release that reads providers from the root module needs two
+  actions: copy each project's Kumoss-managed state to its new key
+  (the scope left the key), and upgrade any custom IaC, authorization
+  or mapping implementation to its 2.0.0 contract together with the
+  core. Prompts you curated under `azure-*`, `gcp-*` or `vmware-*`
+  names must be copied to `azurerm-*`, `google-*` and `vsphere-*`.
 . Rebuild or pull the images and the configuration for the new version.
 . On the next core start new prompt seed files are created in Phoenix,
   and changed seeds replace the versions the seeder pushed: every
@@ -166,7 +173,7 @@ Upgrading Kumoss:
   to the request's account, and refuses the command otherwise (see
   xref:main:reference/api/iac.adoc[IaC service API]). Before upgrading,
   set `AWS_REGION` (or `AWS_DEFAULT_REGION`) on the iac container, make
-  sure every AWS cloud project's scope is its 12-digit account ID, and
+  sure every AWS scope is its 12-digit account ID, and
   run one iac deployment per AWS account: commands for any other
   account now fail instead of running in the credentials' own account.
 . Generated code changes shape (see

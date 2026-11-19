@@ -7,11 +7,49 @@
 from typing import Any, TypeVar
 from contextlib import asynccontextmanager
 
-from sqlalchemy import select, func, desc, asc
+from sqlalchemy import select, func, desc, asc, text
 
 from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
+
+# Providers used to be a native enum of the platform's own names, stored
+# by member name (AZURE, GCP, K8S...). They are now Terraform provider type
+# names in a plain column, and providers without a scope have a null scope.
+# Idempotent: every statement is a no-op once applied.
+_PROVIDER_NAMES_MIGRATION: tuple[str, ...] = (
+    """
+    DO $$
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = 'terraform_providers'
+              AND column_name = 'provider'
+              AND data_type = 'USER-DEFINED'
+        ) THEN
+            ALTER TABLE terraform_providers
+                ALTER COLUMN provider TYPE VARCHAR(64) USING provider::text;
+        END IF;
+    END $$;
+    """,
+    """
+    UPDATE terraform_providers SET provider = CASE upper(provider)
+        WHEN 'AZURE' THEN 'azurerm'
+        WHEN 'GCP' THEN 'google'
+        WHEN 'AWS' THEN 'aws'
+        WHEN 'OCI' THEN 'oci'
+        WHEN 'K8S' THEN 'kubernetes'
+        WHEN 'KUBERNETES' THEN 'kubernetes'
+        WHEN 'VMWARE' THEN 'vsphere'
+    END
+    WHERE provider IN (
+        'AZURE', 'GCP', 'AWS', 'OCI', 'K8S', 'KUBERNETES', 'VMWARE',
+        'azure', 'gcp', 'vmware'
+    );
+    """,
+    "ALTER TABLE terraform_providers ALTER COLUMN scope_id DROP NOT NULL;",
+    "DROP TYPE IF EXISTS terraformprovider;",
+)
 
 T = TypeVar("T", bound=Base)
 
@@ -41,6 +79,8 @@ class DatabaseClient:
         try:
             async with self.session_manager.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
+                for statement in _PROVIDER_NAMES_MIGRATION:
+                    _ = await conn.execute(text(statement))
             logging.info("Database tables created/verified successfully")
         except Exception as e:
             logging.error(f"Error creating database tables: {e}")

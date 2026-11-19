@@ -33,7 +33,6 @@ from src.infrastructure.external.search_summarizer_service import (
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.tools.tool_registry_workspace import ToolRegistryWorkspace
-from src.shared.constants import TerraformProvider
 
 
 def _results(*tuples: tuple[str, str, str]) -> list[SearchResult]:
@@ -58,7 +57,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with self._tool_module_patch(provider, summarize_top):
             summarizer = SearchResultsSummarizer(
                 llm or MagicMock(inference=AsyncMock()),
-                TemplateAdapter(template_provider=TerraformProvider.AWS, cwd="."),
+                TemplateAdapter(providers=("aws",), cwd="."),
             )
             return ToolRegistryWorkspace(
                 filesystem=MagicMock(), git=MagicMock(), summarizer=summarizer

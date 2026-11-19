@@ -46,7 +46,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_returns_roots(self):
         svc = _mock_service(AsyncMock(return_value=["infra/dev", "infra/pro"]))
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -60,7 +60,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_empty_repo_returns_empty_list(self):
         svc = _mock_service(AsyncMock(return_value=[]))
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -73,7 +73,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_unreachable_uri_returns_400_with_a_generic_detail(self):
         svc = _mock_service(AsyncMock(side_effect=RepositoryUnreachable(400)))
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -91,7 +91,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
             AsyncMock(side_effect=ExceptionHandler("clone failed", 502))
         )
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -104,7 +104,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_rejects_credentials_in_the_uri(self):
         svc = _mock_service(AsyncMock(return_value=[]))
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             resp = self.client.post(
@@ -118,7 +118,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
         uri = "https://InditexData@dev.azure.com/InditexData/DevOpsv2/_git/repo"
         svc = _mock_service(AsyncMock(return_value=[]))
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             resp = self.client.post("/v1/repository/parse", json={"repo_uri": uri})
@@ -128,7 +128,7 @@ class TestParseRepository(unittest.IsolatedAsyncioTestCase):
     def test_parse_rejects_non_https_uris(self):
         svc = _mock_service(AsyncMock(return_value=[]))
         with patch(
-            "src.api.v1.repository.ApplicationFactory.get_iac_root_detection_service",
+            "src.api.v1.repository.ApplicationFactory.get_root_module_detection_service",
             return_value=svc,
         ):
             for uri in (

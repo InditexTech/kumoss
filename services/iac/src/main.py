@@ -15,9 +15,10 @@ synchronously on the POST; everything after submission surfaces
 through the job.
 
 ``init``, ``plan`` and ``apply`` run scoped to the request's
-``scope_id``, injected into the engine's environment under the
-variable its ``terraform_provider`` selects. ``validate`` and ``show``
-take no scope, so their bodies declare none and reject one.
+``scopes``: each (provider, scope_id) pair is injected into the
+engine's environment under the variable its provider selects, if any.
+``validate`` and ``show`` take no scope, so their bodies declare no
+``scopes`` and reject one.
 
 ``init`` always reconfigures the backend, and passes
 ``IAC_BACKEND_CONFIG`` to ``-backend-config`` when the deployment sets
@@ -37,7 +38,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Iterable, Mapping
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
@@ -51,7 +52,7 @@ from fastapi.security import HTTPAuthorizationCredentials
 from .auth import bearer_scheme, verify_bearer_token
 from .config import Config
 from .discovery import ScopeDiscovery
-from .engine import CommandResult, IacEngine
+from .engine import CommandResult, IacEngine, RunInputs
 from .exceptions import DiscoveryError, StateReadError
 from .jobs import JobRegistry, Pipeline, WorkspaceQueue
 from .models import (
@@ -59,12 +60,14 @@ from .models import (
     Health,
     ImportRequest,
     InitRequest,
+    InputsRequest,
     Job,
     JobAccepted,
     JobKind,
     OperationResult,
     PlanRequest,
     Problem,
+    ProviderScope,
     ScopeResourceIdsRequest,
     ShowRequest,
     StateResourceIdsRequest,
@@ -91,7 +94,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Kumoss IaC Service",
-    version="1.0.0",
+    version="2.0.0",
     description="Reference implementation of contracts/openapi/iac.v1.yaml.",
     lifespan=lifespan,
 )
@@ -123,7 +126,11 @@ async def http_exception_handler(_request: Request, exc: HTTPException) -> JSONR
 async def validation_exception_handler(
     _request: Request, exc: RequestValidationError
 ) -> JSONResponse:
-    return _problem(422, "Request validation failed", str(exc))
+    detail = "; ".join(
+        f"{'.'.join(str(part) for part in err.get('loc', ()))}: {err.get('msg', 'invalid')}"
+        for err in exc.errors()
+    )
+    return _problem(422, "Request validation failed", detail)
 
 
 @app.exception_handler(Exception)
@@ -232,34 +239,38 @@ async def _state_resource_ids(engine: IacEngine, workspace: Path) -> OperationRe
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr=result.stderr)
 
 
+def _inputs(body: InputsRequest) -> RunInputs:
+    return RunInputs(var_files=tuple(body.var_files), variables=body.variables)
+
+
 async def _scoped(
     discovery: ScopeDiscovery,
-    terraform_provider: str,
-    scope_id: str,
+    scopes: Iterable[ProviderScope],
     command: Callable[[], Awaitable[CommandResult]],
 ) -> CommandResult:
-    """Run ``command`` only when the ambient credentials can serve
-    ``scope_id``; otherwise end it as a failed command, the same plane
-    as an engine failure, without starting the engine."""
+    """Run ``command`` only when the ambient credentials can serve every
+    pair in ``scopes``; otherwise end it as a failed command, the same
+    plane as an engine failure, without starting the engine."""
     try:
-        await discovery.verify_scope(terraform_provider, scope_id)
+        for scope in scopes:
+            await discovery.verify_scope(scope.provider, scope.scope_id)
     except DiscoveryError as exc:
         return CommandResult(ok=False, stdout="", stderr=str(exc), exit_code=1)
     return await command()
 
 
 async def _scope_resource_ids(
-    discovery: ScopeDiscovery, terraform_provider: str, scope_id: str
+    discovery: ScopeDiscovery, provider: str, scope_id: str
 ) -> OperationResult:
     try:
-        ids = await discovery.resource_ids(terraform_provider, scope_id)
+        ids = await discovery.resource_ids(provider, scope_id)
     except DiscoveryError as exc:
         return OperationResult(exit_code=1, stdout="", stderr=str(exc))
     if ids is None:
         return OperationResult(
             exit_code=2,
             stdout="",
-            stderr=f"no scope discovery for provider '{terraform_provider}'",
+            stderr=f"no scope discovery for provider '{provider}'",
         )
     return OperationResult(exit_code=0, stdout=json.dumps(ids), stderr="")
 
@@ -278,15 +289,14 @@ async def init(
     discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.terraform_provider, body.scope_id)
+    env = engine.scope_env(body.scopes)
     return _submit(
         "init",
         workspace,
         response,
         lambda: _scoped(
             discovery,
-            body.terraform_provider,
-            body.scope_id,
+            body.scopes,
             lambda: engine.init(workspace, env),
         ),
     )
@@ -327,16 +337,17 @@ async def plan(
     discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.terraform_provider, body.scope_id)
+    env = engine.scope_env(body.scopes)
     return _submit(
         "plan",
         workspace,
         response,
         lambda: _scoped(
             discovery,
-            body.terraform_provider,
-            body.scope_id,
-            lambda: engine.plan(workspace, body.targets, body.plan_file, env),
+            body.scopes,
+            lambda: engine.plan(
+                workspace, body.targets, body.plan_file, env, _inputs(body)
+            ),
         ),
     )
 
@@ -376,15 +387,14 @@ async def apply(
     discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.terraform_provider, body.scope_id)
+    env = engine.scope_env(body.scopes)
     return _submit(
         "apply",
         workspace,
         response,
         lambda: _scoped(
             discovery,
-            body.terraform_provider,
-            body.scope_id,
+            body.scopes,
             lambda: engine.apply(workspace, body.plan_file, env),
         ),
     )
@@ -404,17 +414,16 @@ async def import_resource(
     discovery: Discovery,
     response: Response,
 ) -> JobAccepted:
-    env = engine.scope_env(body.terraform_provider, body.scope_id)
+    env = engine.scope_env(body.scopes)
     return _submit(
         "import",
         workspace,
         response,
         lambda: _scoped(
             discovery,
-            body.terraform_provider,
-            body.scope_id,
+            body.scopes,
             lambda: engine.import_resource(
-                workspace, body.address, body.resource_id, env
+                workspace, body.address, body.resource_id, env, _inputs(body)
             ),
         ),
     )
@@ -458,7 +467,7 @@ async def scope_resource_ids(
         "scope_resource_ids",
         workspace,
         response,
-        lambda: _scope_resource_ids(discovery, body.terraform_provider, body.scope_id),
+        lambda: _scope_resource_ids(discovery, body.provider, body.scope_id),
     )
 
 

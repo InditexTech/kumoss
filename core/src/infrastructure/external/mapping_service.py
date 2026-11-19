@@ -34,7 +34,6 @@ from src.clients.mapping.models.terraform_provider import (
 )
 from src.clients.mapping.types import UNSET, Unset
 from src.shared.config import system_config
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 from src.shared.utils.urls import is_https_url
 
@@ -52,7 +51,7 @@ class ResolvedRef:
 
     repo_url: str
     identifier: str
-    terraform_provider: TerraformProvider | None = None
+    terraform_provider: str | None = None
     scope_id: str | None = None
 
 
@@ -62,7 +61,7 @@ def _unwrap(value: str | None | Unset) -> str | None:
 
 def _core_provider(
     value: MappingTerraformProvider | str | None | Unset,
-) -> TerraformProvider | None:
+) -> str | None:
     """Convert the client's enum to core's, rejecting anything else.
 
     The contract's `anyOf: [$ref, null]` makes the generated parser
@@ -73,7 +72,7 @@ def _core_provider(
     if value is None or isinstance(value, Unset):
         return None
     if isinstance(value, MappingTerraformProvider):
-        return TerraformProvider(value.value)
+        return value.value
     raise ExceptionHandler(
         f"mapping service returned an unknown terraform_provider: {value!r}", 502
     )
@@ -86,7 +85,7 @@ class MappingServiceClient:
         self,
         identifier: str,
         *,
-        terraform_provider: TerraformProvider | None = None,
+        terraform_provider: str | None = None,
     ) -> ResolvedRef:
         """Resolve `identifier` via the mapping service, or identity-pass it.
 
@@ -110,7 +109,7 @@ class MappingServiceClient:
         body = ResolveRequest(
             identifier=identifier,
             terraform_provider=(
-                MappingTerraformProvider(terraform_provider.value)
+                MappingTerraformProvider(terraform_provider)
                 if terraform_provider is not None
                 else UNSET
             ),

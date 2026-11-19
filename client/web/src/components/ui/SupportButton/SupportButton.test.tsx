@@ -82,7 +82,7 @@ describe("SupportButton", () => {
     renderButton(
       {
         uuid: SESSION_ID,
-        provider: "azure",
+        providers: [{ name: "azurerm", scope_id: "sub-1" }],
         workspace: { uri: "https://github.com/org/demo", root_path: "dev" },
         first_query: "Create a storage account in west europe",
       },
@@ -103,7 +103,7 @@ describe("SupportButton", () => {
       context: {
         user_email: "someone@example.com",
         session_id: SESSION_ID,
-        cloud: "azure",
+        cloud: "azurerm",
         project: "demo",
         environment: "dev",
         repository: "https://github.com/org/demo",

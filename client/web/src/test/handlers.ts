@@ -45,7 +45,7 @@ export function toSummary(detail: SessionDetail): SessionSummary {
     uuid: detail.uuid,
     username: detail.username,
     operation: detail.operation,
-    provider: detail.provider,
+    providers: detail.providers,
     first_query: detail.first_query,
     workspace: detail.workspace,
     current_status: detail.current_status,

@@ -34,14 +34,25 @@ class PanelRole(Enum):
         return order.index(self) >= order.index(minimum)
 
 
-@unique
-class TerraformProvider(Enum):
-    AZURE = "azure"
-    GCP = "gcp"
-    AWS = "aws"
-    OCI = "oci"
-    K8S = "kubernetes"
-    VMWARE = "vmware"
+# Terraform providers are identified by their type name: the last segment
+# of their source address (``azurerm`` for ``hashicorp/azurerm``). Any name
+# is valid; these are the ones the platform knows more about.
+
+# Providers whose scope (subscription, project, account, compartment) the
+# user is asked for once and the IaC service injects into each command
+# (contracts/openapi/iac.v1.yaml, "Scope injection").
+SCOPED_PROVIDERS: frozenset[str] = frozenset({"azurerm", "google", "aws", "oci"})
+
+# Providers whose scopes the IaC service can list resources of, for import
+# (``ScopeResourceIdsRequest.provider`` in the same contract).
+DISCOVERABLE_PROVIDERS: frozenset[str] = frozenset({"azurerm", "google", "aws"})
+
+# Provider names before they matched Terraform's, still found in stored data.
+LEGACY_PROVIDER_NAMES: dict[str, str] = {
+    "azure": "azurerm",
+    "gcp": "google",
+    "vmware": "vsphere",
+}
 
 
 @unique
@@ -61,6 +72,16 @@ class OperationType(Enum):
 
 
 @unique
+class SessionSearchField(Enum):
+    """Which session field a sessions-list ``search`` matches."""
+
+    ALL = "all"  # any of the fields below
+    QUERY = "query"  # the session's first query
+    REPOSITORY = "repository"  # the workspace (repository) URI
+    SESSION_ID = "session_id"
+
+
+@unique
 class SessionStatus(Enum):
     """All possible Session states"""
 
@@ -74,6 +95,15 @@ class SessionStatus(Enum):
     COMPLETED = "completed"
     UNCOMPLETED = "uncompleted"
     FAILED = "failed"
+
+
+@unique
+class ManifestStatus(Enum):
+    """Where a root module's manifest stands against its current configuration."""
+
+    NOT_FOUND = "not_found"  # never configured: no manifest file yet
+    UP_TO_DATE = "up_to_date"  # manifest matches the configuration it was built from
+    DRIFTED = "drifted"  # the configuration changed since the manifest was written
 
 
 @unique

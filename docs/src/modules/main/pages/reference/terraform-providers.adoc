@@ -9,14 +9,25 @@ backend; the exhaustive list of every variable each provider and
 backend reads is in <<complete-variable-reference,Complete variable
 reference>> below.
 
-None of the tables below carries the variable the request's cloud
-scope (`scope_id`) supplies: `ARM_SUBSCRIPTION_ID`, `GOOGLE_PROJECT`,
-`TF_VAR_compartment_ocid` and `TF_VAR_aws_account_id` arrive with each
-request and overwrite whatever the container sets, so set the
-credential variables in each row and leave the scope to the request.
-Kubernetes and VMware vSphere commands run on the container's ambient
-credentials alone, and AWS commands are also refused when those
-credentials belong to an account other than `scope_id`. See
+Providers are named here as Terraform names them: by provider type,
+the last segment of the source address (`azurerm`, `google`, `aws`,
+`oci`, `kubernetes`, `vsphere`, or any other a root module uses, such
+as `random` or `helm`). A session uses every provider its root
+module's `required_providers` declares.
+
+None of the tables below carries the variable a provider's scope
+supplies. Four providers have a scope, answered once per root module
+and kept in its xref:main:reference/root-module-manifest.adoc[manifest]
+(`kumoss.yaml`): `azurerm` (subscription), `google` (project), `aws`
+(account) and `oci` (compartment). Each request carries the scope of
+every one of them the module uses (`scopes`), and the sidecar injects
+`ARM_SUBSCRIPTION_ID`, `GOOGLE_PROJECT`, `TF_VAR_aws_account_id` and
+`TF_VAR_compartment_ocid` from them, overwriting whatever the container
+sets, so set the credential variables in each row and leave the scope
+to the request. Every other provider (`kubernetes`, `vsphere`,
+`random`, `helm`...) runs on the container's ambient credentials and
+configuration alone, and AWS commands are also refused when those
+credentials belong to an account other than the `aws` scope. See
 xref:main:reference/environment-variables.adoc#iac-cloud-credentials[Cloud
 credentials for the IaC engine] for where these files fit in the
 deployment.
@@ -56,8 +67,8 @@ webhook sets on the pod
 |===
 
 No row carries `ARM_SUBSCRIPTION_ID`, even though azurerm v4+ makes it
-mandatory: `init`, `plan`, `apply`, and `import` carry a `scope_id`,
-and the sidecar injects it as `ARM_SUBSCRIPTION_ID` into the engine
+mandatory: `init`, `plan`, `apply`, and `import` carry the `azurerm`
+scope, and the sidecar injects it as `ARM_SUBSCRIPTION_ID` into the engine
 subprocess for that one command, overriding whatever the container
 holds.
 
@@ -121,8 +132,9 @@ account check below needs it, and it is the default region for
 generated code.
 
 *Account.* Do not set `TF_VAR_aws_account_id`; the sidecar injects
-`scope_id` as `TF_VAR_aws_account_id` for `init`, `plan`, `apply`, and
-`import`. The generated code passes it to the provider, which then
+the `aws` scope as `TF_VAR_aws_account_id` for `init`, `plan`, `apply`,
+and `import`. Kumoss never asks for an `aws_account_id` variable in the
+inputs form, since the scope fills it. The generated code passes it to the provider, which then
 refuses any other account:
 
 [source,hcl]
@@ -139,9 +151,9 @@ provider "aws" {
 Before those four commands the sidecar also calls STS
 `GetCallerIdentity` with the container's credentials, and ends the
 command with exit code 1, without starting the engine, when the account
-is not `scope_id`. One deployment therefore serves one AWS account; a
+is not the `aws` scope. One deployment therefore serves one AWS account; a
 hub deployment that assumes a role into each target account is refused.
-For LocalStack the `scope_id` is its account id, `000000000000`.
+For LocalStack the `aws` scope is its account id, `000000000000`.
 
 *Region.* The region is not part of the scope. The provider takes the
 first of:
@@ -215,7 +227,7 @@ explicit `region`/`zone` on many resources.
 
 No row carries `GOOGLE_PROJECT` either, for the same reason as
 `ARM_SUBSCRIPTION_ID` above: the sidecar injects the request's
-`scope_id` under that name for `init`, `plan`, `apply`, and `import`.
+`google` scope under that name for `init`, `plan`, `apply`, and `import`.
 It sets `GOOGLE_PROJECT` specifically, which outranks the
 `GOOGLE_CLOUD_PROJECT`/`GCLOUD_PROJECT`/`CLOUDSDK_CORE_PROJECT` aliases
 (see <<complete-variable-reference,Complete variable reference>>), so
@@ -256,22 +268,23 @@ by the runtime
 |`TF_VAR_auth=OkeWorkloadIdentity`, `TF_VAR_region`
 |===
 
-Do not set `TF_VAR_compartment_ocid`. For OCI the request's `scope_id`
-is the compartment OCID, and the sidecar injects it as
+Do not set `TF_VAR_compartment_ocid`. The `oci` scope is the
+compartment OCID, and the sidecar injects it as
 `TF_VAR_compartment_ocid` for `init`, `plan`, `apply`, and `import`,
 overriding the container value. It is not a provider setting: it fills
-the `compartment_ocid` input variable the generated code declares.
+the `compartment_ocid` input variable the generated code declares, which
+Kumoss therefore never asks for in the inputs form.
 
 Because nothing confines the provider to a compartment, the core also
 reads every OCI plan and fails validation when it creates a resource in
-a compartment other than `scope_id`. The generator then rewrites the
+a compartment other than the `oci` scope. The generator then rewrites the
 code:
 
 [source,hcl]
 ----
 resource "oci_core_vcn" "main" {
   compartment_id = var.compartment_ocid          # accepted
-  # compartment_id = "ocid1.compartment.oc1..x" # rejected unless it is scope_id
+  # compartment_id = "ocid1.compartment.oc1..x" # rejected unless it is the oci scope
 }
 ----
 
@@ -316,19 +329,17 @@ set.
 when the sidecar runs inside the cluster it manages
 |===
 
-No scope variable exists for this provider. The sidecar's scope overlay
-covers `azure` and `gcp` only, so the value the wizard collects as
-`scope_id` is stored with the session and hashed into the state project
-id, but never reaches the engine environment: every command runs
-against whatever cluster the variables above select. A
+The `kubernetes` provider has no scope: Kumoss asks for none, and
+every command runs against whatever cluster the variables above
+select. A
 mounted kubeconfig must be readable by the unprivileged user the image
 runs as (`kumoss`, uid and gid `10001`), and any paths inside it must
 resolve inside the container.
 
 Import discovery (`/v1/import/scope-resource-ids`) has no Kubernetes
-implementation: it answers exit code `2` with `no scope discovery for
-provider 'kubernetes'`, so an import round on `kubernetes` ends with a
-report that says so and imports nothing.
+implementation and rejects `kubernetes` with `422`; the core never asks
+for it, since an import round only lists the scopes of `azurerm`,
+`google` and `aws`.
 
 == VMware vSphere — provider minimum
 
@@ -354,20 +365,20 @@ Use a dedicated vCenter service account in an SSO group, holding a
 custom role scoped to the folders, resource pools, datastores, and
 networks Kumoss manages; never `administrator@vsphere.local`.
 
-No scope variable exists for this provider. The value the wizard
-collects as `scope_id` is the vSphere datacenter name, which the
-generated code reads through a `data "vsphere_datacenter"` data source
-argument rather than a provider setting. The sidecar's scope overlay
-covers `azure` and `gcp` only, so every command runs against whatever
-vCenter the variables above point at; the deployment must make that
-vCenter and the session's datacenter agree. There is no vSphere state
+The `vsphere` provider has no scope: Kumoss asks for none, and the
+generated code names the datacenter itself through a
+`data "vsphere_datacenter"` data source (an input variable of the root
+module, if it declares one, is answered in the inputs form like any
+other). Every command runs against whatever vCenter the variables above
+point at; the deployment must make that vCenter and the module's
+datacenter agree. There is no vSphere state
 backend: state stays in whichever backend the repository already
 declares.
 
 Import discovery (`/v1/import/scope-resource-ids`) has no vSphere
-implementation: it answers exit code `2` with `no scope discovery for
-provider 'vmware'`, so an import round on `vmware` ends with a report
-that says so and imports nothing.
+implementation and rejects `vsphere` with `422`; the core never asks
+for it, since an import round only lists the scopes of `azurerm`,
+`google` and `aws`.
 
 NOTE: A storage policy does not replace datastore placement.
 `storage_policy_id` is applied in addition to `datastore_id` or
@@ -411,7 +422,7 @@ Non-environment HCL always needed: `resource_group_name`,
 Add `subscription_id` too when the state storage account lives in a
 different subscription than the resources being managed. The backend
 resolves the account through `ARM_SUBSCRIPTION_ID`, and `init` runs
-with that variable overlaid from the request's `scope_id` — so a
+with that variable overlaid from the request's `azurerm` scope — so a
 backend that does not name its subscription explicitly looks for the
 storage account in the *workload's* subscription and fails. Pin it in
 the backend block or in the file `IAC_BACKEND_CONFIG` points at. The
@@ -469,7 +480,7 @@ Non-environment HCL: `bucket`, `prefix`.
 
 These are the sets for this service. The scope variable is
 deliberately absent: `ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` arrive
-with each request's `scope_id`. Add them only when the engine runs
+with each request's `scopes`. Add them only when the engine runs
 outside this service.
 
 [tabs]
@@ -568,7 +579,7 @@ cloud, for cases the minimum sets above do not cover.
 |Variable |Group |Purpose
 
 |`ARM_SUBSCRIPTION_ID` |Core |Target subscription. *Mandatory* in
-provider v4+. Injected per request from `scope_id` — do not set it.
+provider v4+. Injected per request from the `azurerm` scope — do not set it.
 
 |`ARM_TENANT_ID` |Core |Entra ID tenant
 
@@ -735,8 +746,8 @@ Identity Federation config
 account to impersonate
 
 |`GOOGLE_PROJECT` |Targeting |Default project — *required* unless set
-in the provider block. Injected per request from `scope_id` — do not
-set it.
+in the provider block. Injected per request from the `google` scope —
+do not set it.
 
 |`GOOGLE_CLOUD_PROJECT` |Targeting |Alias
 
@@ -809,7 +820,7 @@ Functions runtime
 
 Compartment OCID is a *resource* argument, not a provider setting —
 passed as `TF_VAR_compartment_ocid`, an ordinary Terraform input
-variable. The sidecar injects it per request from `scope_id`; do not set
+variable. The sidecar injects it per request from the `oci` scope; do not set
 it in the container.
 
 === Kubernetes (`kubernetes`, `helm`)
@@ -888,7 +899,7 @@ sessions
 |Variable |Backend |Purpose
 
 |`ARM_SUBSCRIPTION_ID` |azurerm |Subscription of the state storage
-account. Overlaid from `scope_id` during `init`, so pin
+account. Overlaid from the `azurerm` scope during `init`, so pin
 `subscription_id` in the backend config for split state
 
 |`ARM_TENANT_ID` |azurerm |Tenant

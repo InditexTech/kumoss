@@ -21,7 +21,6 @@ from src.shared.constants import (
     OperationRole,
     OperationType,
     PanelRole,
-    TerraformProvider,
 )
 
 
@@ -71,11 +70,9 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
             user_pk=user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
         return user, sid
 
@@ -110,6 +107,23 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         body = resp.json()
         self.assertEqual(body["total"], 1)
         self.assertEqual(body["items"][0]["uuid"], str(sid))
+
+    async def test_admin_sessions_search_in_combines_with_owner_email(self):
+        _ = await self._seed_session("a@example.com")
+        _ = await self._seed_session("b@example.com")
+
+        async def total(**params: str) -> int:
+            resp = await self.client.get("/v1/admin/sessions/list", params=params)
+            self.assertEqual(resp.status_code, 200, resp.text)
+            return resp.json()["total"]
+
+        self.assertEqual(
+            await total(search="resource group", search_in="query", user_email="a@"),
+            1,
+        )
+        self.assertEqual(
+            await total(search="resource group", search_in="repository"), 0
+        )
 
     async def test_admin_session_detail(self):
         _, sid = await self._seed_session("a@example.com")

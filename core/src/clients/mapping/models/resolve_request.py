@@ -73,7 +73,7 @@ class ResolveRequest:
                 terraform_provider_type_0 = TerraformProvider(data)
 
                 return terraform_provider_type_0
-            except (TypeError, ValueError, AttributeError, KeyError):
+            except TypeError, ValueError, AttributeError, KeyError:
                 pass
             return cast(None | TerraformProvider | Unset, data)
 

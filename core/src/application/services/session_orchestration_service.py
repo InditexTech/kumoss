@@ -54,11 +54,9 @@ class SessionOrchestrationService:
             user_pk=user_pk,
             operation=operation,
             repo_uri=request.repo_uri,
-            terraform_prv=request.terraform_providers,
-            scope_id=request.scope_id,
             branch_name=self.__new_branch_name(),
             query=request.q,
-            iac_path=request.iac_path,
+            root_module_path=request.root_module_path,
         )
         return await DatabaseService.get_session_context(sid)
 

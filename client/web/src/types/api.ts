@@ -4,15 +4,18 @@
 
 // ─── Shared Types ───────────────────────────────────────────
 
-export const TERRAFORM_PROVIDERS = [
-  "azure",
-  "gcp",
-  "aws",
-  "oci",
-  "kubernetes",
-  "vmware",
-] as const;
-export type TerraformProvider = (typeof TERRAFORM_PROVIDERS)[number];
+/**
+ * A Terraform provider type name as declared by the root module
+ * (`azurerm`, `google`, `aws`, `vsphere`, `random`…). Open-ended: the
+ * providers come from the module's manifest, not from a fixed list.
+ */
+export type TerraformProvider = string;
+
+/** A provider a session runs with, and its scope id when it has one. */
+export interface ProviderScopeRef {
+  name: string;
+  scope_id: string | null;
+}
 export type HistoryRole = "user" | "assistant";
 
 export interface HistoryEntry {
@@ -57,17 +60,94 @@ export interface PaginatedResponse<T> {
 }
 
 // ─── IaC Operations (/api/v1/iac/*) ─────────────────────────
-// URI-driven, session-iterating model: first call provides repo_uri +
-// terraform_providers + scope_id (+ optional iac_path); iteration calls
-// provide session_id only.
+// URI-driven, session-iterating model: first call provides repo_uri
+// (+ optional root_module_path and manifest answers); iteration calls
+// provide session_id only. Providers and their scopes come from the root
+// module's manifest.
 
 export interface BaseIacRequest {
   repo_uri?: string | null;
   session_id?: string | null;
-  scope_id?: string | null;
-  terraform_providers?: TerraformProvider | null;
   q: string;
-  iac_path?: string | null;
+  root_module_path?: string | null;
+  /** First call only: answers for what the manifest probe reported missing. */
+  manifest?: ManifestAnswers | null;
+}
+
+// ─── Root module manifest (/api/v1/manifest/*) ──────────────
+// The inputs a root module needs, probed before the first call; the
+// answers ride with that call and are saved to the module's manifest.
+
+/** JSON value of a Terraform input variable. */
+export type ManifestValue =
+  | string
+  | number
+  | boolean
+  | null
+  | ManifestValue[]
+  | { [key: string]: ManifestValue };
+
+export interface ManifestVariableAnswer {
+  name: string;
+  value: ManifestValue;
+  /** Store as a secret; omit to keep the variable's classification. */
+  sensitive?: boolean;
+}
+
+export interface ManifestAnswers {
+  variables: ManifestVariableAnswer[];
+  /** Optional var files, in order; omit to keep the current selection. */
+  var_files?: string[];
+  /** Scope id per provider type name (e.g. `{ azurerm: "<subscription id>" }`). */
+  scopes?: Record<string, string>;
+}
+
+export interface ManifestProbeRequest {
+  repo_uri: string;
+  root_module_path?: string | null;
+}
+
+/** A provider of the module that needs a scope id and has none saved yet. */
+export interface ManifestMissingScope {
+  /** Provider type name (`azurerm`, `google`, `aws`, `oci`). */
+  provider: string;
+  /** The provider's registry source (e.g. `hashicorp/azurerm`). */
+  source: string;
+}
+
+export interface ManifestVariable {
+  name: string;
+  /** HCL type as declared (e.g. `map(string)`); null when untyped. */
+  type: string | null;
+  description: string;
+  required: boolean;
+  /** Declared sensitive: always stored as a secret. */
+  sensitive: boolean;
+}
+
+export interface ManifestVarFile {
+  path: string;
+  /** Variables the file sets: picking it answers those that are missing. */
+  sets: string[];
+}
+
+export interface ManifestProviderChange {
+  name: string;
+  before: string | null;
+  after: string | null;
+}
+
+export interface ManifestProbeResponse {
+  status: "not_found" | "up_to_date" | "drifted";
+  needs_input: boolean;
+  /** To answer; those a picked var file sets need no answer while it stays picked. */
+  missing_variables: ManifestVariable[];
+  selectable_var_files: ManifestVarFile[];
+  /** The current pick among `selectable_var_files`, in order (a later file wins). */
+  selected_var_files: string[];
+  missing_var_files: string[];
+  provider_changes: ManifestProviderChange[];
+  missing_scopes: ManifestMissingScope[];
 }
 
 export type GenerateRequest = BaseIacRequest;
@@ -110,6 +190,9 @@ export interface PullRequestDTO {
 // ─── Sessions (/api/v1/sessions/*) ─────────────────────────
 
 export type OperationType = "generate" | "drift" | "import";
+
+/** Which field a sessions-list `search` matches (`all`: any of them). */
+export type SessionSearchField = "all" | "query" | "repository" | "session_id";
 
 export type SessionStatus =
   | "started"
@@ -222,7 +305,8 @@ export interface SessionSummary {
   uuid: string;
   username: string | null;
   operation: OperationType;
-  provider: TerraformProvider;
+  /** Empty until the session's setup has run. */
+  providers: ProviderScopeRef[];
   first_query: string | null;
   workspace: WorkspaceRef;
   current_status: SessionStatus;
@@ -243,7 +327,6 @@ export interface SessionSummary {
  * `?include_chat_history=true`.
  */
 export interface SessionDetail extends SessionSummary {
-  scope_id: string;
   rounds: RoundDetail[];
   chat_history?: RawHistoryTurn[] | null;
 }

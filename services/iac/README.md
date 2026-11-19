@@ -66,40 +66,45 @@ subcommands against that binary instead (e.g. `terraform init`).
 
 ## Scope injection
 
-`init`, `plan`, `apply`, `import` and `import/scope-resource-ids`
-reach a cloud API, so they must carry `scope_id` (the cloud scope the
-command targets) and `terraform_provider` (which cloud that is); the
-contract requires both and a missing or empty value is a `422`.
-`validate`, `show` and `import/state-resource-ids` take no scope, so
-their bodies declare neither field — every request schema forbids
-unknown properties, so sending one is also a `422`.
+A Terraform root module may use several providers, and each provider
+Kumoss can scope has its own scope. `init`, `plan`, `apply` and
+`import` reach a cloud API, so they accept an optional `scopes` list of
+`{"provider": ..., "scope_id": ...}` pairs. `provider` is the
+Terraform provider type name — the last segment of its source address
+(`azurerm` for `hashicorp/azurerm`, `google`, `aws`, `oci`,
+`kubernetes`, `vsphere`, `random`, ...) — and any well-formed name is
+accepted. Each provider may appear at most once; a duplicate, an
+empty `scope_id` or a malformed name is a `422`. `validate`, `show`
+and `import/state-resource-ids` take no scope, so their bodies declare
+no `scopes` — every request schema forbids unknown properties, so
+sending one (even empty) is also a `422`.
 
-Generated provider blocks name no scope, so for `init`, `plan`,
-`apply` and `import` the service injects `scope_id` into the engine
-subprocess's environment for that command only — where the cloud has a
-variable that names a scope:
+Generated provider blocks name no scope, so for each pair the service
+injects `scope_id` into the engine subprocess's environment for that
+command only — where the provider has a variable that names a scope.
+All pairs are merged into one overlay:
 
-| `terraform_provider` | Environment variable      | Scope it sets |
-|----------------------|---------------------------|---------------|
-| `azure`              | `ARM_SUBSCRIPTION_ID`     | subscription  |
-| `gcp`                | `GOOGLE_PROJECT`          | project       |
-| `oci`                | `TF_VAR_compartment_ocid` | compartment   |
-| `aws`                | `TF_VAR_aws_account_id`   | account       |
-| `kubernetes`         | none                      | —             |
-| `vmware`             | none                      | —             |
+| `provider` | Environment variable      | Scope it sets |
+|------------|---------------------------|---------------|
+| `azurerm`  | `ARM_SUBSCRIPTION_ID`     | subscription  |
+| `google`   | `GOOGLE_PROJECT`          | project       |
+| `aws`      | `TF_VAR_aws_account_id`   | account       |
+| `oci`      | `TF_VAR_compartment_ocid` | compartment   |
+| any other  | none                      | —             |
 
-Azure and GCP read theirs as provider settings. The OCI and AWS
-variables are Terraform input variables instead, which the engine
-ignores when the generated code declares none. An OCI compartment is a
+`azurerm` and `google` read theirs as provider settings. The `oci` and
+`aws` variables are Terraform input variables instead, which the
+engine ignores when the code declares none. An OCI compartment is a
 resource argument: the variable fills the `compartment_ocid` variable
-the generated code passes to its resources. An AWS account is implicit
-in the credentials the provider resolves, so the variable fills the
-`aws_account_id` variable the generated code passes to the provider's
+the code passes to its resources. An AWS account is implicit in the
+credentials the provider resolves, so the variable fills the
+`aws_account_id` variable the code passes to the provider's
 `allowed_account_ids`, which refuses any other account.
 
-AWS is also checked before the engine starts: before `init`, `plan`,
-`apply` and `import` the service calls STS `GetCallerIdentity` and,
-when its own credentials belong to an account other than `scope_id`,
+An `aws` pair is also checked before the engine starts: before `init`,
+`plan`, `apply` and `import` the service verifies every pair, and for
+the `aws` one calls STS `GetCallerIdentity` and, when its own
+credentials belong to an account other than that pair's `scope_id`,
 ends the command with exit code 1 and the reason on stderr — the same
 check import discovery makes. It needs `AWS_REGION` (or
 `AWS_DEFAULT_REGION`) and a 12-digit `scope_id` (`000000000000` for
@@ -107,25 +112,30 @@ LocalStack). One deployment therefore serves the one AWS account its
 credentials belong to; a hub deployment whose generated code assumes a
 role into each target account is refused by this check.
 
-A Kubernetes namespace or a vSphere datacenter is a resource or
-data-source argument the generated code names itself, so for those two
-the service injects nothing. Their commands run against whatever scope
-the ambient credentials select, so a deployment that serves them is
-responsible for making those credentials agree with `scope_id`. The
-contract also allows a deployment to scope by another mechanism (a
-provider alias, a credential broker).
+Pairs for any other provider are accepted and ignored. A Kubernetes
+namespace or a vSphere datacenter is a resource or data-source
+argument the code names itself, so nothing is injected for them; their
+commands, like those of any provider without a pair, run against
+whatever scope the ambient credentials select, and a deployment that
+serves them is responsible for making those credentials agree with the
+intended scope. The contract also allows a deployment to scope by
+another mechanism (a provider alias, a credential broker). The engine
+log line for each command shows the overlay it ran with (scope ids are
+not secret).
 
 Where an overlay is applied it goes on top of the service's own
 environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
 container — ambient provider credentials are otherwise untouched.
 
 On Azure that variable is the azurerm backend's too, so `init` resolves
-the state storage account in `scope_id`'s subscription; a deployment
+the state storage account in the `azurerm` pair's subscription; a deployment
 keeping state outside the managed subscription has to name
 `subscription_id` in its backend config. See "Backend minimums" in
 `PROVIDERS.md`.
 
-`import/scope-resource-ids` is the exception: it launches no
+`import/scope-resource-ids` is the exception: it takes one required
+`provider` (`azurerm`, `google` or `aws` — the providers with an
+inventory query; any other is a `422`) and `scope_id`, and launches no
 subprocess, so there is no environment to overlay. Its `scope_id` is
 the argument of the inventory query itself — the subscription,
 project or account whose contents are listed.
@@ -144,18 +154,13 @@ interactive `az login`, the CI runner's `ARM_OIDC_REQUEST_URL`
 exchange and the `ARM_CLIENT_ID_FILE_PATH`/`ARM_CLIENT_SECRET_FILE_PATH`
 forms have no discovery equivalent; see `PROVIDERS.md`.
 
-| `terraform_provider` | Source                                                     | Scope is             |
-|----------------------|------------------------------------------------------------|----------------------|
-| `azure`              | Resource Graph `providers/Microsoft.ResourceGraph/resources` | subscription ID    |
-| `gcp`                | Cloud Asset Inventory `searchAllResources` + Resource Manager `projects.get` and `getIamPolicy` | project ID |
-| `aws`                | Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources` | account ID   |
-| `oci`, `kubernetes`, `vmware` | none                                              | —                    |
+| `provider` | Source                                                     | Scope is             |
+|------------|------------------------------------------------------------|----------------------|
+| `azurerm`  | Resource Graph `providers/Microsoft.ResourceGraph/resources` | subscription ID    |
+| `google`   | Cloud Asset Inventory `searchAllResources` + Resource Manager `projects.get` and `getIamPolicy` | project ID |
+| `aws`      | Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources` | account ID   |
 
-`oci`, `kubernetes` and `vmware` are answered with exit code 2 and
-`no scope discovery for provider '<p>'` in `stderr`. That is a
-deliberate outcome, not a crash: the job still ends `succeeded`, and
-the exit code tells the caller the provider is unsupported rather than
-that a cloud call failed.
+Any other `provider` is rejected with a `422` at submission.
 
 ### What is left out
 
@@ -217,7 +222,7 @@ The service, not the caller, decides the ID shape.
 - **AWS** emits ARNs. `POST /v1/import/state-resource-ids` prefers a
   resource's `arn` attribute over its `id` for the same reason, so the
   two lists are directly comparable. That preference is not
-  AWS-specific: the endpoint takes no `terraform_provider`, so it
+  AWS-specific: the endpoint takes no `provider`, so it
   applies to every state document — a no-op for azurerm and google
   resources, which expose no `arn`.
 
@@ -450,8 +455,8 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
 job_id=$(curl -s -X POST http://localhost:8082/v1/init \
   -H 'Content-Type: application/json' \
   -d '{"workspace_path":"/path/to/your/iac/dir",
-       "scope_id":"00000000-0000-0000-0000-000000000000",
-       "terraform_provider":"azure"}' | jq -r .job_id)
+       "scopes":[{"provider":"azurerm",
+                  "scope_id":"00000000-0000-0000-0000-000000000000"}]}' | jq -r .job_id)
 curl http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
 ```
 

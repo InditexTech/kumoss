@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
 from abc import ABC, abstractmethod
+from typing import Literal
 
 from src.domains.dto import PullRequestDTO
 
@@ -17,7 +17,6 @@ class IGit(ABC):
     @abstractmethod
     async def ls_remote(self) -> bool:
         """Return True if the remote URI is reachable, False otherwise."""
-        pass
 
     @abstractmethod
     async def clone_repository(
@@ -43,12 +42,10 @@ class IGit(ABC):
 
         ``timeout`` is the maximum seconds to wait for the clone subprocess.
         """
-        pass
 
     @abstractmethod
     async def push_branch(self, branch: str) -> bool:
         """Push ``branch`` to origin with upstream tracking. Returns True on success."""
-        pass
 
     @abstractmethod
     async def checkout(self, branch: str) -> None:
@@ -74,7 +71,6 @@ class IGit(ABC):
             title: The PR title.
             description: The PR description.
         """
-        pass
 
     @abstractmethod
     async def complete_pr(self, pr_id: int) -> None:
@@ -92,13 +88,11 @@ class IGit(ABC):
         change on top of it, so two equal fingerprints mean the tree holds
         the same code.
         """
-        pass
 
     @abstractmethod
     async def get_untracked_files(self) -> list[str]:
         """get_untracked_files returns a list of file names that are not tracked by git and
         are not ignored by standard excludes (e.g. .gitignore)."""
-        pass
 
     @abstractmethod
     async def get_changed_files(
@@ -113,14 +107,13 @@ class IGit(ABC):
             working_tree: Whether the output only includes unstaged changes in the working tree.
             diff_filter: A - added | M - modified | D - deleted
         """
-        pass
 
     @abstractmethod
     async def show_diff(
         self,
         working_tree: bool,
         full_content: bool,
-        file_path: str = None,
+        file_path: str | None = None,
     ) -> str:
         """show_diff returns a plain text string containing the diff for files tracked by git.STAGED and COMMITED files
         SINCE the current branch diverged from the default branch
@@ -129,4 +122,3 @@ class IGit(ABC):
             wroking_tree: Whether the output only includes unstaged changes in the working tree.
             full_content: Unify all the content lines - not just the changed ones.
         """
-        pass

@@ -13,7 +13,6 @@ from src.clients.authz.models.access_evaluation_response import (
 )
 from src.clients.authz.models.action_name import ActionName
 from src.domains.value_objects.token_claims import TokenClaims
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 
 
@@ -33,7 +32,7 @@ def _claims(**overrides) -> TokenClaims:
 def _evaluate_args(**overrides):
     defaults = dict(
         scope_id="scope-1",
-        provider=TerraformProvider.AZURE,
+        provider="azurerm",
         repo_uri="https://dev.azure.com/org/proj/_git/repo",
     )
     defaults.update(overrides)
@@ -275,9 +274,29 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
     async def test_evaluate_maps_provider_to_resource_properties(
         self, mock_cfg, mock_eval
     ):
-        from src.clients.authz.models.resource_properties_provider import (
-            ResourcePropertiesProvider,
+        mock_cfg.services.authz = _mock_authz_config(enabled=True)
+        mock_eval.asyncio = AsyncMock(
+            return_value=AccessEvaluationResponse(decision=True)
         )
+        from src.infrastructure.external.authz_service import AuthzServiceClient
+
+        # Any Terraform provider type name passes through as a plain string.
+        for provider in ("google", "vsphere", "random"):
+            await AuthzServiceClient().evaluate(
+                _claims(),
+                ActionName.GENERATE,
+                **_evaluate_args(provider=provider),
+            )
+            request = mock_eval.asyncio.call_args.kwargs["body"]
+            self.assertEqual(request.resource.properties.provider, provider)
+            self.assertEqual(
+                request.to_dict()["resource"]["properties"]["provider"], provider
+            )
+
+    @patch("src.infrastructure.external.authz_service.evaluate_op")
+    @patch("src.infrastructure.external.authz_service.system_config")
+    async def test_module_level_evaluation_omits_provider(self, mock_cfg, mock_eval):
+        from src.clients.authz.types import UNSET
 
         mock_cfg.services.authz = _mock_authz_config(enabled=True)
         mock_eval.asyncio = AsyncMock(
@@ -288,16 +307,16 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
         await AuthzServiceClient().evaluate(
             _claims(),
             ActionName.GENERATE,
-            **_evaluate_args(provider=TerraformProvider.GCP),
+            **_evaluate_args(scope_id="", provider=None),
         )
         request = mock_eval.asyncio.call_args.kwargs["body"]
-        self.assertEqual(
-            request.resource.properties.provider, ResourcePropertiesProvider.GCP
-        )
+        self.assertIs(request.resource.properties.provider, UNSET)
+        self.assertNotIn("provider", request.to_dict()["resource"]["properties"])
+        self.assertEqual(request.resource.id, "")
 
     @patch("src.infrastructure.external.authz_service.evaluate_op")
     @patch("src.infrastructure.external.authz_service.system_config")
-    async def test_evaluate_omits_iac_path_when_none(self, mock_cfg, mock_eval):
+    async def test_evaluate_omits_root_module_path_when_none(self, mock_cfg, mock_eval):
         from src.clients.authz.types import UNSET
 
         mock_cfg.services.authz = _mock_authz_config(enabled=True)
@@ -310,7 +329,7 @@ class TestAuthzServiceClient(unittest.IsolatedAsyncioTestCase):
             _claims(),
             ActionName.GENERATE,
             **_evaluate_args(),
-            iac_path=None,
+            root_module_path=None,
         )
         request = mock_eval.asyncio.call_args.kwargs["body"]
-        self.assertIs(request.resource.properties.iac_path, UNSET)
+        self.assertIs(request.resource.properties.root_module_path, UNSET)

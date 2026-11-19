@@ -40,20 +40,18 @@ class TestReplaceInFile(unittest.TestCase):
         diff = self._block('bucket = "a"', 'bucket = "a2"') + self._block(
             'bucket = "b"', 'bucket = "b2"'
         )
-        self.assertTrue(self.fs.replace_in_file("main.tf", diff))
+        self.assertIsNone(self.fs.replace_in_file("main.tf", diff))
         content = self.file.read_text(encoding="utf-8")
         self.assertIn('bucket = "a2"', content)
         self.assertIn('bucket = "b2"', content)
 
     def test_empty_replace_deletes(self):
-        self.assertTrue(
-            self.fs.replace_in_file("main.tf", self._block('bucket = "a"', ""))
-        )
+        self.fs.replace_in_file("main.tf", self._block('bucket = "a"', ""))
         self.assertNotIn('bucket = "a"', self.file.read_text(encoding="utf-8"))
 
     def test_tolerates_code_fences_and_blank_lines(self):
         diff = "\n```\n" + self._block('bucket = "a"', 'bucket = "z"') + "```\n\n"
-        self.assertTrue(self.fs.replace_in_file("main.tf", diff))
+        self.fs.replace_in_file("main.tf", diff)
         self.assertIn('bucket = "z"', self.file.read_text(encoding="utf-8"))
 
     def test_empty_diff(self):

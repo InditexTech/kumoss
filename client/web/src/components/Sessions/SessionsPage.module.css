@@ -16,6 +16,10 @@
   text-align: center;
 }
 
+.providerIcons {
+  font-size: 20px;
+}
+
 /* Metadata columns read one step quieter than the query column */
 .secondaryCell {
   --cell-ink: var(--tbl-ink-soft);

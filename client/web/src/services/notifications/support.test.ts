@@ -18,7 +18,14 @@ describe("support notification builders", () => {
   it("buildSupportContext maps session fields and keeps missing ones as null", () => {
     const ctx = buildSupportContext({
       user,
-      session: { uuid: "s1", provider: "gcp", first_query: "add a bucket" },
+      session: {
+        uuid: "s1",
+        providers: [
+          { name: "google", scope_id: "my-project" },
+          { name: "random", scope_id: null },
+        ],
+        first_query: "add a bucket",
+      },
       prDetails: {},
       extra: { trigger: "manual" },
     });
@@ -26,7 +33,7 @@ describe("support notification builders", () => {
       user_email: "someone@example.com",
       user_name: "Someone",
       session_id: "s1",
-      cloud: "gcp",
+      cloud: "google, random",
       request: "add a bucket",
       project: null,
       repository: null,

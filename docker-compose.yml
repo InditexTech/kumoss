@@ -127,7 +127,7 @@ services:
       - bridge-network
 
   phoenix:
-    image: arizephoenix/phoenix:20.12.0
+    image: arizephoenix/phoenix:20.27.0
     expose:
       - 6006
       - 4317
@@ -161,7 +161,7 @@ services:
       - bridge-network
 
   object-storage:
-    image: rustfs/rustfs:latest
+    image: rustfs/rustfs:1.0.6
     environment:
       - RUSTFS_CONSOLE_ENABLE=false
     expose:

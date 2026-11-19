@@ -2,12 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Tests for the GitUtils diff base and revert_to.
+"""Tests for the GitUtils branch and working-tree diffs.
 
-An import round runs in batches, and each batch's agents must see only
-the blocks that batch generated: the diff base narrows the branch diff to
-the commits made on top of it. A batch whose configuration cannot be
-generated is undone with revert_to, without rewriting the branch.
+The branch diff (``working_tree=False``) spans every commit made on the
+session branch since it left the default branch; the working-tree diff
+(``working_tree=True``) shows only the uncommitted edits on top of HEAD.
 
 These tests use a file:// bare repo so they run without network access.
 """
@@ -50,7 +49,7 @@ def _clone_on_a_session_branch(tmp: Path) -> tuple[Path, Path]:
     return bare, work
 
 
-class TestDiffBase(unittest.IsolatedAsyncioTestCase):
+class TestShowDiff(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.bare, self.work = _clone_on_a_session_branch(self.tmp)
@@ -61,7 +60,6 @@ class TestDiffBase(unittest.IsolatedAsyncioTestCase):
         )
 
         await self.__commit("batch_1.tf", 'resource "null_resource" "one" {}\n')
-        self.base = await self.git.get_head_commit()
         await self.__commit("batch_2.tf", 'resource "null_resource" "two" {}\n')
 
     async def asyncTearDown(self):
@@ -71,59 +69,31 @@ class TestDiffBase(unittest.IsolatedAsyncioTestCase):
         (self.work / name).write_text(content)
         await self.git.commit_and_push(_BRANCH)
 
-    async def test_head_commit_is_the_checked_out_commit(self):
+    async def test_commits_are_pushed_to_the_session_branch(self):
         self.assertEqual(
-            await self.git.get_head_commit(), _git(self.work, "rev-parse", "HEAD")
+            _git(self.work, "rev-parse", "HEAD"),
+            _git(self.bare, "rev-parse", _BRANCH),
         )
 
-    async def test_branch_diff_starts_at_the_default_branch_by_default(self):
+    async def test_branch_diff_spans_every_commit_since_the_default_branch(self):
         diff = await self.git.show_diff(working_tree=False, full_content=False)
 
         self.assertIn("batch_1.tf", diff)
         self.assertIn("batch_2.tf", diff)
+        self.assertNotIn("main.tf", diff)
 
-    async def test_diff_base_narrows_the_branch_diff_to_later_commits(self):
-        self.git.set_diff_base(self.base)
-
-        diff = await self.git.show_diff(working_tree=False, full_content=False)
-
-        self.assertNotIn("batch_1.tf", diff)
-        self.assertIn("batch_2.tf", diff)
-
-    async def test_clearing_the_diff_base_restores_the_whole_branch(self):
-        self.git.set_diff_base(self.base)
-        self.git.set_diff_base(None)
-
-        diff = await self.git.show_diff(working_tree=False, full_content=False)
-
-        self.assertIn("batch_1.tf", diff)
-        self.assertIn("batch_2.tf", diff)
-
-    async def test_diff_base_leaves_working_tree_diffs_alone(self):
-        self.git.set_diff_base(self.base)
+    async def test_working_tree_diff_shows_only_uncommitted_edits(self):
         (self.work / "batch_1.tf").write_text("# edited\n")
 
         diff = await self.git.show_diff(working_tree=True, full_content=False)
 
         self.assertIn("batch_1.tf", diff)
+        self.assertNotIn("batch_2.tf", diff)
 
-    async def test_revert_undoes_later_commits_and_pushes(self):
-        await self.git.revert_to(_BRANCH, self.base)
+    async def test_a_clean_working_tree_has_no_diff(self):
+        diff = await self.git.show_diff(working_tree=True, full_content=False)
 
-        self.assertTrue((self.work / "batch_1.tf").exists())
-        self.assertFalse((self.work / "batch_2.tf").exists())
-        # History is kept: the undo is a new commit, pushed without force.
-        head = _git(self.work, "rev-parse", "HEAD")
-        self.assertNotEqual(head, self.base)
-        self.assertEqual(head, _git(self.bare, "rev-parse", _BRANCH))
-        self.assertEqual(_git(self.work, "diff", self.base, "HEAD"), "")
-
-    async def test_revert_to_head_is_a_no_op(self):
-        head = await self.git.get_head_commit()
-
-        await self.git.revert_to(_BRANCH, head)
-
-        self.assertEqual(await self.git.get_head_commit(), head)
+        self.assertEqual(diff, "")
 
 
 if __name__ == "__main__":

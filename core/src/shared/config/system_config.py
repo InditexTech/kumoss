@@ -335,6 +335,10 @@ class PathsConfig(BaseModel):
         default="backend_override.tf",
         pattern=r"^[A-Za-z0-9._-]{1,128}_override\.tf$",
     )
+    # Committed in each root module; holds its configured inputs (no secrets).
+    manifest_filename: str = Field(
+        default="kumoss.yaml", pattern=r"^[A-Za-z0-9._-]{1,128}\.ya?ml$"
+    )
 
 
 class TelemetryConfig(BaseModel):

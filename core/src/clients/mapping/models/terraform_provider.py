@@ -7,10 +7,10 @@ from enum import Enum
 
 class TerraformProvider(str, Enum):
     AWS = "aws"
-    AZURE = "azure"
-    GCP = "gcp"
+    AZURERM = "azurerm"
+    GOOGLE = "google"
     KUBERNETES = "kubernetes"
-    VMWARE = "vmware"
+    VSPHERE = "vsphere"
     OCI = "oci"
 
     def __str__(self) -> str:

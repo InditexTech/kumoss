@@ -3,7 +3,7 @@
 
 The Kumoss web application offers two import modes: Partial Import, for
 the unmanaged resources your request names, and Full Import, for every
-unmanaged resource in the session's scope. Both find the resources the
+unmanaged resource in the session's scopes. Both find the resources the
 cloud holds but the Terraform state does not, write a resource block for
 each, run `terraform import` on them, and reconcile the imported
 configuration with the real resources. They differ only in how the
@@ -18,11 +18,14 @@ resources are selected. This guide covers both.
   when it continues an existing session. See
   xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
   for the complete role matrix.
-* A repository URL, the target cloud, and a scope id, as covered in
-  xref:main:guides/make-a-request.adoc[Make a request]. The scope is what
-  discovery lists: an Azure subscription, a GCP project, or an AWS
-  account. OCI, Kubernetes, and VMware vSphere have no scope listing, so
-  an import round on them finds nothing to import (see <<limitations>>).
+* A repository URL and, the first time, the root module's scopes, as
+  covered in xref:main:guides/make-a-request.adoc[Make a request]. The
+  scopes are what discovery lists: the subscription of an `azurerm`
+  provider, the project of a `google` provider and the account of an
+  `aws` provider, all of them when the module uses several. `oci`,
+  `kubernetes` and `vsphere` have no scope listing, so an import round on
+  a module that uses none of the three finds nothing to import (see
+  <<limitations>>).
 * The IaC sidecar's credentials must be able to read the cloud inventory
   for the scope: Azure Resource Graph, GCP Cloud Asset Inventory, or an
   AWS Resource Explorer aggregator index. See
@@ -35,7 +38,7 @@ resources are selected. This guide covers both.
 you want only some of them managed from the repository: "import the key
 vault and its private endpoint".
 
-*Required inputs.* Repository URL, cloud, scope id, and a *non-empty*
+*Required inputs.* Repository URL and a *non-empty*
 request naming what to import. The API rejects a partial import with an
 empty text.
 
@@ -46,14 +49,17 @@ empty text.
   round `uncompleted` with the filter's rationale.
 . *Prompt composition*, as in generate.
 . *Discovery.* The core lists what the Terraform state tracks
-  (`/v1/import/state-resource-ids`) and what the cloud scope holds
-  (`/v1/import/scope-resource-ids`), and keeps the resource IDs the state
-  does not track. Azure IDs are compared case-insensitively; every other
+  (`/v1/import/state-resource-ids`) and what each listable scope of the
+  root module holds (`/v1/import/scope-resource-ids`, once per scope),
+  and keeps the resource IDs the state does not track, merged across
+  scopes. A scope that cannot be listed is reported without hiding the
+  others. Azure IDs are compared case-insensitively; every other
   provider compares them exactly. The IaC sidecar already leaves out
   resources another control plane owns, such as AKS-managed resource
   groups or GKE nodes.
-. *Import exception list.* IDs on the cloud's
-  `<cloud>-guidelines-import_exceptions` list are withheld from the rest
+. *Import exception list.* IDs on the
+  `<provider>-guidelines-import_exceptions` lists of the module's
+  providers are withheld from the rest
   of the round, whatever the request says. See
   xref:main:guides/customize-prompts.adoc#import-exception-list[Import
   exception list].
@@ -148,7 +154,7 @@ The report shows both resources imported and `Succeeded`.
 manage, for example when bringing an existing subscription into a
 repository.
 
-*Required inputs.* Repository URL, cloud, and scope id. The web
+*Required inputs.* Repository URL. The web
 application asks for no request text and sends the fixed request "Import
 all the infrastructure".
 
@@ -168,9 +174,11 @@ reports `Succeeded`.
 [#limitations]
 == Limitations
 
-* Scope discovery exists only for Azure, GCP and AWS. On OCI, Kubernetes,
-  and VMware vSphere the scope cannot be listed, and the round ends with a
-  report that says so and imports nothing.
+* Scope discovery exists only for `azurerm`, `google` and `aws` scopes.
+  A root module that uses none of them (only `oci`, `kubernetes`,
+  `vsphere`...) has nothing to list, and the round ends with a report
+  that says so and imports nothing. In a module that mixes providers,
+  only the resources of its listable scopes are found.
 * The import exception list is matched against the exact IDs the scope
   listing returns (case-insensitively on Azure), so an entry must be
   spelled the way discovery spells it.

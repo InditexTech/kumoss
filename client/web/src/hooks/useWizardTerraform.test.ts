@@ -65,7 +65,7 @@ describe("useWizardTerraform — handleOutcome", () => {
     const session = result.current.session.session;
     expect(session.uuid).toBe("sess-1");
     expect(session.code).toContain("<main.tf>");
-    expect(session.provider).toBe("azure");
+    expect(session.providers?.map((p) => p.name)).toEqual(["azurerm", "random"]);
     expect(session.workspace?.branch).toBe("kumoss/sess-1");
     expect(session.is_blocked).toBe(false);
     // Flattened from the backend's `chat_history` turns; the hook adds

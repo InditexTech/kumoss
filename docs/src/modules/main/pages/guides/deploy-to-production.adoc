@@ -410,16 +410,16 @@ disabled, the core echoes every identifier: the value the user types is
 used as the repository URL. Enable it only with
 an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue)
 against the canonical IaC repository. Once enabled, a slow or
-unreachable sidecar makes the wizard's resolve step fail with
-`504`/`502`.
+unreachable sidecar makes `POST /api/v1/mapping/resolve` fail with
+`504`/`502`. The web wizard does not call that route: users type the
+repository URL, and a session's providers and scopes come from the root
+module and its xref:main:reference/root-module-manifest.adoc[manifest].
 
 Your implementation may also answer `terraform_provider` and `scope_id`
-(the cloud subscription, project, account, compartment, or cluster).
-Both are optional and both are a promise: the wizard stops asking the
-user for any field your service fills in, so a value it cannot stand
-behind is a wrong answer nobody gets the chance to correct. Return
-`null` — meaning "I do not know" — whenever the catalogue is silent, and
-never infer a provider from the shape of the repository URL.
+(the cloud subscription, project, account or compartment). Both are
+optional and best effort. Return `null` — meaning "I do not know" —
+whenever the catalogue is silent, and never infer a provider from the
+shape of the repository URL.
 
 === Notifications (optional, recommended)
 
@@ -447,7 +447,10 @@ Understand what this integration is and is not:
 * It is consulted on *every write route* — IaC generation, drift,
   import, apply, PR creation, and PR merge. The core sends an AuthZEN
   Access Evaluation request (`POST /access/v1/evaluation`) with the
-  caller's identity, the action, and the target scope.
+  caller's identity, the action, and one provider scope of the
+  session's root module — one request per scope, all of which must
+  allow. On a first call it runs inside the session, after the `202`
+  and before the manifest setup saves anything.
 * It is *not* Kumoss's own access control. Who can log in, which
   operations a user may run, and who can see or act on a session are
   decided by OIDC plus the operation and panel roles stored in the core

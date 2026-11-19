@@ -15,19 +15,6 @@ from src.infrastructure.exceptions import TokenValidationError
 from src.shared.config.system_config import system_config
 from src.shared.utils.decorators import execute_pool
 
-_ALGORITHMS = [
-    "RS256",
-    "RS384",
-    "RS512",
-    "ES256",
-    "ES384",
-    "ES512",
-    "PS256",
-    "PS384",
-    "PS512",
-]
-_DISCOVERY_TIMEOUT = 10.0
-
 
 class OidcTokenValidator:
     """Validates bearer JWTs via the issuer's discovery document and JWKS.
@@ -37,6 +24,19 @@ class OidcTokenValidator:
     never depends on the IdP being reachable; ``PyJWKClient`` caches the
     JWK set and refreshes it on expiry, which also covers key rotation.
     """
+
+    _ALGORITHMS: list[str] = [
+        "RS256",
+        "RS384",
+        "RS512",
+        "ES256",
+        "ES384",
+        "ES512",
+        "PS256",
+        "PS384",
+        "PS512",
+    ]
+    _DISCOVERY_TIMEOUT: float = 10.0
 
     _UNIVERSAL_CLAIMS: dict[str, str] = {"issuer": "iss", "email": "email"}
 
@@ -54,7 +54,7 @@ class OidcTokenValidator:
             if self._jwks_client is None:
                 response = httpx.get(
                     f"{self._issuer}/.well-known/openid-configuration",
-                    timeout=_DISCOVERY_TIMEOUT,
+                    timeout=self._DISCOVERY_TIMEOUT,
                 )
                 _ = response.raise_for_status()
                 self._jwks_client = jwt.PyJWKClient(
@@ -68,7 +68,7 @@ class OidcTokenValidator:
         payload = jwt.decode(
             token,
             key=signing_key.key,
-            algorithms=_ALGORITHMS,
+            algorithms=self._ALGORITHMS,
             audience=self._audiences,
             # Some IdPs (e.g. Auth0) emit `iss` with a trailing slash.
             issuer=[self._issuer, f"{self._issuer}/"],

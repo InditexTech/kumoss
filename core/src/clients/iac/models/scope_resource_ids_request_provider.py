@@ -1,0 +1,14 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+from enum import StrEnum
+
+
+class ScopeResourceIdsRequestProvider(StrEnum):
+    AWS = "aws"
+    AZURERM = "azurerm"
+    GOOGLE = "google"
+
+    def __str__(self) -> str:
+        return str(self.value)

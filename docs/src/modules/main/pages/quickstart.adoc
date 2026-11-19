@@ -212,8 +212,8 @@ With authentication disabled this returns a JSON document with an empty
 == Where Terraform state lives
 
 By default, Kumoss keeps Terraform state in the bundled RustFS object
-storage, in the `kumoss-terraform-state` bucket. Each project (repository,
-cloud scope, and root-module path) gets its own state file, which starts
+storage, in the `kumoss-terraform-state` bucket. Each project (repository
+and root-module path) gets its own state file, which starts
 *empty* the first time Kumoss works on it. Any `backend` block in the
 repository is ignored.
 
@@ -250,8 +250,9 @@ exists gets a plan that creates it all again.
 
 Open `\http://localhost`. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
-push to, choose the cloud and scope, describe the infrastructure you need,
-and follow the session. What each mode does is explained in
+push to, pick the root module, describe the infrastructure you need,
+answer the module's scopes and variables if Kumoss asks for them, and
+follow the session. What each mode does is explained in
 xref:main:guides-overview.adoc[Guides]; your sessions and the admin panel
 are described in
 xref:main:guides/administer-users-and-locks.adoc[Administer users and

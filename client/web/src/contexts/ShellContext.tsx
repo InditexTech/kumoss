@@ -31,10 +31,8 @@ export const ShellProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      "color-scheme",
-      isDark ? THEME.DARK : THEME.LIGHT,
-    );
+    // A data attribute, not an inline color-scheme: see :root[data-theme] in index.css.
+    document.documentElement.dataset.theme = isDark ? THEME.DARK : THEME.LIGHT;
     setLocalItem(STORAGE_KEYS.THEME, isDark ? THEME.DARK : THEME.LIGHT);
   }, [isDark]);
 

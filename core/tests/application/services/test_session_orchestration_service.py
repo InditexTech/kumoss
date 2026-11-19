@@ -13,7 +13,7 @@ from src.domains.services.database_service import DatabaseService
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base, User
 from src.infrastructure.redis import redis_client
-from src.shared.constants import OperationType, TerraformProvider
+from src.shared.constants import OperationType
 
 
 class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
@@ -39,9 +39,7 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
     def _first_request(self, **overrides) -> GenerateRequest:
         payload = {
             "repo_uri": "https://example.com/foo.git",
-            "terraform_providers": "azure",
-            "scope_id": "sub-123",
-            "iac_path": "infra",
+            "root_module_path": "infra",
             "q": "hi",
         }
         payload.update(overrides)
@@ -52,7 +50,8 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
             self._first_request(), OperationType.GENERATE, self.user_pk
         )
         self.assertEqual(ctx.repo_uri, "https://example.com/foo.git")
-        self.assertEqual(ctx.terraform_prv, TerraformProvider.AZURE)
+        # Providers come from the manifest at setup, not from the request.
+        self.assertEqual(ctx.providers, ())
         self.assertTrue(ctx.branch_name.startswith("Kumoss/"))
         owner = await DatabaseService.get_session_owner(ctx.id)
         self.assertEqual(owner, self.user_pk)
@@ -67,14 +66,14 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx2.repo_uri, "https://example.com/foo.git")
         self.assertEqual(ctx2.branch_name, ctx1.branch_name)
 
-    async def test_iac_path_persisted_and_loaded(self):
+    async def test_root_module_path_persisted_and_loaded(self):
         ctx1 = await self.svc.resolve(
-            self._first_request(iac_path="environments/dev"),
+            self._first_request(root_module_path="environments/dev"),
             OperationType.GENERATE,
             self.user_pk,
         )
-        self.assertEqual(ctx1.iac_path, "environments/dev")
+        self.assertEqual(ctx1.root_module_path, "environments/dev")
 
         iter_req = GenerateRequest(session_id=str(ctx1.id), q="iterate")
         ctx2 = await self.svc.resolve(iter_req)
-        self.assertEqual(ctx2.iac_path, "environments/dev")
+        self.assertEqual(ctx2.root_module_path, "environments/dev")

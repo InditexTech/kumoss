@@ -1,0 +1,129 @@
+= Upgrade notes
+:description: Breaking changes to check before upgrading Kumoss: providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, removed request fields, and the new managed state key.
+
+This page lists the changes that need action from an operator, an
+integrator or a custom sidecar implementation when upgrading. Read it
+before rolling out a new core image.
+
+== Providers come from the root module
+
+Sessions no longer take a provider and a scope from the user. The core
+reads the providers from the root module's `required_providers` and
+keeps the scopes, variable answers and picked var files in a
+`kumoss.yaml` manifest committed in the module. See
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
+
+What that changes:
+
+* *Web application.* The wizard asks for the request, the repository
+  URL and the root module, then shows an inputs form only when the
+  module needs something. The provider and scope questions, the
+  permissions step and the call to the mapping service are gone.
+* *First session on each module.* The first session after the upgrade
+  sets the module's manifest up: the user answers its scopes (and any
+  required variable without a value) once, and the session commits
+  `kumoss.yaml` to its branch. Merge that pull request so later
+  sessions find the manifest on the default branch.
+* *Core API.* `generate`, `drift` and `import` no longer take
+  `terraform_providers` or `scope_id`. Unknown fields are ignored, so an
+  old client is not rejected, but what it sends has no effect. Probe the
+  module with `POST /api/v1/manifest/probe` and send the answers in
+  `manifest` on the first call. See
+  xref:main:reference/api/core.adoc[Core API].
+* *Session read models.* Session summaries and details expose
+  `providers: [{name, scope_id}]` instead of `provider` and `scope_id`.
+* *Tracing.* The span `metadata` carries `providers` (a list of
+  provider type names) instead of `cloud`.
+
+== Provider names are Terraform provider types
+
+Providers are named everywhere by their Terraform provider type, the
+last segment of the source address:
+
+[cols="1,1",options="header"]
+|===
+|Before |Now
+
+|`azure` |`azurerm`
+|`gcp` |`google`
+|`aws` |`aws`
+|`oci` |`oci`
+|`kubernetes` |`kubernetes`
+|`vmware` |`vsphere`
+|===
+
+Any other provider a module uses (`random`, `helm`...) is a session
+provider too, under its own type name.
+
+* *Database.* The `terraform_providers` table is migrated at startup by
+  an idempotent step: the `provider` column becomes `varchar(64)` with
+  the new names, `scope_id` becomes nullable, and the old enum type is
+  dropped. Nothing to do by hand. See
+  xref:main:reference/database-schema.adoc[Database schema].
+* *Prompts.* Phoenix prompt names follow the provider type:
+  `azure-guidelines-*` is now `azurerm-guidelines-*`, `gcp-*` is
+  `google-*` and `vmware-*` is `vsphere-*`, and the seed folders under
+  `core/prompts/seed/` were renamed to match. The seeder creates the new
+  names on the next boot, with the shipped content. Versions you
+  curated under the old names are not moved and no longer read: copy
+  them to the new names in Phoenix and move the environment tag. See
+  xref:main:guides/customize-prompts.adoc[Customize prompts].
+* *Prompt selection.* A session uses the prompts of every provider of
+  its module that has them. A provider without prompts no longer
+  aborts a session with `Prompt not found`; it gets the `general-*`
+  prompts only.
+
+== Sidecar contracts 2.0.0
+
+The IaC, authorization and mapping contracts moved to 2.0.0 together.
+A custom implementation of any of them must be upgraded with the core.
+
+[cols="1,4",options="header"]
+|===
+|Contract |Breaking change
+
+|IaC (`iac.v1.yaml`)
+|`init`, `plan`, `apply` and `import` take an optional
+`scopes: [{provider, scope_id}]` list instead of the required
+`scope_id` + `terraform_provider` pair, and inject each pair's scope.
+`/v1/import/scope-resource-ids` takes `provider` (`azurerm`, `google`
+or `aws`) instead of `terraform_provider`, and rejects any other
+provider with `422` instead of answering exit code `2`. See
+xref:main:reference/api/iac.adoc#versioning[IaC sidecar API].
+
+|Authorization (`authz.v1.yaml`)
+|`resource.properties.provider` is any Terraform provider type name
+instead of an enum of the former names. The core sends one evaluation
+per provider scope of the session's root module, or one module-level
+evaluation with an empty `resource.id` and no provider when the module
+has no scoped provider. First calls are evaluated inside the session,
+after the `202`. Update PDP policies that match `azure`, `gcp` or
+`vmware`. See xref:main:reference/api/authz.adoc[Authorization sidecar
+API].
+
+|Mapping (`mapping.v1.yaml`)
+|The `terraform_provider` enum is now `azurerm`, `google`, `aws`,
+`oci`, `kubernetes`, `vsphere`. The web wizard no longer calls the
+service. See xref:main:reference/api/mapping.adoc[Mapping sidecar API].
+|===
+
+== Kumoss-managed state keys changed
+
+With xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
+state] the state key is now the SHA-256 of the repository and the root
+module path only; earlier releases also hashed the cloud scope. *State
+written under the old keys is not migrated.* Left as is, the first
+session on each project plans against empty state and proposes
+creating resources that already exist.
+
+Before running sessions on an existing project, copy its state object
+in the state bucket from `<old_project_id>/terraform.tfstate` to
+`<project_id>/terraform.tfstate`. The old key appears in the
+`Terraform state: ... key=` log lines of the previous release; the new
+one in the same line the upgraded core logs on the project's first
+`init`. Do not apply a plan made before the copy. See
+xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
+keys].
+
+Projects whose repository declares its own backend, or whose backend
+comes from the IaC sidecar, are not affected.

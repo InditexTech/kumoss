@@ -51,8 +51,13 @@ Numbers restart at each session.
 
 |`terraform_providers`
 |`sessions`
-|Which clouds the session targets, and the `scope_id` (subscription,
-project, or account) for each.
+|One row per Terraform provider the session's root module uses:
+`provider` is the provider type name (`azurerm`, `google`, `aws`,
+`oci`, `kubernetes`, `vsphere`, `random`...), and `scope_id` is its
+subscription, project, account or compartment for `azurerm`, `google`,
+`aws` and `oci`, null for the others. Written when the session's first
+call has set up the root module's
+xref:main:reference/root-module-manifest.adoc[manifest].
 
 |`histories`
 |`sessions`
@@ -99,7 +104,7 @@ where the bytes are. The bytes themselves are never in the database.
 
 == Enumerated columns
 
-Seven columns are constrained to a fixed set of values:
+Six columns are constrained to a fixed set of values:
 
 [cols="2,2,4",options="header"]
 |===
@@ -127,13 +132,13 @@ Seven columns are constrained to a fixed set of values:
 |`generate`, `drift`, `import`, `apply`
 
 |`provider`
-|`terraform_providers`
-|`aws`, `azure`, `gcp`, `oci`, `kubernetes`, `vmware`
-
-|`provider`
 |`pull_requests`
 |`github.com`, `dev.azure.com`, `gitlab.com`
 |===
+
+`terraform_providers.provider` is a plain `varchar(64)` column, not an
+enum: any Terraform provider type a root module declares is stored as
+is.
 
 Note that `apply` is a report type and a progress status, but not a
 session operation: an apply runs inside the session that generated the
@@ -175,11 +180,16 @@ by hand or recreated whenever the model changes. The upgrade that introduced
 authentication is the case most deployments hit: sessions used to be keyed by
 a `username` column and there was no `users` table at all.
 
-Enum values are the one exception. At startup the core also adds any value
-the models define but an existing PostgreSQL enum type lacks (`ALTER TYPE
-... ADD VALUE IF NOT EXISTS`), so a `core_db_data` volume created before
-`vmware` existed accepts `vmware` sessions without a manual migration.
-Tables and columns are still never altered; only enum values are added.
+The provider rename is the one exception. `terraform_providers.provider`
+used to be a PostgreSQL enum of the core's own names (`AZURE`, `GCP`,
+`AWS`, `OCI`, `KUBERNETES`, `VMWARE`). At every startup the core runs an
+idempotent step that converts the column to `varchar(64)`, renames the
+stored values to Terraform provider type names (`azure` → `azurerm`,
+`gcp` → `google`, `vmware` → `vsphere`, the rest lowercased), makes
+`scope_id` nullable, and drops the old `terraformprovider` enum type.
+Once applied every statement is a no-op, so an existing `core_db_data`
+volume needs no manual migration for it. See
+xref:main:guides/upgrade-notes.adoc[Upgrade notes].
 
 For the other stores — Phoenix, Redis, object storage, and the workspaces
 volume — see

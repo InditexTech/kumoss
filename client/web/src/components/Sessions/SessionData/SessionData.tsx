@@ -23,8 +23,8 @@ import type {
 } from "@/types/api";
 import { TERMINAL_STATUSES } from "@/types/api";
 import { STRINGS } from "@/constants/strings";
-import { providerLabel } from "@/constants/providers";
-import { MarkdownText, StatusBadge, PageOverlay } from "@/components/ui";
+import { scopeLabel } from "@/constants/providers";
+import { MarkdownText, StatusBadge, PageOverlay, ProviderList } from "@/components/ui";
 import ArtifactContent, { artifactLabel } from "./ArtifactContent";
 import type { ArtifactKind } from "./ArtifactContent";
 import { usePlanTypes } from "./usePlanTypes";
@@ -218,14 +218,16 @@ export default function SessionData({
           component="span"
           className={styles.fieldLabel}
         >
-          Cloud
+          Providers
         </Typography>
         <Typography
           variant="body1"
-          component="span"
+          component="div"
           className={styles.fieldValue}
         >
-          {providerLabel(session.provider)}
+          <ProviderList
+            providers={(session.providers ?? []).map((p) => p.name)}
+          />
         </Typography>
       </div>
       <div className={styles.fieldRow}>
@@ -553,23 +555,27 @@ export default function SessionData({
               </Typography>
             </div>
           )}
-          <div className={styles.infoRow}>
-            <Typography
-              variant="subtitleSemiBold"
-              component="span"
-              className={styles.infoLabel}
-            >
-              {STRINGS.wizard.scopeByProvider[session.provider]?.label ??
-                "Scope"}
-            </Typography>
-            <Typography
-              variant="subtitle2"
-              component="span"
-              className={styles.infoValue}
-            >
-              {session.scope_id}
-            </Typography>
-          </div>
+          {(session.providers ?? [])
+            .filter((p) => p.scope_id)
+            .map((p) => (
+              <div key={p.name} className={styles.infoRow}>
+                <Typography
+                  variant="subtitleSemiBold"
+                  component="span"
+                  className={styles.infoLabel}
+                  title={p.name}
+                >
+                  {scopeLabel(p.name)}
+                </Typography>
+                <Typography
+                  variant="subtitle2"
+                  component="span"
+                  className={styles.infoValue}
+                >
+                  {p.scope_id}
+                </Typography>
+              </div>
+            ))}
           <div className={styles.infoRow}>
             <Typography
               variant="subtitleSemiBold"

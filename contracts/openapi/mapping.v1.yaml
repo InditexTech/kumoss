@@ -5,7 +5,7 @@
 openapi: 3.1.0
 info:
   title: Kumoss Mapping Service
-  version: "1.0.0"
+  version: "2.0.0"
   summary: Resolve a business identifier into an IaC repository reference.
   description: |
     The mapping service translates a "business identifier" (project name,
@@ -175,12 +175,12 @@ components:
   schemas:
     TerraformProvider:
       type: string
-      enum: [azure, gcp, aws, oci, kubernetes, vmware]
+      enum: [azurerm, google, aws, oci, kubernetes, vsphere]
       description: |
-        Cloud provider a deployment targets. Values follow the core's
-        provider vocabulary (`azure`, `gcp`, `aws`, `oci`,
-        `kubernetes`, `vmware`), not Terraform registry provider names
-        (`azurerm`, `google`).
+        Cloud provider a deployment targets, by Terraform provider type
+        name (the last segment of its source address, e.g. `azurerm` for
+        `hashicorp/azurerm`). Changed in 2.0.0 from the core's former
+        vocabulary (`azure`, `gcp`, `vmware`).
 
     ResolveRequest:
       type: object

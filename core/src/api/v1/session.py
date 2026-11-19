@@ -11,7 +11,7 @@ from src.api.deps import assert_session_access, get_current_user
 from src.domains.dto import PaginatedSessionSummary, SessionDetail
 from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
-from src.shared.constants import OperationType, SessionStatus
+from src.shared.constants import OperationType, SessionSearchField, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/sessions", tags=["Session Management"])
@@ -28,6 +28,7 @@ async def sessions_list(
     operation: Annotated[OperationType | None, Query()] = None,
     status: Annotated[SessionStatus | None, Query()] = None,
     search: Annotated[str | None, Query(max_length=200)] = None,
+    search_in: Annotated[SessionSearchField, Query()] = SessionSearchField.ALL,
 ) -> PaginatedSessionSummary:
     """Paginated session summaries for the sessions table.
 
@@ -35,8 +36,8 @@ async def sessions_list(
     carries the operation, terraform provider, first query, workspace
     URI, latest status, and lock flags — everything the list view
     renders, resolved server-side. ``status`` matches a session's most
-    recent status; ``search`` matches first query, workspace URI, or
-    session id.
+    recent status; ``search`` partially matches first query, workspace
+    URI, or session id, or only the one ``search_in`` names.
     """
     try:
         return await DatabaseService.list_sessions(
@@ -44,6 +45,7 @@ async def sessions_list(
             operation=operation,
             status=status,
             search=search,
+            search_in=search_in,
             offset=(page - 1) * page_size,
             limit=page_size,
         )

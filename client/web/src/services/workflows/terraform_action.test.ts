@@ -24,9 +24,7 @@ function captureIacCalls() {
 const firstCall = {
   query: "import the storage account staweu1001",
   repoUri: "https://github.com/org/repo",
-  terraformProviders: "azure" as const,
-  scopeId: "sub-123",
-  iacPath: "environments/dev",
+  rootModulePath: "environments/dev",
 };
 
 describe("runTerraformActionWorkflow", () => {
@@ -49,11 +47,28 @@ describe("runTerraformActionWorkflow", () => {
     expect(calls[0].body).toEqual({
       repo_uri: firstCall.repoUri,
       q: firstCall.query,
-      terraform_providers: "azure",
-      scope_id: "sub-123",
-      iac_path: "environments/dev",
+      root_module_path: "environments/dev",
       ...(isPartial === undefined ? {} : { is_partial: isPartial }),
     });
+  });
+
+  it("first call carries the manifest answers, scopes included, and no provider or scope id", async () => {
+    const calls = captureIacCalls();
+    const manifest = {
+      variables: [{ name: "region", value: "westeurope" }],
+      scopes: { azurerm: "sub-123", google: "my-project" },
+    };
+
+    await runTerraformActionWorkflow({ ...firstCall, mode: MODE.GENERATE, manifest });
+
+    expect(calls[0].body).toEqual({
+      repo_uri: firstCall.repoUri,
+      q: firstCall.query,
+      root_module_path: "environments/dev",
+      manifest,
+    });
+    expect(calls[0].body).not.toHaveProperty("terraform_providers");
+    expect(calls[0].body).not.toHaveProperty("scope_id");
   });
 
   it("iterates an import session with only the session id and query", async () => {
