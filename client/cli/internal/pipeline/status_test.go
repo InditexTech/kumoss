@@ -7,7 +7,6 @@ package pipeline
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -54,12 +53,23 @@ func TestProbeURLsStayInsideTheStack(t *testing.T) {
 	if strings.Contains(coreConfigURL, "localhost") {
 		t.Errorf("coreConfigURL = %q, must not go through the host", coreConfigURL)
 	}
-	url := fmt.Sprintf(healthzURL, "iac")
-	if want := "http://iac:8080/healthz"; url != want {
-		t.Errorf("sidecar URL = %q, want %q", url, want)
+	// Each sidecar listens on its own port: iac is 8082, the rest 8080. A
+	// shared port made iac read unreachable while it was serving.
+	for service, want := range map[string]string{
+		"iac":           "http://iac:8082/healthz",
+		"notifications": "http://notifications:8080/healthz",
+	} {
+		url := healthzURL(service)
+		if url != want {
+			t.Errorf("healthzURL(%q) = %q, want %q", service, url, want)
+		}
+		if strings.Contains(url, "localhost") {
+			t.Errorf("sidecar URL %q goes through the host", url)
+		}
 	}
-	if strings.Contains(url, "localhost") {
-		t.Errorf("sidecar URL %q goes through the host", url)
+	// A service with no /healthz gets no probe.
+	if url := healthzURL("searxng"); url != "" {
+		t.Errorf("healthzURL(searxng) = %q, want none", url)
 	}
 }
 

@@ -32,10 +32,26 @@ type StatusOptions struct {
 // by its compose service name. Only nginx is published on the host and it
 // forwards /api to core alone, so a sidecar has no host address to probe: these
 // are fetched from inside the stack.
-const (
-	coreConfigURL = "http://core:8000/api/v1/auth/config"
-	healthzURL    = "http://%s:8080/healthz"
-)
+const coreConfigURL = "http://core:8000/api/v1/auth/config"
+
+// sidecarPort is the port each sidecar listens on, from its Dockerfile's
+// EXPOSE and the compose file's expose. iac is 8082, not the 8080 the others
+// use, so a single shared port made its probe read unreachable while it was
+// serving.
+var sidecarPort = map[string]int{
+	"iac":           8082,
+	"notifications": 8080,
+}
+
+// healthzURL is the probe for one sidecar, or "" for a service that serves no
+// /healthz.
+func healthzURL(service string) string {
+	port, ok := sidecarPort[service]
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("http://%s:%d/healthz", service, port)
+}
 
 // RunStatus prints the stack table, the probes, the Kumoss tag and whether a
 // generated file changed after its container was created.
@@ -101,10 +117,10 @@ func printProbes(ctx context.Context, w io.Writer, probe func(context.Context, s
 	}
 	fmt.Fprintf(tw, "core\t%s\t%s\n", coreConfigURL, coreStatus)
 	for _, r := range rows {
-		if r.State != "running" || !sidecar(r.Service) {
+		url := healthzURL(r.Service)
+		if r.State != "running" || url == "" {
 			continue
 		}
-		url := fmt.Sprintf(healthzURL, r.Service)
 		status := "unreachable"
 		if probe(ctx, url) {
 			status = "ok"
@@ -119,16 +135,6 @@ func printProbes(ctx context.Context, w io.Writer, probe func(context.Context, s
 func probeReply(out string) bool {
 	code := strings.TrimSpace(out)
 	return len(code) == 3 && strings.HasPrefix(code, "2")
-}
-
-// sidecar is true for the services that serve their own /healthz on the
-// internal network. searxng and the databases are not part of the probe.
-func sidecar(service string) bool {
-	switch service {
-	case "iac", "notifications", "mapping", "authz":
-		return true
-	}
-	return false
 }
 
 // uptimeOf is the "Up 3 minutes" half of compose's Status, without the health
