@@ -13,7 +13,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
 	"github.com/InditexTech/kumoss/client/cli/internal/render"
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
@@ -102,7 +101,7 @@ func TestConfigKeepsTheValuesTheYamlCannotHold(t *testing.T) {
 		Home:    h,
 		Section: "git",
 		UI:      stubSection{},
-		Docker:  &docker.Compose{},
+		Docker:  &stubDocker{},
 		Confirm: func(diff string) (bool, error) {
 			shown = diff
 			return true, nil
@@ -196,7 +195,7 @@ func TestConfigKeepsTheHandEditedConfig(t *testing.T) {
 		Home:    h,
 		Section: "git",
 		UI:      stubSection{},
-		Docker:  &docker.Compose{},
+		Docker:  &stubDocker{},
 		Confirm: func(diff string) (bool, error) { shown = diff; return true, nil },
 		Warn:    io.Discard,
 		Out:     io.Discard,
@@ -344,7 +343,7 @@ func TestConfigCloudEditWritesTheNewMount(t *testing.T) {
 		Home:    h,
 		Section: "cloud",
 		UI:      gcpKeySection{keyFile: "/keys/sa.json"},
-		Docker:  &docker.Compose{},
+		Docker:  &stubDocker{},
 		Confirm: func(diff string) (bool, error) { shown = diff; return true, nil },
 		Warn:    io.Discard,
 		Out:     io.Discard,

@@ -38,13 +38,19 @@ func (s *stubUI) ConfirmRegenerate(what string) (bool, error) {
 func (s *stubUI) RunDocker() (bool, error) { return false, nil }
 
 // stubDocker satisfies docker.Runner; no test starts the stack.
-type stubDocker struct{}
+// stubDocker records the calls and never runs compose: the tests that edit a
+// home have a compose file, and the real runner would shell out to it.
+type stubDocker struct{ recreated []string }
 
-func (stubDocker) PS(context.Context) ([]docker.PS, error) { return nil, nil }
-func (stubDocker) Pull(context.Context) error              { return nil }
-func (stubDocker) Up(context.Context, bool, bool) error    { return nil }
+func (*stubDocker) PS(context.Context) ([]docker.PS, error) { return nil, nil }
+func (*stubDocker) Pull(context.Context) error              { return nil }
+func (*stubDocker) Up(context.Context, bool, bool) error    { return nil }
+func (s *stubDocker) Recreate(_ context.Context, services ...string) error {
+	s.recreated = services
+	return nil
+}
 
-var _ docker.Runner = stubDocker{}
+var _ docker.Runner = (*stubDocker)(nil)
 
 // install writes the files an existing install owns, to catch a run that
 // touches them.
@@ -78,7 +84,7 @@ func TestModeKeepLeavesEveryFileUntouched(t *testing.T) {
 	opts := Options{
 		Home:     h,
 		UI:       ui,
-		Docker:   stubDocker{},
+		Docker:   &stubDocker{},
 		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
 	}
 	if err := RunPipeline(context.Background(), opts); err != nil {
@@ -107,7 +113,7 @@ func TestReconfigureAsksBeforeOverwritingTheOverride(t *testing.T) {
 	opts := Options{
 		Home:      h,
 		UI:        ui,
-		Docker:    stubDocker{},
+		Docker:    &stubDocker{},
 		Download:  &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
 		HostCerts: true,
 	}
@@ -152,7 +158,7 @@ func TestReconfigureKeepsTheHandEditedConfig(t *testing.T) {
 	opts := Options{
 		Home:     h,
 		UI:       &stubUI{mode: tui.ModeReconfigure, regen: true},
-		Docker:   stubDocker{},
+		Docker:   &stubDocker{},
 		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
 	}
 	if err := RunPipeline(context.Background(), opts); err != nil {
@@ -192,7 +198,7 @@ func TestNotificationsEnabledWithoutWebhookIsDowngraded(t *testing.T) {
 					enabled: true,
 					webhook: c.webhook,
 				},
-				Docker:   stubDocker{},
+				Docker:   &stubDocker{},
 				Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
 				Warn:     &warned,
 			}
@@ -249,7 +255,7 @@ func TestDryRunWritesNothing(t *testing.T) {
 		Home:        h,
 		PersistHome: true, // would normally write the pointer file
 		UI:          &stubUI{mode: tui.ModeFresh},
-		Docker:      stubDocker{},
+		Docker:      &stubDocker{},
 		Download:    &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
 		DryRun:      true,
 		Out:         &out,
@@ -288,13 +294,13 @@ func TestDryRunPreviewMatchesTheRealRun(t *testing.T) {
 
 	var preview strings.Builder
 	if err := RunPipeline(context.Background(), Options{
-		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: stubDocker{},
+		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: &stubDocker{},
 		Download: dl, DryRun: true, Out: &preview,
 	}); err != nil {
 		t.Fatalf("dry run: %v", err)
 	}
 	if err := RunPipeline(context.Background(), Options{
-		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: stubDocker{},
+		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: &stubDocker{},
 		Download: dl,
 	}); err != nil {
 		t.Fatalf("real run: %v", err)
@@ -319,7 +325,7 @@ func TestDryRunInKeepModeReportsNothingToWrite(t *testing.T) {
 	h, _ := install(t)
 	var out strings.Builder
 	if err := RunPipeline(context.Background(), Options{
-		Home: h, UI: &stubUI{mode: tui.ModeKeep}, Docker: stubDocker{},
+		Home: h, UI: &stubUI{mode: tui.ModeKeep}, Docker: &stubDocker{},
 		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
 		DryRun:   true,
 		Out:      &out,

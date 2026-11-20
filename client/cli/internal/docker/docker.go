@@ -32,6 +32,9 @@ type Runner interface {
 	// the context is cancelled. recreate replaces containers whose definition
 	// did not change, which is what picks up a rewritten config.yaml or .env.
 	Up(ctx context.Context, recreate, detach bool) error
+	// Recreate replaces the named services, for a rewritten .env or mounted
+	// file that `up` would not notice.
+	Recreate(ctx context.Context, services ...string) error
 }
 
 // Compose is the real Runner. It shells out to `docker compose`.

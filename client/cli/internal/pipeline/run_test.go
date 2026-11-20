@@ -35,6 +35,8 @@ func (r *recordingDocker) Up(_ context.Context, recreate, detach bool) error {
 	return nil
 }
 
+func (r *recordingDocker) Recreate(context.Context, ...string) error { return nil }
+
 var _ docker.Runner = (*recordingDocker)(nil)
 
 // runnable is configured() plus a kumoss.yaml on disk, so RunStack can load

@@ -29,7 +29,8 @@ type ConfigOptions struct {
 	// writes, since the command always confirms first.
 	Confirm func(diff string) (bool, error)
 
-	Docker *docker.Compose
+	// Docker is the stack. nil builds the real runner; tests inject a stub.
+	Docker docker.Runner
 	Out    io.Writer
 	Warn   io.Writer
 }
