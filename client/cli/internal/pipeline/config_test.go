@@ -5,6 +5,7 @@
 package pipeline
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -373,4 +374,45 @@ type gcpKeySection struct {
 func (s gcpKeySection) Cloud(st *state.State) error {
 	st.Cloud.GCP = &state.GCPAuth{Method: "file", KeyFile: s.keyFile}
 	return nil
+}
+
+// An interrupted init can leave a home with no compose file. The edits are
+// written first, so a compose call after them would fail on the missing file
+// and report an error for a change that did land.
+func TestConfigSkipsRecreateWithoutAComposeFile(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	for _, dir := range []string{h.ConfigDir(), h.CoreDir(), h.ServicesDir("iac"), h.ServicesDir("notifications")} {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
+			t.Fatal(err)
+		}
+	}
+	saved := &state.State{
+		LLM:     state.LLM{Model: "anthropic/claude"},
+		Git:     state.Git{Provider: "GITHUB"},
+		Storage: state.Storage{Provider: "rustfs"},
+	}
+	if err := state.Save(h.StateFile(), saved); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ConfigYAML(), []byte("llm:\n  model: anthropic/claude\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := (&render.Env{}).Write(envPaths(h), saved.Copy()); err != nil {
+		t.Fatal(err)
+	}
+
+	var out bytes.Buffer
+	if err := RunConfig(context.Background(), ConfigOptions{
+		Home:    h,
+		Section: "git",
+		UI:      stubSection{},
+		Confirm: func(string) (bool, error) { return true, nil },
+		Warn:    io.Discard,
+		Out:     &out,
+	}); err != nil {
+		t.Fatalf("RunConfig: %v", err)
+	}
+	if !strings.Contains(out.String(), "recreated") {
+		t.Errorf("RunConfig did not report the write: %q", out.String())
+	}
 }

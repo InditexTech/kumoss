@@ -181,9 +181,13 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	}
 	// A container whose definition changed only starts with the new one when
 	// it is force-recreated: `up -d` compares the service definition, and a
-	// rewritten env_file or mount is not part of it.
-	if err := c.Recreate(ctx, recreate...); err != nil {
-		return err
+	// rewritten env_file or mount is not part of it. Only a home with a compose
+	// file has a stack to recreate; an interrupted init may have none, and a
+	// missing file would make compose fail after the edits were already written.
+	if _, err := os.Stat(opts.Home.ComposeFile()); err == nil {
+		if err := c.Recreate(ctx, recreate...); err != nil {
+			return err
+		}
 	}
 	_, err = fmt.Fprintf(out, "Wrote the files and recreated %v.\n", recreate)
 	return err
