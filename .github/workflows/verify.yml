@@ -112,11 +112,10 @@ jobs:
         with:
           distribution: goreleaser
           version: "~> v2"
-          workdir: client/cli
-          # A snapshot names the archives 0.0.0-SNAPSHOT-*, which is what
-          # install.sh would ask for in a test; here it only proves the four
-          # platform builds compile.
-          args: build --snapshot --clean
+          # From the repo root, like the release: the config's builds.dir is
+          # client/cli, relative to where goreleaser runs. Running it in
+          # client/cli looked for client/cli/client/cli.
+          args: build --snapshot --clean --config client/cli/.goreleaser.yaml
 
       - name: shellcheck install.sh
         working-directory: .
