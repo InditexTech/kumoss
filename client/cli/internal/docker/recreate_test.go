@@ -9,11 +9,13 @@ import (
 	"testing"
 )
 
-// Recreate is `up -d <svc>`: restart would keep the old environment.
+// Recreate is `up -d --force-recreate <svc>`. Restart would keep the old
+// environment, and plain up keeps a container whose mounted file changed: the
+// service definition did not, so compose sees nothing to do.
 func TestRecreateNamesTheServices(t *testing.T) {
 	c := &Compose{ProjectDir: "/h/.kumoss", Files: []string{"src/docker-compose.yml"}}
-	got := c.args(append([]string{"up", "-d"}, "core", "iac")...)
-	want := []string{"compose", "-f", "src/docker-compose.yml", "up", "-d", "core", "iac"}
+	got := c.args(append([]string{"up", "-d", "--force-recreate"}, "core", "iac")...)
+	want := []string{"compose", "-f", "src/docker-compose.yml", "up", "-d", "--force-recreate", "core", "iac"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("args = %v, want %v", got, want)
 	}

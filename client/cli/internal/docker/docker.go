@@ -116,9 +116,13 @@ func (c *Compose) stream(ctx context.Context, sub ...string) error {
 }
 
 // Recreate replaces the named services so a rewritten .env or mounted file
-// takes effect. `restart` would keep the old environment.
+// takes effect. `restart` would keep the old environment, and plain `up` would
+// keep the container too: compose compares the service definition, not the
+// bytes of a mounted file, so a config.yaml-only change looks like no change.
+// The caller only names the services whose files changed, so forcing every
+// named one costs nothing else.
 func (c *Compose) Recreate(ctx context.Context, services ...string) error {
-	args := append([]string{"up", "-d"}, services...)
+	args := append([]string{"up", "-d", "--force-recreate"}, services...)
 	_, err := c.run(ctx, args...)
 	return err
 }
