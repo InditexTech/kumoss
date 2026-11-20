@@ -377,4 +377,4 @@ def downgrade() -> None:
         "panelrole",
         "operationrole",
     ):
-        op.execute(f"DROP TYPE IF EXISTS {enum}")
+        sa.Enum(name=enum).drop(op.get_bind(), checkfirst=True)

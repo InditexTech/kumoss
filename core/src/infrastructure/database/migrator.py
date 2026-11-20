@@ -115,16 +115,10 @@ def _upgrade(connection: Connection) -> None:
 
 
 async def migrate(engine: AsyncEngine) -> None:
-    async with engine.connect() as connection:
-        # Session-level lock, released explicitly: it outlives the commit.
+    # A transaction-level lock: PostgreSQL releases it on commit or rollback,
+    # so a failed migration rolls back whole and frees it with no cleanup.
+    async with engine.begin() as connection:
         _ = await connection.execute(
-            text("SELECT pg_advisory_lock(:key)"), {"key": _LOCK_KEY}
+            text("SELECT pg_advisory_xact_lock(:key)"), {"key": _LOCK_KEY}
         )
-        try:
-            await connection.run_sync(_upgrade)
-            await connection.commit()
-        finally:
-            _ = await connection.execute(
-                text("SELECT pg_advisory_unlock(:key)"), {"key": _LOCK_KEY}
-            )
-            await connection.commit()
+        await connection.run_sync(_upgrade)

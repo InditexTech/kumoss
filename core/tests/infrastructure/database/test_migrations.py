@@ -12,15 +12,17 @@ that a database created before Alembic is adopted with its data intact.
 import asyncio
 import unittest
 from typing import Any
+from unittest.mock import patch
 
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import text
+from sqlalchemy import inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from src.infrastructure.database import migrator
 from src.infrastructure.database._config import db_config
 from src.infrastructure.database.migrator import (
     alembic_config,
@@ -148,3 +150,32 @@ class TestMigrations(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(RuntimeError, "predates authentication"):
             await migrate(self.engine)
         self.assertIsNone(await self._run(_version))
+
+    async def test_a_failed_migration_leaves_the_schema_untouched(self):
+        upgrade = command.upgrade
+
+        def upgrade_then_fail(config: Any, revision: str) -> None:
+            upgrade(config, revision)
+            raise RuntimeError("boom")
+
+        with patch.object(migrator.command, "upgrade", upgrade_then_fail):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                await migrate(self.engine)
+
+        tables = await self._run(lambda c: inspect(c).get_table_names())
+        self.assertEqual(tables, [])
+
+    async def test_a_failed_statement_surfaces_and_frees_the_lock(self):
+        def bad_statement(config: Any, _revision: str) -> None:
+            _ = config.attributes["connection"].execute(text("SELECT * FROM nowhere"))
+
+        with patch.object(migrator.command, "upgrade", bad_statement):
+            with self.assertRaisesRegex(Exception, "nowhere"):
+                await migrate(self.engine)
+
+        other = create_async_engine(db_config.database_url)
+        try:
+            await asyncio.wait_for(migrate(other), timeout=15)
+        finally:
+            await other.dispose()
+        self.assertEqual(await self._run(_version), HEAD)
