@@ -14,6 +14,7 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
+	"github.com/InditexTech/kumoss/client/cli/internal/render"
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 	"github.com/InditexTech/kumoss/client/cli/internal/tui"
 )
@@ -67,7 +68,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 	s, err := state.Load(opts.Home.StateFile())
 	if err == nil {
 		printPendingRecreate(out, opts.Home, rows)
-		printSkipped(out, s)
+		printSkipped(out, opts.Home, s)
 	}
 	return nil
 }
@@ -157,18 +158,19 @@ func printPendingRecreate(w io.Writer, h home.Home, rows []docker.PS) {
 }
 
 // printSkipped lists the optional pieces a run can leave unset, so a missing
-// feature reads as a choice rather than a bug.
-func printSkipped(w io.Writer, s *state.State) {
+// feature reads as a choice rather than a bug. A credential is only missing
+// when its value in core/.env is blank: the keys alone say nothing, and
+// reporting a configured install as skipped was the whole bug.
+func printSkipped(w io.Writer, h home.Home, s *state.State) {
 	var skipped []string
 	if !s.Notifications.Enabled {
 		skipped = append(skipped, "notifications disabled")
 	}
-	for _, key := range tui.ProviderEnvKeys(s) {
-		// Blank is only a skip for the optional credential variables.
-		if optionalCredential(key) {
-			continue
+	core := render.ReadEnv(h.CoreEnv())
+	for _, key := range tui.RequiredEnvKeys(s) {
+		if core[key] == "" {
+			skipped = append(skipped, "llm credential not configured: "+key)
 		}
-		skipped = append(skipped, "llm credential not configured: "+key)
 	}
 	if len(skipped) > 0 {
 		fmt.Fprintln(w)
@@ -176,15 +178,4 @@ func printSkipped(w io.Writer, s *state.State) {
 			fmt.Fprintln(w, "skipped:", line)
 		}
 	}
-}
-
-// optionalCredential is true for the variables whose absence is a supported
-// setup: Application Default Credentials, a location, a project id.
-func optionalCredential(key string) bool {
-	for _, part := range []string{"CREDENTIALS", "LOCATION", "PROJECT"} {
-		if strings.Contains(key, part) {
-			return true
-		}
-	}
-	return false
 }

@@ -8,10 +8,13 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
+	"github.com/InditexTech/kumoss/client/cli/internal/home"
+	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
 // compose emits one JSON object per line; a bad line must not hide the rest.
@@ -106,5 +109,52 @@ func TestPrintProbesAlignsTheURLs(t *testing.T) {
 		if c != cols[0] {
 			t.Errorf("URL columns %v are not aligned:\n%s", cols, b.String())
 		}
+	}
+}
+
+// A configured install must not report its credentials as missing: the report
+// read the key names only, so a working Anthropic setup always showed a skip.
+func TestPrintSkippedReportsOnlyBlankCredentials(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	if err := os.MkdirAll(h.CoreDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	s := &state.State{LLM: state.LLM{Provider: "anthropic"}}
+
+	// Configured: nothing to report.
+	if err := os.WriteFile(h.CoreEnv(), []byte("ANTHROPIC_API_KEY=sk-ant\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var b bytes.Buffer
+	printSkipped(&b, h, s)
+	if strings.Contains(b.String(), "ANTHROPIC_API_KEY") {
+		t.Errorf("configured key reported missing:\n%s", b.String())
+	}
+
+	// Blank: reported, with the fix the other checks name.
+	if err := os.WriteFile(h.CoreEnv(), []byte("ANTHROPIC_API_KEY=\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	b.Reset()
+	printSkipped(&b, h, s)
+	if !strings.Contains(b.String(), "llm credential not configured: ANTHROPIC_API_KEY") {
+		t.Errorf("blank key not reported:\n%s", b.String())
+	}
+}
+
+// An optional credential (a blank is a supported setup) is never a skip, and
+// the notifications line does not depend on the env file at all.
+func TestPrintSkippedIgnoresOptionalCredentials(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+	if err := os.MkdirAll(h.CoreDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.CoreEnv(), []byte("VERTEXAI_CREDENTIALS=\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var b bytes.Buffer
+	printSkipped(&b, h, &state.State{LLM: state.LLM{Provider: "vertex_ai"}, Notifications: state.Notifications{Enabled: true}})
+	if strings.Contains(b.String(), "VERTEXAI_CREDENTIALS") {
+		t.Errorf("optional credential reported as a skip:\n%s", b.String())
 	}
 }
