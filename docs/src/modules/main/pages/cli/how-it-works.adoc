@@ -1,0 +1,414 @@
+= How the CLI works
+:description: What kumoss init, run, config and the other commands do to your machine, which files they write, and why each generated file looks the way it does.
+
+IMPORTANT: The `kumoss` CLI is for *local development only*. It starts the
+bundled single-machine Compose stack and is not intended for production use.
+Nothing it generates is hardened for one: the default `config.yaml` runs with
+authentication off, the stack exposes plain HTTP on port 80, the Postgres and
+object-storage credentials are the ones the bundled Compose file hardcodes, and
+everything lives under one home directory on one host. For a deployment, see
+xref:main:guides/deploy-to-production.adoc[Deploy to production] and
+xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
+
+The `kumoss` CLI is a file generator with a wizard in front of it. It does not
+run a server, keep state in a database, or hold a daemon open. Every command
+reads and writes files under one managed home and, where it makes sense, hands
+the result to `docker compose`.
+
+This page explains what each command does, what the managed home contains, how
+the generated files are produced, and the decisions behind them. For the
+hands-on path, see xref:main:cli/quickstart.adoc[CLI quickstart].
+
+== The model
+
+Three ideas explain almost everything the CLI does.
+
+*The home is the unit of installation.* Everything belongs to one directory,
+`~/.kumoss` by default. Two homes are two independent stacks: their own
+answers, their own `.env` files, their own volumes. Each home runs under its own
+Compose project — `kumoss` for the default directory, `kumoss-<hash>` anywhere
+else — which is what keeps their containers and volumes apart. Point at another
+with `--home <dir>`, `KUMOSS_HOME=<dir>`, or by persisting the choice with
+`kumoss init --home <new_file_path>` or with `kumoss home --home <new_file_path>`.
+
+*The answers are stored in a file as the source of truth.* `kumoss.yaml` records what you told
+the wizard. Every generated file is derived from it, and every command that
+checks the stack compares the files back against it. Edit a generated file by
+hand and `kumoss run` will notice the drift.
+
+*Compose does the running.* The CLI never talks to the Docker API directly. It
+shells out to `docker compose`, always with an explicit `-f` list, so a stray
+`docker-compose.override.yml` in the directory cannot change the stack under
+you.
+
+== The managed home
+
+[cols="2,4",options="header"]
+|===
+|Path |What it holds
+
+|`kumoss.yaml`
+|Your answers, `0600`. Never holds a secret: credentials live in the `.env`
+files, and the file records only that a credential exists, not its value.
+
+|`src/docker-compose.yml`
+|The stack definition, downloaded from the CLI's own release tag. Not written
+by the wizard: it is fetched once and left alone, so a hand edit survives.
+
+|`src/core/.env`
+|The core's environment: the LLM provider credentials, Git credentials, the
+object-storage credentials, the Postgres URL, and both sidecar bearer tokens.
+
+|`src/services/iac/.env`
+|The IaC sidecar's environment: its bearer token, the engine choice, and the
+cloud credentials the engine's providers read.
+
+|`src/services/notifications/.env`
+|The notifications sidecar's environment: its bearer token, the Slack webhook
+and the log level.
+
+|`config/config.yaml`
+|The core's configuration, built from the repository's own `config.yaml`
+overlaid with your answers. Mounted read-only over the path the core already
+reads.
+
+|`config/config.yaml.example`
+|The repository's `config.yaml` verbatim, comments included, kept for reference
+and for diffing.
+
+|`compose.override.yml`
+|The override that mounts the generated `config.yaml` and any cloud credential
+files into the containers.
+|===
+
+=== Where the home comes from
+
+The root resolves in this order, first match wins:
+
+. `--home <dir>` on the command line.
+. `KUMOSS_HOME` in the environment.
+. The persisted pointer, written by `kumoss init --home`.
+. `~/.kumoss`.
+
+Only `init` and `home` write the pointer. That matters for `doctor`: it reports
+a missing install with the `--home` flag it was given, because a plain
+`kumoss init` would otherwise create `~/.kumoss` while `doctor` had just checked
+a different directory.
+
+== The commands
+
+=== kumoss init
+
+The only command that creates a home. It ensures the directory tree exists,
+fetches `docker-compose.yml` at the release tag, runs the wizard, writes every
+generated file, and offers to start the stack.
+
+Every step is idempotent. Run it again on an existing install and it offers
+*reconfigure* or *keep*. Keep writes nothing, and ask if you want to pull/run the stack with docker.
+
+`--dry-run` asks the same questions and prints every file a real run would
+write, without touching the disk - no directory, no file, no container. The
+output contains real generated tokens, so treat it as a secret.
+
+`--foreground` keeps the stack attached instead of detaching: logs stream until
+Ctrl-C, which also stops the stack.
+
+`--host-certs` trusts this host's CA roots inside the core and SearXNG
+containers, for a machine behind a TLS-inspecting proxy (example a company VPN).
+
+=== kumoss run
+
+Starts a stack that is already configured, and *writes nothing*. Before handing
+anything to compose it runs the same preflight `doctor` shows, and refuses to
+start if a check fails, naming the `kumoss config <section>` that fixes it.
+
+If there are no containers yet, it pulls the images first - the only path that
+pays for a network pull. If there are, it compares the mtime of each generated
+file against the container that mounts it and recreates the affected services.
+Compose compares the *service definition*, not the bytes of a mounted file, so
+a plain `up -d` would keep the old values.
+
+=== kumoss config <section>
+
+Reopens one wizard section, prefilled from the current files, and applies it.
+It reads the files already under the home — `kumoss.yaml`, `config.yaml` and
+the three `.env` files — so it needs no network and works on a stack you have
+since moved offline. The sections and the containers each one recreates:
+
+[cols="2,3",options="header"]
+|===
+|Section |Recreates
+
+|`llm` |`core`
+|`git` |`core`
+|`cloud` |`iac`
+|`engine` |`iac`
+|`state` |`core`, `iac`
+|`notifications` |`core`, `notifications`
+|`secrets` |`core`, `iac`, `notifications`
+|===
+
+Before writing, it shows a diff of the generated files with the secrets masked,
+and asks for confirmation. `docker compose restart` would keep the old
+environment, so the affected containers are recreated rather than restarted.
+
+`kumoss config secrets` is the only path that rotates the bearer tokens. It
+writes the same value to the core and to the sidecar that validates it, since a
+mismatch makes the sidecar reject every call.
+
+=== kumoss status
+
+One screen for the running stack:
+
+* a table from `docker compose ps`: state, health, uptime and restart count;
+* live probes: the core's `/api/v1/auth/config`, which proves the API answers
+  rather than merely that the container runs, and `/healthz` for each running
+  sidecar;
+* the Kumoss tag the stack was built from, and the optional pieces `init` left
+  unset;
+* *pending recreates*: any generated file whose mtime is newer than the
+  container that mounts it, so a change made by hand is visibly not live yet.
+
+=== kumoss doctor
+
+Checks what the stack needs from the machine, then the generated files:
+
+[cols="2,4",options="header"]
+|===
+|Check |What it means
+
+|`docker`
+|The binary is on `PATH`. Its version is shown when it answers.
+
+|`docker compose`
+|Compose v2 or newer. v1 lacks the flags `run` and `status` pass. Newer majors
+are accepted, not just 2.
+
+|`docker daemon`
+|The engine answers. A missing binary and a stopped daemon are different
+failures, so they get different lines.
+
+|`home`
+|The root is writable, since `init` writes every generated file there. A root
+that does not exist yet is reported, not created.
+
+|`generated files`
+|The same preflight `run` makes: the answers in `kumoss.yaml` must be present
+and identical in `config.yaml` and the `.env` files, and the credentials the
+configured provider and clouds need must be filled in. Skipped when there is no
+install yet.
+|===
+
+`doctor` only reads. It creates nothing, so a typo'd `--home` leaves no empty
+directory behind. Writability is read from permission bits rather than tested
+with a probe write, which means a read-only mount or an ACL that denies the
+write is only discovered by `init`.
+
+Every check is printed, so one failure never hides the rest, and the command
+exits non-zero if any failed.
+
+=== kumoss logs
+
+`docker compose logs` against the managed home. With no service it shows every
+container; `-f` follows and `--since` limits how far back to read. Run `kumoss logs <service_name>`
+to show only the logs for this container.
+
+=== kumoss home
+
+Shows the resolved root and why it resolved that way. `--reset` forgets the
+persisted pointer and falls back to the default.
+
+=== kumoss uninstall
+
+Stops the stack with `docker compose down -v`, which deletes the data volumes,
+then removes the home and the pointer. The binary and the pulled images are left
+alone. `--purge` skips the confirmation.
+
+[WARNING]
+====
+`uninstall` deletes the workspaces volume. Any Terraform state the stack holds
+locally goes with it.
+====
+
+== How the generated files are produced
+
+=== The key set comes from the repository
+
+`kumoss init` does not hardcode the variables. It fetches the three `env.sample`
+files at the release tag and uses their uncommented keys as the key set for the
+generated files. A variable added to the repository therefore reaches the
+generated files without a new CLI release.
+
+Provider credentials are the exception: `core/env.sample` lists them only as
+commented examples, so a key the wizard collected is appended even when the
+sample does not mention it. Otherwise every `VERTEXAI_*` or `ANTHROPIC_*`
+variable would be dropped.
+
+If the fetch fails, `init` falls back to a built-in key list and warns. That
+list mirrors the samples at the time of writing and can lag them, so a warning
+here is worth acting on.
+
+`kumoss config <section>` does not fetch anything: the install is already on
+disk, so it takes the key set from the `.env` files it finds there. It needs no
+network, and a key you added by hand survives the edit.
+
+=== Each file holds only its own keys
+
+A variable belongs to the container that reads it. A cloud credential in the
+notifications file would hand that container a secret it never uses.
+
+[cols="3,3",options="header"]
+|===
+|File |Carries
+
+|`core/.env`
+|LLM provider credentials, `GIT_USER` and `GIT_TOKEN`, the object-storage
+credentials, `KUMOSS_SQL_DATABASE_URL`, the mapping and authz tokens, and both
+sidecar bearer tokens.
+
+|`services/iac/.env`
+|`KUMOSS_IAC_TOKEN`, `IAC_BINARY`, the cloud variables for the picked clouds,
+and any backend credentials.
+
+|`services/notifications/.env`
+|`KUMOSS_NOTIFICATIONS_TOKEN`, `SLACK_WEBHOOK_URL` and `LOG_LEVEL`.
+|===
+
+The bearer tokens are the one deliberate overlap: each appears in `core/.env`
+and in the sidecar that validates it, and the two values must match exactly.
+
+=== Secrets are generated once
+
+The core-to-sidecar bearer tokens are 32 random bytes, hex-encoded, generated
+on the first write. They are never rotated on a reconfigure unless you select
+them in `kumoss config secrets`, because rotating one breaks any client holding
+the old value.
+
+The Postgres password and the RustFS keys are *not* generated: the bundled
+Compose file hardcodes them, so a random value could never match the containers.
+
+Sample placeholders never reach a fresh install. `env.sample` ships
+`dev-iac-token` and `dev-notifications-token` as convenience values; the wizard
+writes generated tokens instead, and writes an empty value rather than the
+placeholder for a secret you left blank.
+
+=== An empty value is not a missing one
+
+Compose reads `KEY=` and an absent `KEY` differently, and several variables use
+that distinction: a blank `STORAGE_ACCOUNT_KEY` means "use the default
+credential chain", while a present one is sent to the cloud as a static key.
+The renderer therefore writes every key it decided on, blank included, and
+never drops a line because its value is empty.
+
+=== config.yaml is overlaid, not replaced
+
+`config.yaml` is read, the wizard's answers are written into the keys it owns,
+and the result is written back. Every key it does not own keeps the value it
+already has: OIDC, the bootstrap administrator, the mapping and authorization
+sidecars, `llm.model_list` and the rest stay hand-edited.
+
+On an existing install both `init` (reconfigure) and `config <section>` read
+the `config.yaml` you actually run, never the shipped default, so a key you
+edited by hand survives a section edit. A fresh install has no file yet and
+starts from the repository's copy, kept verbatim at `config.yaml.example` for
+its comments. Because the overlay is seeded from the live file, an edit to the
+wizard's own keys is the only thing a section change rewrites — including
+`oidc.issuer_url`, whose blank value turns authentication off.
+
+That is also why the generated file is bind-mounted over the path the core
+already reads, rather than baked into the image: a change needs a container
+recreate, never a rebuild.
+
+=== Writes are atomic
+
+Every generated file is written to a temporary file in the same directory and
+renamed over the target. A crash mid-write therefore cannot truncate the `.env`
+that holds the only copy of the stack's tokens. Files that hold secrets are
+written `0600`.
+
+== What the checks compare
+
+`kumoss run` and `kumoss doctor` share one preflight. It fails when:
+
+* a required file is missing - the compose file, the override, `config.yaml`,
+  `core/.env` or `services/iac/.env`, plus the notifications env when that
+  service is enabled;
+* a value recorded in `kumoss.yaml` is absent from, or different in,
+  `config.yaml` or the `.env` files;
+* a credential the configured LLM provider needs is blank in `core/.env`;
+* a cloud variable differs from what `kumoss.yaml` records;
+* a bearer token is blank on either side, or differs between the core and its
+  sidecar.
+
+Secrets are compared for presence, never printed. Each problem names the
+command that fixes it.
+
+== Reconfiguring and the container lifecycle
+
+The CLI distinguishes three things that look similar. Of the three, it uses only
+the middle one (Recreate).
+
+*Restart* keeps the container and its environment. The CLI never issues one: it
+is never enough after a generated file changes, because compose does not reload
+a mounted file or an `env_file` on restart.
+
+*Recreate* replaces the container so it picks up the new environment or mount.
+Both commands that apply a change end in `docker compose up -d`, and the
+difference between them is how much gets replaced:
+
+* `kumoss config <section>` replaces the services that read the section, and
+  widens to `core`, `iac` and `notifications` when the answers it edited also
+  change a container definition — the override's mounts, or the engine binary.
+  Anything narrower would be a no-op: compose keeps a container whose
+  definition it considers unchanged.
+* `kumoss run` replaces the whole stack once any generated file is newer than
+  the container that mounts it. It compares modification times against the
+  containers' creation time, then forces the recreate. It is all-or-nothing,
+  not per-service.
+
+*Rebuild* is never done by the CLI. There is no `docker compose build` in it at
+all. The generated `config.yaml` is mounted over the path the core already
+reads, so a configuration change needs a container replace rather than an image
+build; and the images themselves are pulled prebuilt with
+`docker compose pull --policy missing`, which fetches only what is absent.
+
+== What the CLI does not do
+
+Being explicit about the boundary is part of the design:
+
+* *It does not produce a production deployment.* The CLI is for local
+  development: one host, the bundled Compose stack, the defaults that make it
+  convenient. It writes no TLS, no ingress, no secret manager integration, no
+  backup or retention policy and no scaling configuration, and the generated
+  files are not reviewed for any of them. Turning the stack it starts into a
+  deployment is the work of
+  xref:main:guides/deploy-to-production.adoc[Deploy to production], not of this
+  tool.
+* It does not edit the parts of `config.yaml` it does not own. Authentication,
+  roles, `llm.model_list` routing and the mapping and authorization sidecars
+  stay hand-edited.
+* It does not manage Kubernetes. For that, see
+  xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
+* It does not keep a daemon, a cache or a database of its own. Deleting the home
+  removes everything it created.
+* It does not validate credentials against the providers. A wrong key is found
+  when the stack first calls the provider, not by the wizard.
+
+== Troubleshooting
+
+`kumoss doctor` first: it turns most "it will not start" into a named line.
+
+Then, in order:
+
+. *Which binary ran?* `which kumoss && kumoss version` - a source build reports
+  `dev`.
+. *Which home?* `kumoss home` - `KUMOSS_HOME` outranks a persisted `--home`.
+. *Do the files agree?* `kumoss run` names the drift without writing or
+  starting anything.
+. *What would it write?* `kumoss init --dry-run` - no side effects.
+. *What does compose think?* `docker compose -f src/docker-compose.yml -f
+  compose.override.yml config` from the home root is the only reliable answer to
+  "is my mount there?".
+
+For the rest of the day-2 picture, see
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
