@@ -365,3 +365,40 @@ func TestReadEnvJoinsASpilledJSONKey(t *testing.T) {
 		t.Errorf("AFTER = %q, the spilled lines swallowed the next key", got["AFTER"])
 	}
 }
+
+// Bedrock and the AWS cloud share AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY.
+// The core runs on the model's identity, so configuring IaC access must not
+// move the LLM onto the infrastructure account. The iac engine still needs the
+// infrastructure keys, and its region is AWS_REGION, not the model's
+// AWS_REGION_NAME.
+func TestEnvFilesKeepTheModelAccountApartFromTheCloudOne(t *testing.T) {
+	p := envPathsIn(t)
+	s := &state.State{
+		LLM: state.LLM{Credentials: map[string]string{
+			"AWS_ACCESS_KEY_ID":     "model-key",
+			"AWS_SECRET_ACCESS_KEY": "model-secret",
+			"AWS_REGION_NAME":       "us-east-1",
+		}},
+		Cloud: state.Cloud{AWS: &state.AWSAuth{Method: "static", AccessKey: "iac-key", SecretKey: "iac-secret", Region: "eu-west-1"}},
+	}
+	e := &Env{Samples: &Samples{
+		Core:          ParseSample("KUMOSS_IAC_TOKEN=\n"),
+		IAC:           ParseSample("KUMOSS_IAC_TOKEN=\n"),
+		Notifications: ParseSample("KUMOSS_NOTIFICATIONS_TOKEN=\n"),
+	}}
+	files := e.Files(p, s)
+
+	core, iac := files[p.Core], files[p.IAC]
+	if core["AWS_ACCESS_KEY_ID"] != "model-key" || core["AWS_SECRET_ACCESS_KEY"] != "model-secret" {
+		t.Errorf("core lost the model's identity: %v", core)
+	}
+	if core["AWS_REGION_NAME"] != "us-east-1" {
+		t.Errorf("core AWS_REGION_NAME = %q", core["AWS_REGION_NAME"])
+	}
+	if iac["AWS_ACCESS_KEY_ID"] != "iac-key" || iac["AWS_SECRET_ACCESS_KEY"] != "iac-secret" {
+		t.Errorf("iac lost the cloud's identity: %v", iac)
+	}
+	if iac["AWS_REGION"] != "eu-west-1" {
+		t.Errorf("iac AWS_REGION = %q, want the infrastructure region", iac["AWS_REGION"])
+	}
+}

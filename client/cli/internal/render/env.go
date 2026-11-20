@@ -162,14 +162,24 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 	for k := range s.LLM.Credentials {
 		core = append(core, k)
 	}
-	// Likewise the cloud vars, which only the iac engine reads.
+	// Likewise the cloud vars, which only the iac engine reads. Merged over
+	// owned so a key the model also uses (Bedrock and the AWS cloud share
+	// AWS_ACCESS_KEY_ID) carries the infrastructure value into this file, while
+	// core keeps the model's.
 	iac := []string{"KUMOSS_IAC_TOKEN"}
 	for k := range CloudVars(s.Cloud) {
 		iac = append(iac, k)
 	}
+	iacOwned := make(map[string]string, len(owned)+len(CloudVars(s.Cloud)))
+	for k, v := range owned {
+		iacOwned[k] = v
+	}
+	for k, v := range CloudVars(s.Cloud) {
+		iacOwned[k] = v
+	}
 	return map[string]map[string]string{
 		p.Core:          resolveSample(e.Samples.Core, owned, e.Extra, core),
-		p.IAC:           resolveSample(e.Samples.IAC, owned, e.Extra, iac),
+		p.IAC:           resolveSample(e.Samples.IAC, iacOwned, e.Extra, iac),
 		p.Notifications: resolveSample(e.Samples.Notifications, owned, e.Extra, []string{"KUMOSS_NOTIFICATIONS_TOKEN"}),
 	}
 }
@@ -254,7 +264,14 @@ func (e *Env) owned(s *state.State) map[string]string {
 		}
 	}
 	for k, v := range CloudVars(s.Cloud) {
-		owned[k] = v
+		// A credential the model also uses keeps the model's value. Bedrock and
+		// the AWS cloud share AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY: the
+		// core runs on the model's identity, and configuring IaC access must
+		// not move the LLM onto the infrastructure account. The iac file still
+		// gets the cloud value, which files() adds from CloudVars separately.
+		if _, taken := s.LLM.Credentials[k]; !taken {
+			owned[k] = v
+		}
 	}
 	for k, v := range s.Storage.BackendCredentials {
 		if v != "" {
