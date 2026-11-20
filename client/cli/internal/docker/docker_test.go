@@ -5,6 +5,7 @@
 package docker
 
 import (
+	"os"
 	"reflect"
 	"testing"
 
@@ -77,6 +78,44 @@ func TestArgsPassTheProjectName(t *testing.T) {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("args = %v, want %v", got, want)
+	}
+}
+
+// An interrupted init can leave src/docker-compose.yml without the override.
+// compose fails on a -f that does not exist, so only the present files are
+// passed; the project name still comes from the root, so the stack is found.
+func TestNewComposePassesOnlyExistingFiles(t *testing.T) {
+	h := home.Home{Root: t.TempDir()}
+
+	// Nothing written yet: no -f at all, but still this home's project.
+	c := NewCompose(h)
+	if len(c.Files) != 0 {
+		t.Errorf("Files = %v, want none for an empty home", c.Files)
+	}
+	if c.ProjectName != h.ProjectName() {
+		t.Errorf("project = %q, want %q", c.ProjectName, h.ProjectName())
+	}
+
+	// The compose file alone: it is passed, the missing override is not.
+	if err := os.MkdirAll(h.SrcDir(), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(h.ComposeFile(), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c = NewCompose(h)
+	if len(c.Files) != 1 || c.Files[0] != "src/docker-compose.yml" {
+		t.Errorf("Files = %v, want only src/docker-compose.yml", c.Files)
+	}
+
+	// Both: the full list, in the order compose merges them.
+	if err := os.WriteFile(h.ComposeOverride(), []byte("services: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	c = NewCompose(h)
+	want := []string{"src/docker-compose.yml", "compose.override.yml"}
+	if len(c.Files) != 2 || c.Files[0] != want[0] || c.Files[1] != want[1] {
+		t.Errorf("Files = %v, want %v", c.Files, want)
 	}
 }
 

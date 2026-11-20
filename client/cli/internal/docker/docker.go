@@ -53,12 +53,22 @@ type Compose struct {
 var _ Runner = (*Compose)(nil) // compile-time check that Compose satisfies Runner
 
 // NewCompose builds the runner for one home, so no caller can forget the
-// project name and silently share another home's stack.
+// project name and silently share another home's stack. Only the -f files that
+// exist are passed: compose fails on a missing one, and an interrupted init
+// leaves src/docker-compose.yml without the override. The project name is
+// derived from the root, so a partial home still addresses its own stack.
 func NewCompose(h home.Home) *Compose {
+	files := []string{h.ComposeFile(), h.ComposeOverride()}
+	existing := make([]string, 0, len(files))
+	for _, f := range files {
+		if _, err := os.Stat(f); err == nil {
+			existing = append(existing, rel(h.Root, f))
+		}
+	}
 	return &Compose{
 		ProjectDir:  h.Root,
 		ProjectName: h.ProjectName(),
-		Files:       []string{rel(h.Root, h.ComposeFile()), rel(h.Root, h.ComposeOverride())},
+		Files:       existing,
 	}
 }
 
