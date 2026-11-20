@@ -280,23 +280,12 @@ container value. It is not a provider setting: it fills the
 `compartment_ocid` input variable the generated code declares, which
 Kumoss therefore never asks for in the inputs form.
 
-Because nothing confines the provider to a compartment, the core also
-reads every OCI plan and fails validation when it creates a resource in
-a compartment other than the `oci` scope. The generator then rewrites the
-code:
-
-[source,hcl]
-----
-resource "oci_core_vcn" "main" {
-  compartment_id = var.compartment_ocid          # accepted
-  # compartment_id = "ocid1.compartment.oc1..x" # rejected unless it is the oci scope
-}
-----
-
-A compartment the same plan creates is accepted, and so are resources
-created in the tenancy (root compartment). Only plain creations are
-checked: an update or replacement that moves an existing resource to
-another compartment is not caught. Code merged to a repository declares `compartment_ocid` with no
+Nothing confines the provider to a compartment, and the core does not
+check the plan for it: as with a resource that sets its own `project`
+on `google`, the scope only reaches code that uses it. The generated
+code sets `compartment_id = var.compartment_ocid` (or a compartment it
+creates under it); a hardcoded compartment OCID is planned as written.
+Code merged to a repository declares `compartment_ocid` with no
 default, so a pipeline that runs it outside Kumoss needs
 `TF_VAR_compartment_ocid`.
 

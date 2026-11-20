@@ -38,10 +38,7 @@ provider reads (``SCOPE_BINDINGS``). The environment goes with every
 command; ``plan`` and ``import``, the commands that evaluate input
 variables, also get the picked var files (read by Terraform itself)
 and the root module's configured values, the scope variables last so
-no configured value can retarget them. An OCI compartment is a
-resource argument, so when the module uses ``oci`` a ``plan`` is
-followed by a ``show`` of its artifact, and a plan that creates
-resources in another compartment fails validation.
+no configured value can retarget them.
 
 Import discovery follows the same planes: a ``state pull`` that exits
 non-zero leaves the managed set unknown, so it is raised, while a
@@ -152,9 +149,6 @@ class Terraform(ITerraform):
         self.__scope_vars = {
             b.name: scope_id for b, scope_id in scoped if b.kind == "var"
         }
-        self.__oci_compartment = next(
-            (p.scope_id for p in scopes if p.provider == "oci" and p.scope_id), None
-        )
         self.__backend = backend
         self.__initialized = False
 
@@ -210,12 +204,6 @@ class Terraform(ITerraform):
                     ),
                     cfg,
                 )
-                # FIXME: ad hoc OCI workaround - AWS, GCP and OCI doesn't bind scope id to terraform scope the same way Azure does (enforced via env variable)
-                scope_feedback = (
-                    await self.__oci_scope_feedback(c, cfg)
-                    if plan_res.exit_code == 0 and self.__oci_compartment
-                    else ""
-                )
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
         except httpx.RequestError as e:
@@ -225,14 +213,6 @@ class Terraform(ITerraform):
             return TerraformPlanDTO(
                 ok=False,
                 feedback=plan_res.stderr or "terraform plan failed",
-                stdout=plan_res.stdout,
-                targets=targets,
-                plan=None,
-            )
-        if scope_feedback:
-            return TerraformPlanDTO(
-                ok=False,
-                feedback=scope_feedback,
                 stdout=plan_res.stdout,
                 targets=targets,
                 plan=None,
@@ -426,47 +406,6 @@ class Terraform(ITerraform):
         if init_res is not None:
             return init_res
         return await self.__run_op(client, submit_module, body, cfg)
-
-    async def __oci_scope_feedback(
-        self,
-        client: AuthenticatedClient,
-        cfg: IacServiceConfig,
-    ) -> str:
-        """Feedback naming the resources the session plan creates outside
-        the request's compartment, or "" when there are none.
-
-        The injected ``TF_VAR_compartment_ocid`` only reaches code that
-        uses the variable; this reads the plan itself, so a hardcoded
-        compartment fails validation and goes back to the generator.
-        """
-        show_res = await self.__run_initialized_op(
-            client,
-            show_op,
-            ShowRequest(
-                workspace_path=self.__workspace_path.as_posix(),
-                env=self.__env_field(),
-                plan_file=system_config.paths.session_plan_filename,
-            ),
-            cfg,
-        )
-        if show_res.exit_code != 0:
-            return show_res.stderr or "terraform show failed"
-        try:
-            plan_json = json.loads(show_res.stdout)
-        except json.JSONDecodeError as e:
-            raise ExceptionHandler(
-                f"terraform show succeeded but returned unparseable JSON: {e}", 502
-            ) from e
-        compartment = self.__oci_compartment or ""
-        outside = TerraformUtils.oci_creations_outside(plan_json, compartment)
-        if not outside:
-            return ""
-        return (
-            "These resources would be created outside the request's compartment "
-            + f"({compartment}): {', '.join(outside)}. Set their "
-            + "compartment_id to var.compartment_ocid, or to a compartment this "
-            + "configuration creates under it; never hardcode a compartment OCID."
-        )
 
     @staticmethod
     def __needs_init(res: OperationResult) -> bool:
