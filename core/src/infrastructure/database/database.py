@@ -7,57 +7,12 @@
 from typing import Any, TypeVar
 from contextlib import asynccontextmanager
 
-from sqlalchemy import select, func, desc, asc, text
+from sqlalchemy import select, func, desc, asc
 
+from src.infrastructure.database.migrator import migrate
 from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
-
-# Schema changes create_all cannot apply to existing tables, run after it on
-# every start. Idempotent: every statement is a no-op once applied.
-_MIGRATIONS: tuple[str, ...] = (
-    # Providers used to be a native enum of the platform's own names, stored
-    # by member name (AZURE, GCP, K8S...). They are now Terraform provider
-    # type names in a plain column, and providers without a scope have a
-    # null scope.
-    """
-    DO $$
-    BEGIN
-        IF EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_name = 'terraform_providers'
-              AND column_name = 'provider'
-              AND data_type = 'USER-DEFINED'
-        ) THEN
-            ALTER TABLE terraform_providers
-                ALTER COLUMN provider TYPE VARCHAR(64) USING provider::text;
-        END IF;
-    END $$;
-    """,
-    """
-    UPDATE terraform_providers SET provider = CASE upper(provider)
-        WHEN 'AZURE' THEN 'azurerm'
-        WHEN 'GCP' THEN 'google'
-        WHEN 'AWS' THEN 'aws'
-        WHEN 'OCI' THEN 'oci'
-        WHEN 'K8S' THEN 'kubernetes'
-        WHEN 'KUBERNETES' THEN 'kubernetes'
-        WHEN 'VMWARE' THEN 'vsphere'
-    END
-    WHERE provider IN (
-        'AZURE', 'GCP', 'AWS', 'OCI', 'K8S', 'KUBERNETES', 'VMWARE',
-        'azure', 'gcp', 'vmware'
-    );
-    """,
-    "ALTER TABLE terraform_providers ALTER COLUMN scope_id DROP NOT NULL;",
-    "DROP TYPE IF EXISTS terraformprovider;",
-    # Every query that opened a round of the session, for the compliance
-    # checker. Sessions created before it start with none.
-    """
-    ALTER TABLE histories
-        ADD COLUMN IF NOT EXISTS user_queries JSON NOT NULL DEFAULT '[]';
-    """,
-)
 
 T = TypeVar("T", bound=Base)
 
@@ -77,21 +32,16 @@ class DatabaseClient:
 
         await self.session_manager.initialize(echo=echo)
 
-        await self.__create_tables()
-
         self._initialized = True
         logging.info("Database client initialized")
 
-    async def __create_tables(self) -> None:
-        """Create all database tables if they don't exist."""
+    async def migrate(self) -> None:
+        """Bring the schema to the latest migration (see ``migrator``)."""
         try:
-            async with self.session_manager.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-                for statement in _MIGRATIONS:
-                    _ = await conn.execute(text(statement))
-            logging.info("Database tables created/verified successfully")
+            await migrate(self.session_manager.engine)
+            logging.info("Database schema is up to date")
         except Exception as e:
-            logging.error(f"Error creating database tables: {e}")
+            logging.error(f"Error migrating the database: {e}")
             raise
 
     async def close(self) -> None:

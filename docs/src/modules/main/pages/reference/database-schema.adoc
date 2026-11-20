@@ -170,25 +170,55 @@ must first remove dependent rows (or it fails foreign-key checks), so use the OR
 
 == Changing the schema
 
-There is no migration tooling. The schema is created from the application's
-model definitions at startup, which creates missing tables but never alters
-existing ones. A column added to a model will not appear in a database that
-was created before it.
+The schema is versioned with https://alembic.sqlalchemy.org/[Alembic].
+The revisions live in `core/src/infrastructure/database/migrations/versions/`,
+and the core applies any pending ones at startup, before it serves
+requests:
 
-In practice this means an existing `core_db_data` volume has to be migrated
-by hand or recreated whenever the model changes. The upgrade that introduced
-authentication is the case most deployments hit: sessions used to be keyed by
-a `username` column and there was no `users` table at all.
+* *One transaction.* PostgreSQL DDL is transactional, so a failed
+  migration leaves the schema untouched and the core does not start.
+* *One core at a time.* A PostgreSQL advisory lock serialises cores
+  that start together; the second finds nothing left to do.
+* *Recorded.* The applied revision is kept in the `alembic_version`
+  table.
 
-The provider rename is the one exception. `terraform_providers.provider`
-used to be a PostgreSQL enum of the core's own names (`AZURE`, `GCP`,
-`AWS`, `OCI`, `KUBERNETES`, `VMWARE`). At every startup the core runs an
-idempotent step that converts the column to `varchar(64)`, renames the
-stored values to Terraform provider type names (`azure` → `azurerm`,
-`gcp` → `google`, `vmware` → `vsphere`, the rest lowercased), makes
-`scope_id` nullable, and drops the old `terraformprovider` enum type.
-Once applied every statement is a no-op, so an existing `core_db_data`
-volume needs no manual migration for it. See
+=== Adding a revision
+
+. Change the models in `core/src/infrastructure/database/models.py`.
+. From `core/`, with `KUMOSS_SQL_DATABASE_URL` pointing at a disposable
+  database at the latest revision, generate the revision and read it
+  through: autogenerate misses renames, data changes and enum values.
++
+[source,bash]
+----
+alembic upgrade head
+alembic revision --autogenerate -m "describe the change"
+----
+. Run `tests/infrastructure/database/test_migrations.py`. It fails when
+  the migrations no longer build the same schema as the models, and it
+  runs every downgrade.
+
+A revision must apply to a database holding real data: add columns with
+a server default or as nullable, and move data in the same revision.
+
+=== Databases created before Alembic
+
+Databases created before Alembic have tables but no `alembic_version`.
+The core adopts them on its first start, then applies the later
+revisions as usual:
+
+. It finishes the provider rename if still pending. The
+  `terraform_providers.provider` column used to be a PostgreSQL enum of
+  the core's own names (`AZURE`, `GCP`, `AWS`, `OCI`, `KUBERNETES`,
+  `VMWARE`). The step converts it to `varchar(64)`, renames the stored
+  values to Terraform provider type names (`azure` → `azurerm`, `gcp` →
+  `google`, `vmware` → `vsphere`, the rest lowercased), makes `scope_id`
+  nullable, and drops the old `terraformprovider` enum type.
+. It records the baseline revision, `0001`.
+
+A volume from before authentication cannot be adopted: sessions were
+keyed by a `username` column and there was no `users` table. The core
+refuses to start on it; migrate it by hand or recreate it. See
 xref:main:guides/upgrade-notes.adoc[Upgrade notes].
 
 For the other stores — Phoenix, Redis, object storage, and the workspaces
