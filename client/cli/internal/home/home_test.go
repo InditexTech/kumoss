@@ -189,3 +189,26 @@ func TestProjectNameWhenTheHomeIsUnknown(t *testing.T) {
 		t.Errorf("ProjectName = %q for %q, want kumoss", got, h.Root)
 	}
 }
+
+// Uninstall takes any --home, so it must not forget the install the pointer
+// really names. Only the home being removed clears it.
+func TestClearPointerForLeavesAnotherHome(t *testing.T) {
+	isolate(t)
+	if err := SetPointer("/the/real/home"); err != nil {
+		t.Fatalf("SetPointer: %v", err)
+	}
+
+	if err := ClearPointerFor("/some/other/home"); err != nil {
+		t.Fatalf("ClearPointerFor: %v", err)
+	}
+	if got := readPointer(); got != "/the/real/home" {
+		t.Errorf("pointer cleared for a different home: %q", got)
+	}
+
+	if err := ClearPointerFor("/the/real/home/"); err != nil {
+		t.Fatalf("ClearPointerFor: %v", err)
+	}
+	if got := readPointer(); got != "" {
+		t.Errorf("pointer survived clearing its own home: %q", got)
+	}
+}

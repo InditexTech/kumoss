@@ -45,6 +45,16 @@ func SetPointer(root string) error {
 	return os.WriteFile(p, []byte(root+"\n"), 0o600)
 }
 
+// ClearPointerFor removes the persisted home only when it is root. Uninstall
+// takes any --home, so clearing unconditionally would make every later command
+// forget the install the user actually has. A missing pointer is not an error.
+func ClearPointerFor(root string) error {
+	if expand(readPointer()) != expand(root) {
+		return nil
+	}
+	return ClearPointer()
+}
+
 // ClearPointer falls resolution back to KUMOSS_HOME, then ~/.kumoss. A missing
 // pointer is not an error.
 func ClearPointer() error {

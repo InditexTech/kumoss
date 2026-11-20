@@ -35,7 +35,7 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			if _, err := os.Stat(h.Root); os.IsNotExist(err) {
 				// Still drop the pointer, or a later init resolves to a
 				// directory that is gone.
-				if err := home.ClearPointer(); err != nil {
+				if err := home.ClearPointerFor(h.Root); err != nil {
 					return err
 				}
 				fmt.Fprintf(cmd.OutOrStdout(), "Nothing to uninstall: %s does not exist.\n", h.Root)
@@ -75,7 +75,7 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			if err := os.RemoveAll(h.Root); err != nil {
 				return err
 			}
-			if err := home.ClearPointer(); err != nil {
+			if err := home.ClearPointerFor(h.Root); err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "Removed %s.\n", h.Root)
