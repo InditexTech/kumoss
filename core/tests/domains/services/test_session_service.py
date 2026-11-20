@@ -113,6 +113,19 @@ class TestChatTurnIsWrittenOnlyBySave(_ServiceBase):
         )
 
 
+class TestUserQueries(_ServiceBase):
+    async def test_a_round_records_its_query_when_it_starts(self):
+        await self.svc.next_round("add a vnet")
+
+        self.assertEqual(self.ctx.history.user_queries, ("add a vnet",))
+
+    async def test_queries_accumulate_across_rounds(self):
+        for query in ("add a vnet", "and a subnet"):
+            await self.svc.next_round(query)
+
+        self.assertEqual(self.ctx.history.user_queries, ("add a vnet", "and a subnet"))
+
+
 class TestSaveEdgeCases(_ServiceBase):
     async def test_an_empty_reply_skips_the_turn(self):
         self.llm.generate_text.return_value = ""

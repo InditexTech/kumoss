@@ -63,6 +63,7 @@ class SessionService:
     async def next_round(self, q: str) -> None:
         rid = await DatabaseService.create_round(self.__ctx.id, q)
         self.__ctx.set_round(rid)
+        self.__ctx.history.add_user_query(q)
 
     async def save(self, query: str) -> None:
         try:

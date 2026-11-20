@@ -13,11 +13,13 @@ from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
 
-# Providers used to be a native enum of the platform's own names, stored
-# by member name (AZURE, GCP, K8S...). They are now Terraform provider type
-# names in a plain column, and providers without a scope have a null scope.
-# Idempotent: every statement is a no-op once applied.
-_PROVIDER_NAMES_MIGRATION: tuple[str, ...] = (
+# Schema changes create_all cannot apply to existing tables, run after it on
+# every start. Idempotent: every statement is a no-op once applied.
+_MIGRATIONS: tuple[str, ...] = (
+    # Providers used to be a native enum of the platform's own names, stored
+    # by member name (AZURE, GCP, K8S...). They are now Terraform provider
+    # type names in a plain column, and providers without a scope have a
+    # null scope.
     """
     DO $$
     BEGIN
@@ -49,6 +51,12 @@ _PROVIDER_NAMES_MIGRATION: tuple[str, ...] = (
     """,
     "ALTER TABLE terraform_providers ALTER COLUMN scope_id DROP NOT NULL;",
     "DROP TYPE IF EXISTS terraformprovider;",
+    # Every query that opened a round of the session, for the compliance
+    # checker. Sessions created before it start with none.
+    """
+    ALTER TABLE histories
+        ADD COLUMN IF NOT EXISTS user_queries JSON NOT NULL DEFAULT '[]';
+    """,
 )
 
 T = TypeVar("T", bound=Base)
@@ -79,7 +87,7 @@ class DatabaseClient:
         try:
             async with self.session_manager.engine.begin() as conn:
                 await conn.run_sync(Base.metadata.create_all)
-                for statement in _PROVIDER_NAMES_MIGRATION:
+                for statement in _MIGRATIONS:
                     _ = await conn.execute(text(statement))
             logging.info("Database tables created/verified successfully")
         except Exception as e:
