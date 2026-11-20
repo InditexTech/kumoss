@@ -163,6 +163,19 @@ class _Inputs:
         return authorize_setup
 
 
+async def _claim(ctx: SessionContext) -> None:
+    """Claim the session's in-flight flag before accepting the call.
+
+    A session that is already running, or is finished, is refused here
+    with a 409 rather than accepted and then silently dropped by the
+    runner. Call it right before scheduling the runner, which releases it.
+    """
+    try:
+        await _orchestration.acquire(ctx.id)
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
+
+
 def _make_runner(
     ctx: SessionContext,
     build_handler: Callable[[SessionContext], Awaitable[Callable[[], Awaitable[Any]]]],
@@ -181,13 +194,9 @@ def _make_runner(
     """
 
     async def runner():
+        # The endpoint claimed the session's in-flight flag (see _claim);
+        # the runner owns it from here and releases it when done.
         call_dir: Path | None = None
-        try:
-            await _orchestration.acquire(ctx.id)
-        except ExceptionHandler as e:
-            # never got the lock: the session is already running or is finished.
-            logging.error(f"runner not started: {e.message} (session {ctx.id})")
-            return
         tracer_token = tracer.set_current_tracer(
             tracer=PhoenixTracer(
                 session_id=ctx.id,
@@ -260,6 +269,7 @@ async def generate_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_crud_handler()
         return await handler.handle(request.q)
 
+    await _claim(ctx)
     background_tasks.add_task(
         _make_runner(ctx, build, _Inputs.of(request, claims, OperationType.GENERATE))
     )
@@ -286,6 +296,7 @@ async def drift_detection_remediation(
         handler = ApplicationFactory(session_ctx=context).get_terraform_drift_handler()
         return await handler.handle(request.q, request.is_partial)
 
+    await _claim(ctx)
     background_tasks.add_task(
         _make_runner(ctx, build, _Inputs.of(request, claims, OperationType.DRIFT))
     )
@@ -321,6 +332,7 @@ async def apply_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_apply_handler()
         return await handler.handle()
 
+    await _claim(ctx)
     background_tasks.add_task(_make_runner(ctx, build))
     return {"session_id": str(ctx.id)}
 
@@ -345,6 +357,7 @@ async def import_infrastructure(
         handler = ApplicationFactory(session_ctx=context).get_terraform_import_handler()
         return await handler.handle(request.q, request.is_partial)
 
+    await _claim(ctx)
     background_tasks.add_task(
         _make_runner(ctx, build, _Inputs.of(request, claims, OperationType.IMPORT))
     )
