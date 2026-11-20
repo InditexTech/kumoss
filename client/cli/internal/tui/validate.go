@@ -5,6 +5,8 @@
 package tui
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"strconv"
 	"strings"
@@ -14,6 +16,21 @@ import (
 func required(v string) error {
 	if strings.TrimSpace(v) == "" {
 		return errors.New("required")
+	}
+	return nil
+}
+
+// Compacts a pasted service-account key onto one line: the .env format gives a
+// variable one line, so pretty-printed JSON would land as several broken ones.
+// Terraform, which reads GOOGLE_CREDENTIALS, accepts the compact form.
+func jsonKey(v string) error {
+	raw := strings.TrimSpace(v)
+	if raw == "" {
+		return errors.New("required")
+	}
+	var buf bytes.Buffer
+	if err := json.Compact(&buf, []byte(raw)); err != nil {
+		return errors.New("not a JSON key: paste the whole service-account file")
 	}
 	return nil
 }

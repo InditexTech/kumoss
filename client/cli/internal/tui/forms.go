@@ -595,7 +595,7 @@ func gcpGroup(s *state.State) *huh.Group {
 			Value(&a.InlineJSON).
 			Validate(func(v string) error {
 				if a.Method == "json" {
-					return required(v)
+					return jsonKey(v)
 				}
 				return nil
 			}),

@@ -326,3 +326,42 @@ func TestWriteEnvReplacesByRename(t *testing.T) {
 		t.Errorf("directory holds %d files, want only .env", len(entries))
 	}
 }
+
+// A pasted service-account key is pretty-printed JSON. The .env format gives a
+// variable one line, so it must be compacted: written as-is it became several
+// unquoted lines, and ReadEnv read back only the first one.
+func TestGCPInlineJSONIsCompactedToOneLine(t *testing.T) {
+	pretty := "{\n  \"type\": \"service_account\",\n  \"project_id\": \"p\"\n}"
+	got := CloudVars(state.Cloud{GCP: &state.GCPAuth{Method: "json", InlineJSON: pretty}})["GOOGLE_CREDENTIALS"]
+	if strings.Contains(got, "\n") {
+		t.Errorf("GOOGLE_CREDENTIALS spans lines: %q", got)
+	}
+	if got != `{"type":"service_account","project_id":"p"}` {
+		t.Errorf("GOOGLE_CREDENTIALS = %q", got)
+	}
+
+	path := filepath.Join(t.TempDir(), "x.env")
+	if err := writeEnv(path, CloudVars(state.Cloud{GCP: &state.GCPAuth{Method: "json", InlineJSON: pretty}})); err != nil {
+		t.Fatalf("writeEnv: %v", err)
+	}
+	if back := ReadEnv(path)["GOOGLE_CREDENTIALS"]; back != got {
+		t.Errorf("round trip = %q, want %q", back, got)
+	}
+}
+
+// A file an older version already wrote holds the key across lines. Reading
+// only the first line truncated it, and the next write persisted that.
+func TestReadEnvJoinsASpilledJSONKey(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x.env")
+	body := "GOOGLE_CREDENTIALS={\n  \"type\": \"service_account\"\n}\nAFTER=1\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+	got := ReadEnv(path)
+	if got["GOOGLE_CREDENTIALS"] != `{"type": "service_account"}` {
+		t.Errorf("GOOGLE_CREDENTIALS = %q", got["GOOGLE_CREDENTIALS"])
+	}
+	if got["AFTER"] != "1" {
+		t.Errorf("AFTER = %q, the spilled lines swallowed the next key", got["AFTER"])
+	}
+}

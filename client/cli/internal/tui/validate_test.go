@@ -106,3 +106,18 @@ func TestAcknowledgeTerraform(t *testing.T) {
 		}
 	}
 }
+
+// A pasted service-account key is pretty-printed JSON, which the .env format
+// cannot hold on one line. The form refuses anything that is not JSON, so a
+// truncated paste is caught here and not in the env file.
+func TestJSONKeyAcceptsPrettyJSON(t *testing.T) {
+	pretty := "{\n  \"type\": \"service_account\"\n}"
+	if err := jsonKey(pretty); err != nil {
+		t.Errorf("jsonKey(pretty) = %v, want nil", err)
+	}
+	for _, bad := range []string{"", "   ", "not json", "{\"type\": "} {
+		if err := jsonKey(bad); err == nil {
+			t.Errorf("jsonKey(%q) = nil, want an error", bad)
+		}
+	}
+}

@@ -5,8 +5,10 @@
 package render
 
 import (
+	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -347,7 +349,16 @@ func CloudVars(c state.Cloud) map[string]string {
 		// Inline JSON wins: it needs no mount, so it cannot break on a file
 		// the container cannot see.
 		if a.InlineJSON != "" {
-			vars["GOOGLE_CREDENTIALS"] = a.InlineJSON
+			// One line, whatever the form held: the .env format gives a
+			// variable a single line, so a pretty-printed key would be split
+			// into broken ones. Invalid JSON is left as typed, so the file
+			// still shows what the user pasted.
+			var buf bytes.Buffer
+			if err := json.Compact(&buf, []byte(a.InlineJSON)); err == nil {
+				vars["GOOGLE_CREDENTIALS"] = buf.String()
+			} else {
+				vars["GOOGLE_CREDENTIALS"] = a.InlineJSON
+			}
 		} else {
 			// Empty, never containerPath(""): no key means fall back to
 			// Application Default Credentials.
@@ -396,13 +407,17 @@ func writeEnv(path string, vars map[string]string) error {
 }
 
 // ReadEnv parses KEY=value lines. A malformed line is skipped, not fatal: a
-// hand-edited file should not block the run.
+// hand-edited file should not block the run. The exception is a `{`-started
+// value that spilled onto lines with no KEY= — a pretty-printed JSON key, as
+// older versions wrote. Those lines belong to it, or the key would read back
+// truncated and the next write would persist the truncation.
 func ReadEnv(path string) map[string]string {
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return nil
 	}
 	vars := map[string]string{}
+	jsonKey := "" // the key whose JSON value may continue on the next line
 	for line := range strings.SplitSeq(string(raw), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -410,9 +425,17 @@ func ReadEnv(path string) map[string]string {
 		}
 		k, v, ok := strings.Cut(line, "=")
 		if !ok {
+			if jsonKey != "" {
+				vars[jsonKey] += line
+			}
 			continue
 		}
-		vars[strings.TrimSpace(k)] = strings.Trim(strings.TrimSpace(v), `"'`)
+		jsonKey = ""
+		k = strings.TrimSpace(k)
+		vars[k] = strings.Trim(strings.TrimSpace(v), `"'`)
+		if strings.HasPrefix(vars[k], "{") {
+			jsonKey = k
+		}
 	}
 	return vars
 }
