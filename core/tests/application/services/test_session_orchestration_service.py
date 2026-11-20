@@ -77,3 +77,12 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
         iter_req = GenerateRequest(session_id=str(ctx1.id), q="iterate")
         ctx2 = await self.svc.resolve(iter_req)
         self.assertEqual(ctx2.root_module_path, "environments/dev")
+
+    async def test_an_omitted_root_module_path_is_the_repository_root(self):
+        for omitted in (None, ""):
+            ctx = await self.svc.resolve(
+                self._first_request(root_module_path=omitted),
+                OperationType.GENERATE,
+                self.user_pk,
+            )
+            self.assertEqual(ctx.root_module_path, ".")

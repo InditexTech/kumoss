@@ -56,7 +56,9 @@ class SessionOrchestrationService:
             repo_uri=request.repo_uri,
             branch_name=self.__new_branch_name(),
             query=request.q,
-            root_module_path=request.root_module_path,
+            # Optional on the request, where it defaults to the repository
+            # root: stored as ".", the spelling the root-module detector uses.
+            root_module_path=request.root_module_path or ".",
         )
         return await DatabaseService.get_session_context(sid)
 
