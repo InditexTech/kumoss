@@ -238,6 +238,37 @@ func TestConfigAnswersOverrideFetchedTuningKnobs(t *testing.T) {
 	}
 }
 
+// s.Storage.Provider is empty until the storage form has run: kumoss.yaml from
+// before the model discriminator existed has no provider, and an empty one used
+// to overwrite the fetched value with nothing.
+func TestConfigKeepsTheFetchedStorageProvider(t *testing.T) {
+	out, err := RenderConfig([]byte(repoDefault), &state.State{})
+	if err != nil {
+		t.Fatalf("RenderConfig: %v", err)
+	}
+	storage := configDoc(t, out)["storage"].(map[string]any)
+	if storage["provider"] != "RUSTFS" || storage["bucket"] != "kumoss-artifacts" {
+		t.Errorf("fetched storage lost: %v", storage)
+	}
+}
+
+// The picked model wins over the fetched one, and an empty state bucket is the
+// repository-declared answer: it must be written as "", never dropped.
+func TestConfigWritesThePickedStorageModel(t *testing.T) {
+	s := &state.State{Storage: state.Storage{Model: "repository", Provider: "S3", Bucket: "mine", TerraformStateBucket: ""}}
+	out, err := RenderConfig([]byte(repoDefault), s)
+	if err != nil {
+		t.Fatalf("RenderConfig: %v", err)
+	}
+	storage := configDoc(t, out)["storage"].(map[string]any)
+	if storage["provider"] != "S3" || storage["bucket"] != "mine" {
+		t.Errorf("picked model did not win: %v", storage)
+	}
+	if v, ok := storage["terraform_state_bucket"]; !ok || v != "" {
+		t.Errorf("terraform_state_bucket = %v, want the empty string", v)
+	}
+}
+
 // Nothing fetched and nothing answered: omit the keys rather than write zeros.
 func TestConfigOmitsUnsetTuningKnobs(t *testing.T) {
 	out, err := RenderConfig([]byte("llm:\n  model: x\n"), &state.State{})

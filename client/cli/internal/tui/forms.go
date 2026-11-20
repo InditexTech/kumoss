@@ -340,7 +340,30 @@ func (w *Wizard) gitStep(s *state.State) (*huh.Form, func()) {
 	return form, func() {}
 }
 
-// storageStep collects the storage model and its settings.
+// storageModelStep picks the storage model. It is its own form because the
+// fields below depend on it: a model picked in the same form would leave the
+// credential and region fields of the previous one on screen.
+func (w *Wizard) storageModelStep(s *state.State) error {
+	model := pickStorage(s)
+	picked := model.Model
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[string]().
+				Title("Storage model").
+				Description("Where artifacts and, optionally, Terraform state are kept.").
+				Options(storageModelOptions()...).
+				Value(&picked),
+		).Title("Storage"),
+	)
+	if err := w.run(form); err != nil {
+		return err
+	}
+	// Picked before the next step reads it, so its fields follow this choice.
+	s.Storage.Model = picked
+	return nil
+}
+
+// storageStep collects the storage model's settings.
 func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 	model := pickStorage(s)
 	s.Storage.Provider = model.Provider
@@ -638,6 +661,15 @@ func pickStorage(s *state.State) *storageModel {
 		return m
 	}
 	return &storageModels[0]
+}
+
+// storageModelOptions is the storage select, one row per model.
+func storageModelOptions() []huh.Option[string] {
+	opts := make([]huh.Option[string], 0, len(storageModels))
+	for _, m := range storageModels {
+		opts = append(opts, huh.NewOption(m.Name, m.Model))
+	}
+	return opts
 }
 
 // The optional LLM knobs are pointers so "unanswered" and "zero" stay apart:

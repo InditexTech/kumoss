@@ -172,3 +172,21 @@ func TestEnsureCloudKeepsExistingValues(t *testing.T) {
 		t.Errorf("new AWS method = %q, want static", got.Method)
 	}
 }
+
+// The storage model has to be selectable: nothing else sets the discriminator,
+// and it is not saved in kumoss.yaml, so without this select pickStorage always
+// returned the first row and external storage was unreachable.
+func TestStorageModelOptionsCoverEveryModel(t *testing.T) {
+	opts := storageModelOptions()
+	if len(opts) != len(storageModels) {
+		t.Fatalf("options = %d, want %d", len(opts), len(storageModels))
+	}
+	for i, m := range storageModels {
+		if got := opts[i].Value; got != m.Model {
+			t.Errorf("option %d = %q, want %q", i, got, m.Model)
+		}
+		if got := pickStorage(&state.State{Storage: state.Storage{Model: m.Model}}); got.Model != m.Model {
+			t.Errorf("pickStorage(%q) = %q", m.Model, got.Model)
+		}
+	}
+}

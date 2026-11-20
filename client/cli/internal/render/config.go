@@ -114,10 +114,20 @@ func storageBlock(doc map[string]any, s *state.State) map[string]any {
 			block[k] = v
 		}
 	}
-	block["provider"] = s.Storage.Provider
-	block["bucket"] = s.Storage.Bucket
+	// The CLI's model discriminator is not a config key: a kumoss.yaml written
+	// before it existed, or one edited by hand, carries none, and an empty
+	// provider here would overwrite the fetched value with nothing. Leaving
+	// the key out keeps the file's own provider, the same as an unset knob.
+	if s.Storage.Provider != "" {
+		block["provider"] = s.Storage.Provider
+	}
+	if s.Storage.Bucket != "" {
+		block["bucket"] = s.Storage.Bucket
+	}
 	// Empty string is meaningful: repository-declared state. Never a YAML null.
-	block["terraform_state_bucket"] = s.Storage.TerraformStateBucket
+	if s.Storage.Provider != "" {
+		block["terraform_state_bucket"] = s.Storage.TerraformStateBucket
+	}
 	if s.Storage.Region != "" {
 		block["region"] = s.Storage.Region
 	}

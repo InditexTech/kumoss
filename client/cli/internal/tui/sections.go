@@ -30,7 +30,12 @@ func (w *Wizard) Cloud(s *state.State) error { return w.step(w.cloudStep, s) }
 func (w *Wizard) Engine(s *state.State) error { return w.step(w.engineStep, s) }
 
 // State asks the storage model and the state backend.
-func (w *Wizard) State(s *state.State) error { return w.step(w.storageStep, s) }
+func (w *Wizard) State(s *state.State) error {
+	if err := w.storageModelStep(s); err != nil {
+		return err
+	}
+	return w.step(w.storageStep, s)
+}
 
 // Notifications asks for the Slack webhook and whether to use it.
 func (w *Wizard) Notifications(s *state.State) error { return w.step(w.notificationsStep, s) }
