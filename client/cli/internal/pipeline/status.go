@@ -8,10 +8,8 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net/http"
 	"strings"
 	"text/tabwriter"
-	"time"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/buildinfo"
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
@@ -25,16 +23,17 @@ type StatusOptions struct {
 	Home home.Home
 	// Compose is the stack. nil builds the real runner; tests inject a stub.
 	Compose *docker.Compose
-	// Probe hits the URLs below. nil uses a 3-second client.
-	Probe *http.Client
-	Out   io.Writer
+	Out     io.Writer
 }
 
-// StatusURLs are the two probes: the core's unauthenticated auth config, which
-// proves it is serving and not just up, and the sidecars' health endpoint.
+// statusURLs are the probes: the core's unauthenticated auth config, which
+// proves it is serving and not just up, and each sidecar's own health endpoint,
+// by its compose service name. Only nginx is published on the host and it
+// forwards /api to core alone, so a sidecar has no host address to probe: these
+// are fetched from inside the stack.
 const (
-	coreConfigURL = "http://localhost:80/api/v1/auth/config"
-	healthzPath   = "/healthz"
+	coreConfigURL = "http://core:8000/api/v1/auth/config"
+	healthzURL    = "http://%s:8080/healthz"
 )
 
 // RunStatus prints the stack table, the probes, the Kumoss tag and whether a
@@ -47,10 +46,6 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 	c := opts.Compose
 	if c == nil {
 		c = docker.NewCompose(opts.Home)
-	}
-	probe := opts.Probe
-	if probe == nil {
-		probe = &http.Client{Timeout: 3 * time.Second}
 	}
 
 	fmt.Fprintf(out, "Kumoss %s (stack %s)\n\n", buildinfo.Version, buildinfo.KumossTag())
@@ -65,7 +60,7 @@ func RunStatus(ctx context.Context, opts StatusOptions) error {
 	}
 	printServices(out, rows)
 
-	printProbes(ctx, out, probe, rows)
+	printProbes(ctx, out, c.Probe, rows)
 
 	// Best effort: a missing state file is a half-written home, not a reason to
 	// fail the whole report.
@@ -94,13 +89,13 @@ func printServices(w io.Writer, rows []docker.PS) {
 
 // printProbes checks the core's auth config and each running sidecar's
 // /healthz. Only reachable containers are probed: a stopped one has no answer
-// worth waiting three seconds for. Tabwriter pads both the core row and the
-// service rows, so the URLs line up in one column.
-func printProbes(ctx context.Context, w io.Writer, client *http.Client, rows []docker.PS) {
+// worth waiting for. Tabwriter pads both the core row and the service rows, so
+// the URLs line up in one column.
+func printProbes(ctx context.Context, w io.Writer, probe func(context.Context, string) bool, rows []docker.PS) {
 	fmt.Fprintln(w)
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 	coreStatus := "unreachable"
-	if probe(ctx, client, coreConfigURL) {
+	if probe(ctx, coreConfigURL) {
 		coreStatus = "ok"
 	}
 	fmt.Fprintf(tw, "core\t%s\t%s\n", coreConfigURL, coreStatus)
@@ -108,9 +103,9 @@ func printProbes(ctx context.Context, w io.Writer, client *http.Client, rows []d
 		if r.State != "running" || !sidecar(r.Service) {
 			continue
 		}
-		url := "http://localhost:80/" + r.Service + healthzPath
+		url := fmt.Sprintf(healthzURL, r.Service)
 		status := "unreachable"
-		if probe(ctx, client, url) {
+		if probe(ctx, url) {
 			status = "ok"
 		}
 		fmt.Fprintf(tw, "%s\t%s\t%s\n", r.Service, url, status)
@@ -118,22 +113,15 @@ func printProbes(ctx context.Context, w io.Writer, client *http.Client, rows []d
 	_ = tw.Flush()
 }
 
-// probe reports whether url answers with 2xx.
-func probe(ctx context.Context, client *http.Client, url string) bool {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return false
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false
-	}
-	_ = resp.Body.Close()
-	return resp.StatusCode >= 200 && resp.StatusCode < 300
+// probeReply reads the status code curl printed with -w. Split from the command
+// so the parsing is testable without a container.
+func probeReply(out string) bool {
+	code := strings.TrimSpace(out)
+	return len(code) == 3 && strings.HasPrefix(code, "2")
 }
 
-// sidecar is true for the services nginx routes: they are the ones with a
-// public /healthz. searxng and the databases are not part of the probe.
+// sidecar is true for the services that serve their own /healthz on the
+// internal network. searxng and the databases are not part of the probe.
 func sidecar(service string) bool {
 	switch service {
 	case "iac", "notifications", "mapping", "authz":

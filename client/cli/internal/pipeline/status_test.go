@@ -6,8 +6,8 @@ package pipeline
 
 import (
 	"bytes"
-	"net/http"
-	"net/http/httptest"
+	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -26,20 +26,37 @@ func TestParsePSReadsLineDelimitedJSON(t *testing.T) {
 	}
 }
 
-// The probe follows the answer, not the connection: a 500 is not ok.
+// The probe reads curl's -w status, not the body: a 500 is not ok.
 func TestProbeRequiresA2xx(t *testing.T) {
-	ok := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	defer ok.Close()
-	bad := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(http.StatusInternalServerError)
-	}))
-	defer bad.Close()
-
-	if !probe(t.Context(), ok.Client(), ok.URL) {
-		t.Error("a 200 was reported unreachable")
+	for _, c := range []struct {
+		body string
+		want bool
+	}{
+		{"200", true},
+		{"204", true},
+		{"500", false},
+		{"404", false},
+		{"", false},
+	} {
+		if got := probeReply(c.body); got != c.want {
+			t.Errorf("probeReply(%q) = %v, want %v", c.body, got, c.want)
+		}
 	}
-	if probe(t.Context(), bad.Client(), bad.URL) {
-		t.Error("a 500 was reported ok")
+}
+
+// The sidecars are not on the host: only nginx publishes a port and it forwards
+// /api to core alone. A localhost/iac/healthz URL fell through to the web app's
+// index.html, so every sidecar read as healthy whatever its state.
+func TestProbeURLsStayInsideTheStack(t *testing.T) {
+	if strings.Contains(coreConfigURL, "localhost") {
+		t.Errorf("coreConfigURL = %q, must not go through the host", coreConfigURL)
+	}
+	url := fmt.Sprintf(healthzURL, "iac")
+	if want := "http://iac:8080/healthz"; url != want {
+		t.Errorf("sidecar URL = %q, want %q", url, want)
+	}
+	if strings.Contains(url, "localhost") {
+		t.Errorf("sidecar URL %q goes through the host", url)
 	}
 }
 
@@ -67,11 +84,10 @@ func TestPrintServicesOneRowPerContainer(t *testing.T) {
 // The core row and the sidecar rows share one URL column: two different
 // paddings left the core URL starting at a different offset.
 func TestPrintProbesAlignsTheURLs(t *testing.T) {
-	ok := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	defer ok.Close()
+	ok := func(context.Context, string) bool { return true }
 
 	var b bytes.Buffer
-	printProbes(t.Context(), &b, ok.Client(), []docker.PS{
+	printProbes(t.Context(), &b, ok, []docker.PS{
 		{Service: "core", State: "running"},
 		{Service: "iac", State: "running"},
 		{Service: "notifications", State: "running"},

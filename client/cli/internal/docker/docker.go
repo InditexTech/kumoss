@@ -127,6 +127,22 @@ func (c *Compose) Recreate(ctx context.Context, services ...string) error {
 	return err
 }
 
+// Probe fetches url from inside the stack and reports whether it answered 2xx.
+// Only the proxy publishes a port, and it forwards /api to core alone, so a
+// sidecar has no address on the host: a URL like localhost/iac/healthz fell
+// through to the web app's index.html and every sidecar read as healthy.
+// The proxy image is Debian with curl and no wget; when it is not on the
+// stack's network nothing resolves and every probe reads unreachable.
+func (c *Compose) Probe(ctx context.Context, url string) bool {
+	out, err := c.run(ctx, "exec", "-T", "proxy", "curl", "-fsS", "-o", "/dev/null", "-w", "%{http_code}", url)
+	if err != nil {
+		return false
+	}
+	// -w prints the status last; -f already failed on anything 4xx/5xx.
+	code := strings.TrimSpace(out)
+	return len(code) == 3 && strings.HasPrefix(code, "2")
+}
+
 // Logs streams the containers' logs. follow keeps reading until the context is
 // cancelled; since is passed through to compose, which understands 30m and a
 // timestamp.
