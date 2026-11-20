@@ -5,22 +5,15 @@
 
 ### Bug Fixes
 
-* **nginx:** bump base image to 1.31.9 for CVE-2026-123007 ([084770b](https://github.com/InditexTech/kumoss/commit/084770b09fbaa8ece19ab0d5c060f125ae73b383))
-* **nginx:** bump base image to 1.31.9 for CVE-2026-123007 ([5e095c9](https://github.com/InditexTech/kumoss/commit/5e095c90afe75ebfbf936345d07d8714f748eb9f))
+* **nginx:** bump the web image's nginx base to 1.31.9 to fix [CVE-2026-123007](https://www.cve.org/CVERecord?id=CVE-2026-123007) ("nginx2root"), an HTTP/2 flow-control integer underflow (CVSS 4.0 9.2) that can corrupt the heap and allow remote code execution in the worker process; it affects nginx 1.9.5 through 1.31.8 and is fixed in 1.31.9 (mainline) and 1.30.7 (stable). The base image is now pinned as `tag@digest` so the version is visible in reviews and scans ([#524](https://github.com/InditexTech/kumoss/issues/524)) ([5e095c9](https://github.com/InditexTech/kumoss/commit/5e095c90afe75ebfbf936345d07d8714f748eb9f))
+* **deps:** bump dnspython to 2.9.2 in core, iac and notifications ([GHSA-vvf4-9x63-8xvv](https://osv.dev/GHSA-vvf4-9x63-8xvv)) ([#521](https://github.com/InditexTech/kumoss/issues/521)) ([b56e946](https://github.com/InditexTech/kumoss/commit/b56e9461db929094ff2e868cf073a430b9159a57))
 
 
 ### Documentation
 
-* clarify Kumoss repository description ([bd7973e](https://github.com/InditexTech/kumoss/commit/bd7973ec16c8bf57ce8fa8c773e37611fe8ae6aa))
-* clarify Kumoss repository description ([56991c9](https://github.com/InditexTech/kumoss/commit/56991c94bf9c9eb2c1dc196cd8e1105c48438bee))
-* clarify Kumoss repository description ([061aec2](https://github.com/InditexTech/kumoss/commit/061aec2601379f9a964da4dcad6235c23473ee6f))
-* clarify Kumoss repository description ([917648f](https://github.com/InditexTech/kumoss/commit/917648fa05be17512fc9c81e84fdc1ac3c81ccee))
-* fix markdown ([2cefdb0](https://github.com/InditexTech/kumoss/commit/2cefdb047a9c0eacc69656fad50208da20439857))
-* **nginx:** correct CVE-2026-123007 affected range in Dockerfile comment ([5fecf8d](https://github.com/InditexTech/kumoss/commit/5fecf8d15a4411cead0a88a00e1805d3e2a1147b))
-* **quickstart:** point Kubernetes users to the Helm chart ([e4897f9](https://github.com/InditexTech/kumoss/commit/e4897f9079266582b6b02eeaa555eeb543a9cec9))
-* **quickstart:** point Kubernetes users to the Helm chart ([de614f6](https://github.com/InditexTech/kumoss/commit/de614f6c9371e2c196d040f491b5168b9b93db92))
-* **readme:** add OpenTofu compatibility badge ([0d9e2ae](https://github.com/InditexTech/kumoss/commit/0d9e2aecde23eb72a45f2e745f6ce227a22acba7))
-* **readme:** fix OpenTofu badge image syntax ([a9a4fd9](https://github.com/InditexTech/kumoss/commit/a9a4fd9f2e672b78f9121b005a6f5d4adbe44f08))
+* **quickstart:** point Kubernetes users to the published OCI Helm chart and the kind trial ([#497](https://github.com/InditexTech/kumoss/issues/497)) ([de614f6](https://github.com/InditexTech/kumoss/commit/de614f6c9371e2c196d040f491b5168b9b93db92))
+* **readme:** add an OpenTofu compatibility badge ([#492](https://github.com/InditexTech/kumoss/issues/492)) ([0d9e2ae](https://github.com/InditexTech/kumoss/commit/0d9e2aecde23eb72a45f2e745f6ce227a22acba7))
+* **readme:** clarify the Kumoss project description ([#498](https://github.com/InditexTech/kumoss/issues/498)) ([917648f](https://github.com/InditexTech/kumoss/commit/917648fa05be17512fc9c81e84fdc1ac3c81ccee))
 
 ## [1.0.8](https://github.com/InditexTech/kumoss/compare/v1.0.7...v1.0.8) (2026-11-05)
 
