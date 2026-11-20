@@ -152,8 +152,9 @@ def _k_first_query(session_id: UUID) -> str:
 def _k_context(session_id: UUID) -> str:
     # Versioned so entries in an older shape are rebuilt from the database:
     # v2 renamed "iac_path" to "root_module_path"; v3 replaced the single
-    # provider and scope with the list of the module's providers.
-    return f"{_CACHE_NS}:session:{session_id}:ctx:v3"
+    # provider and scope with the list of the module's providers; v4 added
+    # the user queries.
+    return f"{_CACHE_NS}:session:{session_id}:ctx:v4"
 
 
 def _k_last_status(session_id: UUID) -> str:
@@ -161,7 +162,9 @@ def _k_last_status(session_id: UUID) -> str:
 
 
 def _k_history(session_id: UUID) -> str:
-    return f"{_CACHE_NS}:session:{session_id}:history"
+    # Versioned so entries without "user_queries" are rebuilt from the
+    # database: saving a context built from them would wipe the column.
+    return f"{_CACHE_NS}:session:{session_id}:history:v2"
 
 
 def _k_pull_requests(session_id: UUID) -> str:
@@ -191,6 +194,7 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
         "root_module_path": ctx.root_module_path,
         "history": ctx.history.serialize(),
         "chat_history": ctx.chat_history.serialize(),
+        "user_queries": list(ctx.history.user_queries),
     }
 
 
@@ -206,6 +210,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
         root_module_path=data["root_module_path"],
         history=data["history"],
         chat_history=data["chat_history"],
+        user_queries=data["user_queries"],
     )
 
 
@@ -443,7 +448,11 @@ class DatabaseService:
             his: History | None = await db.get_by(History, session_id=sid)
             if his is None:
                 return None
-            return {"payload": his.payload, "chat_payload": his.chat_payload}
+            return {
+                "payload": his.payload,
+                "chat_payload": his.chat_payload,
+                "user_queries": his.user_queries,
+            }
 
         return await redis_client.get_or_set(
             _k_history(session_id), _ttl(_TTL_HISTORY), _load
@@ -608,6 +617,7 @@ class DatabaseService:
                 root_module_path=workspace.root_path,
                 history=history["payload"],
                 chat_history=history["chat_payload"],
+                user_queries=history["user_queries"],
             )
             return _serialize_ctx(ctx)
 
@@ -955,6 +965,7 @@ class DatabaseService:
                 .values(
                     payload=ctx.history.serialize(),
                     chat_payload=ctx.chat_history.serialize(),
+                    user_queries=list(ctx.history.user_queries),
                     updated_at=datetime.now(timezone.utc),
                 )
             )
@@ -973,6 +984,7 @@ class DatabaseService:
                     {
                         "payload": ctx.history.serialize(),
                         "chat_payload": ctx.chat_history.serialize(),
+                        "user_queries": list(ctx.history.user_queries),
                     },
                     _ttl(_TTL_HISTORY),
                 ),

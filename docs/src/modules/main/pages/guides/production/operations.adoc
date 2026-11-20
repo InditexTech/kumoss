@@ -14,9 +14,10 @@ diagnose the failures a production deployment is most likely to hit.
 *PostgreSQL (core).* The system of record: users and roles, sessions
 and their ownership, rounds, statuses, conversation history, pull
 requests, and artifact metadata. Use a managed instance with backups
-and TLS. There are *no migrations*: the schema is created with
-`create_all` at start-up, and a schema change between versions requires
-a manual migration or a fresh database. Plan upgrades accordingly.
+and TLS. The core migrates the schema with Alembic at start-up, in one
+transaction, so a failed migration leaves the database as it was and
+the core does not start. Back the database up before every upgrade:
+migrations are not undone automatically.
 
 *Redis.* A cache; the database remains authoritative and cache
 operations fail open at runtime. The boot-time connectivity check must
@@ -141,12 +142,11 @@ The workspace volume needs no backup beyond surviving restarts.
 
 Upgrading Kumoss:
 
-. Read the release notes for schema changes; there are no automatic
-  migrations. One known breaking change predates OIDC support and is
-  documented in full in
-  xref:main:architecture/data-and-state.adoc[Data and state]: migrate
-  or drop the affected volume by hand before you point a current core
-  at it.
+. Back up the core database. The new core migrates it at start-up.
+  The one exception is a volume that predates OIDC support, documented
+  in full in xref:main:architecture/data-and-state.adoc[Data and state]:
+  the core refuses to start on it, so migrate or drop it by hand
+  first.
 . Read xref:main:guides/upgrade-notes.adoc[Upgrade notes]. Upgrading to
   the release that reads providers from the root module needs two
   actions: copy each project's Kumoss-managed state to its new key

@@ -727,9 +727,9 @@ fails when it is unreachable. A `postgresql://` scheme is rewritten to
 `ssl=`, so URLs copied from a managed PostgreSQL service work as-is.
 |===
 
-Schema note: there are no migrations; tables are created with
-`create_all`. A database volume created by an older schema must be
-migrated by hand or dropped.
+Schema note: the core migrates the schema with Alembic at startup, so
+a database from an older release is upgraded in place. See
+xref:main:reference/database-schema.adoc#changing-the-schema[Changing the schema].
 
 Requires restart: yes for the field name; the URL value lives in
 `core/.env`.

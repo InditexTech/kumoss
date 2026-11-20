@@ -37,6 +37,7 @@ async def lifespan(app: FastAPI):
     logging.info("Starting Kumoss application...")
     try:
         await db.initialize(echo=False)
+        await db.migrate()
         logging.info("Database initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize database: {e}")

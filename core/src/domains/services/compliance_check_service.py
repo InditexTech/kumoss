@@ -35,11 +35,9 @@ class ComplianceCheckService:
         if not system_config.orchestration.enable_compliance_checker:
             return ComplianceCheckReport.empty()
 
-        query: str = (
-            "The user request:\n"
-            f"{ctx.history.get_first_turn().user}\n\n"
-            "The Terraform plan to audit:\n"
-            f"{plan}"
+        requests = "\n".join(f"- {q}" for q in ctx.history.user_queries)
+        query = (
+            f"The user requests:\n{requests}\n\nThe Terraform plan to audit:\n{plan}"
         )
 
         result: ToolResultDTO = await self.__llm_svc.generate(

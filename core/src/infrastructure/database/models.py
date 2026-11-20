@@ -171,6 +171,9 @@ class History(Base):
     first_query: Mapped[str] = mapped_column(Text)
     payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
     chat_payload: Mapped[list[dict[str, str]]] = mapped_column(JSON, default=list)
+    user_queries: Mapped[list[str]] = mapped_column(
+        JSON, default=list, server_default="[]"
+    )
 
     @override
     def __repr__(self) -> str:

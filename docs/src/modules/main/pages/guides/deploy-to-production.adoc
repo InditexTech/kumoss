@@ -90,8 +90,8 @@ generic policy
 checklist]
 
 |9
-|Plan upgrades by hand: no database migrations, seeds never overwrite
-curated prompts, `environment` is a prompt tag
+|Back up before upgrading: the core migrates the database at startup,
+seeds never overwrite curated prompts, `environment` is a prompt tag
 |xref:main:guides/production/operations.adoc#backups-and-upgrades[Backups
 and upgrades]
 |===
@@ -166,7 +166,7 @@ the reference topology, a Helm chart for Kubernetes
 (xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]), and the
 OpenAPI contracts and conformance suites for the sidecars. It does not
 provide Kustomize overlays, Terraform modules for the platform itself,
-database migrations, or a multi-replica execution model. The chart wires
+or a multi-replica execution model. The chart wires
 the stack together, but the production decisions on this page (managed
 data services, identity, TLS, hardening) remain yours to make through
 its values.

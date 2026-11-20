@@ -5,6 +5,23 @@ This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.
 
+== Database migrations with Alembic
+
+The core no longer builds its tables with `create_all`. It runs Alembic
+migrations at startup instead, in one transaction and under a
+PostgreSQL advisory lock.
+
+* *Existing databases.* The first start adopts them: it applies the
+  provider rename below if still pending, records the baseline revision
+  in a new `alembic_version` table, and runs the later revisions. The
+  first of those adds `histories.user_queries`. Nothing to do by hand,
+  but back the database up first.
+* *Pre-authentication volumes.* A database with sessions but no `users`
+  table is refused at startup; migrate it by hand or recreate it.
+* *Schema changes in forks.* Change the models and add a revision; see
+  xref:main:reference/database-schema.adoc#changing-the-schema[Changing
+  the schema].
+
 == Providers come from the root module
 
 Sessions no longer take a provider and a scope from the user. The core
@@ -55,10 +72,10 @@ last segment of the source address:
 Any other provider a module uses (`random`, `helm`...) is a session
 provider too, under its own type name.
 
-* *Database.* The `terraform_providers` table is migrated at startup by
-  an idempotent step: the `provider` column becomes `varchar(64)` with
-  the new names, `scope_id` becomes nullable, and the old enum type is
-  dropped. Nothing to do by hand. See
+* *Database.* The `terraform_providers` table is migrated at startup:
+  the `provider` column becomes `varchar(64)` with the new names,
+  `scope_id` becomes nullable, and the old enum type is dropped.
+  Nothing to do by hand. See
   xref:main:reference/database-schema.adoc[Database schema].
 * *Prompts.* Phoenix prompt names follow the provider type:
   `azure-guidelines-*` is now `azurerm-guidelines-*`, `gcp-*` is

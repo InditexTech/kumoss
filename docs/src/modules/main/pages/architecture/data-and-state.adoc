@@ -19,14 +19,13 @@ audit verdict plus its stored findings), and `code_changes`. Roles are
 managed from the admin panel or, for the first administrator on IdPs
 that emit no `email_verified` claim, by a one-off SQL update (see
 xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant the
-first administrator access]). There is
-no migration tooling: the schema is created with SQLAlchemy
-`create_all`, so a `core_db_data` volume from a pre-auth stack (sessions
-keyed by a `username` column, no `users` table) must be migrated by
-hand or recreated. The one step the core does run at startup is
-idempotent: it moves `terraform_providers` from the former provider
-enum to Terraform provider type names in a plain column (one row per
-provider of the session's root module, with a nullable `scope_id`).
+first administrator access]). The schema is
+versioned with Alembic and migrated by the core at startup (see
+xref:main:reference/database-schema.adoc#changing-the-schema[Changing
+the schema]). A `core_db_data` volume from a pre-auth stack (sessions
+keyed by a `username` column, no `users` table) is too old to migrate:
+the core refuses to start on it, so migrate it by hand or recreate
+it.
 
 For the table-by-table breakdown, the enumerated columns, and how
 deletion cascades, see

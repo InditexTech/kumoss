@@ -6,8 +6,8 @@ metadata:
   labels:
     {{- include "kumoss.componentLabels" (list . "core") | nindent 4 }}
 spec:
-  # Single replica: the core creates its tables at startup and owns the
-  # workspaces volume. Recreate keeps two cores from racing on either.
+  # Single replica: the core owns the workspaces volume, and Recreate keeps
+  # two cores from racing on it. (Startup migrations take a database lock.)
   replicas: 1
   strategy:
     type: Recreate

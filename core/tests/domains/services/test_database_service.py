@@ -17,7 +17,11 @@ from src.domains.exceptions import (
     SessionConflict,
     SessionTerminal,
 )
-from src.domains.services.database_service import DatabaseService
+from src.domains.services.database_service import (
+    DatabaseService,
+    _k_context,  # pyright: ignore[reportPrivateUsage]
+    _k_history,  # pyright: ignore[reportPrivateUsage]
+)
 from src.domains.value_objects import ProviderScope
 from src.infrastructure.database.database import db
 from src.infrastructure.database.models import Base, PullRequest, Round, Session, User
@@ -165,8 +169,7 @@ class TestSessionContextFreshness(_SessionBase):
         ctx.chat_history.append_turn(user_msg="add a vnet", assistant_msg="Done.")
         await DatabaseService.update_history(ctx)
         _ = await redis_client.connection.client.delete(
-            f"kumoss:v1:session:{self.sid}:ctx:v2",
-            f"kumoss:v1:session:{self.sid}:history:v2",
+            _k_context(self.sid), _k_history(self.sid)
         )
 
         cold = await DatabaseService.get_session_context(self.sid)
@@ -179,6 +182,22 @@ class TestSessionContextFreshness(_SessionBase):
             [t["user"] for t in final.chat_history.serialize()],
             ["add a vnet", "and a subnet"],
         )
+
+    async def test_user_queries_survive_a_cold_read(self):
+        ctx = await DatabaseService.get_session_context(self.sid)
+        ctx.history.add_user_query("add a vnet")
+        await DatabaseService.update_history(ctx)
+        _ = await redis_client.connection.client.delete(
+            _k_context(self.sid), _k_history(self.sid)
+        )
+
+        cold = await DatabaseService.get_session_context(self.sid)
+        self.assertEqual(cold.history.user_queries, ("add a vnet",))
+        cold.history.add_user_query("and a subnet")
+        await DatabaseService.update_history(cold)
+
+        final = await DatabaseService.get_session_context(self.sid)
+        self.assertEqual(final.history.user_queries, ("add a vnet", "and a subnet"))
 
 
 class TestSessionProviders(_SessionBase):

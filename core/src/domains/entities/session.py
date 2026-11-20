@@ -26,6 +26,7 @@ class SessionContext:
         operation_type: OperationType,
         history: list[dict[str, str]],
         chat_history: list[dict[str, str]],
+        user_queries: list[str] | None = None,
     ):
         self.__id = id
         self.__user_id = user_id
@@ -35,7 +36,7 @@ class SessionContext:
         self.__branch_name = branch_name
         self.__root_module_path = root_module_path
         self.__operation = operation_type
-        self.__history: History = History(history)
+        self.__history: History = History(history, user_queries)
         self.__chat_history: History = History(chat_history)
         self.__call_dir: Path | None = None
         self.__terraform_inputs: TerraformInputs | None = None

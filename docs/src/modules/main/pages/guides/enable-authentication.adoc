@@ -277,5 +277,6 @@ change.
   restart core`); the file is read only at startup.
 * *A `core_db_data` volume predates authentication.* A volume created
   before OIDC support was added keyed sessions by `username` instead of
-  the current `users` table; migrate it by hand or drop it before
-  pointing a current core at it.
+  the current `users` table. The core refuses to start on it ("The
+  database predates authentication"); migrate it by hand or drop it
+  before pointing a current core at it.
