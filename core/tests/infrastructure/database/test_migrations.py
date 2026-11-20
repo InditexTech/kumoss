@@ -18,7 +18,7 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from alembic.script import ScriptDirectory
-from sqlalchemy import inspect, text
+from sqlalchemy import Enum, inspect, text
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
@@ -45,6 +45,22 @@ def _schema_drift(connection: Connection) -> list[Any]:
     return compare_metadata(context, Base.metadata)
 
 
+def _drop_kumoss_schema(connection: Connection) -> None:
+    """Drop what the core owns, as the other database tests do, and nothing
+    else: the URL may point at a database shared with other data."""
+    Base.metadata.drop_all(connection)
+    _ = connection.execute(text("DROP TABLE IF EXISTS alembic_version"))
+    _ = connection.execute(text("DROP TABLE IF EXISTS sessions"))
+    enums = {
+        column.type.name
+        for table in Base.metadata.tables.values()
+        for column in table.columns
+        if isinstance(column.type, Enum) and column.type.name
+    }
+    for name in enums | {"terraformprovider"}:
+        Enum(name=name).drop(connection, checkfirst=True)
+
+
 def _version(connection: Connection) -> str | None:
     return MigrationContext.configure(connection).get_current_revision()
 
@@ -53,8 +69,7 @@ class TestMigrations(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.engine: AsyncEngine = create_async_engine(db_config.database_url)
         async with self.engine.begin() as conn:
-            _ = await conn.execute(text("DROP SCHEMA public CASCADE"))
-            _ = await conn.execute(text("CREATE SCHEMA public"))
+            await conn.run_sync(_drop_kumoss_schema)
 
     async def asyncTearDown(self):
         await self.engine.dispose()
@@ -162,8 +177,9 @@ class TestMigrations(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(RuntimeError, "boom"):
                 await migrate(self.engine)
 
-        tables = await self._run(lambda c: inspect(c).get_table_names())
-        self.assertEqual(tables, [])
+        tables = set(await self._run(lambda c: inspect(c).get_table_names()))
+        owned = set(Base.metadata.tables) | {"alembic_version"}
+        self.assertEqual(tables & owned, set())
 
     async def test_a_failed_statement_surfaces_and_frees_the_lock(self):
         def bad_statement(config: Any, _revision: str) -> None:
