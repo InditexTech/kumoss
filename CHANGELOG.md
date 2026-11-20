@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.0.9](https://github.com/InditexTech/kumoss/compare/v1.0.8...v1.0.9) (2026-11-19)
+
+
+### Bug Fixes
+
+* **nginx:** bump the web image's nginx base to 1.31.9 to fix [CVE-2026-123007](https://www.cve.org/CVERecord?id=CVE-2026-123007) ("nginx2root"), an HTTP/2 flow-control integer underflow (CVSS 4.0 9.2) that can corrupt the heap and allow remote code execution in the worker process; it affects nginx 1.9.5 through 1.31.8 and is fixed in 1.31.9 (mainline) and 1.30.7 (stable). The base image is now pinned as `tag@digest` so the version is visible in reviews and scans ([#524](https://github.com/InditexTech/kumoss/issues/524)) ([5e095c9](https://github.com/InditexTech/kumoss/commit/5e095c90afe75ebfbf936345d07d8714f748eb9f))
+* **deps:** bump dnspython to 2.9.2 in core, iac and notifications ([GHSA-vvf4-9x63-8xvv](https://osv.dev/GHSA-vvf4-9x63-8xvv)) ([#521](https://github.com/InditexTech/kumoss/issues/521)) ([b56e946](https://github.com/InditexTech/kumoss/commit/b56e9461db929094ff2e868cf073a430b9159a57))
+
+
+### Documentation
+
+* **quickstart:** point Kubernetes users to the published OCI Helm chart and the kind trial ([#497](https://github.com/InditexTech/kumoss/issues/497)) ([de614f6](https://github.com/InditexTech/kumoss/commit/de614f6c9371e2c196d040f491b5168b9b93db92))
+* **readme:** add an OpenTofu compatibility badge ([#492](https://github.com/InditexTech/kumoss/issues/492)) ([0d9e2ae](https://github.com/InditexTech/kumoss/commit/0d9e2aecde23eb72a45f2e745f6ce227a22acba7))
+* **readme:** clarify the Kumoss project description ([#498](https://github.com/InditexTech/kumoss/issues/498)) ([917648f](https://github.com/InditexTech/kumoss/commit/917648fa05be17512fc9c81e84fdc1ac3c81ccee))
+
 ## [1.0.8](https://github.com/InditexTech/kumoss/compare/v1.0.7...v1.0.8) (2026-11-05)
 
 
