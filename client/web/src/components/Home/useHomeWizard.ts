@@ -17,7 +17,20 @@ import { useWizardTerraform } from "@/hooks/useWizardTerraform";
 import { nextStep } from "@/hooks/wizardFlow";
 import { isMergeOnlySession } from "@/utils/session";
 import { probeManifest } from "@/services/core/manifest";
+import { ApiError } from "@/services/api";
 import type { ManifestAnswers, ManifestProbeResponse } from "@/types/api";
+
+/**
+ * What to tell the user when the repository step fails. The core's own
+ * reason is shown for the answers about the input (unreachable, not
+ * resolvable, not a valid URL); anything else gets the generic retry text.
+ */
+export function scanErrorMessage(err: unknown): string {
+  if (err instanceof ApiError && [400, 404, 422].includes(err.status) && err.detail) {
+    return err.detail;
+  }
+  return STRINGS.wizard.scanError;
+}
 
 export function useHomeWizard() {
   const { session, updateSession, resetNonce } = useSession();
@@ -148,10 +161,12 @@ export function useHomeWizard() {
         }
 
         case "repository_url": {
-          const repoUrl = value.trim();
-          if (!repoUrl) return;
+          const input = value.trim();
+          if (!input) return;
           try {
-            const paths = await repo.scan(repoUrl);
+            // The core resolves a repository name to its clone URL; only
+            // that URL is stored and sent on later calls.
+            const { repoUrl, roots: paths } = await repo.scan(input);
 
             if (paths.length === 0) {
               navigation.applyResolution({ repositoryUrl: repoUrl });
@@ -174,7 +189,7 @@ export function useHomeWizard() {
             advance(resolved);
           } catch (err) {
             console.error("Repository scan failed:", err);
-            repo.setScanError(STRINGS.wizard.scanError);
+            repo.setScanError(scanErrorMessage(err));
           }
           break;
         }

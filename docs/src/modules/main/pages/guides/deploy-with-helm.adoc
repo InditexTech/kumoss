@@ -122,13 +122,20 @@ multi-node cluster, a `ReadWriteMany` class removes the constraint.
 it and set `config.storage.*` instead.
 
 |`<component>.serviceAccount`, `<component>.podLabels`
-|The Kubernetes identity each of `proxy`, `core`, `iac` and
-`notifications` runs as; see <<workload-identity>>.
+|The Kubernetes identity each of `proxy`, `core`, `iac`,
+`notifications` and `mapping` runs as; see <<workload-identity>>.
 
 |`notifications.enabled`
 |Off by default. Turning it on requires `SLACK_WEBHOOK_URL` in
 `notifications.secretEnv` or `notifications.existingSecret`; the chart
 refuses to render without it.
+
+|`mapping.enabled`, `mapping.env.MAPPING_PREFIX_IDENTIFIER`
+|On by default. The prefix a bare repository name typed in the wizard
+is appended to (`foo` → `<prefix>foo.git`); empty accepts full
+`https://` URLs only. Turn `mapping.enabled` off to use the input as
+the URL without a mapper, or point `config.services.mapping.endpoint`
+at your own implementation.
 
 |`<component>.resources`
 |CPU and memory requests and limits. Empty by default; set them for
@@ -248,7 +255,7 @@ generated one has:
 |===
 |Key |Value
 
-|`KUMOSS_IAC_TOKEN`, `KUMOSS_NOTIFICATIONS_TOKEN`
+|`KUMOSS_IAC_TOKEN`, `KUMOSS_NOTIFICATIONS_TOKEN`, `KUMOSS_MAPPING_TOKEN`
 |Bearer tokens between the core and the sidecars (any random string)
 
 |`CORE_DB_PASSWORD`, `PHOENIX_DB_PASSWORD`

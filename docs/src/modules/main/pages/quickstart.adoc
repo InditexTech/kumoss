@@ -27,6 +27,7 @@ cd kumoss
 
 cp core/env.sample core/.env
 cp services/iac/env.sample services/iac/.env
+cp services/mapping/env.sample services/mapping/.env
 ----
 
 Each `env.sample` documents its own variables and is the source of truth
@@ -292,9 +293,10 @@ RustFS.
 * Decide where Terraform state should live before you point Kumoss at
   anything real:
   xref:main:guides/configure-state-backends.adoc[Configure state backends].
-* Turn on the optional sidecars — Slack notifications, resource mapping,
-  external authorization (the last two need an implementation you
-  provide) — from
+* Set `MAPPING_PREFIX_IDENTIFIER` in `services/mapping/.env` so users
+  can type a repository name instead of its URL, and turn on the
+  optional sidecars — Slack notifications, external authorization (it
+  needs an implementation you provide) — from
   xref:main:reference/configuration.adoc#config-services[`services`] and
   xref:main:reference/environment-variables.adoc[Environment variables and
   secrets].

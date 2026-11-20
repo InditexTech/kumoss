@@ -898,15 +898,16 @@ since Kumoss-managed state is on as shipped, or the repository's own block
 if that is turned off.
 |===
 
-The *mapping sidecar* translates a business identifier into a repository
-reference. Kumoss ships no implementation of it: provide your own, and
-while it is disabled the core treats the identifier as the repository
-URL (identity passthrough). It may
-also answer with the terraform provider and cloud scope that identifier
-deploys to, best effort: `null` means "unknown", never "there is none".
-The web wizard no longer calls it — providers and scopes come from the
-root module and its manifest — so the route stays only for other
-callers.
+The *mapping sidecar* translates what the user types in the wizard's
+repository step into a repository URL. `POST /api/v1/repository/parse`
+calls it before cloning and answers the resolved `repo_url`, which the
+wizard sends on every later call. The bundled implementation appends a
+bare repository name to `MAPPING_PREFIX_IDENTIFIER` with a `.git`
+suffix and passes full `https://` URLs through; a catalogue-backed one
+can replace it. While it is disabled the core treats the input as the
+repository URL (identity passthrough). Contract 2.0.0 answers the
+repository only: providers and scopes come from the root module and
+its manifest.
 
 [#drift]
 === Drift detection and remediation

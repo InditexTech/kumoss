@@ -1,5 +1,5 @@
 = Upgrade notes
-:description: Breaking changes to check before upgrading Kumoss: providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, removed request fields, and the new managed state key.
+:description: Breaking changes to check before upgrading Kumoss: providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
 
 This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
@@ -129,10 +129,45 @@ after the `202`. Update PDP policies that match `azure`, `gcp` or
 API].
 
 |Mapping (`mapping.v1.yaml`)
-|The `terraform_provider` enum is now `azurerm`, `google`, `aws`,
-`oci`, `kubernetes`, `vsphere`. The web wizard no longer calls the
-service. See xref:main:reference/api/mapping.adoc[Mapping sidecar API].
+|The request takes `identifier` only and the response answers
+`repo_url` and `identifier` only: `terraform_provider`, `scope_id` and
+the `TerraformProvider` enum are gone, and a request that still sends
+`terraform_provider` is `422`. The core's `POST /api/v1/mapping/resolve`
+passthrough was removed; the core now calls the service from
+`POST /api/v1/repository/parse` instead (see below). A `404`'s
+`detail` is shown to the user. See
+xref:main:reference/api/mapping.adoc[Mapping sidecar API].
 |===
+
+== The mapping sidecar is bundled and on by default
+
+The wizard's repository step now resolves what the user types through
+the mapping sidecar, so a bare repository name works as well as a URL.
+Kumoss bundles a mapping service (`services/mapping`, image
+`kumoss-mapping`) that appends a name to `MAPPING_PREFIX_IDENTIFIER`
+with a `.git` suffix, and the shipped `config.yaml` enables it
+(`services.mapping.enabled: true`, `endpoint: "http://mapping:8081"`).
+
+What that changes:
+
+* *Core boot.* With mapping enabled, the core refuses to boot without
+  `KUMOSS_MAPPING_TOKEN`. Add it to `core/.env` (and the same value to
+  `services/mapping/.env`), or set `services.mapping.enabled: false`.
+  The Helm chart generates the token itself; a `secrets.existingSecret`
+  must now also hold `KUMOSS_MAPPING_TOKEN`.
+* *Compose.* Copy `services/mapping/env.sample` to
+  `services/mapping/.env` and set `MAPPING_PREFIX_IDENTIFIER` to your
+  organization's base URL (e.g. `\https://github.com/my-org/`). Left
+  empty, only full `https://` URLs resolve, as before.
+* *Your own mapping implementation.* Keep your `services.mapping.endpoint`
+  and remove the bundled `mapping` service from your deployment (Helm:
+  `mapping.enabled: false` disables both; set
+  `config.services.mapping` back on with your endpoint).
+* *Core API.* `POST /api/v1/repository/parse` accepts a repository name
+  as `repo_uri` and answers `repo_url` next to `roots`; send that
+  `repo_url` on later calls. It can now also answer `404` (name not
+  resolvable) and `504` (mapper timeout). See
+  xref:main:reference/api/core.adoc[Core API].
 
 == Kumoss-managed state keys changed
 

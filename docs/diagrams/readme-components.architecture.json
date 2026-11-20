@@ -156,7 +156,7 @@
       "id": "mapping",
       "type": "backend",
       "label": "mapping",
-      "sublabel": "contract only · repository routing",
+      "sublabel": "enabled · repo name → URL",
       "row": 2,
       "col": 2,
       "size": [
@@ -231,14 +231,14 @@
       "label": "Bundled sidecars — OpenAPI contracts, replaceable",
       "wraps": [
         "iac",
-        "notifications"
+        "notifications",
+        "mapping"
       ]
     },
     {
       "kind": "region",
       "label": "Bring your own — disabled by default",
       "wraps": [
-        "mapping",
         "authz"
       ]
     }
@@ -315,8 +315,7 @@
       "id": "map-repo",
       "from": "core",
       "to": "mapping",
-      "label": "repository lookup",
-      "variant": "dashed"
+      "label": "resolve repo name"
     },
     {
       "id": "check-access",

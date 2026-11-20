@@ -7,6 +7,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
 import { useRepositoryScan } from "./useRepositoryScan";
+import type { RepositoryScan } from "./useRepositoryScan";
 
 describe("useRepositoryScan", () => {
   it("initializes with empty state", () => {
@@ -17,48 +18,77 @@ describe("useRepositoryScan", () => {
     expect(result.current.scanError).toBeNull();
   });
 
-  it("scan parses the typed URL directly, without the mapping service", async () => {
+  it("scan parses the typed URL directly", async () => {
     const requested: string[] = [];
-    let mapped = false;
     server.use(
-      http.post("/api/v1/mapping/resolve", () => {
-        mapped = true;
-        return HttpResponse.json({});
-      }),
       http.post("/api/v1/repository/parse", async ({ request }) => {
         const body = (await request.json()) as { repo_uri: string };
         requested.push(body.repo_uri);
-        return HttpResponse.json({ roots: ["environments/dev", "environments/pro"] });
+        return HttpResponse.json({
+          repo_url: body.repo_uri,
+          roots: ["environments/dev", "environments/pro"],
+        });
       }),
     );
 
     const { result } = renderHook(() => useRepositoryScan());
 
-    let paths: string[] = [];
+    let scanned: RepositoryScan = { repoUrl: "", roots: [] };
     await act(async () => {
-      paths = await result.current.scan("https://dev.azure.com/org/project/_git/repo");
+      scanned = await result.current.scan("https://dev.azure.com/org/project/_git/repo");
     });
 
     expect(requested).toEqual(["https://dev.azure.com/org/project/_git/repo"]);
-    expect(mapped).toBe(false);
-    expect(paths).toEqual(["environments/dev", "environments/pro"]);
+    expect(scanned).toEqual({
+      repoUrl: "https://dev.azure.com/org/project/_git/repo",
+      roots: ["environments/dev", "environments/pro"],
+    });
     expect(result.current.scanPaths).toEqual(["environments/dev", "environments/pro"]);
     expect(result.current.scanLoading).toBe(false);
   });
 
-  it("scan returns empty paths when the repo has no IaC", async () => {
+  it("scan answers the URL the core resolved a name to", async () => {
+    const requested: string[] = [];
     server.use(
-      http.post("/api/v1/repository/parse", () => HttpResponse.json({ roots: [] })),
+      http.post("/api/v1/repository/parse", async ({ request }) => {
+        const body = (await request.json()) as { repo_uri: string };
+        requested.push(body.repo_uri);
+        return HttpResponse.json({
+          repo_url: "https://github.com/MySuperOrg/foo.git",
+          roots: ["infra"],
+        });
+      }),
     );
 
     const { result } = renderHook(() => useRepositoryScan());
 
-    let paths: string[] = ["x"];
+    let scanned: RepositoryScan = { repoUrl: "", roots: [] };
     await act(async () => {
-      paths = await result.current.scan("https://example.com/repo");
+      scanned = await result.current.scan("foo");
     });
 
-    expect(paths).toEqual([]);
+    expect(requested).toEqual(["foo"]);
+    expect(scanned).toEqual({
+      repoUrl: "https://github.com/MySuperOrg/foo.git",
+      roots: ["infra"],
+    });
+  });
+
+  it("scan returns empty paths when the repo has no IaC", async () => {
+    server.use(
+      http.post("/api/v1/repository/parse", () =>
+        HttpResponse.json({ repo_url: "https://example.com/repo", roots: [] }),
+      ),
+    );
+
+    const { result } = renderHook(() => useRepositoryScan());
+
+    let scanned: RepositoryScan = { repoUrl: "", roots: ["x"] };
+    await act(async () => {
+      scanned = await result.current.scan("https://example.com/repo");
+    });
+
+    expect(scanned.roots).toEqual([]);
     expect(result.current.scanPaths).toEqual([]);
   });
 
@@ -82,7 +112,7 @@ describe("useRepositoryScan", () => {
 
   it("sets scanLoading during the scan", async () => {
     server.use(
-      http.post("/api/v1/repository/parse", () => HttpResponse.json({ roots: ["dev"] })),
+      http.post("/api/v1/repository/parse", () => HttpResponse.json({ repo_url: "https://example.com/repo", roots: ["dev"] })),
     );
 
     const { result } = renderHook(() => useRepositoryScan());
@@ -101,7 +131,7 @@ describe("useRepositoryScan", () => {
 
   it("resetScan clears all state", async () => {
     server.use(
-      http.post("/api/v1/repository/parse", () => HttpResponse.json({ roots: ["dev", "pro"] })),
+      http.post("/api/v1/repository/parse", () => HttpResponse.json({ repo_url: "https://example.com/repo", roots: ["dev", "pro"] })),
     );
 
     const { result } = renderHook(() => useRepositoryScan());

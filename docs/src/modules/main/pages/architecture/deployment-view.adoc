@@ -52,7 +52,7 @@ xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
 
 === Topology
 
-* All nine containers share one Docker bridge network. Only `proxy`
+* All eleven containers share one Docker bridge network. Only `proxy`
   publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
   (presigned object-storage access); every other service is
   internal-only via `expose`.
@@ -135,10 +135,11 @@ to plan for before running more than one:
   alone.
 * *Contract-first sidecars.* OpenAPI specifications are the
   authoritative boundary, with generated clients on one side and, on
-  the other, intentionally minimal bundled implementations for IaC and
-  notifications, inviting substitution in enterprise deployments; the
-  mapping and authorization contracts ship without an implementation,
-  as optional extension points you implement yourself.
+  the other, intentionally minimal bundled implementations for IaC,
+  notifications and mapping, inviting substitution in enterprise
+  deployments; the authorization contract ships without an
+  implementation, as an optional extension point you implement
+  yourself.
 * *Deliberately direct execution.* Pipelines run as in-process
   background tasks with a database compare-and-set as the only
   concurrency control; sidecar calls are synchronous HTTP with job

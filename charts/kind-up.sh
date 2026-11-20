@@ -119,7 +119,7 @@ if [ -n "${ENV_FILE}" ]; then
         key="${BASH_REMATCH[2]}"
         value="${BASH_REMATCH[3]}"
         case "${key}" in
-            KUMOSS_IAC_TOKEN | KUMOSS_NOTIFICATIONS_TOKEN | KUMOSS_SQL_DATABASE_URL | \
+            KUMOSS_IAC_TOKEN | KUMOSS_NOTIFICATIONS_TOKEN | KUMOSS_MAPPING_TOKEN | KUMOSS_SQL_DATABASE_URL | \
                 PHOENIX_SQL_DATABASE_URL | KUMOSS_REDIS_URL | RUSTFS_ACCESS_KEY | RUSTFS_SECRET_KEY)
                 continue ;;
         esac

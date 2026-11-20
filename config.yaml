@@ -16,8 +16,8 @@
 # Override only if you need a different env var name — see
 # core/src/shared/config/system_config.py for the `*_env` fields.
 #
-# To customize, edit this file (e.g., flip `services.mapping.enabled` to
-# true and point it at your own mapping service) or override
+# To customize, edit this file (e.g., point `services.mapping.endpoint`
+# at your own mapping service) or override
 # per-environment via a docker-compose.override.yml / your own
 # KUMOSS_CONFIG path.
 
@@ -69,12 +69,19 @@ admin:
 # token_env resolves to an empty value will refuse the core's boot —
 # flip `enabled: false` to skip an optional service entirely.
 #
-# `mapping` and `authz` have no bundled service: they are contracts
-# (contracts/openapi/) for you to implement. While disabled, the core
-# answers locally (identity passthrough for mapping, "authorized" for
-# authz). To enable one, set `enabled: true`, point `endpoint` at your
-# implementation and set its token env var in core/.env; the core
-# refuses to boot when an enabled service has no endpoint.
+# `mapping` is bundled and on by default: the web wizard's repository
+# scan sends what the user typed to it, so a bare repository name such
+# as `foo` resolves to `<MAPPING_PREFIX_IDENTIFIER>foo.git` (set the
+# prefix in services/mapping/.env). Point `endpoint` at your own
+# implementation of contracts/openapi/mapping.v1.yaml to use a real
+# catalogue instead. While disabled, the core takes what the user typed
+# as the repository URL.
+#
+# `authz` has no bundled service: it is a contract for you to implement.
+# While disabled, the core treats every operation as authorized. To
+# enable it, set `enabled: true`, point `endpoint` at your PDP and set
+# its token env var in core/.env; the core refuses to boot when an
+# enabled service has no endpoint.
 services:
   notifications:
     enabled: true
@@ -82,8 +89,8 @@ services:
     token_env: "KUMOSS_NOTIFICATIONS_TOKEN"
     timeout: 30.0
   mapping:
-    enabled: false
-    endpoint: ""
+    enabled: true
+    endpoint: "http://mapping:8081"
     token_env: "KUMOSS_MAPPING_TOKEN"
     timeout: 30.0
   authz:

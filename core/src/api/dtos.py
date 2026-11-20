@@ -14,9 +14,6 @@ from src.application.iac_requests import RepoUri
 from src.domains.value_objects import ManifestResolution, ProviderRequirement
 from src.shared.constants import OperationRole, PanelRole
 
-# Providers the mapping contract knows, by Terraform provider type name.
-MappingProvider = Literal["azurerm", "google", "aws", "oci", "kubernetes", "vsphere"]
-
 
 class AuthConfigResponse(BaseModel):
     """Public OIDC settings the SPA needs to run its login flow.
@@ -102,63 +99,6 @@ class NotificationAcceptedResponse(BaseModel):
     """The notifications service's delivery id for an accepted request."""
 
     delivery_id: UUID
-
-
-class MappingResolveRequest(BaseModel):
-    """Body of ``POST /v1/mapping/resolve``.
-
-    Mirrors the mapping contract's ``ResolveRequest``.
-    """
-
-    model_config: ClassVar[ConfigDict] = ConfigDict(extra="forbid")
-
-    identifier: str = Field(
-        min_length=1,
-        max_length=1024,
-        description="Business identifier to resolve.",
-    )
-    terraform_provider: MappingProvider | None = Field(
-        default=None,
-        description=(
-            "Provider the caller already knows the deployment targets, "
-            "if any. Echoed back in the response."
-        ),
-    )
-
-
-class MappingResolveResponse(BaseModel):
-    """What the mapper knows about an identifier.
-
-    Only ``repo_url`` is guaranteed. ``terraform_provider`` and
-    ``scope_id`` are best effort, and ``null`` means "unknown, ask the
-    user" rather than "there is none" — the wizard skips the step for
-    whichever of them comes back non-null.
-    """
-
-    repo_url: str = Field(
-        min_length=1,
-        max_length=2048,
-        description="URL to clone.",
-    )
-    identifier: str = Field(
-        min_length=1,
-        max_length=1024,
-        description="The request's identifier, echoed verbatim.",
-    )
-    terraform_provider: MappingProvider | None = Field(
-        default=None,
-        description="Provider the deployment targets, or null if unknown.",
-    )
-    scope_id: str | None = Field(
-        default=None,
-        min_length=1,
-        max_length=1024,
-        description=(
-            "Cloud scope the deployment targets — Azure subscription id, "
-            "GCP project id, AWS account id, OCI compartment OCID — or "
-            "null if unknown."
-        ),
-    )
 
 
 class ManifestProbeRequest(BaseModel):

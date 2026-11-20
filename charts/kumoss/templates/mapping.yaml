@@ -1,0 +1,84 @@
+{{- if .Values.mapping.enabled }}
+{{- $c := .Values.mapping }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "mapping") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "mapping") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "mapping") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "mapping") | nindent 8 }}
+        {{- range $k, $v := .Values.mapping.podLabels }}
+        {{ $k }}: {{ $v | toString | quote }}
+        {{- end }}
+      annotations:
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "mapping") }}
+        {{- with $c.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "kumoss.podIdentity" (list . "mapping") | nindent 6 }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: mapping
+          image: {{ include "kumoss.image" (list . $c.image) }}
+          imagePullPolicy: {{ $c.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 8081
+          {{- include "kumoss.envFrom" (list . "mapping" $c) | nindent 10 }}
+          env:
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_MAPPING_TOKEN" "KUMOSS_MAPPING_TOKEN") | nindent 12 }}
+            {{- include "kumoss.extraEnv" $c | nindent 12 }}
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 20
+          readinessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 10
+          {{- with $c.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with $c.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $c.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- include "kumoss.scheduling" $c | nindent 6 }}
+      {{- with $c.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "mapping") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "mapping") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "mapping") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+{{- end }}

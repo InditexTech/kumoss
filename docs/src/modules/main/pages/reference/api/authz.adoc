@@ -188,7 +188,13 @@ xref:main:reference/configuration.adoc#config-oidc[OIDC configuration].
 
 |`name`
 |Yes
-|One of: `generate`, `drift`, `import`, `apply`.
+|One of: `generate`, `drift`, `import`, `apply`, `pr.create`,
+`pr.merge`. The core currently sends the first four; a PDP must still
+accept the `pr.*` names.
+
+|`properties`
+|No
+|Free-form object; the core does not send it.
 |===
 
 ==== Resource

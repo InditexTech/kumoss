@@ -23,7 +23,25 @@ from src.domains.value_objects.manifest import VariableAnswer
 from src.shared.utils.urls import is_https_url
 
 
-def _validate_repo_uri(repo_uri: str) -> str:
+EMBEDDED_PASSWORD_MESSAGE = (
+    "repo_uri must not embed a password or token; pass the repository URI "
+    "without the `:<secret>` part (a bare `user@host` prefix is fine)."
+)
+
+
+def embeds_password(uri: str) -> bool:
+    """Whether a URL-shaped ``uri`` carries a userinfo password.
+
+    An empty password (`user:@host`) counts. Anything that does not parse
+    as a URL with a password, such as a bare repository name, does not.
+    """
+    try:
+        return urlparse(uri.strip()).password is not None
+    except ValueError:
+        return False
+
+
+def validate_repo_uri(repo_uri: str) -> str:
     """Accept only https repository URIs that carry no secret in their userinfo.
 
     Any other transport (SSH, `git://`, `http://`, `file://`, a local path)
@@ -42,16 +60,12 @@ def _validate_repo_uri(repo_uri: str) -> str:
             "repo_uri must be an https:// URL (e.g. `https://github.com/org/repo.git`); "
             "SSH, git://, http://, file:// and local paths are not supported."
         )
-    parsed = urlparse(repo_uri)
-    if parsed.password is not None:
-        raise ValueError(
-            "repo_uri must not embed a password or token; pass the repository URI "
-            "without the `:<secret>` part (a bare `user@host` prefix is fine)."
-        )
+    if embeds_password(repo_uri):
+        raise ValueError(EMBEDDED_PASSWORD_MESSAGE)
     return repo_uri
 
 
-RepoUri = Annotated[str, AfterValidator(_validate_repo_uri)]
+RepoUri = Annotated[str, AfterValidator(validate_repo_uri)]
 
 
 class ManifestVariableAnswer(BaseModel):

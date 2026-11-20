@@ -40,6 +40,9 @@ jobs:
           - image: notifications
             context: .
             dockerfile: services/notifications/Dockerfile
+          - image: mapping
+            context: .
+            dockerfile: services/mapping/Dockerfile
           - image: proxy
             context: .
             dockerfile: nginx/Dockerfile

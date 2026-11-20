@@ -58,6 +58,7 @@ spec:
           env:
             {{- include "kumoss.secretKeyRef" (list . "KUMOSS_IAC_TOKEN" "KUMOSS_IAC_TOKEN") | nindent 12 }}
             {{- include "kumoss.secretKeyRef" (list . "KUMOSS_NOTIFICATIONS_TOKEN" "KUMOSS_NOTIFICATIONS_TOKEN") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "KUMOSS_MAPPING_TOKEN" "KUMOSS_MAPPING_TOKEN") | nindent 12 }}
             {{- include "kumoss.secretKeyRef" (list . "KUMOSS_SQL_DATABASE_URL" "KUMOSS_SQL_DATABASE_URL") | nindent 12 }}
             {{- include "kumoss.secretKeyRef" (list . "KUMOSS_REDIS_URL" "KUMOSS_REDIS_URL") | nindent 12 }}
             {{- if .Values.objectStorage.enabled }}

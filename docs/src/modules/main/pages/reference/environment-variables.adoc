@@ -67,11 +67,13 @@ call
 |At boot: an empty token aborts startup
 
 |`KUMOSS_MAPPING_TOKEN`
-|Conditional
-|commented out in the sample
-|Bearer token for your own mapping implementation, sent when
-`services.mapping.enabled` is true. Must equal the token that
-implementation expects. Needed only when you enable it.
+|Conditional (needed with the shipped `config.yaml`, which enables
+mapping)
+|sample value `dev-mapping-token`
+|Bearer token for the mapping sidecar, sent when
+`services.mapping.enabled` is true. Must equal `KUMOSS_MAPPING_TOKEN`
+in `services/mapping/.env` (or the token your own implementation
+expects).
 |At boot when enabled
 
 |`KUMOSS_NOTIFICATIONS_TOKEN`
@@ -483,24 +485,54 @@ set for it (only `proxy` carries `restart: on-failure`), so it exits once and th
 the service from your Compose file or provide a webhook URL if you
 would rather not see it.
 
-== Mapping and authorization (no bundled sidecar)
+[#mapping-sidecar]
+== Mapping sidecar (`services/mapping/env.sample`)
 
-Kumoss bundles no mapping or authorization service, so there is no
-`env.sample` for either. The core reads only `KUMOSS_MAPPING_TOKEN` and
-`KUMOSS_AUTHZ_TOKEN` (see the core table above), and only when the
-matching `services.<name>.enabled` is `true`. Any other variables are
-whatever your own implementation needs.
+[cols="2,2,2,5,2",options="header"]
+|===
+|Variable |Requirement |Default |Meaning |Checked
 
-* *Mapping.* While `services.mapping.enabled` is `false` (the default)
-  the core never calls a service and performs an identity passthrough
-  itself: it returns the identifier as both `repo_url` and
-  `identifier`, echoes back any `terraform_provider` it was sent, and
-  answers `null` for `scope_id` — it knows nothing it was not told.
-  Once enabled, a service that times out or is unreachable makes
-  `POST /api/v1/mapping/resolve` fail with `504` or `502`, and so does
-  a response the core cannot parse or one naming a provider outside
-  the contract's enum; there is no silent fallback. The web wizard no
-  longer calls that route.
+|`MAPPING_PREFIX_IDENTIFIER`
+|Recommended
+|empty (full `https://` URLs only)
+|Base URL a bare repository name typed in the wizard is appended to,
+with a `.git` suffix: with `\https://github.com/MySuperOrg/`, `foo`
+resolves to `\https://github.com/MySuperOrg/foo.git`. A trailing `/` is
+added if missing. Must be `https://` with a host and no password,
+query or fragment. While empty, a bare name answers `404` and the
+wizard asks for a full URL. See
+xref:main:reference/api/mapping.adoc#bundled[The bundled
+implementation].
+|At startup: an invalid value stops the container
+
+|`KUMOSS_MAPPING_TOKEN`
+|Recommended
+|empty (accepts any bearer)
+|Token required on `POST /v1/resolve`. Must equal the core's
+`KUMOSS_MAPPING_TOKEN`.
+|Per request
+
+|`LOG_LEVEL`
+|Optional
+|`INFO`
+|Root log level.
+|At startup
+|===
+
+While `services.mapping.enabled` is `false`, the core never calls a
+mapper and uses what the user typed as the repository URL. Once
+enabled, a mapper that times out or is unreachable fails the wizard's
+repository scan with `504` or `502`, and so does a response the core
+cannot parse; there is no silent fallback. A `404` reaches the user
+with the mapper's explanation.
+
+== Authorization (no bundled sidecar)
+
+Kumoss bundles no authorization service, so there is no `env.sample`
+for it. The core reads only `KUMOSS_AUTHZ_TOKEN` (see the core table
+above), and only when `services.authz.enabled` is `true`. Any other
+variables are whatever your own implementation needs.
+
 * *Authorization.* The core consults the service from the IaC routes,
   once per provider scope of the session's root module, and only when
   `services.authz.enabled` is `true`. While disabled, the core treats
@@ -511,7 +543,7 @@ whatever your own implementation needs.
   the core database, not in this service, and are documented in the
   xref:main:guides/administer-users-and-locks.adoc[Admin portal] guide.
 
-To enable either, set `enabled: true`, point `endpoint` at your
+To enable it, set `enabled: true`, point `endpoint` at your
 implementation, and set the token variable in `core/.env`. The core
 refuses to boot when an enabled service has an empty `endpoint` or an
 empty token.
@@ -710,9 +742,12 @@ llm:
 # LLM provider
 ANTHROPIC_API_KEY=sk-example-not-a-real-key
 
-# Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)
+# Sidecar bearer tokens. The shipped config.yaml also enables
+# notifications and mapping: keep their tokens, or set
+# services.<name>.enabled: false.
 KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001
 KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled
+KUMOSS_MAPPING_TOKEN=unused-while-disabled
 
 # Git push credentials
 GIT_USER=kumoss-bot
@@ -761,7 +796,8 @@ services:
     enabled: true
   mapping:
     enabled: true
-    # Your own implementation of contracts/openapi/mapping.v1.yaml.
+    # Your own catalogue-backed implementation of
+    # contracts/openapi/mapping.v1.yaml instead of the bundled one.
     endpoint: "https://mapping.kumoss.example.invalid"
   authz:
     enabled: true

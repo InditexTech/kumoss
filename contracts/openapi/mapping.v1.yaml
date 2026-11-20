@@ -10,32 +10,33 @@ info:
   description: |
     The mapping service translates a "business identifier" (project name,
     subscription code, product slug, full repo URL — whatever an
-    organization uses) into the repository Kumoss should clone, plus
-    whatever else the organization's catalogue already knows about that
-    identifier: the Terraform provider it deploys with and the cloud
-    scope it deploys into.
+    organization uses) into the repository Kumoss should clone.
 
-    Only `repo_url` is guaranteed. `terraform_provider` and `scope_id`
-    are best effort, and **`null` means "I do not know, ask the user"** —
-    never "there is none". Kumoss skips the wizard step for any field the
-    mapper answers, so a confident wrong answer is worse than `null`: the
-    user is never prompted and never sees it. Return `null` whenever the
-    catalogue is not authoritative.
+    Changed in 2.0.0: the response carries the repository only. The
+    former best-effort `terraform_provider` and `scope_id` fields are
+    gone, along with the `TerraformProvider` schema: the core reads a
+    session's providers from the root module's `required_providers` and
+    its scopes from the module's `kumoss.yaml` manifest, so nothing
+    consumes them any more. A request that still sends
+    `terraform_provider` fails validation (`422`).
 
-    Kumoss does not bundle an implementation of this contract. While
-    `services.mapping` is disabled (the default), the core never calls
-    one and answers with an identity passthrough: the input identifier
-    is treated as the repo URL, `terraform_provider` echoes whatever the
-    caller sent, and `scope_id` is `null`.
+    The core calls this service when the web wizard scans a repository
+    (`POST /api/v1/repository/parse`), so a user can type an identifier
+    instead of a clone URL. Kumoss bundles a reference implementation,
+    enabled by default, that appends a bare repository name to a
+    configured URL prefix (`foo` → `<prefix>foo.git`) and passes full
+    `https://` URLs through. While `services.mapping` is disabled, the
+    core never calls a mapper and treats the identifier as the repo URL
+    (identity passthrough).
 
-    Implementations look up the identifier against an internal
+    Other implementations look the identifier up against an internal
     catalogue (CMDB, Backstage, a shared spreadsheet, …) and return the
     canonical IaC repo for it. The contract carries the result and says
-    nothing about where the lookup data lives.
+    nothing about where the lookup data lives. A `404` problem
+    document's `detail` is shown to the user, so it should say what to
+    type instead.
 
-    The mapping service is invoked only by the Kumoss core; browser
-    callers reach it through the core passthrough at
-    `POST /v1/mapping/resolve`.
+    The mapping service is invoked only by the Kumoss core.
   contact:
     name: Kumoss maintainers
     url: https://github.com/InditexTech/kumoss
@@ -61,14 +62,8 @@ paths:
       summary: Resolve a business identifier into an IaC repository reference.
       description: |
         Translates `identifier` into the repository the rest of Kumoss
-        operates on, and optionally into the Terraform provider and cloud
-        scope the caller would otherwise have to ask the user for.
-
-        `repo_url` is required. `terraform_provider` and `scope_id` are
-        best effort: implementations MUST return `null` rather than a
-        guess, because the caller skips its corresponding prompt for any
-        field that comes back non-null. `identifier` MUST echo the
-        request's `identifier` verbatim so callers can correlate.
+        operates on. `identifier` MUST echo the request's `identifier`
+        verbatim so callers can correlate.
       security:
         - bearerAuth: []
       requestBody:
@@ -173,15 +168,6 @@ components:
             $ref: "#/components/schemas/Problem"
 
   schemas:
-    TerraformProvider:
-      type: string
-      enum: [azurerm, google, aws, oci, kubernetes, vsphere]
-      description: |
-        Cloud provider a deployment targets, by Terraform provider type
-        name (the last segment of its source address, e.g. `azurerm` for
-        `hashicorp/azurerm`). Changed in 2.0.0 from the core's former
-        vocabulary (`azure`, `gcp`, `vmware`).
-
     ResolveRequest:
       type: object
       required: [identifier]
@@ -198,16 +184,6 @@ components:
           minLength: 1
           maxLength: 1024
           examples: ["my-project", "https://github.com/me/my-iac.git"]
-        terraform_provider:
-          description: |
-            Provider the caller already knows the deployment targets.
-            Implementations MAY use it to disambiguate identifiers that
-            span clouds, and MUST echo it back in the response when it is
-            sent. May be omitted or sent as null, which means the caller
-            does not know either.
-          anyOf:
-            - $ref: "#/components/schemas/TerraformProvider"
-            - type: "null"
 
     ResolveResponse:
       type: object
@@ -235,30 +211,6 @@ components:
           minLength: 1
           maxLength: 1024
           examples: ["my-project", "https://github.com/me/my-iac.git"]
-        terraform_provider:
-          description: |
-            Provider the deployment targets. Echoes the request's value
-            when one was sent; otherwise the implementation's best-effort
-            answer, or `null` for "I do not know, ask the user". Never
-            guess — the caller skips its provider prompt when this is
-            non-null, so a wrong value is never seen or corrected.
-          anyOf:
-            - $ref: "#/components/schemas/TerraformProvider"
-            - type: "null"
-        scope_id:
-          type: [string, "null"]
-          description: |
-            Cloud scope the deployment targets — Azure: subscription id,
-            GCP: project id, AWS: account id, OCI: compartment OCID,
-            VMware: vSphere datacenter name — as
-            a best-effort answer, or `null` for "I do not know, ask the
-            user". Same warning as `terraform_provider`: the caller skips
-            its scope prompt when this is non-null, so a wrong value
-            sends the user into a plan against the wrong scope with
-            nothing to catch it.
-          minLength: 1
-          maxLength: 1024
-          examples: ["0000aaaa-11bb-cccc-dd22-eeeeee333333", "my-gcp-project"]
 
     Health:
       type: object

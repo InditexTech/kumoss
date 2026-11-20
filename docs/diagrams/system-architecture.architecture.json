@@ -120,7 +120,7 @@
       "id": "sidecars",
       "type": "backend",
       "label": "Sidecar services",
-      "sublabel": "iac, notifications · BYO: mapping, authz",
+      "sublabel": "iac, notifications, mapping · BYO: authz",
       "tag": "OpenAPI contracts",
       "row": 1,
       "col": 3,

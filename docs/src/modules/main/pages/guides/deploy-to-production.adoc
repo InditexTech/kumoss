@@ -247,10 +247,12 @@ Phoenix.
 or implement the contract yourself to your organization's requirements.
 
 |Mapping sidecar
-|None bundled; your implementation of the mapping contract
+|Bundled prefix mapper (`services/mapping`), or your implementation of
+the mapping contract
 |Core only
-|Up to your implementation
-|Implement it against your catalogue, or leave it disabled.
+|None: it holds no data and calls nothing
+|Set `MAPPING_PREFIX_IDENTIFIER`, or replace it with an implementation
+backed by your catalogue.
 
 |Notifications sidecar
 |`services/notifications/Dockerfile` (port 8080, user `kumoss` 10001)
@@ -403,23 +405,24 @@ execution environment* are the security decisions you must make:
   sidecar as reachable only from the core and give it nothing more than
   the cloud identity it needs.
 
-=== Mapping (optional)
+=== Mapping (on by default)
 
-Kumoss ships no mapping implementation. While the integration is
-disabled, the core echoes every identifier: the value the user types is
-used as the repository URL. Enable it only with
-an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue)
-against the canonical IaC repository. Once enabled, a slow or
-unreachable sidecar makes `POST /api/v1/mapping/resolve` fail with
-`504`/`502`. The web wizard does not call that route: users type the
-repository URL, and a session's providers and scopes come from the root
-module and its xref:main:reference/root-module-manifest.adoc[manifest].
+The wizard's repository step goes through the mapping sidecar, so users
+can type a repository name instead of a clone URL. The bundled service
+appends a bare name to `MAPPING_PREFIX_IDENTIFIER` with a `.git` suffix
+(`foo` → `\https://github.com/MySuperOrg/foo.git`) and passes full
+`https://` URLs through; set the prefix to your organization's base
+URL, or leave it empty to accept full URLs only. See
+xref:main:reference/api/mapping.adoc#bundled[The bundled implementation].
 
-Your implementation may also answer `terraform_provider` and `scope_id`
-(the cloud subscription, project, account or compartment). Both are
-optional and best effort. Return `null` — meaning "I do not know" —
-whenever the catalogue is silent, and never infer a provider from the
-shape of the repository URL.
+To resolve business identifiers against a catalogue (CMDB, Backstage)
+instead, point `services.mapping.endpoint` at your own implementation
+of the contract and drop the bundled container. Once enabled, a slow or
+unreachable mapper makes the repository scan fail with `504`/`502`; set
+`services.mapping.enabled: false` to use what users type as the URL
+without any call. A session's providers and scopes come from the root
+module and its xref:main:reference/root-module-manifest.adoc[manifest],
+not from the mapper.
 
 === Notifications (optional, recommended)
 
