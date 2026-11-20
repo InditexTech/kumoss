@@ -55,6 +55,7 @@ services:
     depends_on:
       - core-db
       - notifications
+      - mapping
       - iac
       - redis
       - object-storage
@@ -84,6 +85,19 @@ services:
         required: false
     expose:
       - 8080
+    networks:
+      - bridge-network
+
+  mapping:
+    image: ghcr.io/inditextech/kumoss-mapping:1.0.8 # x-release-please-version
+    build:
+      context: .
+      dockerfile: ./services/mapping/Dockerfile
+    env_file:
+      - path: ./services/mapping/.env
+        required: false
+    expose:
+      - 8081
     networks:
       - bridge-network
 

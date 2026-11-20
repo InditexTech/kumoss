@@ -222,10 +222,10 @@ Requires restart: yes.
 == `services`
 
 Wiring for the four sidecars. Each sidecar implements an OpenAPI
-contract in `contracts/openapi/`. Kumoss bundles services for IaC and
-notifications, and any implementation of their contract can replace
-the bundled one by changing `endpoint`; mapping and authorization are
-optional extension points you implement yourself and point `endpoint`
+contract in `contracts/openapi/`. Kumoss bundles services for IaC,
+notifications and mapping, and any implementation of their contract
+can replace the bundled one by changing `endpoint`; authorization is an
+optional extension point you implement yourself and point `endpoint`
 at.
 
 Common fields, available under `services.notifications`,
@@ -240,20 +240,20 @@ none because the core cannot run without it.
 |`services.<name>.enabled` (not for `iac`)
 |boolean
 |`false`
-|`false` for `notifications`, `mapping`, `authz`
+|`true` for `notifications` and `mapping`; `false` for `authz`
 |Optional
 |Whether the core calls the sidecar. A disabled sidecar is never
-contacted: mapping is done locally, notifications are dropped, and
-authorization answers "authorized". Compose still starts the
-bundled notifications container; mapping and authorization have no
-bundled container. An `enabled` key under `services.iac` is ignored.
+contacted: mapping is done locally (what the user typed is the
+repository URL), notifications are dropped, and authorization answers
+"authorized". Compose still starts the bundled notifications and
+mapping containers; authorization has no bundled container. An `enabled` key under `services.iac` is ignored.
 
 |`services.<name>.endpoint`
 |string (base URL)
 |`""` for `notifications`, `mapping`, `authz`; *`\http://iac:8082`* for
 `iac` (its own code default, not just the shipped value)
-|`\http://notifications:8080`, `\http://iac:8082`; `""` for
-`mapping` and `authz` (no bundled implementation)
+|`\http://notifications:8080`, `\http://mapping:8081`,
+`\http://iac:8082`; `""` for `authz` (no bundled implementation)
 |Conditional (needed when enabled; always for `iac`)
 |Base URL the core calls, resolvable from inside the core container.
 *An empty `services.iac.endpoint` aborts the boot* with
@@ -1205,8 +1205,9 @@ git:
 ----
 
 Points that this example relies on but that the file cannot express:
-the mapping and authz endpoints must be your own implementations of
-their contracts (Kumoss bundles neither);
+the authz endpoint must be your own implementation of its contract
+(Kumoss bundles none), and the mapping endpoint either the bundled
+service or your own catalogue-backed one;
 Phoenix must be reachable at `collector_url` for prompt seeding; the
 Phoenix UI must be protected separately because it receives prompts and
 plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,

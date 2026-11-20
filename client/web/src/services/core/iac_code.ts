@@ -37,9 +37,14 @@ export async function mergePullRequest(
 
 export interface ParseRepositoryResponse {
   roots: string[];
+  /** The clone URL the input resolved to; use it for every later call. */
+  repo_url: string;
 }
 
-/** POST /v1/repository/parse — Parse a repo for Terraform root-module directories */
+/**
+ * POST /v1/repository/parse — resolve a repository name or URL through
+ * the mapping service and parse it for Terraform root-module directories.
+ */
 export async function parseRepository(
   repo_uri: string,
 ): Promise<ParseRepositoryResponse> {

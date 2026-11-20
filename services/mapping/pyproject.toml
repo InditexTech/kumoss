@@ -1,0 +1,20 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+[project]
+name = "kumoss-mapping"
+version = "1.0.8"
+description = "Reference implementation of contracts/openapi/mapping.v1.yaml — repository name prefix resolution."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi[standard]>=0.136.1",
+]
+
+[dependency-groups]
+tooling = [
+    "basedpyright>=1.39.9",
+    "pytest>=9.0.3",
+    "httpx>=0.28.1",
+    "pytest-cov>=6.0",
+]

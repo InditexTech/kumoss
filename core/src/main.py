@@ -15,7 +15,6 @@ from src.api.v1 import (
     auth,
     admin,
     session,
-    mapping,
     users,
     notifications,
     manifest,
@@ -101,10 +100,6 @@ tags_metadata: list[dict[str, str]] = [
         "description": "Session read models (list and detail).",
     },
     {
-        "name": "Mapping",
-        "description": "Passthrough to the mapping service.",
-    },
-    {
         "name": "Authentication",
         "description": "Public auth configuration for the SPA login flow and "
         "authorization decisions for cloud projects.",
@@ -157,7 +152,6 @@ app.include_router(repository.router, prefix="/v1")
 app.include_router(auth.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
 app.include_router(session.router, prefix="/v1")
-app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
 app.include_router(manifest.router, prefix="/v1")

@@ -127,6 +127,18 @@
         190,
         84
       ]
+    },
+    {
+      "id": "mapping",
+      "type": "backend",
+      "label": "mapping",
+      "sublabel": "FastAPI :8081, repo names",
+      "row": 2,
+      "col": 2,
+      "size": [
+        190,
+        84
+      ]
     }
   ],
   "boundaries": [
@@ -141,7 +153,8 @@
         "core",
         "coredb",
         "phoenix",
-        "proxy"
+        "proxy",
+        "mapping"
       ]
     }
   ],
@@ -175,6 +188,12 @@
       "from": "core",
       "to": "iac",
       "label": "engine jobs"
+    },
+    {
+      "id": "core-to-mapping",
+      "from": "core",
+      "to": "mapping",
+      "label": "repo name lookup"
     },
     {
       "id": "core-to-storage",
@@ -219,7 +238,7 @@
       "title": "Persistence and start-up",
       "items": [
         "Named volumes: core_db_data, phoenix_db_data, object_storage_data, workspaces",
-        "No authz or mapping container: those optional contracts are off and core answers locally",
+        "No authz container: that optional contract is off and core answers locally",
         "depends_on orders start-up without health checks; the prompt seeder retries phoenix"
       ]
     }

@@ -139,13 +139,13 @@ export const STRINGS = {
     tryAgain: "Try again",
     startOver: "Start over",
     ariaQuery: "Describe your infrastructure request",
-    ariaRepositoryUrl: "Repository URL",
+    ariaRepositoryUrl: "Repository name or URL",
     ariaRootModulePath: "Root module path",
     promptQuery: "What do you need?",
-    promptRepository: "What is the repository URL?",
+    promptRepository: "Which repository? Type its name or its URL.",
     promptRootModulePath: "Which root module?",
     placeholderQuery: "Type your request...",
-    placeholderRepository: "https://dev.azure.com/org/project/_git/repo",
+    placeholderRepository: "my-iac-repo or https://github.com/org/my-iac-repo.git",
     /**
      * Scope id in each provider's own jargon. Keys are Terraform provider
      * type names: only these providers take a scope id.

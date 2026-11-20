@@ -11,6 +11,8 @@ import { ModeProvider, useMode } from "@/contexts/ModeContext";
 import { MODE } from "@/types/ui";
 import { STRINGS } from "@/constants/strings";
 import { useHomeWizard } from "./useHomeWizard";
+import { ApiError } from "@/services/api";
+import type { RepositoryScan } from "@/hooks/useRepositoryScan";
 import type { ManifestProbeRequest, ManifestProbeResponse } from "@/types/api";
 
 // ─── Dynamic mock controls ────────────────────────────────────
@@ -18,7 +20,7 @@ const mockTerraformState = vi.fn<() => { status: string; message?: string }>(() 
 const mockTerraformRun = vi.fn();
 const mockTerraformReset = vi.fn();
 
-const mockScan = vi.fn<(repoUrl: string) => Promise<string[]>>();
+const mockScan = vi.fn<(input: string) => Promise<RepositoryScan>>();
 const mockScanPathsValue = vi.fn<() => string[]>(() => []);
 const mockScanLoadingValue = vi.fn(() => false);
 const mockScanErrorValue = vi.fn<() => string | null>(() => null);
@@ -147,7 +149,7 @@ describe("useHomeWizard orchestrator", () => {
   });
 
   it("handlePath sets rootModulePath and advances to inputs", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev", "environments/pro"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev", "environments/pro"] });
 
     const { result } = renderHook(
       () => ({
@@ -247,8 +249,8 @@ describe("useHomeWizard — repository scan", () => {
     mockScanErrorValue.mockReturnValue(null);
   });
 
-  it("scans the typed URL as is", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev", "environments/pro"]);
+  it("scans the trimmed input", async () => {
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev", "environments/pro"] });
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
@@ -258,8 +260,42 @@ describe("useHomeWizard — repository scan", () => {
     expect(result.current.data.repositoryUrl).toBe(REPO);
   });
 
+  it("keeps the URL a repository name resolved to, not the name", async () => {
+    const resolvedUrl = "https://github.com/MySuperOrg/foo.git";
+    mockScan.mockResolvedValueOnce({ repoUrl: resolvedUrl, roots: ["environments/dev", "environments/pro"] });
+    const { result } = renderHook(
+      () => ({ wizard: useHomeWizard(), session: useSession() }),
+      { wrapper: Wrapper },
+    );
+
+    await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.wizard.handleInput("foo"); });
+
+    expect(mockScan).toHaveBeenCalledWith("foo");
+    expect(result.current.wizard.data.repositoryUrl).toBe(resolvedUrl);
+    expect(result.current.session.session.workspace).toEqual({ uri: resolvedUrl });
+
+    act(() => { result.current.wizard.handlePath("environments/pro"); });
+    await waitFor(() => expect(mockTerraformRun).toHaveBeenCalled());
+    expect(mockTerraformRun.mock.calls[0][0]).toMatchObject({ repoUri: resolvedUrl });
+  });
+
+  it("shows the core's reason when a name cannot be resolved", async () => {
+    mockScan.mockRejectedValueOnce(
+      new ApiError(404, { detail: "Set MAPPING_PREFIX_IDENTIFIER or type the full URL." }),
+    );
+    const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
+
+    await act(async () => { await result.current.handleInput("deploy a VM"); });
+    await act(async () => { await result.current.handleInput("foo"); });
+
+    expect(mockSetScanError).toHaveBeenCalledWith(
+      "Set MAPPING_PREFIX_IDENTIFIER or type the full URL.",
+    );
+  });
+
   it("single root module path skips provider/scope and goes straight to inputs", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
     let answer: (r: ManifestProbeResponse) => void = () => {};
     mockProbeManifest.mockImplementationOnce(
       () => new Promise<ManifestProbeResponse>((resolve) => { answer = resolve; }),
@@ -288,7 +324,7 @@ describe("useHomeWizard — repository scan", () => {
   });
 
   it("multiple root module paths go to root_module_path, then to inputs", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev", "environments/pro"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev", "environments/pro"] });
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
@@ -315,7 +351,7 @@ describe("useHomeWizard — repository scan", () => {
   });
 
   it("zero root module paths reports that none were found", async () => {
-    mockScan.mockResolvedValueOnce([]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: [] });
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
@@ -348,7 +384,7 @@ describe("useHomeWizard — first call", () => {
   });
 
   it("probes with the repository and root module only: no provider", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
     await act(async () => { await result.current.handleInput("deploy a VM"); });
@@ -361,7 +397,7 @@ describe("useHomeWizard — first call", () => {
   });
 
   it("starts the session with repo, query and root module, and no provider or scope", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
     const { result } = renderHook(
       () => ({ wizard: useHomeWizard(), session: useSession() }),
       { wrapper: Wrapper },
@@ -444,7 +480,7 @@ describe("useHomeWizard — full modes skip the query", () => {
   });
 
   it("sends the fixed query to the API", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
     const { result } = renderWizard();
 
     act(() => { result.current.mode.setMode(MODE.IMPORT); });
@@ -487,7 +523,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       result.current.session.updateSession({ uuid: "abc-123" });
     });
 
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
@@ -523,7 +559,7 @@ describe("useHomeWizard — iterate & applyAfterPr", () => {
       });
     });
 
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
 
     await act(async () => { await result.current.wizard.handleInput("deploy a VM"); });
     await act(async () => { await result.current.wizard.handleInput("https://dev.azure.com/org/repo"); });
@@ -620,7 +656,7 @@ describe("useHomeWizard — restart", () => {
   });
 
   it("restart after full wizard completion clears all fields except query", async () => {
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
 
     const { result } = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
 
@@ -770,7 +806,7 @@ describe("useHomeWizard — root module inputs", () => {
   });
 
   async function reachInputs() {
-    mockScan.mockResolvedValueOnce(["environments/dev"]);
+    mockScan.mockResolvedValueOnce({ repoUrl: REPO, roots: ["environments/dev"] });
     const rendered = renderHook(() => useHomeWizard(), { wrapper: Wrapper });
     await act(async () => { await rendered.result.current.handleInput("deploy a VM"); });
     await act(async () => { await rendered.result.current.handleInput("https://dev.azure.com/org/repo"); });

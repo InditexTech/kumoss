@@ -15,15 +15,18 @@ import unittest
 from pathlib import Path
 from typing import Any
 
+import attrs
 import yaml
 
+from src.clients.authz.models.access_evaluation_request import (
+    AccessEvaluationRequest,
+)
 from src.clients.authz.models.resource_properties import ResourceProperties
 from src.clients.iac.models.scope_resource_ids_request_provider import (
     ScopeResourceIdsRequestProvider,
 )
-from src.clients.mapping.models.terraform_provider import (
-    TerraformProvider as MappingTerraformProvider,
-)
+from src.clients.mapping.models.resolve_request import ResolveRequest
+from src.clients.mapping.models.resolve_response import ResolveResponse
 from src.shared.constants import (
     DISCOVERABLE_PROVIDERS,
     SCOPE_BINDINGS,
@@ -74,23 +77,20 @@ class TestIacVocabulary(unittest.TestCase):
 
 
 class TestMappingVocabulary(unittest.TestCase):
-    def test_contract_and_client_agree_on_terraform_names(self):
-        contract = set(
-            _contract("mapping")["components"]["schemas"]["TerraformProvider"]["enum"]
-        )
-        client = {p.value for p in MappingTerraformProvider}
-        self.assertEqual(client, contract)
-        self.assertLessEqual({"azurerm", "google", "vsphere"}, contract)
-        self.assertFalse(contract & _OLD_NAMES)
-
-    def test_api_literal_matches_the_mapping_client(self):
-        from typing import get_args
-
-        from src.api.dtos import MappingProvider
-
+    def test_the_service_takes_no_provider_vocabulary(self):
+        # Contract 2.0.0 resolves an identifier to a repository only:
+        # providers come from the root module, scopes from its manifest.
+        schemas = _contract("mapping")["components"]["schemas"]
+        self.assertNotIn("TerraformProvider", schemas)
+        self.assertEqual(set(schemas["ResolveRequest"]["properties"]), {"identifier"})
         self.assertEqual(
-            set(get_args(MappingProvider)), {p.value for p in MappingTerraformProvider}
+            set(schemas["ResolveResponse"]["properties"]), {"repo_url", "identifier"}
         )
+
+    def test_the_client_carries_no_provider_or_scope(self):
+        self.assertEqual(ResolveRequest(identifier="x").to_dict(), {"identifier": "x"})
+        response = ResolveResponse(repo_url="https://x/y", identifier="x")
+        self.assertEqual(set(response.to_dict()), {"repo_url", "identifier"})
 
 
 class TestAuthzVocabulary(unittest.TestCase):
@@ -103,6 +103,20 @@ class TestAuthzVocabulary(unittest.TestCase):
         # The generated client carries it as a string too.
         resource = ResourceProperties(repo_uri="https://x/y", provider="vsphere")
         self.assertEqual(resource.to_dict()["provider"], "vsphere")
+
+    def test_request_envelope_matches_the_contract(self):
+        # The contract dropped the request `context`; a stale client
+        # would still let the core send it into an `additionalProperties:
+        # false` envelope.
+        schemas = _contract("authz")["components"]["schemas"]
+        self.assertEqual(
+            set(schemas["AccessEvaluationRequest"]["properties"]),
+            {"subject", "action", "resource"},
+        )
+        self.assertEqual(
+            set(attrs.fields_dict(AccessEvaluationRequest)),
+            {"subject", "action", "resource"},
+        )
 
 
 if __name__ == "__main__":

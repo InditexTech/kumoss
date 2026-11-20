@@ -46,7 +46,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [iac, notifications]
+        service: [iac, notifications, mapping]
     defaults:
       run:
         working-directory: services/${{ matrix.service }}

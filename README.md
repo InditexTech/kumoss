@@ -97,8 +97,9 @@ The result is **developer autonomy for infrastructure operations**: developers c
 | **Authorization**   | —                  | Your rules for who may request infrastructure, and where (authorization contract)                                |
 | **IaC executor**    | OpenTofu/Terraform | Your own runtime, version, and execution environment (IaC contract)                                              |
 | **Notifications**   | Slack webhook      | Any channel: Slack, Microsoft Teams, email, Discord, WhatsApp, … (notifications contract)                        |
+| **Repository mapping** | Name + URL prefix | Your catalogue (CMDB, Backstage, …) resolving what users type to a repository (mapping contract)               |
 
-Authorization, IaC, and notifications are sidecar services behind [OpenAPI contracts](contracts/openapi/); replace a bundled one or implement your own. Everything is exposed through a FastAPI API, with MCP and A2A support on the [roadmap](#roadmap) so other agents can use Kumoss directly.
+Authorization, IaC, notifications, and repository mapping are sidecar services behind [OpenAPI contracts](contracts/openapi/); replace a bundled one or implement your own. Everything is exposed through a FastAPI API, with MCP and A2A support on the [roadmap](#roadmap) so other agents can use Kumoss directly.
 
 ## How it works
 

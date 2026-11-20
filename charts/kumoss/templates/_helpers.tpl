@@ -138,7 +138,10 @@ wiring, then the user's `config` overrides (each layer wins).
     "iac" (dict "endpoint" (printf "http://%s:8082" (include "kumoss.component" (list . "iac"))))
     "notifications" (dict
       "enabled" .Values.notifications.enabled
-      "endpoint" (ternary (printf "http://%s:8080" (include "kumoss.component" (list . "notifications"))) "" .Values.notifications.enabled)))
+      "endpoint" (ternary (printf "http://%s:8080" (include "kumoss.component" (list . "notifications"))) "" .Values.notifications.enabled))
+    "mapping" (dict
+      "enabled" .Values.mapping.enabled
+      "endpoint" (ternary (printf "http://%s:8081" (include "kumoss.component" (list . "mapping"))) "" .Values.mapping.enabled)))
 }}
 {{- if .Values.phoenix.enabled }}
 {{- $_ := set $wiring "telemetry" (dict "collector_url" (printf "http://%s:6006/" (include "kumoss.phoenixHost" .))) }}

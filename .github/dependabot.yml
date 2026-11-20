@@ -62,6 +62,20 @@ updates:
 
   # Only contracts/conformance/authz ships its own uv.lock; the other
   # conformance suites are workspace members of their service projects.
+
+  - package-ecosystem: uv
+    directory: /services/mapping
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+
+  # Only contracts/conformance/authz ships its own uv.lock; the other
+  # conformance suites are workspace members of their service projects.
   - package-ecosystem: uv
     directory: /contracts/conformance/authz
     schedule:
@@ -117,6 +131,17 @@ updates:
     cooldown:
       default-days: 7
 
+
+  - package-ecosystem: docker
+    directory: /services/mapping
+    schedule:
+      interval: weekly
+      day: monday
+      time: '04:00'
+      timezone: UTC
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
   - package-ecosystem: npm
     directory: /client/web
     schedule:

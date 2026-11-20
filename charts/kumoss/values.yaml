@@ -4,8 +4,8 @@
 
 # Default values for the Kumoss chart.
 #
-# The chart mirrors docker-compose.yml: the four Kumoss services (proxy,
-# core, iac, notifications) plus the bundled backing services (two
+# The chart mirrors docker-compose.yml: the five Kumoss services (proxy,
+# core, iac, notifications, mapping) plus the bundled backing services (two
 # Postgres, Redis, RustFS object storage, Phoenix and SearXNG). Every
 # backing service can be switched off and replaced by an external one.
 
@@ -67,9 +67,10 @@ secrets:
   # ignored.
   existingSecret: ""
   # Bearer tokens the core sends to (and each service validates from)
-  # iac / notifications.
+  # iac / notifications / mapping.
   iacToken: ""
   notificationsToken: ""
+  mappingToken: ""
   # Bundled RustFS credentials (also handed to the core).
   objectStorageAccessKey: ""
   objectStorageSecretKey: ""
@@ -253,6 +254,42 @@ notifications:
   serviceAccount:
     create: true
     # Defaults to <release>-kumoss-notifications when create is true, else "default".
+    name: ""
+    # Workload identity binding (see the header of this section).
+    annotations: {}
+    # Kumoss never calls the Kubernetes API: no API token in the pod.
+    automount: false
+
+# Resolves what users type in the wizard's repository field. On by
+# default: a bare repository name `foo` becomes
+# `<MAPPING_PREFIX_IDENTIFIER>foo.git`, and a full https:// URL passes
+# through. Leave the prefix empty to accept full URLs only. Turn it off
+# (or point config.services.mapping.endpoint at your own implementation
+# of the mapping contract) to replace it.
+mapping:
+  enabled: true
+  image:
+    repository: ghcr.io/inditextech/kumoss-mapping
+    tag: ""
+    pullPolicy: IfNotPresent
+  env:
+    LOG_LEVEL: INFO
+    # e.g. https://github.com/my-org/. See services/mapping/env.sample.
+    MAPPING_PREFIX_IDENTIFIER: ""
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    # Defaults to <release>-kumoss-mapping when create is true, else "default".
     name: ""
     # Workload identity binding (see the header of this section).
     annotations: {}
