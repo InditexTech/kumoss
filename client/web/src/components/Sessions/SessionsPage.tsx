@@ -476,13 +476,13 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         extraToolbarContent={
           isAdminView ? (
             <a
-              href="/monitoring/projects"
+              href="/langfuse"
               target="_blank"
               rel="noopener noreferrer"
-              className={styles.phoenixLink}
+              className={styles.monitoringLink}
             >
               <OpenInNewIcon style={{ fontSize: "14px" }} />
-              Phoenix
+              Langfuse
             </a>
           ) : undefined
         }
