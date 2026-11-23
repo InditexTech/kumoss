@@ -101,7 +101,8 @@ class PromptSeeder:
                 labels = (*owned, self._SEED_LABEL)
                 current = await self._current_version(entry, seed)
                 if current is None:
-                    await self._create(entry, labels)
+                    # Same type as the prompt: Langfuse refuses a change.
+                    await self._create(entry, labels, chat_role=seed.chat_role)
                 else:
                     await self._label(entry, current, labels)
                 updated += 1
@@ -197,13 +198,19 @@ class PromptSeeder:
             return latest
         return None
 
-    async def _create(self, entry: SeedEntry, labels: tuple[str, ...]) -> None:
+    async def _create(
+        self,
+        entry: SeedEntry,
+        labels: tuple[str, ...],
+        chat_role: str | None = None,
+    ) -> None:
         try:
             created = await self._prompts.create(
                 entry.qualified_name,
                 entry.body,
                 labels=labels,
                 commit_message=entry.description,
+                chat_role=chat_role,
             )
         except httpx.HTTPError as e:
             raise PromptSeedPushError(

@@ -37,6 +37,10 @@ class PromptVersion:
     # The body of a text prompt, or of a chat prompt holding a single
     # message; None for any other shape.
     text: str | None
+    # None for a text prompt; for a chat prompt, the role of its first
+    # message. A prompt keeps its type across versions: Langfuse refuses a
+    # version of the other type.
+    chat_role: str | None = None
 
     @classmethod
     def from_api(cls, data: Mapping[str, Any]) -> PromptVersion:
@@ -45,6 +49,7 @@ class PromptVersion:
             version=data["version"],
             labels=tuple(data.get("labels") or ()),
             text=_text(data),
+            chat_role=_chat_role(data),
         )
 
 
@@ -57,6 +62,15 @@ def _text(data: Mapping[str, Any]) -> str | None:
     message: object = prompt[0]
     content = message.get("content") if isinstance(message, dict) else None
     return content if isinstance(content, str) else None
+
+
+def _chat_role(data: Mapping[str, Any]) -> str | None:
+    if data.get("type") != "chat":
+        return None
+    prompt = data.get("prompt")
+    first: object = prompt[0] if isinstance(prompt, list) and prompt else None
+    role = first.get("role") if isinstance(first, dict) else None
+    return role if isinstance(role, str) else "user"
 
 
 class LangfusePrompts:
@@ -95,15 +109,20 @@ class LangfusePrompts:
         text: str,
         labels: Sequence[str],
         commit_message: str | None = None,
+        chat_role: str | None = None,
     ) -> PromptVersion:
-        """A new version of text prompt ``name`` (the prompt itself when
-        missing), carrying ``labels`` from the start."""
+        """A new version of prompt ``name`` (the prompt itself when
+        missing), carrying ``labels`` from the start: a text prompt, or with
+        ``chat_role`` a chat prompt of one message with that role."""
         body: dict[str, Any] = {
             "type": "text",
             "name": name,
             "prompt": text,
             "labels": list(labels),
         }
+        if chat_role is not None:
+            body["type"] = "chat"
+            body["prompt"] = [{"role": chat_role, "content": text}]
         if commit_message:
             body["commitMessage"] = commit_message
         response = await self._client.post("v2/prompts", json=body)

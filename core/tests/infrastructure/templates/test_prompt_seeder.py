@@ -146,6 +146,25 @@ def test_a_seed_of_another_shape_is_stale(tmp_path: Path):
     _seed(tmp_path, langfuse)
 
     assert langfuse.writes == [("create", NAME, ("production", "seed"))]
+    # Still a chat prompt: Langfuse refuses a version of another type.
+    pushed = langfuse.prompts[NAME][-1]
+    assert (pushed.type, pushed.body) == ("chat", [{"role": "user", "content": BODY}])
+
+
+def test_a_stale_chat_seed_is_updated_as_a_chat_prompt(tmp_path: Path):
+    # An operator saved the prompt as chat in the Langfuse UI.
+    langfuse = FakeLangfuse()
+    old = [{"role": "system", "content": "old body"}]
+    langfuse.add(NAME, old, (*ENVS, "seed"), type="chat")
+
+    _seed(tmp_path, langfuse)
+
+    assert langfuse.writes == [("create", NAME, (*ENVS, "seed"))]
+    pushed = langfuse.prompts[NAME][-1]
+    assert (pushed.type, pushed.body) == (
+        "chat",
+        [{"role": "system", "content": BODY}],
+    )
 
 
 def test_a_refused_key_pair_fails_at_once_and_says_so(tmp_path: Path):

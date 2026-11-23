@@ -128,6 +128,13 @@ class FakeLangfuse:
         labels = tuple(body.get("labels") or ())
         if "latest" in labels:
             return httpx.Response(400, json={"message": "latest is reserved"})
+        existing = self.prompts.get(body["name"])
+        if existing and existing[-1].type != body.get("type", "text"):
+            # As Langfuse: a prompt keeps the type of its versions.
+            return httpx.Response(
+                400,
+                json={"message": "Previous versions have different prompt type."},
+            )
         self.writes.append(("create", body["name"], labels))
         number = self.add(
             body["name"], body["prompt"], labels, body.get("type", "text")
