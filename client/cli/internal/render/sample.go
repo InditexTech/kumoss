@@ -6,7 +6,6 @@ package render
 
 import (
 	"context"
-	"sort"
 	"strings"
 )
 
@@ -95,17 +94,4 @@ func ParseSample(body string) *Sample {
 		})
 	}
 	return s
-}
-
-// NeedsAsking returns the valueless, unowned keys — the ones only the user can
-// supply — sorted so the form order is stable.
-func (s *Sample) NeedsAsking(owned map[string]bool) []Var {
-	var out []Var
-	for _, v := range s.Vars {
-		if v.Value == "" && !owned[v.Key] {
-			out = append(out, v)
-		}
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
-	return out
 }

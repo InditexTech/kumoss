@@ -22,6 +22,7 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/source"
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 	"github.com/InditexTech/kumoss/client/cli/internal/tui"
+	"gopkg.in/yaml.v3"
 )
 
 // Options is the resolved input to RunPipeline.
@@ -69,6 +70,10 @@ func RunPipeline(ctx context.Context, opts Options) error {
 	if opts.DryRun {
 		return dryRun(ctx, opts)
 	}
+	out := opts.Out
+	if out == nil {
+		out = io.Discard
+	}
 
 	// Ensure the directory skeleton exists.
 	if err := opts.Home.Ensure(); err != nil {
@@ -109,6 +114,11 @@ func RunPipeline(ctx context.Context, opts Options) error {
 	if err != nil {
 		warn(opts.Warn, "could not fetch the env samples (%v); falling back to the built-in key list. Review the generated .env files against core/env.sample and services/*/env.sample in the repo, or the documentation.", err)
 	}
+
+	// The form shows what config.yaml holds, so a fresh install does not ask
+	// for a value that already has one. A file that does not parse is not a
+	// reason to stop: the fields just stay blank.
+	opts.UI.SetDefaults(configDoc(opts.Home.ConfigYAML()))
 
 	// Collect answers. ModeKeep skips the forms entirely.
 	if err := opts.UI.Configure(mode, s); err != nil {
@@ -153,13 +163,6 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		render.FillCloud(s, paths)
 
 		env := &render.Env{Samples: samples}
-		if samples != nil {
-			// Keys with no value and no owner: only the user can supply them.
-			env.Extra, err = opts.UI.ExtraVars(askList(samples, env.OwnedKeys(s)))
-			if err != nil {
-				return err
-			}
-		}
 		if err := env.Write(paths, s); err != nil {
 			return err
 		}
@@ -205,9 +208,37 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		if err := runner.Up(ctx, mode != tui.ModeFresh, !opts.Foreground); err != nil {
 			return fmt.Errorf("start the stack: %w", err)
 		}
+		// In the foreground the logs own the terminal until Ctrl-C, so there is
+		// no moment to print the URLs.
+		if !opts.Foreground {
+			fmt.Fprint(out, stackURLs)
+		}
 	}
 
 	return nil
+}
+
+// stackURLs are where a browser reaches the stack once `up` returns. Host
+// paths, because the containers expose their ports only inside the compose
+// network; the proxy publishes them.
+var stackURLs = `Kumoss is up:
+  app        http://localhost/
+  RustFS API http://localhost:9000
+  Phoenix    http://localhost/monitoring/
+`
+
+// configDoc parses the installed config.yaml for the wizard's defaults, or nil
+// when it is missing or unreadable.
+func configDoc(path string) map[string]any {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		return nil
+	}
+	return doc
 }
 
 // download returns the injected fetcher, or the real one at the release tag.
@@ -280,11 +311,6 @@ func dryRun(ctx context.Context, opts Options) error {
 	render.Fill(s, existing, rotate)
 	render.FillCloud(s, paths)
 	env := &render.Env{Samples: samples}
-	if samples != nil {
-		if env.Extra, err = opts.UI.ExtraVars(askList(samples, env.OwnedKeys(s))); err != nil {
-			return err
-		}
-	}
 
 	override, err := renderCompose(opts.Home, s, opts.HostCerts)
 	if err != nil {
@@ -325,18 +351,6 @@ func printSection(w io.Writer, path string, content []byte) error {
 		}
 	}
 	return nil
-}
-
-// askList flattens the samples' unanswered keys into the form's list. The label
-// is the key itself: the wizard cannot know what an unknown key means.
-func askList(samples *render.Samples, owned map[string]bool) []tui.Secret {
-	var out []tui.Secret
-	for _, s := range []*render.Sample{samples.Core, samples.IAC, samples.Notifications} {
-		for _, v := range s.NeedsAsking(owned) {
-			out = append(out, tui.Secret{Key: v.Key, Label: v.Key})
-		}
-	}
-	return out
 }
 
 // warn writes a non-fatal warning to w.

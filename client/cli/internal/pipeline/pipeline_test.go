@@ -22,20 +22,20 @@ import (
 type stubUI struct {
 	mode     tui.Mode
 	regen    bool
+	run      bool
 	askedReg []string
 }
 
 func (s *stubUI) SelectStateAction() (tui.Mode, error)         { return s.mode, nil }
 func (s *stubUI) Configure(tui.Mode, *state.State) error       { return nil }
 func (s *stubUI) RotateSecrets([]tui.Secret) ([]string, error) { return nil, nil }
-func (s *stubUI) ExtraVars([]tui.Secret) (map[string]string, error) {
-	return map[string]string{}, nil
-}
 func (s *stubUI) ConfirmRegenerate(what string) (bool, error) {
 	s.askedReg = append(s.askedReg, what)
 	return s.regen, nil
 }
-func (s *stubUI) RunDocker() (bool, error) { return false, nil }
+func (s *stubUI) RunDocker() (bool, error) { return s.run, nil }
+
+func (s *stubUI) SetDefaults(map[string]any) {}
 
 // stubDocker satisfies docker.Runner; no test starts the stack.
 // stubDocker records the calls and never runs compose: the tests that edit a
@@ -334,6 +334,41 @@ func TestDryRunInKeepModeReportsNothingToWrite(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "nothing would be written") {
 		t.Errorf("report = %q", out.String())
+	}
+}
+
+// Once the stack is up the user needs the addresses, not another command to
+// find them.
+func TestRunPipelinePrintsTheURLsAfterStarting(t *testing.T) {
+	h, _ := configured(t)
+	out := &strings.Builder{}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep, run: true}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	for _, want := range []string{"http://localhost/", "http://localhost:9000", "http://localhost/monitoring/"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %s:\n%s", want, out.String())
+		}
+	}
+}
+
+// "Not now" starts nothing, so there is no stack to point at.
+func TestRunPipelineStaysQuietWhenNotStarting(t *testing.T) {
+	h, _ := configured(t)
+	out := &strings.Builder{}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if strings.Contains(out.String(), "Kumoss is up") {
+		t.Errorf("printed the URLs without starting:\n%s", out.String())
 	}
 }
 

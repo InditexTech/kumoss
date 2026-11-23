@@ -281,15 +281,6 @@ func (e *Env) owned(s *state.State) map[string]string {
 	return owned
 }
 
-// OwnedKeys returns the env keys the wizard collects, for Sample.NeedsAsking.
-func (e *Env) OwnedKeys(s *state.State) map[string]bool {
-	keys := make(map[string]bool)
-	for k := range e.owned(s) {
-		keys[k] = true
-	}
-	return keys
-}
-
 // fallbackFiles is the built-in key list, used only when the sample fetch
 // failed. It mirrors the samples at the time of writing and can lag them.
 func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]string {
