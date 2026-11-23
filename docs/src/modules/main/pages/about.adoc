@@ -25,13 +25,13 @@ blocked delete, see xref:main:see-it-in-action.adoc[See Kumoss in action].
 == What you deploy
 
 :diagram-name: readme-components
-:diagram-alt: What you deploy: the browser and proxy, the core, the bundled iac, notifications and mapping sidecars, the contract-only authz service you bring yourself, the bundled core-db, Redis, object storage and Phoenix, and the external LLM, git hosting, cloud account and notification targets
+:diagram-alt: What you deploy: the browser and proxy, the core, the bundled iac, notifications and mapping sidecars, the contract-only authz service you bring yourself, the bundled core-db, Redis, object storage and Langfuse, and the external LLM, git hosting, cloud account and notification targets
 :diagram-verb: trace a relationship
 include::partial$interactive-diagram.adoc[]
 
 The core platform components — the `core` orchestration API, the `proxy`
 (nginx), `core-db` (PostgreSQL), `redis`, `object-storage`, and the
-`phoenix` observability stack — run as shipped and are configured through
+`langfuse` observability stack — run as shipped and are configured through
 `config.yaml` and the `.env` files. You never reimplement them; in
 production you replace only the bundled datastores.
 
@@ -85,7 +85,7 @@ the only public entry point.
 * *Full traceability* — an admin panel over users, sessions, and roles, all
   stored in a database.
 * *Observability built in* — every agent and every system prompt read at
-  runtime is traced with OpenTelemetry and Arize Phoenix.
+  runtime is traced with OpenTelemetry and Langfuse.
 
 *Bring your own*
 

@@ -100,10 +100,11 @@ Controls:
   is "Lock apply" or "Unlock apply") that toggles the lock; the detail
   panel shows the same state as the text "Apply Locked" or "Apply
   Open".
-* *Phoenix.* A link that opens `/monitoring/projects` in a new tab,
-  where the traces of every run live. The link is not filtered by
-  session; search by session id in Phoenix. See
-  xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
+* *Langfuse.* A link that opens Langfuse in a new tab, where the traces
+  of every run live. It goes to `/langfuse` on the proxy, which
+  redirects to the Langfuse UI. The link is not filtered by session;
+  open *Sessions* in Langfuse and search for the session id. See
+  xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse].
 
 The detail panel shows everything the owner sees — including the
 *Conversation* — plus the *Internal history* and, for editors and
@@ -196,7 +197,7 @@ session, which sets the flag afresh; drift rounds never change it.
   artifacts show exactly what was written.
 . Open *History* to read the conversation, including declined or
   reformulated requests.
-. Use the *Phoenix* link to inspect the traces for the session id when
+. Use the *Langfuse* link to inspect the traces for the session id when
   you need the prompts, tool calls, or model outputs behind a step.
 . Failed sessions cannot be resumed; ask the owner to start a new
   session with the corrected request.
@@ -240,7 +241,7 @@ to infrastructure; adjust the operation role separately if needed.
 
 == Next steps
 
-* xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] to
+* xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] to
   inspect the traces behind any session.
 * xref:main:additional-information.adoc#support-requests[Support
   requests] for who receives the support requests users send from the

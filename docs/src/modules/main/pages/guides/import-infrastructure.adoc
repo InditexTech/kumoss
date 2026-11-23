@@ -58,7 +58,7 @@ empty text.
   resources another control plane owns, such as AKS-managed resource
   groups or GKE nodes.
 . *Import exception list.* IDs on the
-  `<provider>-guidelines-import_exceptions` lists of the module's
+  `<provider>/guidelines/import_exceptions` lists of the module's
   providers are withheld from the rest
   of the round, whatever the request says. See
   xref:main:guides/customize-prompts.adoc#import-exception-list[Import

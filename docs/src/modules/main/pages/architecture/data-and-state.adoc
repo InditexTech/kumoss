@@ -1,8 +1,8 @@
 = Data and state
-:description: What core-db, phoenix-db, Redis, object storage, and the workspaces volume each hold.
+:description: What core-db, Langfuse's stores, Redis, object storage, and the workspaces volume each hold.
 
 This page describes what each of Kumoss's data stores holds: core-db,
-phoenix-db, Redis, object storage, and the `workspaces` volume on the
+Langfuse's stores, Redis, object storage, and the `workspaces` volume on the
 filesystem shared between the core and the iac sidecar.
 
 == core-db
@@ -31,11 +31,15 @@ For the table-by-table breakdown, the enumerated columns, and how
 deletion cascades, see
 xref:main:reference/database-schema.adoc[Database schema].
 
-== phoenix-db
+== Langfuse's stores
 
-*phoenix-db (PostgreSQL 17)* belongs exclusively to Phoenix and stores
-traces and prompt versions — operational/LLM telemetry, fully separate
-from Kumoss's domain data.
+Langfuse owns its stores exclusively; they hold operational/LLM
+telemetry and prompts, fully separate from Kumoss's domain data.
+*langfuse-db (PostgreSQL 17)* stores prompt versions and their labels,
+plus Langfuse's users, project and API keys. *langfuse-clickhouse*
+stores the traces. *langfuse-redis* is Langfuse's job queue (run with
+`noeviction`, unlike the core's cache), and the `langfuse` bucket on the
+object-storage service keeps the raw ingested events.
 
 == Redis
 

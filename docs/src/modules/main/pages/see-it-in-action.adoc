@@ -79,7 +79,7 @@ was reviewed.
 |2:15
 |**Live in the cloud.** The new resources appear in the cloud console,
 and every agent step is recorded as a trace.
-|xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
+|xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse]
 
 |2:34
 |**Rules defined once.** The platform team keeps its security and

@@ -72,7 +72,7 @@ never refused with `409`: the runner that loses logs
 returns without touching the session. It then clones into
 `/workspaces/<session>/<call>` on the volume shared with the iac
 sidecar, pushes the branch `Kumoss/YYYY-MM-DD_HHMMSS` (UTC), and installs
-the per-session Phoenix tracer.
+the per-session Langfuse tracer.
 
 |Manifest and authorization
 |On a first call the runner inspects the root module, reconciles it with
@@ -95,8 +95,8 @@ its Terraform runs; apply runs the pinned plan, which already has them.
 
 |Request Filter Agent (`filtering`)
 |The small model, with read-only workspace tools, classifies the request
-against the `general-guidelines-requests` prompt and the
-`<provider>-guidelines-forbidden_actions` prompt of each provider of the
+against the `general/guidelines/requests` prompt and the
+`<provider>/guidelines/forbidden_actions` prompt of each provider of the
 root module that has one. A change request
 proceeds; a question is answered in the conversation; an out-of-scope,
 prohibited or ambiguous request is declined with a rationale. In the
@@ -106,7 +106,7 @@ reformulate — the session itself stays usable.
 |Prompt Compositor
 |Two small-model passes select the relevant resource templates and
 abbreviations from the `resources_list` and `abbreviations` prompts of
-the module's providers in Phoenix, then look for dependencies among them. The result is
+the module's providers in Langfuse, then look for dependencies among them. The result is
 the round's _conventions_, which every later agent is rendered with.
 |===
 
@@ -214,7 +214,7 @@ Messages 26 to 34; the diagram also covers phase 8.
 |Report Generator (`report`)
 |The main model turns the final plan into a JSON report: create, update,
 delete and recreate counts, detailed changes, an impact banner (`low`,
-`medium`, `high`) assigned with the `general-compliance-impact`
+`medium`, `high`) assigned with the `general/compliance/impact`
 criteria, and cost estimates.
 
 |Artifacts
@@ -236,7 +236,7 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.
 |With `orchestration.enable_compliance_checker` on, a second,
 independent small-model agent reads the session's first request and the
 raw plan output — not the report JSON — alongside the
-`general-compliance-report` rules and the cloud guidelines. It has no
+`general/compliance/report` rules and the cloud guidelines. It has no
 repository tools and must answer through its only tool,
 `report_compliance_findings`: rule id, severity, resource, message,
 suggested fix. The findings are stored like any other artifact, at
@@ -431,7 +431,7 @@ operations per drift batch.
 
 Every message into the agents lane is one of the agents below. Each is
 an orchestration loop rendered from a Jinja layout with
-prompts fetched from Phoenix, given a fixed tool set, and ended by a
+prompts fetched from Langfuse, given a fixed tool set, and ended by a
 *sentinel tool* whose structured arguments are the agent's result.
 
 [cols="2,1,3,2,3",options="header"]
@@ -457,7 +457,7 @@ sessions
 |Drift Target Generator
 |main
 |the same read-only set, rendered with the
-`general-guidelines-targeting_policies` prompt
+`general/guidelines/targeting_policies` prompt
 |`generate_terraform_targets`
 |Dedicated *partial* drift sessions only, never in the generate flow
 
@@ -648,7 +648,7 @@ misleads, since drift rounds never pin. The runner sets `FAILED` and sends
 |*Pipeline failed* — any phase
 |Any error the core raises as one of its own typed exceptions: a model or
 tool error, a drift remediation batch that exhausts its own validation
-attempts, a sidecar timeout, a git or storage failure, a prompt Phoenix
+attempts, a sidecar timeout, a git or storage failure, a prompt Langfuse
 cannot return
 |`runner failed: <reason>` and `system.exception.failure`; run directory
 removed; in-flight guard released.
@@ -748,7 +748,8 @@ The nginx image compiles the SPA in a Node builder stage and serves the
 bundle itself; there is no separate frontend container. The SPA uses
 relative paths, so nginx is the only address the browser knows: `/api`
 proxies to `core:8000`, a dedicated events location disables proxy buffering
-so progress streams immediately, and `/monitoring/` exposes the Phoenix UI.
+so progress streams immediately, and a server on port 3000 exposes the
+Langfuse UI.
 nginx authenticates nothing — bearer tokens pass through to the core.
 
 [#auth]
@@ -840,7 +841,7 @@ repository field at all, so both skip it.
 
 The pipeline then runs in-process as a background task; there is no external
 job queue. Each run gets a freshly assembled object graph: the two model
-providers, the workspace tool registry, Phoenix-backed template services,
+providers, the workspace tool registry, Langfuse-backed template services,
 and the validation, filter, report, drift, task-splitting and pull-request
 services.
 
@@ -929,7 +930,7 @@ All drift work runs through one bounded loop:
 . *Split, filter, and remediate.* A clean plan stops the loop. Otherwise
   the Drift Task Splitter (main model) turns the JSON into plain-language
   operations, the Drift Exception Filter drops every operation the
-  `<provider>-guidelines-drift_exceptions` rules of the module's providers
+  `<provider>/guidelines/drift_exceptions` rules of the module's providers
   cover (logging each one), and
   the survivors, chunked into groups of `drift_group_operations` (8), each
   re-enter the generation and validation loop with the forbidden-actions
@@ -1023,7 +1024,7 @@ rounds made.
 The pre-check replaced an earlier design in which a *predictive* target
 agent guessed the affected resources and remediated drift *before* any code
 was generated. That agent and its `PREDICTIVE` mode were removed, and the
-shared Phoenix guideline was renamed from `predictive_targets` to
+shared guideline prompt was renamed from `predictive_targets` to
 `targeting_policies`.
 
 [#compliance]
@@ -1044,8 +1045,8 @@ no progress status of its own.
 |How it audits
 |A second, independent small-model agent loop. Its query is the session's
 first user request plus the raw plan output, rendered into the local
-compliance-checker layout with the `general-compliance-report` rules and the
-cloud guidelines from Phoenix. It has no repository access and one tool, the
+compliance-checker layout with the `general/compliance/report` rules and the
+cloud guidelines from Langfuse. It has no repository access and one tool, the
 sentinel `report_compliance_findings`, whose arguments — `rule_id`,
 `severity`, `resource`, `message` and `suggested_fix` per violation — are
 parsed into a typed report. The rules are applied by the model; only the
@@ -1092,10 +1093,11 @@ time.
   `kumoss-artifacts` bucket, metadata to PostgreSQL. The browser fetches
   them through presigned URLs signed against the public port-9000 endpoint
   nginx forwards to RustFS.
-* Every run installs a per-session tracer exporting OpenInference-annotated
-  spans — LLM, tool, chain, Terraform — to Phoenix over OTLP/HTTP.
-* Prompt templates live in Phoenix as a runtime registry, seeded at boot and
-  fetched per request by environment tag, so prompt edits apply without a
+* Every run installs a per-session tracer exporting spans with Langfuse's
+  own attributes — generation, tool, agent, Terraform evaluator — to
+  Langfuse over OTLP/HTTP, grouped by the session's id.
+* Prompt templates live in Langfuse as a runtime registry, seeded at boot and
+  fetched per request by environment label, so prompt edits apply without a
   redeploy.
 * Notifications are fire-and-forget: the facade no-ops when the sidecar is
   disabled and logs every send failure instead of failing the pipeline.

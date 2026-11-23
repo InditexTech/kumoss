@@ -5015,9 +5015,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <!-- Boundaries (behind everything) -->
         <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="0" data-composition-frame-label="Core platform components — run as shipped" x="290" y="10" width="810" height="338" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="1" data-composition-frame-label="Bundled sidecars — OpenAPI contracts, replaceable" x="10" y="418" width="530" height="134" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="1" data-composition-frame-label="Bundled sidecars — OpenAPI contracts, replaceable" x="10" y="418" width="810" height="134" rx="12" class="c-region" stroke-width="1"/>
 
-        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="2" data-composition-frame-label="Bring your own — disabled by default" x="570" y="418" width="530" height="134" rx="12" class="c-region" stroke-width="1"/>
+        <rect data-graph-role="structural-frame" data-composition-frame-kind="region" data-composition-frame-id="2" data-composition-frame-label="Bring your own — disabled by default" x="850" y="418" width="250" height="134" rx="12" class="c-region" stroke-width="1"/>
 
         <!-- Connection paths (before components for correct z-order) -->
         <g data-graph-role="automatic-crossover" style="--step:0">
@@ -5030,11 +5030,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
         <g data-graph-role="automatic-crossover" style="--step:2">
           <path data-graph-role="automatic-crossover-underlay" d="M 415 244 L 415 124" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="proxy" data-edge-to="phoenix" data-edge-label="/monitoring/" data-edge-key="2" data-edge-id="monitoring" data-composition-points="415,244;415,124" data-composition-crossover="halo" data-composition-independent="true" d="M 415 244 L 415 124" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-edge-from="proxy" data-edge-to="langfuse" data-edge-label=":3000" data-edge-key="2" data-edge-id="monitoring" data-composition-points="415,244;415,124" data-composition-crossover="halo" data-composition-independent="true" d="M 415 244 L 415 124" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:3">
           <path data-graph-role="automatic-crossover-underlay" d="M 600 279 L 563 279 Q 555 279 555 271 L 555 90 Q 555 82 547 82 L 510 82" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="core" data-edge-to="phoenix" data-edge-label="OTLP + prompts" data-edge-key="3" data-edge-id="traces" data-composition-points="600,279;555,279;555,82;510,82" data-composition-crossover="halo" data-composition-independent="true" d="M 600 279 L 563 279 Q 555 279 555 271 L 555 90 Q 555 82 547 82 L 510 82" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
+          <path data-edge-from="core" data-edge-to="langfuse" data-edge-label="OTLP + prompts" data-edge-key="3" data-edge-id="traces" data-composition-points="600,279;555,279;555,82;510,82" data-composition-crossover="halo" data-composition-independent="true" d="M 600 279 L 563 279 Q 555 279 555 271 L 555 90 Q 555 82 547 82 L 510 82" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:4">
           <path data-graph-role="automatic-crossover-underlay" d="M 681 244 L 681 124" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
@@ -5062,7 +5062,7 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
         <g data-graph-role="automatic-crossover" style="--step:10">
           <path data-graph-role="automatic-crossover-underlay" d="M 695 328 L 695 448" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
-          <path data-edge-from="core" data-edge-to="mapping" data-edge-label="repository lookup" data-edge-key="10" data-edge-id="map-repo" data-composition-points="695,328;695,448" data-composition-crossover="halo" data-composition-independent="true" d="M 695 328 L 695 448" class="a-dashed" stroke-width="1.5" marker-end="url(#arrowhead-dashed)"/>
+          <path data-edge-from="core" data-edge-to="mapping" data-edge-label="resolve repo name" data-edge-key="10" data-edge-id="map-repo" data-composition-points="695,328;695,448" data-composition-crossover="halo" data-composition-independent="true" d="M 695 328 L 695 448" class="a-default" stroke-width="1.5" marker-end="url(#arrowhead)"/>
         </g>
         <g data-graph-role="automatic-crossover" style="--step:11">
           <path data-graph-role="automatic-crossover-underlay" d="M 709 328 L 709 380 Q 709 388 717 388 L 967 388 Q 975 388 975 396 L 975 448" fill="none" stroke="var(--mask)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round" pointer-events="none"/>
@@ -5082,16 +5082,16 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
 
         <!-- Components -->
-        <g id="node-phoenix" data-node-id="phoenix" data-node-label="phoenix" tabindex="0" role="button" aria-label="Focus phoenix, observability + prompts, Core platform components — run as shipped" aria-pressed="false" data-node-kind="backend" data-node-sublabel="observability + prompts" data-node-tag="with phoenix-db" data-node-context="Core platform components — run as shipped">
-          <title>phoenix · observability + prompts · Core platform components — run as shipped · with phoenix-db</title>
+        <g id="node-langfuse" data-node-id="langfuse" data-node-label="langfuse" tabindex="0" role="button" aria-label="Focus langfuse, observability + prompts, Core platform components — run as shipped" aria-pressed="false" data-node-kind="backend" data-node-sublabel="observability + prompts" data-node-tag="with its own stores" data-node-context="Core platform components — run as shipped">
+          <title>langfuse · observability + prompts · Core platform components — run as shipped · with its own stores</title>
           <rect x="320" y="40" width="190" height="84" rx="6" class="c-mask"/>
           <rect x="320" y="40" width="190" height="84" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(326 46) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
-          <text data-node-label="" data-detail-anchor="" x="415" y="80" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">phoenix</text>
+          <text data-node-label="" data-detail-anchor="" x="415" y="80" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">langfuse</text>
         <text data-detail="context" x="415" y="96" class="t-muted" font-size="9" text-anchor="middle">observability + prompts</text>
-        <text data-detail="fine" x="415" y="116" class="t-backend" font-size="7" text-anchor="middle">with phoenix-db</text>
+        <text data-detail="fine" x="415" y="116" class="t-backend" font-size="7" text-anchor="middle">with its own stores</text>
         </g>
 
         <g id="node-redis" data-node-id="redis" data-node-label="redis" tabindex="0" role="button" aria-label="Focus redis, read-through cache, Core platform components — run as shipped" aria-pressed="false" data-node-kind="database" data-node-sublabel="read-through cache" data-node-context="Core platform components — run as shipped">
@@ -5144,15 +5144,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="135" y="300" class="t-muted" font-size="9" text-anchor="middle">React SPA</text>
         </g>
 
-        <g id="node-proxy" data-node-id="proxy" data-node-label="proxy" tabindex="0" role="button" aria-label="Focus proxy, web app, API, monitoring, Core platform components — run as shipped" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="web app, API, monitoring" data-node-context="Core platform components — run as shipped">
-          <title>proxy · web app, API, monitoring · Core platform components — run as shipped</title>
+        <g id="node-proxy" data-node-id="proxy" data-node-label="proxy" tabindex="0" role="button" aria-label="Focus proxy, web app, API, Langfuse UI, Core platform components — run as shipped" aria-pressed="false" data-node-kind="cloud" data-node-sublabel="web app, API, Langfuse UI" data-node-context="Core platform components — run as shipped">
+          <title>proxy · web app, API, Langfuse UI · Core platform components — run as shipped</title>
           <rect x="320" y="244" width="190" height="84" rx="6" class="c-mask"/>
           <rect x="320" y="244" width="190" height="84" rx="6" class="c-cloud" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="cloud" class="semantic-sigil s-cloud" transform="translate(326 250) scale(0.6875)">
             <path d="M4.3 12.5h7.3a2.4 2.4 0 0 0 .2-4.8 4 4 0 0 0-7.5-1.3A3.1 3.1 0 0 0 4.3 12.5Z"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="415" y="284" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">proxy</text>
-        <text data-detail="context" x="415" y="300" class="t-muted" font-size="9" text-anchor="middle">web app, API, monitoring</text>
+        <text data-detail="context" x="415" y="300" class="t-muted" font-size="9" text-anchor="middle">web app, API, Langfuse UI</text>
         </g>
 
         <g id="node-core" data-node-id="core" data-node-label="core" tabindex="0" role="button" aria-label="Focus core, FastAPI orchestration API, Core platform components — run as shipped" aria-pressed="false" data-node-kind="backend" data-node-sublabel="FastAPI orchestration API" data-node-context="Core platform components — run as shipped">
@@ -5200,15 +5200,15 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         <text data-detail="context" x="415" y="504" class="t-muted" font-size="9" text-anchor="middle">disabled · Slack webhook</text>
         </g>
 
-        <g id="node-mapping" data-node-id="mapping" data-node-label="mapping" tabindex="0" role="button" aria-label="Focus mapping, contract only · repository routing, Bring your own — disabled by default" aria-pressed="false" data-node-kind="backend" data-node-sublabel="contract only · repository routing" data-node-context="Bring your own — disabled by default">
-          <title>mapping · contract only · repository routing · Bring your own — disabled by default</title>
+        <g id="node-mapping" data-node-id="mapping" data-node-label="mapping" tabindex="0" role="button" aria-label="Focus mapping, enabled · repo name → URL, Bundled sidecars — OpenAPI contracts, replaceable" aria-pressed="false" data-node-kind="backend" data-node-sublabel="enabled · repo name → URL" data-node-context="Bundled sidecars — OpenAPI contracts, replaceable">
+          <title>mapping · enabled · repo name → URL · Bundled sidecars — OpenAPI contracts, replaceable</title>
           <rect x="600" y="448" width="190" height="84" rx="6" class="c-mask"/>
           <rect x="600" y="448" width="190" height="84" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(606 454) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="695" y="488" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">mapping</text>
-        <text data-detail="context" x="695" y="504" class="t-muted" font-size="8.9" text-anchor="middle">contract only · repository routing</text>
+        <text data-detail="context" x="695" y="504" class="t-muted" font-size="9" text-anchor="middle">enabled · repo name → URL</text>
         </g>
 
         <g id="node-authz" data-node-id="authz" data-node-label="authz" tabindex="0" role="button" aria-label="Focus authz, contract only · access policy, Bring your own — disabled by default" aria-pressed="false" data-node-kind="backend" data-node-sublabel="contract only · access policy" data-node-context="Bring your own — disabled by default">
@@ -5267,11 +5267,11 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="526" y="289" width="58" height="14" rx="3" class="c-mask"/>
           <text x="555" y="299" class="t-edge-default" font-size="8" text-anchor="middle">/api + SSE</text>
         </g>
-        <g data-detail="context" data-edge-from="proxy" data-edge-to="phoenix" data-edge-label="/monitoring/" data-edge-key="2" data-edge-id="monitoring">
-          <rect x="381.2" y="224" width="67.6" height="14" rx="3" class="c-mask"/>
-          <text x="415" y="234" class="t-edge-default" font-size="8" text-anchor="middle">/monitoring/</text>
+        <g data-detail="context" data-edge-from="proxy" data-edge-to="langfuse" data-edge-label=":3000" data-edge-key="2" data-edge-id="monitoring">
+          <rect x="398" y="224" width="34" height="14" rx="3" class="c-mask"/>
+          <text x="415" y="234" class="t-edge-default" font-size="8" text-anchor="middle">:3000</text>
         </g>
-        <g data-detail="context" data-edge-from="core" data-edge-to="phoenix" data-edge-label="OTLP + prompts" data-edge-key="3" data-edge-id="traces">
+        <g data-detail="context" data-edge-from="core" data-edge-to="langfuse" data-edge-label="OTLP + prompts" data-edge-key="3" data-edge-id="traces">
           <rect x="516.4" y="160.5" width="77.2" height="14" rx="3" class="c-mask"/>
           <text x="555" y="170.5" class="t-edge-default" font-size="8" text-anchor="middle">OTLP + prompts</text>
         </g>
@@ -5296,9 +5296,9 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
           <rect x="573.575" y="332" width="38.8" height="14" rx="3" class="c-mask"/>
           <text x="592.975" y="342" class="t-edge-dashed" font-size="8" text-anchor="middle">events</text>
         </g>
-        <g data-detail="context" data-edge-from="core" data-edge-to="mapping" data-edge-label="repository lookup" data-edge-key="10" data-edge-id="map-repo">
+        <g data-detail="context" data-edge-from="core" data-edge-to="mapping" data-edge-label="resolve repo name" data-edge-key="10" data-edge-id="map-repo">
           <rect x="701" y="411" width="91.6" height="14" rx="3" class="c-mask"/>
-          <text x="746.8" y="421" class="t-edge-dashed" font-size="8" text-anchor="middle">repository lookup</text>
+          <text x="746.8" y="421" class="t-edge-default" font-size="8" text-anchor="middle">resolve repo name</text>
         </g>
         <g data-detail="context" data-edge-from="core" data-edge-to="authz" data-edge-label="project check" data-edge-key="11" data-edge-id="check-access">
           <rect x="805.8" y="368" width="72.4" height="14" rx="3" class="c-mask"/>
@@ -5329,8 +5329,8 @@ OTHER DEALINGS IN THE FONT SOFTWARE.
         </g>
 
         <g data-graph-role="structural-frame-label" data-composition-frame-id="2" data-composition-frame-kind="region" data-composition-frame-label="Bring your own — disabled by default">
-          <rect data-graph-role="structural-frame-label-mask" x="574" y="428" width="204.4" height="16" rx="3" class="c-mask"/>
-          <text data-boundary-label="" x="578" y="441" class="t-cloud" font-size="9" font-weight="600">Bring your own — disabled by default</text>
+          <rect data-graph-role="structural-frame-label-mask" x="854" y="428" width="204.4" height="16" rx="3" class="c-mask"/>
+          <text data-boundary-label="" x="858" y="441" class="t-cloud" font-size="9" font-weight="600">Bring your own — disabled by default</text>
         </g>
 
         <!-- Legend -->

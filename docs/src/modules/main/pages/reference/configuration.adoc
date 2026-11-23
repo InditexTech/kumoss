@@ -14,8 +14,8 @@ xref:main:guides/deploy-to-production.adoc[Deploy to production].
 Related guides: xref:main:reference/environment-variables.adoc[Environment
 variables and secrets], xref:main:reference/llm-providers.adoc[LiteLLM
 providers and models], xref:main:guides/enable-authentication.adoc[OIDC
-setup], xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
-Phoenix], xref:main:guides/customize-prompts.adoc[Phoenix prompt
+setup], xref:main:guides/monitor-with-langfuse.adoc[Monitor with
+Langfuse], xref:main:guides/customize-prompts.adoc[Langfuse prompt
 templates], xref:main:guides-overview.adoc[Guides], and
 xref:main:guides/administer-users-and-locks.adoc[Administer users and locks] — and the
 sidecar READMEs under `services/`.
@@ -103,17 +103,17 @@ shipped value enables Kumoss-managed state by default;
 |A label for the deployment tier. Any other value fails validation.
 |===
 
-Operational effect: it selects the Phoenix tracing project prefix
-(`dev-`, `pre-`, `pro-`; see xref:main:guides/monitor-with-phoenix.adoc[Monitoring
-with Phoenix]) and it is the *tag* used when fetching prompts from
-Phoenix at runtime (see
+Operational effect: it is the Langfuse *environment* every trace is
+recorded under (see xref:main:guides/monitor-with-langfuse.adoc[Monitor
+with Langfuse]) and the *label* used when fetching prompts from
+Langfuse at runtime (see
 xref:main:guides/customize-prompts.adoc[Customize prompts]). The
-seeder tags every prompt it creates with all three values, so switching
-between them finds the seeded prompts without re-tagging. It
+seeder labels every prompt it creates with all three values, so switching
+between them finds the seeded prompts without relabelling. It
 does *not* enable any security control: setting `production` does not
 turn on authentication, authorization, or stricter defaults. A prompt
-created or re-versioned by hand in Phoenix is found only if its version
-carries the tag for the current value.
+created or re-versioned by hand in Langfuse is found only if one of its
+versions carries the label for the current value.
 
 Requires restart: yes.
 
@@ -343,7 +343,7 @@ Raise the limits carefully: they bound the cost of a runaway session.
 |Runs the compliance auditor once a generate round has been validated
 and its report written: a second, independent small-model agent reads
 the session's first request and the raw plan, and checks them against
-the rules in the `general-compliance-report` prompt. The session is
+the rules in the `general/compliance/report` prompt. The session is
 *locked* if any finding comes back with severity `error` or `critical`;
 `warning` findings are recorded in the report but do not lock. The
 report is stored as a round artifact and shown in the portal. A lock
@@ -360,7 +360,7 @@ rounds do not audit, and apply does not re-audit.
 |*Locks* the session when the generate report's impact banner comes
 back `high`, and sends an `iac.impact.high` notification. The banner
 itself — `low`, `medium`, or `high`, judged against the
-`general-compliance-impact` prompt criteria — is part of every report
+`general/compliance/impact` prompt criteria — is part of every report
 either way; this flag decides only whether it gates. It is evaluated
 independently of the auditor above: the round ends locked if *either*
 condition fires.
@@ -789,28 +789,44 @@ restart: yes.
 [#telemetry]
 == `telemetry`
 
-OpenTelemetry export and, in the current implementation, also the
-address of the Phoenix prompt registry. See
-xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] and
+Langfuse: where traces are exported (OTLP/HTTP) and where prompts are
+read from. Both use the same base URL and the same project key pair. See
+xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] and
 xref:main:guides/customize-prompts.adoc[Customize prompts].
 
 [cols="2,2,1,1,1,4",options="header"]
 |===
 |YAML path |Type |Code default |Shipped `config.yaml` |Requirement |Meaning and effect
 
-|`telemetry.collector_url`
-|string (base URL *ending in `/`*)
-|`\http://phoenix:6006/`
-|`\http://phoenix:6006/`
+|`telemetry.langfuse_url`
+|string (base URL)
+|`\http://langfuse-web:3000/`
+|`\http://langfuse-web:3000/`
 |Optional
-|Base URL of the trace collector. The core appends `v1/traces` by plain
-string concatenation, so the value must end with a slash:
-`\http://phoenix:6006/` becomes `\http://phoenix:6006/v1/traces`. The
-*same URL* is used as the Phoenix client base URL for prompt seeding
-and fetching, so today it must point at a Phoenix server even if you
-export traces elsewhere. The default is the Phoenix service of the
-bundled stack; running the core outside docker needs an explicit
-`\http://localhost:6006/`.
+|Base URL of Langfuse as the core reaches it; a missing trailing slash
+is added. Traces go to `<langfuse_url>api/public/otel/v1/traces` and
+prompts are read from `<langfuse_url>api/public/v2/prompts`. The default
+is the `langfuse-web` service of the bundled stack; running the core
+outside docker needs an explicit `\http://localhost:3000/`. Any
+Langfuse v4 works, self-hosted or Cloud.
+
+|`telemetry.public_key_env`
+|string (env var name)
+|`LANGFUSE_PUBLIC_KEY`
+|`LANGFUSE_PUBLIC_KEY`
+|Optional
+|Variable holding the public key (`pk-lf-...`) of the Langfuse project.
+Unset, the core uses `pk-lf-kumoss-dev`, the key the bundled stack
+provisions.
+
+|`telemetry.secret_key_env`
+|string (env var name)
+|`LANGFUSE_SECRET_KEY`
+|`LANGFUSE_SECRET_KEY`
+|Optional
+|Variable holding the secret key (`sk-lf-...`). Unset, the core uses
+`sk-lf-kumoss-dev`. A key pair Langfuse rejects fails the boot (prompt
+seeding) with `Langfuse refused the API key pair (401)`.
 
 |`telemetry.otel_attribute_count_limit`
 |integer
@@ -818,8 +834,8 @@ bundled stack; running the core outside docker needs an explicit
 |`1024`
 |Optional
 |Maximum number of attributes per span (attribute _count_, not length).
-When exceeded the SDK drops the oldest attributes first, which on LLM
-spans are the session and user identifiers and the span kind.
+Spans carry a few dozen; the conversation of an LLM span is a single
+attribute.
 
 |`telemetry.otel_console_exporter`
 |boolean
@@ -830,8 +846,9 @@ spans are the session and user identifiers and the span kind.
 prompts and plans; do not enable this where logs are shared.
 |===
 
-The code default only works when the core runs outside Docker on the
-same host as Phoenix. Requires restart: yes.
+The removed Phoenix key `telemetry.collector_url` fails validation, so
+an old file is not silently sent to the default URL. Requires restart:
+yes.
 
 [#config-http]
 == `http`
@@ -1104,7 +1121,7 @@ web_search:
   endpoint: "http://searxng:8888"
 
 telemetry:
-  collector_url: "http://phoenix:6006/"
+  langfuse_url: "http://langfuse-web:3000/"
 
 storage:
   provider: "RUSTFS"
@@ -1178,7 +1195,7 @@ llm:
   max_output_tokens: 32000
 
 telemetry:
-  collector_url: "https://phoenix.kumoss.example.invalid/"
+  langfuse_url: "https://langfuse.kumoss.example.invalid/"
 
 http:
   cors_origins:
@@ -1208,9 +1225,10 @@ Points that this example relies on but that the file cannot express:
 the authz endpoint must be your own implementation of its contract
 (Kumoss bundles none), and the mapping endpoint either the bundled
 service or your own catalogue-backed one;
-Phoenix must be reachable at `collector_url` for prompt seeding; the
-Phoenix UI must be protected separately because it receives prompts and
-plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,
+Langfuse must be reachable at `langfuse_url` for prompt seeding, with
+its project key pair in `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`;
+access to the Langfuse UI must be restricted because it holds prompts
+and plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,
 `KUMOSS_SQL_DATABASE_URL`, `GIT_TOKEN`, and the `AZURE_API_*`
 credentials must come from a secret store. See
 xref:main:reference/environment-variables.adoc[Environment variables and

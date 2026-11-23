@@ -156,11 +156,11 @@
       ]
     },
     {
-      "id": "phoenix",
+      "id": "langfuse",
       "type": "backend",
-      "label": "Phoenix :6006",
+      "label": "Langfuse :3000",
       "sublabel": "traces + prompt registry",
-      "tag": "proxied at /monitoring/",
+      "tag": "UI on proxy :3000",
       "row": 2,
       "col": 3,
       "size": [
@@ -180,7 +180,7 @@
         "sidecars",
         "storage",
         "coredb",
-        "phoenix"
+        "langfuse"
       ]
     },
     {
@@ -270,7 +270,7 @@
     {
       "id": "traces",
       "from": "core-infra",
-      "to": "phoenix",
+      "to": "langfuse",
       "label": "OTLP + prompts"
     }
   ],

@@ -55,8 +55,8 @@ Review any user's sessions, and manage session locks and roles from the
 admin panel.
 
 [card]
-.xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
-Read Kumoss's traces in Arize Phoenix, and know what a trace contains and
+.xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse]
+Read Kumoss's traces in Langfuse, and know what a trace contains and
 omits.
 
 [card]
