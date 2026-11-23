@@ -11,8 +11,8 @@ changes on a workstation or a throwaway virtual machine that only trusted
 people can reach.
 
 Do *not* use it for shared or production environments. As shipped it has no
-TLS, well-known default credentials for PostgreSQL and RustFS, an
-unauthenticated Phoenix console, and, unless you enable OIDC, *no
+TLS, well-known default credentials for PostgreSQL, RustFS and the
+Langfuse console, and, unless you enable OIDC, *no
 authentication at all*: every request runs as a built-in local identity
 that holds the `devops` operation role and the panel `admin` role. It
 publishes ports 80 and 9000 on every interface of the host. For anything

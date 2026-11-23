@@ -221,6 +221,6 @@ keyed by a `username` column and there was no `users` table. The core
 refuses to start on it; migrate it by hand or recreate it. See
 xref:main:guides/upgrade-notes.adoc[Upgrade notes].
 
-For the other stores — Phoenix, Redis, object storage, and the workspaces
+For the other stores — Langfuse, Redis, object storage, and the workspaces
 volume — see
 xref:main:architecture/data-and-state.adoc[Data and state].

@@ -19,12 +19,14 @@ on purpose.
 include::partial$interactive-diagram.adoc[]
 
 Named volumes are written into each container's subtitle instead of
-being drawn as separate nodes (`core_db_data`, `phoenix_db_data`,
-`object_storage_data`, and `workspaces`), and `phoenix-db` is folded
-into the phoenix node, so the ninth container of the stack is not a
-box of its own. Two edges are left out because the
-xref:main:architecture.adoc[system architecture diagram] already
-carries them — the core's OTLP traces and prompt calls to Phoenix, and
+being drawn as separate nodes (`core_db_data`, `object_storage_data`,
+`workspaces`, and the `langfuse_*` volumes), and Langfuse's six
+containers — `langfuse-web`, `langfuse-worker`, `langfuse-db`,
+`langfuse-clickhouse`, `langfuse-redis`, and the one-shot
+`langfuse-bucket` — are folded into one langfuse node. Two edges are
+left out because the xref:main:architecture.adoc[system architecture
+diagram] already carries them — the core's OTLP traces and prompt calls
+to Langfuse, and
 the proxy's port 9000 path to object storage — and the connections that
 leave the stack (LLM and git provider APIs from the core, the Slack
 webhook from notifications) appear in the notes beside the diagram
@@ -52,24 +54,31 @@ xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
 
 === Topology
 
-* All eleven containers share one Docker bridge network. Only `proxy`
-  publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
-  (presigned object-storage access); every other service is
-  internal-only via `expose`.
-* Compose `depends_on` orders start-up (it does not health-check): core
-  waits for core-db, notifications, mapping, iac, authz, Redis, and
-  object storage; the proxy waits for core, Phoenix, and object storage.
-  SearXNG has no dependency ordering — the core calls it per request, so
-  a missing or slow engine surfaces only as the `web_search` tool's
-  "unavailable" result. The core has no Compose dependency on Phoenix,
-  which is why its prompt seeder retries.
-* Four named volumes persist state: `core_db_data`, `phoenix_db_data`,
-  `object_storage_data`, and `workspaces`.
+* All the containers share one Docker bridge network. Only `proxy`
+  publishes host ports: 80 (SPA, API, SSE), 9000 (presigned
+  object-storage access) and 3000 (the Langfuse UI, on a port of its
+  own because the stock Langfuse image cannot be served under a path);
+  every other service is internal-only via `expose`.
+* Compose `depends_on` orders start-up: core waits for core-db,
+  notifications, mapping, iac, Redis, and object storage to start, and
+  for `langfuse-web` to be *healthy* (a cold Langfuse migrates its
+  databases first); the proxy waits for core, `langfuse-web`, and
+  object storage. Langfuse's web and worker wait for healthy
+  langfuse-db, ClickHouse and Redis and for `langfuse-bucket` to have
+  created their bucket, and the worker also for a healthy web. SearXNG
+  has no dependency ordering — the core calls it per request, so a
+  missing or slow engine surfaces only as the `web_search` tool's
+  "unavailable" result. The prompt seeder still retries, for platforms
+  without that ordering.
+* Named volumes persist state: `core_db_data`, `object_storage_data`,
+  `workspaces`, and Langfuse's `langfuse_db_data`,
+  `langfuse_clickhouse_data`, `langfuse_clickhouse_logs` and
+  `langfuse_redis_data`.
 
 === Core start-up
 
 * The FastAPI lifespan enforces a strict order: database, then Redis,
-  then object-storage bucket creation, then Phoenix prompt seeding.
+  then object-storage bucket creation, then Langfuse prompt seeding.
   Failure of any step aborts boot. Git credential configuration follows
   and is best-effort.
 * Configuration comes from a single `config.yaml`, read once at
@@ -146,7 +155,7 @@ to plan for before running more than one:
   polling rather than event-driven messaging; SSE progress derives from
   status polling. These are visible trade-offs, not accidents.
 * *Deep, centralized telemetry.* Model calls, tool executions, and
-  engine runs are traced to Phoenix, which doubles as the runtime
+  engine runs are traced to Langfuse, which doubles as the runtime
   prompt registry, making prompt management an operational concern
   rather than a code change. No tracing decorator exports anything when
   the wrapped call raises: most of them build the span only *after* the

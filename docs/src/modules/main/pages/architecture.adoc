@@ -22,9 +22,10 @@ bundled `iac :8082`, `notifications :8080` and `mapping :8081`,
 implementation you provide yourself; the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the `workspaces` volume,
-`phoenix-db` and the notification and storage backends are carried in the
-notes beside it rather than drawn. Phoenix is reachable through the proxy at
-`/monitoring/`, artifacts land in the `kumoss-artifacts` bucket, and the
+Langfuse's own stores and the notification and storage backends are carried
+in the notes beside it rather than drawn. The Langfuse UI is reachable
+through the proxy on port 3000, artifacts land in the `kumoss-artifacts`
+bucket, and the
 shipped configuration routes model calls through LiteLLM.
 
 == Component responsibilities
@@ -41,9 +42,9 @@ progress over Server-Sent Events.
 identity provider directly for login
 
 |Nginx (`proxy`)
-|Sole public entry point, on ports 80 and 9000: serves the built SPA and
-proxies `/api`, the events stream, `/monitoring/` and object storage.
-|Browser → core, Phoenix, object storage
+|Sole public entry point, on ports 80, 9000 and 3000: serves the built SPA
+and proxies `/api`, the events stream, object storage and the Langfuse UI.
+|Browser → core, object storage, Langfuse
 
 |Core API layer (`core/src/api/v1`)
 |Routes every request: IaC operations, the progress stream, session reads,
@@ -143,10 +144,13 @@ to `/workspaces/<session>/pinned`, which survives until apply discards it
 or the next generate round replaces it.
 |Mounted by core and iac
 
-|Phoenix + phoenix-db
-|OpenTelemetry trace collector and UI, and the prompt registry seeded at
-core boot.
-|Core, over OTLP/HTTP and the Prompts API
+|Langfuse (web, worker, langfuse-db, ClickHouse, its own Redis, a
+`langfuse` bucket)
+|Trace store and UI (OpenTelemetry), and the prompt registry seeded at
+core boot. One project; the deployment's `environment` is Langfuse's
+environment and the operation and providers are trace tags.
+|Core, over OTLP/HTTP and the public prompt API, with the project's key
+pair
 
 |OIDC identity provider
 |Authenticates users and issues the JWT access tokens the core validates.
@@ -173,7 +177,7 @@ Enterprise Server and self-managed GitLab are not supported today.
   phases of one generate session, from the request to the applied
   infrastructure, and the mechanisms behind them.
 * xref:main:architecture/data-and-state.adoc[Data and state] — what
-  core-db, phoenix-db, Redis, object storage, and the `workspaces` volume
+  core-db, Langfuse's stores, Redis, object storage, and the `workspaces` volume
   each hold.
 * xref:main:architecture/deployment-view.adoc[Deployment view] — the
   Compose topology, operational notes, and single-instance limits.

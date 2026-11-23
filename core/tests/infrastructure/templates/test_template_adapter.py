@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch, AsyncMock
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.templates._fetcher import remote_fetcher
-from src.infrastructure.exceptions import PhoenixPromptFetchError
+from src.infrastructure.exceptions import PromptFetchError
 
 from src.shared.config import system_config
 from src.shared.constants import (
@@ -459,15 +459,15 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(mock_fetch.await_args.kwargs["scope"], "general")
 
 
-def _not_found(name: str) -> PhoenixPromptFetchError:
-    return PhoenixPromptFetchError(f"prompt {name} not found", 404)
+def _not_found(name: str) -> PromptFetchError:
+    return PromptFetchError(f"prompt {name} not found", 404)
 
 
 class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
     """A root module may use several providers, or ones without prompts."""
 
     @staticmethod
-    def _phoenix(prompts: dict[tuple[str, str], str]):
+    def _langfuse(prompts: dict[tuple[str, str], str]):
         """A fetch double serving ``prompts`` by (scope, name); 404 otherwise."""
 
         async def fetch(prompt_name: str, scope: str, type: str, tag: str) -> str:
@@ -481,7 +481,7 @@ class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
     async def test_guidelines_of_several_providers_are_joined_by_section(
         self, mock_fetch: AsyncMock
     ):
-        mock_fetch.side_effect = self._phoenix(
+        mock_fetch.side_effect = self._langfuse(
             {
                 ("azurerm", "import_exceptions"): "- /subscriptions/s/rg-a",
                 ("google", "import_exceptions"): "- projects/p/topics/t",
@@ -510,7 +510,7 @@ class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
     async def test_a_single_provider_gets_no_section_heading(
         self, mock_fetch: AsyncMock
     ):
-        mock_fetch.side_effect = self._phoenix(
+        mock_fetch.side_effect = self._langfuse(
             {("aws", "drift_exceptions"): "mocked_drift_exceptions"}
         )
         adapter = TemplateAdapter(providers=("aws",), cwd="/test/project")
@@ -524,7 +524,7 @@ class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
     async def test_providers_without_prompts_leave_only_the_general_ones(
         self, mock_fetch: AsyncMock
     ):
-        mock_fetch.side_effect = self._phoenix(
+        mock_fetch.side_effect = self._langfuse(
             {("general", "requests"): "mocked_requests_response"}
         )
         for providers in ((), ("random", "null")):
@@ -538,10 +538,10 @@ class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
     async def test_errors_other_than_not_found_are_raised(self, mock_fetch: AsyncMock):
-        mock_fetch.side_effect = PhoenixPromptFetchError("phoenix is down", 502)
+        mock_fetch.side_effect = PromptFetchError("langfuse is down", 502)
         adapter = TemplateAdapter(providers=("azurerm",), cwd="/test/project")
 
-        with self.assertRaises(PhoenixPromptFetchError) as ctx:
+        with self.assertRaises(PromptFetchError) as ctx:
             await adapter.render_import_exceptions()
         self.assertEqual(ctx.exception.error_code, 502)
 
@@ -549,7 +549,7 @@ class TestTemplateAdapterProviders(unittest.IsolatedAsyncioTestCase):
     async def test_resource_template_comes_from_the_first_provider_that_has_it(
         self, mock_fetch: AsyncMock
     ):
-        mock_fetch.side_effect = self._phoenix(
+        mock_fetch.side_effect = self._langfuse(
             {
                 ("google", "abbreviations"): "google_abbreviations",
                 ("google", "resources_list"): "google_resources_list",

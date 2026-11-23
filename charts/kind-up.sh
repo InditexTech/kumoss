@@ -21,7 +21,7 @@
 #                  Secret <release>-credentials (core.existingSecret).
 #                  Quotes around values are stripped; keys the chart
 #                  generates itself (tokens, database / Redis URLs, object
-#                  storage keys) are skipped.                  (none)
+#                  storage and Langfuse keys) are skipped.     (none)
 #   CA_DIR         directory of PEM roots to trust behind a TLS-inspecting
 #                  proxy, loaded into a ConfigMap for caBundle.  (none)
 #   LOAD_IMAGES    1: pull the images on the host and load them into the
@@ -29,6 +29,7 @@
 #                  proxy); 0: let the node pull. (1 when CA_DIR is set)
 #   HTTP_PORT      host port of the UI                   (80)
 #   STORAGE_PORT   host port of artifact downloads       (9000)
+#   LANGFUSE_PORT  host port of the Langfuse UI          (3000)
 #
 # The host ports are fixed when the cluster is created; to change them,
 # delete it first (kind delete cluster --name kumoss).
@@ -44,6 +45,7 @@ CA_DIR="${CA_DIR:-}"
 LOAD_IMAGES="${LOAD_IMAGES:-$([ -n "${CA_DIR}" ] && echo 1 || echo 0)}"
 HTTP_PORT="${HTTP_PORT:-80}"
 STORAGE_PORT="${STORAGE_PORT:-9000}"
+LANGFUSE_PORT="${LANGFUSE_PORT:-3000}"
 release="${NAMESPACE}"
 
 log() { printf '\033[1m==> %s\033[0m\n' "$*"; }
@@ -69,8 +71,10 @@ helm_args=(
     --set proxy.service.type=NodePort
     --set proxy.service.nodePorts.http=30080
     --set proxy.service.nodePorts.storage=30900
+    --set proxy.service.nodePorts.langfuse=30300
     --set "publicUrl=http://localhost$(port_suffix "${HTTP_PORT}" 80)"
     --set "storagePublicUrl=http://localhost:${STORAGE_PORT}"
+    --set "langfuse.publicUrl=http://localhost:${LANGFUSE_PORT}"
 )
 [ -z "${CHART_VERSION}" ] || helm_args+=(--version "${CHART_VERSION}")
 
@@ -88,7 +92,7 @@ helm template "${release}" "${CHART}" "${helm_args[@]}" > "${tmp}/rendered.yaml"
 if kind get clusters 2>/dev/null | grep -qx "${CLUSTER}"; then
     log "Using existing kind cluster ${CLUSTER}"
 else
-    log "Creating kind cluster ${CLUSTER} (UI on :${HTTP_PORT}, downloads on :${STORAGE_PORT})"
+    log "Creating kind cluster ${CLUSTER} (UI on :${HTTP_PORT}, downloads on :${STORAGE_PORT}, Langfuse on :${LANGFUSE_PORT})"
     kind create cluster --name "${CLUSTER}" --config - <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
@@ -97,6 +101,7 @@ nodes:
     extraPortMappings:
       - { containerPort: 30080, hostPort: ${HTTP_PORT} }
       - { containerPort: 30900, hostPort: ${STORAGE_PORT} }
+      - { containerPort: 30300, hostPort: ${LANGFUSE_PORT} }
 EOF
 fi
 kubectl config use-context "kind-${CLUSTER}" >/dev/null
@@ -120,7 +125,7 @@ if [ -n "${ENV_FILE}" ]; then
         value="${BASH_REMATCH[3]}"
         case "${key}" in
             KUMOSS_IAC_TOKEN | KUMOSS_NOTIFICATIONS_TOKEN | KUMOSS_MAPPING_TOKEN | KUMOSS_SQL_DATABASE_URL | \
-                PHOENIX_SQL_DATABASE_URL | KUMOSS_REDIS_URL | RUSTFS_ACCESS_KEY | RUSTFS_SECRET_KEY)
+                KUMOSS_REDIS_URL | RUSTFS_ACCESS_KEY | RUSTFS_SECRET_KEY | LANGFUSE_PUBLIC_KEY | LANGFUSE_SECRET_KEY)
                 continue ;;
         esac
         # Compose dotenv: a quoted value may be followed by a comment; an
@@ -187,4 +192,4 @@ log "Installing release ${release}"
 helm upgrade --install "${release}" "${CHART}" "${helm_args[@]}" --wait --timeout 10m
 helm test "${release}" --namespace "${NAMESPACE}"
 
-log "Kumoss is up at http://localhost$(port_suffix "${HTTP_PORT}" 80) (Phoenix under /monitoring/)"
+log "Kumoss is up at http://localhost$(port_suffix "${HTTP_PORT}" 80) (Langfuse at http://localhost:${LANGFUSE_PORT})"

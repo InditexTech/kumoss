@@ -38,7 +38,7 @@ partial drift request with an empty text.
 . *Prompt composition*, as in generate.
 . *Target selection.* The target generator, in drift mode, derives
   Terraform targets from the request, the history, the selected resource
-  prompts, and the `general-guidelines-targeting_policies` prompt.
+  prompts, and the `general/guidelines/targeting_policies` prompt.
 . *Detect and remediate loop*, up to `orchestration.max_drift_reports`
   iterations (3 by default). The first iteration runs `init`, `validate`
   and `plan -out` on the targets; each later one reads the plan its
@@ -48,7 +48,7 @@ partial drift request with an empty text.
   the drift report as an artifact (or the plan output, when the targets
   are already in sync), splits the drift into operations,
   drops the operations covered by the
-  `<provider>-guidelines-drift_exceptions` rules of the module's
+  `<provider>/guidelines/drift_exceptions` rules of the module's
   providers, groups the survivors in
   batches of `orchestration.drift_group_operations` (8), and runs a
   generate and validate cycle per group. When every operation is

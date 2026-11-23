@@ -30,7 +30,7 @@ From the repo root:
 docker compose up --build
 ```
 
-This starts the full stack (core API, microservices, databases, Phoenix
+This starts the full stack (core API, microservices, databases, Langfuse
 tracer, and the nginx proxy, which serves a production build of this client).
 Browse to `http://localhost`.
 

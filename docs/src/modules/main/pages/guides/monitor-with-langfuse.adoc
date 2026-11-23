@@ -1,0 +1,364 @@
+= Monitor with Langfuse
+:description: Read Kumoss's traces in Langfuse, and know what a trace contains and what it omits.
+:page-aliases: guides/monitor-with-phoenix.adoc
+
+Kumoss records what its agents do as *traces*: for every session run,
+the prompts sent to the language model, the tool calls the model made,
+the Terraform validations, and the results. Traces are exported with
+OpenTelemetry, carrying Langfuse's own span attributes, and in the
+default Compose stack they are collected and displayed by a self-hosted
+https://langfuse.com/docs[Langfuse].
+
+This guide covers tracing only. Langfuse also hosts Kumoss's runtime
+prompt registry; that is a separate function described in
+xref:main:guides/customize-prompts.adoc[Customize prompts]. How
+Langfuse is deployed in each model is covered by
+xref:main:quickstart.adoc[Quickstart],
+xref:main:guides/deploy-with-helm.adoc[Deploy with Helm] and
+xref:main:guides/deploy-to-production.adoc[Deploy to production].
+Kumoss used Arize Phoenix before; moving an existing installation is
+covered in xref:main:guides/upgrade-notes.adoc[Upgrade notes].
+
+*Data sensitivity.* Langfuse receives, in clear text, the full system
+prompts, the user's requests and conversation history, repository
+metadata (URL, path, branch), Terraform plans and validation errors,
+tool inputs and outputs (which can include file contents from the
+repository), model outputs including generated code, and the session
+identifier plus the *user's e-mail address* (as the Langfuse user) on
+every span. Nothing is redacted or truncated. Langfuse has a login of
+its own (the bundled stack provisions one admin and turns sign-up off),
+but operators must still decide who gets an account, put the UI behind
+TLS, decide on retention, and tell users not to paste secrets into
+requests or commit them into IaC.
+
+== What ships in the Compose stack
+
+[cols="2,4",options="header"]
+|===
+|Component |Role
+
+|`langfuse-web` (`langfuse/langfuse:4.83.0`)
+|The UI and the public API: receives traces over OTLP/HTTP and serves
+prompts. Runs the database migrations at startup. On the first start
+it provisions the `Kumoss` organization, the `Kumoss` project with the
+key pair the core uses, and the admin user.
+
+|`langfuse-worker` (`langfuse/langfuse-worker:4.83.0`)
+|Processes ingested events into ClickHouse. Starts once `langfuse-web`
+is healthy.
+
+|`langfuse-db` (PostgreSQL 17)
+|Users, projects, API keys and prompts, in the `langfuse_db_data`
+volume.
+
+|`langfuse-clickhouse` (ClickHouse 26.3)
+|Traces and observations, in the `langfuse_clickhouse_data` volume.
+
+|`langfuse-redis` (Redis 8.8)
+|Langfuse's job queue (`noeviction`). Separate from the core's Redis,
+which is a cache.
+
+|`langfuse-bucket`
+|One-shot: creates the `langfuse` bucket on the `object-storage`
+service, where Langfuse keeps the raw events (`events/`) and media
+(`media/`). Langfuse does not create its bucket itself.
+
+|`proxy` (nginx)
+|Serves the Langfuse UI and API on port 3000. The stock Langfuse image
+cannot be served under a path prefix, so it gets a port of its own.
+|===
+
+Open `\http://localhost:3000` and log in as `admin@example.com` with
+password `kumoss-admin-1`. The admin panel's *Langfuse* link goes to
+`/langfuse` on the proxy, which redirects there.
+
+The development defaults (admin password, project key pair, database,
+ClickHouse and Redis passwords, `SALT`, `ENCRYPTION_KEY`,
+`NEXTAUTH_SECRET`) are set in `docker-compose.yml` through `${VAR:-default}`
+interpolation: override them from the shell or a `.env` file next to
+`docker-compose.yml` before the first start, and keep
+`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in `core/.env` matching
+the project keys. The admin, the project and its keys are only created
+on the first start; changing the values later does not change them (see
+<<troubleshooting>>).
+
+== Configuration
+
+All keys are in `config.yaml` under `telemetry` (details in
+xref:main:reference/configuration.adoc#telemetry[the `telemetry` section]
+of the configuration reference):
+
+[cols="2,2,4",options="header"]
+|===
+|Key |Default in `config.yaml` |Meaning
+
+|`telemetry.langfuse_url`
+|`\http://langfuse-web:3000/`
+|Base URL of Langfuse as the core reaches it. Traces go to
+`<langfuse_url>api/public/otel/v1/traces`; prompts are read from
+`<langfuse_url>api/public/v2/prompts`. A trailing `/` is added when
+missing. Running the core outside Docker needs `\http://localhost:3000/`.
+
+|`telemetry.public_key_env` / `telemetry.secret_key_env`
+|`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
+|Names of the environment variables holding the project's API key pair,
+used for both traces (HTTP Basic auth) and prompts. When the variables
+are unset the core uses the development keys the Compose stack
+provisions (`pk-lf-kumoss-dev` / `sk-lf-kumoss-dev`), so the
+quickstart needs no wiring; any other Langfuse rejects them.
+
+|`telemetry.otel_attribute_count_limit`
+|`1024`
+|Maximum attributes per span. Each span carries a few dozen; the
+conversation of an LLM span is a single attribute, so the limit is not
+reached in practice.
+
+|`telemetry.otel_console_exporter`
+|`false`
+|Also print spans to the core's standard output. Useful for debugging
+without Langfuse, but spans carry prompts and plans.
+|===
+
+The removed Phoenix key `telemetry.collector_url` is refused at boot,
+so an old `config.yaml` cannot silently send traces to the default URL.
+
+*Using your own Langfuse.* Any Langfuse v4 works, self-hosted or Cloud:
+set `telemetry.langfuse_url` to it, create an API key
+pair in the project's settings, and give it to the core as
+`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`. The same project holds the
+traces and the prompts.
+
+== Environments and tags
+
+Every trace goes to the one project the key pair belongs to. Langfuse
+fields tell traces apart:
+
+[cols="2,4",options="header"]
+|===
+|Field |Value
+
+|Environment
+|The core's `environment` setting: `development`, `staging` or
+`production`. Langfuse's environment filter (top of the tracing views)
+selects one.
+
+|Tags
+|The session's operation (`generate`, `drift` or `import`) followed by
+the Terraform provider types of the root module, for example
+`generate`, `azurerm`, `random`. Apply runs re-use the operation of the
+session they belong to.
+
+|Session
+|The Kumoss session id. Langfuse's *Sessions* view shows every trace of
+one session together, as a conversation.
+
+|User
+|The user's e-mail address (or `user-<id>` when the account has none).
+|===
+
+The import tag covers Partial Import and Full Import alike (see
+xref:main:guides/import-infrastructure.adoc[Import infrastructure]).
+Before Langfuse, the same split was nine Phoenix projects
+(`dev-terraform-day2`, `pro-terraform-drift`, ...): filter on the
+environment and the operation tag for the equivalent view.
+
+== What a trace contains
+
+Kumoss instruments four kinds of work with decorators in the domain
+layer; each produces one observation type.
+
+=== 1. Agent observations
+
+* *Name:* `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`,
+  `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain -
+  REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain -
+  COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain -
+  TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain -
+  FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
+* *Type:* `AGENT`.
+* *Input:* the query handed to the chain.
+* *Output:* the chain's result, unwrapped to its `summary`,
+  `explanation`, or `description` field when it is a tool result.
+* *Metadata:* the common metadata plus `chain_type`.
+
+One agent observation is opened per orchestration step (filtering,
+target generation, code generation, reporting, and so on), as the root
+of its trace.
+
+=== 2. Generations
+
+* *Name:* `Async Inference`.
+* *Type:* `GENERATION`.
+* *Model:* the model name without LiteLLM's provider prefix
+  (`claude-sonnet-4-6` for `anthropic/claude-sonnet-4-6`), which is what
+  Langfuse matches against its model prices: generations of known models
+  show their *cost*. The LiteLLM provider is in the `llm_provider`
+  metadata. When `llm.model_list` uses a custom alias (see
+  xref:main:reference/llm-providers.adoc[LLM providers and models]), the
+  model is that alias, no provider is recorded, and Langfuse shows no
+  cost unless you add a model definition for the alias in its settings.
+* *Model parameters:* the request arguments sent to LiteLLM other than
+  the messages and tools: temperature, max tokens, tool choice, retries,
+  timeout, reasoning effort.
+* *Input:* the conversation as chat messages, which Langfuse renders as
+  a chat: the system prompt, the history (user and assistant turns,
+  assistant tool calls, tool results with their `tool_call_id`), the
+  current message, and, last, any harness notice the agent loop added
+  for that turn only (the budget-exhausted or no-tool-call reminder).
+* *Available tools:* the tool definitions offered to the model (`tools`
+  metadata, shown with the input).
+* *Output:* one assistant message with the text and the tool calls made.
+* *Usage:* input, output and total tokens. The finish reason is in the
+  `finish_reason` metadata.
+
+=== 3. Tool observations
+
+* *Name:* `Tool call - <tool name>`.
+* *Type:* `TOOL`.
+* *Input:* the call's arguments.
+* *Output:* a JSON document with `name`, `tool_call_id`, `success`,
+  `result`, and `error_message`.
+* *Level:* a tool that returns a failure is an `ERROR` observation with
+  its message as status message, so failed calls stand out in the trace
+  and can be filtered on. A tool whose execution raises produces no
+  observation at all.
+* *Metadata:* `tool_name` and `tool_call_id`, which links the result to
+  the tool call in the generation that requested it.
+
+=== 4. Terraform evaluator observations
+
+* *Name:* `Terraform <operation> - <outcome>`, where the operation is
+  the verb that ran (`plan`, `drift` or `apply`) and the outcome is
+  `True` or `False` — so `Terraform plan - True`, `Terraform drift -
+  False`, `Terraform apply - True`. The operation comes from the name of
+  the traced method, and the outcome is validation for `plan`, being in
+  sync for `drift`, and success for `apply`.
+* *Type:* `EVALUATOR`.
+* *Input:* the keyword arguments of the call: the targets for `plan`,
+  the plan reference being read for `drift` (its workspace, plan file,
+  targets and workspace fingerprint — never the plan text), empty for
+  `apply`.
+* *Output:* the Terraform plan text for a successful `plan`, the drift
+  summary for a drifted workspace, the apply output for a successful
+  `apply`; on any failure, the engine's error feedback instead.
+
+=== Common metadata
+
+Every observation of every kind carries the session, the user, the
+environment and the tags described above, and trace metadata with
+`operation`, `providers` (comma-separated; empty on a session's first
+call, whose providers are only known once its manifest setup has run),
+`repo_uri`, `root_module_path` and `branch_name`. Each metadata key is
+filterable in Langfuse. Langfuse also copies the raw span attributes
+into the metadata under `attributes.*` and `resourceAttributes.*`;
+those duplicate the fields above.
+
+Use the *Sessions* view, or filter on the session id, to find
+everything that happened in one session.
+
+=== How observations relate
+
+Do not expect a deep tree. The current implementation produces:
+
+* *Agent observations are roots.* Each orchestration step starts a new
+  trace and remembers its agent observation as the current root.
+* *Generations and tool observations are children of the current agent
+  observation*, as siblings of each other. A tool observation is not
+  nested under the generation that requested the call.
+* *Terraform evaluator observations have no parent.* Each one is a
+  single-observation trace of its own, linked to the rest through the
+  session.
+
+Child observations are created after their work finishes, with a
+back-dated start time, so durations are correct even though the nesting
+is flat.
+
+== What is not recorded
+
+* *Exceptions.* When a chain, model call, tool, or Terraform command
+  raises, the corresponding span is never ended and therefore never
+  exported; a failed run appears truncated in Langfuse rather than
+  marked failed. Use the session status and failure message in the
+  application or the
+  xref:main:guides/administer-users-and-locks.adoc[admin panel] for
+  error triage.
+* *Prompt links.* Generations are not linked to the Langfuse prompt
+  versions they were built from: the core renders several prompts into
+  one system prompt.
+* *Scores, evaluations, datasets.* Langfuse's evaluation features are
+  available in the UI but nothing in Kumoss populates them.
+* *Logs.* Application logs go to the container's standard output and
+  are not correlated with traces.
+* *Sidecar activity.* The sidecars are not instrumented; engine commands
+  appear only through the core's Terraform evaluator observations.
+
+== Startup and shutdown
+
+* The core's tracer provider is created when the core module is
+  imported, before the FastAPI application starts, with a batching span
+  processor with the OpenTelemetry SDK defaults (export every 5 seconds,
+  batches of up to 512 spans, queue of 2048). It is the core's own
+  provider, not the global one.
+* Span creation never touches the network; export happens on a
+  background thread. If Langfuse is unreachable, the exporter retries
+  with back-off within its timeout, logs `Failed to export span batch`,
+  and drops the batch. Sessions are not affected; the traces are lost.
+  Langfuse ingests asynchronously: a trace shows up a few seconds after
+  its spans are exported.
+* The core needs Langfuse at startup for prompt seeding. It makes an
+  authenticated read, retrying for about 90 seconds while Langfuse does
+  not answer (a cold Langfuse migrates its databases first) and then
+  aborts the boot. A rejected key pair (`401`) aborts it at once. In the
+  Compose stack the core also waits for `langfuse-web` to be healthy;
+  in Helm an init container does.
+* On shutdown the lifespan handler shuts the provider down, which
+  drains pending spans (within a 30-second budget) before the process
+  exits.
+
+[#troubleshooting]
+== Troubleshooting
+
+*Langfuse does not open on port 3000.* Check `docker compose ps` for the
+`langfuse-*` containers and `docker compose logs langfuse-web`. The
+first start runs the Postgres and ClickHouse migrations and takes a
+minute or two; the proxy returns `502` until Langfuse listens. If
+`langfuse-bucket` exited with an error, the object storage was not
+reachable with the `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY` credentials.
+
+*Core exits at boot with `Langfuse refused the API key pair (401)`.* The
+core's `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are not a key pair
+of the Langfuse project. In the Compose stack they must match the keys
+`langfuse-web` provisioned on its *first* start: changing
+`LANGFUSE_PUBLIC_KEY` for Compose afterwards does not replace the
+existing key. Create a key pair in the Langfuse project settings and put
+it in `core/.env`.
+
+*Core exits at boot with `Langfuse unreachable after 15 attempts`.* The
+core could not reach `telemetry.langfuse_url`. Confirm the URL resolves
+from inside the core container (`\http://langfuse-web:3000/` in the
+stack) and that Langfuse is up.
+
+*Login redirects to the wrong address.* Langfuse builds its login
+redirects from `NEXTAUTH_URL`, set from `LANGFUSE_PUBLIC_URL` in Compose
+and `langfuse.publicUrl` in Helm. It must be the URL browsers use.
+
+*No traces appear.* Check the environment filter: traces are recorded
+under the core's `environment` (`development` by default). Check the
+core logs for `Failed to export span batch`, which means
+`<langfuse_url>api/public/otel/v1/traces` was not reachable or refused
+the key pair. Ingestion is asynchronous; wait a few seconds and refresh.
+Check `docker compose logs langfuse-worker` for errors.
+
+*Generations show no cost.* The model is unknown to Langfuse (a custom
+`llm.model_list` alias, or a model newer than its price table): add a
+model definition in the Langfuse project settings.
+
+*A session failed but its trace looks incomplete.* Expected: spans for
+work that raised are not exported. Use the session's failure message
+and artifacts.
+
+*Traces from a different environment are mixed in.* The environment
+comes from `environment` in the core's `config.yaml`; restart the core
+after changing it. Prompt labels follow the same value, so also read
+xref:main:guides/customize-prompts.adoc[Customize prompts] before
+changing it on an existing deployment.

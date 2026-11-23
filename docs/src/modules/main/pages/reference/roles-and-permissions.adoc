@@ -169,7 +169,7 @@ text, or session id
 repository link, pull-request links, lock state
 |no |yes |yes |yes
 
-|Open Phoenix from the admin sessions tab
+|Open Langfuse from the admin sessions tab
 |no |yes |yes |yes
 
 |Receive support requests sent from the web application's header

@@ -93,10 +93,10 @@
       ]
     },
     {
-      "id": "phoenix",
+      "id": "langfuse",
       "type": "backend",
-      "label": "phoenix",
-      "sublabel": "Phoenix :6006, phoenix-db",
+      "label": "langfuse",
+      "sublabel": "web + worker :3000, 3 stores",
       "row": 2,
       "col": 0,
       "size": [
@@ -108,7 +108,7 @@
       "id": "proxy",
       "type": "cloud",
       "label": "proxy",
-      "sublabel": "Nginx + SPA, :80 and :9000",
+      "sublabel": "Nginx + SPA, :80 :9000 :3000",
       "row": 2,
       "col": 1,
       "size": [
@@ -152,7 +152,7 @@
         "redis",
         "core",
         "coredb",
-        "phoenix",
+        "langfuse",
         "proxy",
         "mapping"
       ]
@@ -172,10 +172,10 @@
       "label": "/api + SSE"
     },
     {
-      "id": "proxy-to-phoenix",
+      "id": "proxy-to-langfuse",
       "from": "proxy",
-      "to": "phoenix",
-      "label": "/monitoring/"
+      "to": "langfuse",
+      "label": ":3000 UI"
     },
     {
       "id": "core-to-notifications",
@@ -219,7 +219,7 @@
       "dot": "cyan",
       "title": "Published surface",
       "items": [
-        "Only proxy publishes host ports: :80 for SPA, API, SSE and /monitoring/, :9000 for presigned URLs",
+        "Only proxy publishes host ports: :80 for SPA, API and SSE, :9000 for presigned URLs, :3000 for the Langfuse UI",
         "Every other container is internal-only via expose",
         "core calls the LLM and git APIs; notifications posts to the Slack webhook"
       ]
@@ -237,9 +237,9 @@
       "dot": "amber",
       "title": "Persistence and start-up",
       "items": [
-        "Named volumes: core_db_data, phoenix_db_data, object_storage_data, workspaces",
+        "Named volumes: core_db_data, object_storage_data, workspaces, and the langfuse_* ones",
         "No authz container: that optional contract is off and core answers locally",
-        "depends_on orders start-up without health checks; the prompt seeder retries phoenix"
+        "depends_on orders start-up; core waits for a healthy langfuse-web"
       ]
     }
   ]

@@ -1,19 +1,20 @@
 = Customize prompts
-:description: Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.
+:description: Manage Kumoss's runtime prompt registry in Langfuse: seed files, naming, labels, composition, and how to add or change prompts safely.
 
 Kumoss does not hard-code cloud knowledge. The instructions that tell
 its agents how to name, configure, and secure resources are *prompts*
-stored in the prompt registry of https://arize.com/docs/phoenix[Arize
-Phoenix], fetched by the core at request time. This guide explains the
+stored in the prompt management of https://langfuse.com/docs/prompt-management[Langfuse],
+fetched by the core at request time. This guide explains the
 three layers involved, the naming conventions, how seeding and runtime
 lookup work, how the prompts are composed into a system prompt, and how
 to add or change prompts safely.
 
-Phoenix also collects Kumoss's traces. That is a separate function,
-documented in xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
-Phoenix]. Where Phoenix runs and how it is protected in each deployment
-model is covered by xref:main:quickstart.adoc[Quickstart] and
-xref:main:guides/deploy-to-production.adoc[Deploy to production].
+Langfuse also collects Kumoss's traces. That is a separate function,
+documented in xref:main:guides/monitor-with-langfuse.adoc[Monitor with
+Langfuse], which also covers where Langfuse runs and how to log in.
+Prompts curated in Phoenix, which Kumoss used before, are moved with
+the script described in xref:main:guides/upgrade-notes.adoc[Upgrade
+notes].
 
 == Three different things, not one
 
@@ -22,16 +23,17 @@ xref:main:guides/deploy-to-production.adoc[Deploy to production].
 |Layer |Where |Who changes it |When it takes effect
 
 |*Runtime prompts*
-|Phoenix prompt registry (UI at `/monitoring/` in the default stack,
-persisted in `phoenix-db`)
-|Prompt maintainers, in the Phoenix UI or API
+|Langfuse prompt management (*Prompts* in the Langfuse UI, on port 3000
+in the default stack; persisted in `langfuse-db`)
+|Prompt maintainers, in the Langfuse UI or API
 |Immediately on the next request; the core caches nothing
 
 |*Seed YAML files*
 |`core/prompts/seed/<scope>/<type>/<name>.yaml` in the repository
 |Contributors and operators preparing a new deployment
-|Only at core startup, and only for prompt names that do not yet exist
-in Phoenix
+|At core startup: missing prompts are created, and a changed seed is
+published to the environments still on the previous seed (see
+<<how-seeding-works>>)
 
 |*Local Jinja layouts*
 |`core/src/infrastructure/templates/base_layouts/` (`core/` and
@@ -44,7 +46,7 @@ The seed files are the initial content of the registry, nothing more.
 The Jinja layouts are the fixed skeletons of each agent's system prompt:
 they define the agent's role, its tools and its output rules, and they
 contain placeholders that the core fills with prompts fetched from
-Phoenix. Operators customise the runtime prompts; the layouts are code.
+Langfuse. Operators customise the runtime prompts; the layouts are code.
 
 == Seed file conventions
 
@@ -75,50 +77,55 @@ prompt.
 
 === Qualified name
 
-The Phoenix prompt name is derived from the path, never declared inside
+The Langfuse prompt name is derived from the path, never declared inside
 the file, so a misfiled prompt cannot misreport its identity:
 
 [source]
 ----
-<scope>-<type>-<name>
+<scope>/<type>/<name>
 ----
+
+Langfuse shows each `/` as a folder, so its *Prompts* view is laid out
+like `core/prompts/seed/`: a folder per scope, and in it one per type.
+A prompt you create by hand must carry the full name, slashes included,
+to be found.
 
 [cols="2,3",options="header"]
 |===
-|File |Phoenix prompt name
+|File |Langfuse prompt name
 
 |`aws/guidelines/networking.yaml`
-|`aws-guidelines-networking`
+|`aws/guidelines/networking`
 
 |`aws/guidelines/abbreviations.yaml`
-|`aws-guidelines-abbreviations`
+|`aws/guidelines/abbreviations`
 
 |`aws/guidelines/resources_list.yaml`
-|`aws-guidelines-resources_list`
+|`aws/guidelines/resources_list`
 
 |`aws/resources/s3_bucket.yaml`
-|`aws-resources-s3_bucket`
+|`aws/resources/s3_bucket`
 
 |`azurerm/resources/storage_account.yaml`
-|`azurerm-resources-storage_account`
+|`azurerm/resources/storage_account`
 
 |`kubernetes/resources/deployment.yaml`
-|`kubernetes-resources-deployment`
+|`kubernetes/resources/deployment`
 
 |`vsphere/resources/virtual_machine.yaml`
-|`vsphere-resources-virtual_machine`
+|`vsphere/resources/virtual_machine`
 
 |`general/guidelines/terraform.yaml`
-|`general-guidelines-terraform`
+|`general/guidelines/terraform`
 
 |`general/guidelines/requests.yaml`
-|`general-guidelines-requests`
+|`general/guidelines/requests`
 
 |`general/compliance/report.yaml`
-|`general-compliance-report`
+|`general/compliance/report`
 
 |`general/compliance/impact.yaml`
-|`general-compliance-impact`
+|`general/compliance/impact`
 |===
 
 Two files that would produce the same qualified name abort the boot
@@ -133,13 +140,13 @@ with `Duplicate qualified name ...`.
 |`body`
 |yes
 |non-empty string
-|The prompt text, usually Markdown. Stored as a single user message in
-Phoenix.
+|The prompt text, usually Markdown. Stored as a Langfuse *text* prompt.
 
 |`description`
 |no
 |string
-|Shown in the Phoenix UI next to the prompt.
+|The commit message of each version the seeder creates, shown in the
+Langfuse version history.
 |===
 
 Every shipped seed provides both keys and starts with the repository's
@@ -147,91 +154,98 @@ SPDX comment header. The loader reads `body` and `description` and
 ignores everything else in the mapping — an extra key is neither
 rejected nor surfaced anywhere; it is dead weight in the file.
 
+[#how-seeding-works]
 == How seeding works
+
+A Langfuse prompt has numbered versions, and *labels* that each point
+at one version at a time: setting a label on a version takes it off any
+other. Langfuse keeps the `latest` label on the newest version itself.
+Kumoss uses one label per `environment` value and one of its own,
+`seed`.
 
 At every core startup, after the database, Redis, and object storage
 have been initialised, the seeder:
 
 . Loads every seed file (sorted, validated as above).
-. Probes Phoenix at `telemetry.collector_url`, retrying connection
-  errors for about 27 seconds. If Phoenix stays unreachable the boot
-  fails with `Phoenix unreachable after 8 attempts`. Phoenix must
-  therefore be available whenever the core starts.
-. For each seed, reads the prompt's version tagged `seed`, the one the
-  seeder last pushed. A prompt without that tag gets it on its latest
-  version first; prompts seeded before the tag existed get it this way
-  on the first boot that runs this seeder.
-. If the prompt does not exist, the seeder creates it with one version
-  whose displayed model name is `kumoss-seed` (Phoenix requires a model
-  name; Kumoss ignores it) and tags that version with every
-  `environment` value, `development`, `staging` and `production`, then
-  with `seed`.
+. Makes an authenticated read against Langfuse at
+  `telemetry.langfuse_url`, retrying for about 90 seconds while Langfuse
+  does not answer. If it stays unreachable the boot fails with `Langfuse
+  unreachable after 15 attempts`; if it rejects the key pair, with
+  `Langfuse refused the API key pair (401)`. Langfuse must therefore be
+  available whenever the core starts.
+. For each seed, reads the prompt's version labelled `seed`, the one the
+  seeder last pushed. A prompt without that label gets it on its latest
+  version first; prompts migrated from Phoenix without it get it this
+  way on the first boot.
+. If the prompt does not exist, the seeder creates it as a text prompt
+  whose first version carries every `environment` value as a label,
+  `development`, `staging` and `production`, plus `seed`.
 . If the text of the `seed` version differs from the seed file, the
-  seeder pushes the seed as a new version, moves to it every
-  environment tag that still points at the `seed` version, and moves
-  `seed` last. A tag on any other version, or a tag you removed, is
-  left alone.
+  seeder creates a new version with the seed's text and moves to it,
+  in one request, every environment label that is still on the `seed`
+  version, together with `seed`. A label on any other version, or a
+  label you removed, is left alone. If the latest version already holds
+  the seed's text (you saved it by hand), the labels move to it instead
+  of to a copy.
 . Logs `Prompt seeding complete: N created, M updated, K unchanged`.
 
 Only the text counts: the seeder compares the `seed` version's text
-with the seed file, and ignores its model, invocation parameters and
-description.
+with the seed file, and ignores its config and commit message.
 
 Consequences to plan for:
 
-* *Seeding never moves a tag off your versions.* A seed changed by a
-  release reaches every environment tag that still points at the `seed`
-  version. Once you point a tag at your own version, that tag keeps it
-  on every later boot, and seed changes for it are yours to merge by
+* *Seeding never moves a label off your versions.* A seed changed by a
+  release reaches every environment label that is still on the `seed`
+  version. Once you move a label to your own version, that label keeps
+  it on every later boot, and seed changes for it are yours to merge by
   hand. Do not move `seed` onto your own version, and do not remove it:
   without it the seeder takes the latest version as its own, which may
   be yours.
 * *New seed files are pushed too.* Adding a seed file and restarting the
   core creates the new prompt, even on an existing deployment.
-* *A failed tag is not always retried.* If Phoenix rejects one of the
-  tag writes, boot fails. The error names the prompt, its version, and
-  the tags still missing; add them to that version in Phoenix. On an
-  update the next boot retries the tags that still point at the `seed`
-  version, which moves only once they all have, but on a new prompt the
-  untagged environments look removed and are never tagged.
-* *The environment tag matters.* The core fetches prompts by name and
-  tag, and the tag is `environment`. Seeded versions carry all three
-  tags, so changing `environment` keeps working for them. It does not
-  for versions you create by hand, nor for prompts seeded by a release
-  that applied only the `environment` tag: the seeder sees the names
-  already exist, skips them, and never adds the missing tags. The next
-  session then fails because, say, `general-guidelines-terraform` has
-  no version tagged `production`. Tag a version of every such prompt
-  with the new value in Phoenix before switching, or start from an
-  empty Phoenix database.
+* *A write fails whole.* A version is created together with its labels,
+  and labels move in one request, so a failed write leaves the prompt as
+  it was; boot fails with an error naming the prompt (and, for a label
+  move, the version and labels), and the next boot tries again.
+* *The environment label matters.* The core fetches prompts by name and
+  label, and the label is `environment`. Seeded versions carry all three
+  labels, so changing `environment` keeps working for them. It does not
+  for prompts you created by hand, nor for labels you removed: the
+  seeder never adds a label it did not find on its `seed` version. The
+  next session then fails because, say, `general/guidelines/terraform`
+  has no version labelled `production`. Set the new label on a version
+  of every such prompt in Langfuse before switching.
 * *Prompt versions are yours to manage.* Kumoss always fetches the
-  version currently carrying the environment tag. Publishing a new
-  version and moving the tag is how you roll a change out; moving the
-  tag back is how you roll it back.
+  version currently carrying the environment label. Publishing a new
+  version and moving the label is how you roll a change out; moving the
+  label back is how you roll it back.
 
 == Runtime lookup
 
 Each time an agent chain is rendered, the core fetches the prompts its
-layout needs from Phoenix with the `<scope>-<type>-<name>` name and the
-`environment` tag, and reads the text of the first message of that
-version. There is no cache: every session sees the current tagged
-version, so editing a prompt in Phoenix takes effect on the next run
-without rebuilding or restarting the core.
+layout needs from Langfuse with the `<scope>/<type>/<name>` name and the
+`environment` label, and reads the version's text: the text of a text
+prompt, or the content of a chat prompt holding a single message (any
+other shape is an error). The text is used as it is: Langfuse's
+`+{{variable}}+` placeholders are not filled in. There is no cache: every
+session sees the version the label is on now, so editing a prompt in
+Langfuse takes effect on the next run without rebuilding or restarting
+the core.
 
 Which provider prompts a session uses depends on its root module: the
-core asks for the `<provider>-*` prompts of every provider the module's
+core asks for the `<provider>/*` prompts of every provider the module's
 `required_providers` declares. A provider prompt that does not exist is
 simply left out, so a provider without prompts — `random`, `helm`, or a
-module that declares no provider yet — gets the `general-*` prompts
+module that declares no provider yet — gets the `general/*` prompts
 only. When a module uses several providers that have the same
 guideline (for example `azurerm` and `kubernetes` both have
 `forbidden_actions`), the agent receives all of them, each as a
 section headed by its provider name. A resource template the
 compositor picks is taken from the first provider that has it.
 
-If a requested `general-*` prompt (or a version with the right tag)
-does not exist, the Phoenix client raises `Prompt not found: <name>`
-and the background run stops. This error is not one the runner converts into a failed
+If a requested `general/*` prompt (or a version with the right label)
+does not exist, the fetch fails with `prompt_name=<name>. No version
+labelled '<environment>'` and the background run stops. This error is not one the runner converts into a failed
 round: the session keeps its last status (for example `filtering`), no
 failure message or notification is produced, and the browser's event
 stream stays open until its timeout. The workspace is cleaned up and the
@@ -240,7 +254,7 @@ the prompt exists. There is no fallback to seed files at runtime.
 
 == Prompt categories
 
-=== Provider-wide guidelines (`<provider>-guidelines-*`)
+=== Provider-wide guidelines (`<provider>/guidelines/*`)
 
 One set per Terraform provider type, applied across all resources of
 that provider in every session whose root module uses it:
@@ -288,39 +302,39 @@ patterns).
 |IaC generator, compliance checker
 
 |`resources_list`
-|Catalogue of the `<provider>-resources-*` prompts the compositor may
+|Catalogue of the `<provider>/resources/*` prompts the compositor may
 select. Source of truth for discovery.
 |Prompt compositor
 |===
 
-=== General cross-provider prompts (`general-guidelines-*`)
+=== General cross-provider prompts (`general/guidelines/*`)
 
 [cols="1,3,2",options="header"]
 |===
 |Name |Purpose |Used by
 
-|`general-guidelines-terraform`
+|`general/guidelines/terraform`
 |Organisation-wide Terraform standards (structure, providers, state,
 style).
 |IaC generator, compliance checker
 
-|`general-guidelines-requests`
+|`general/guidelines/requests`
 |Rules for classifying and accepting user requests.
 |Request filter
 
-|`general-guidelines-targeting_policies`
+|`general/guidelines/targeting_policies`
 |Exclusions and policies for choosing drift remediation targets. Ships
 as a placeholder with no exclusions.
 |Target generator, drift mode only
 |===
 
-=== Compliance prompts (`general-compliance-*`)
+=== Compliance prompts (`general/compliance/*`)
 
 [cols="1,3,2",options="header"]
 |===
 |Name |Purpose |Used by
 
-|`general-compliance-report`
+|`general/compliance/report`
 |Business rules with rule ids and severities that the compliance
 auditor checks a plan against. The shipped seed defines
 `scope_exceeded`, `scope_incomplete`, and `critical_deletion`. A failed
@@ -328,20 +342,20 @@ check locks the session.
 |Compliance checker (when `orchestration.enable_compliance_checker` is
 `true`)
 
-|`general-compliance-impact`
+|`general/compliance/impact`
 |Criteria for labelling each change group `low`, `medium`, or `high`. A
 `high` banner locks the session when
 `orchestration.block_on_high_impact` is `true`.
 |Report generator, generate reports only
 |===
 
-=== Component and resource prompts (`<provider>-resources-<name>`)
+=== Component and resource prompts (`<provider>/resources/<name>`)
 
 One prompt per resource type, holding the default configuration the
 model should produce unless the user asks otherwise. Examples that ship
-today: `aws-resources-s3_bucket`, `azurerm-resources-storage_account`,
-`google-resources-cloud_run`, `oci-resources-compute_instance`,
-`kubernetes-resources-deployment`, `vsphere-resources-virtual_machine`.
+today: `aws/resources/s3_bucket`, `azurerm/resources/storage_account`,
+`google/resources/cloud_run`, `oci/resources/compute_instance`,
+`kubernetes/resources/deployment`, `vsphere/resources/virtual_machine`.
 
 == Shipped seed inventory
 
@@ -452,41 +466,38 @@ error:
 |Requested by |Prompt
 
 |Prompt compositor (every generate and drift round)
-|`<provider>-guidelines-abbreviations`,
-`<provider>-guidelines-resources_list`
+|`<provider>/guidelines/abbreviations`,
+`<provider>/guidelines/resources_list`
 
 |Request filter (every generate round and every partial drift round)
-|`<provider>-guidelines-forbidden_actions`
+|`<provider>/guidelines/forbidden_actions`
 
 |IaC generator and compliance checker
-|`<provider>-guidelines-resource_creation`,
-`<provider>-guidelines-networking`, `<provider>-guidelines-permissions`;
-plus `<provider>-guidelines-forbidden_actions` in generate rounds
+|`<provider>/guidelines/resource_creation`,
+`<provider>/guidelines/networking`, `<provider>/guidelines/permissions`;
+plus `<provider>/guidelines/forbidden_actions` in generate rounds
 
 |Drift exception filter (every drift round and every generate round's
 drift pre-check)
-|`<provider>-guidelines-drift_exceptions`
+|`<provider>/guidelines/drift_exceptions`
 
 |Import scope diff (every import round that finds unmanaged resources)
-|`<provider>-guidelines-import_exceptions`
+|`<provider>/guidelines/import_exceptions`
 |===
 
-Because a missing provider prompt is skipped, deleting one in Phoenix
+Because a missing provider prompt is skipped, deleting one in Langfuse
 does not break sessions — it silently removes that provider's
-conventions from them. The `general-*` prompts are the opposite: they
+conventions from them. The `general/*` prompts are the opposite: they
 are read for every session and a missing one aborts the run with
-`Prompt not found`.
+`No version labelled ...`.
 
 The import exception list is only read once the scope listing has
 returned resources that the state does not track. Only `azurerm`,
 `google` and `aws` scopes can be listed, so `kubernetes` and `vsphere`
 ship without one.
 
-Keep this in mind when you delete a prompt in Phoenix or trim the seed
-set for a deployment. (The GCP `abbreviations`, `forbidden_actions`, and
-`networking` seeds were missing before 2026-09-11 and have been added;
-an already seeded Phoenix database does not receive them until the core
-restarts, because only new names are pushed.)
+Keep this in mind when you delete a prompt in Langfuse or trim the seed
+set for a deployment.
 
 NOTE: Prompt scopes were renamed from the core's former provider names
 to Terraform provider type names: `azure-*` is now `azurerm-*`, `gcp-*`
@@ -496,13 +507,10 @@ under the old names stay where they are and are no longer read; copy
 them to the new names. See xref:main:guides/upgrade-notes.adoc[Upgrade
 notes].
 
-Also note that the loader's name pattern permits a leading underscore
-while Phoenix rejects names starting with `_`; avoid them.
-
 [#drift-exception-rules]
 == Drift exception rules
 
-`<provider>-guidelines-drift_exceptions` is the list of things drift
+`<provider>/guidelines/drift_exceptions` is the list of things drift
 remediation must never touch. It is read by a dedicated *drift exception
 filter*: after the task splitter turns a drift report into operations,
 and after the reconciliation filter has removed the session's own
@@ -520,7 +528,7 @@ drift pre-check inside every generate round, so a generate round cannot
 silently "fix" an excluded resource either. With several providers in
 the root module, the filter receives the rules of each of them.
 
-This is not the same brake as `general-guidelines-targeting_policies`.
+This is not the same brake as `general/guidelines/targeting_policies`.
 Targeting policies decide which resources a *partial* drift round plans
 at all; they never reach a full drift round and they never see the
 operations. Exception rules apply to the operations of every drift
@@ -578,7 +586,7 @@ involuntarily.
 [#import-exception-list]
 == Import exception list
 
-`<provider>-guidelines-import_exceptions` names the resources an import
+`<provider>/guidelines/import_exceptions` names the resources an import
 round must never bring under Terraform, even when they exist in the
 cloud scope and the state does not track them. Unlike every other
 prompt, it is not written for a model. The core parses the body itself
@@ -616,7 +624,7 @@ project IAM, the space-separated `<project-id> <role> <member>` entry),
 and the ARN for AWS. See
 xref:main:reference/api/iac.adoc[IaC sidecar API] for the exact shapes.
 Backticks around the ID are optional. Every line that is not a bullet
-is ignored, so headings and explanations stay readable in Phoenix, but
+is ignored, so headings and explanations stay readable in Langfuse, but
 keep them in plain paragraphs: a bullet of prose would be read as an ID.
 
 [source,yaml]
@@ -660,30 +668,30 @@ model passes and then renders the layouts:
   additional templates and abbreviations. Both passes are merged into
   the round's conventions.
 . *Rendering the agent layouts.* The IaC generator layout (and the
-  compliance checker layout) receives `general-guidelines-terraform`,
+  compliance checker layout) receives `general/guidelines/terraform`,
   each provider's `resource_creation`, `networking`, and `permissions`
   guidelines, `forbidden_actions` in generate rounds (drift rounds omit
   it), and a concrete-implementation section built from the selected
-  `<provider>-resources-*` prompts and abbreviations. The compliance
-  checker additionally receives `general-compliance-report`; the
-  report generator receives `general-compliance-impact` for generate
+  `<provider>/resources/*` prompts and abbreviations. The compliance
+  checker additionally receives `general/compliance/report`; the
+  report generator receives `general/compliance/impact` for generate
   reports; the drift target generator receives
-  `general-guidelines-targeting_policies`; the drift exception filter
+  `general/guidelines/targeting_policies`; the drift exception filter
   receives each provider's `drift_exceptions`; the request filter
-  receives `general-guidelines-requests` and each provider's
+  receives `general/guidelines/requests` and each provider's
   `forbidden_actions`.
 
-The layouts also carry fixed content that is not in Phoenix: the
+The layouts also carry fixed content that is not in Langfuse: the
 agent's role, the tools it may call, output format rules, and the
 working directory. Those change only with a core rebuild.
 
-`<provider>-guidelines-import_exceptions` is the one prompt that is never
+`<provider>/guidelines/import_exceptions` is the one prompt that is never
 rendered into a layout: the core reads the IDs out of it, and the
 `import_filter` layout only receives what is left after they are
 removed.
 
 *Discovery depends on `resources_list`.* Nothing enumerates the
-`<provider>-resources-*` prompts that exist in Phoenix. The compositor
+`<provider>/resources/*` prompts that exist in Langfuse. The compositor
 can only pick names that appear in `resources_list`, and every name it
 picks is then fetched from the module's providers in order; a name
 listed there without a matching resource prompt is logged as a warning
@@ -704,7 +712,7 @@ All examples are fictitious and use the repository conventions.
 
 File `core/prompts/seed/aws/guidelines/networking.yaml` (shipped; body
 shortened here for space — see the file for the full text), producing the
-Phoenix prompt `aws-guidelines-networking`:
+Langfuse prompt `aws/guidelines/networking`:
 
 [source,yaml]
 ----
@@ -734,7 +742,7 @@ body: |
 
 File `core/prompts/seed/aws/resources/s3_bucket.yaml` (shipped; body
 shortened here for space — see the file for the full text), producing
-`aws-resources-s3_bucket`:
+`aws/resources/s3_bucket`:
 
 [source,yaml]
 ----
@@ -761,14 +769,14 @@ body: |
 
 The compositor can only select `s3_bucket` because it appears in
 `core/prompts/seed/aws/guidelines/resources_list.yaml`
-(`aws-guidelines-resources_list`). The shipped file is a bulleted
+(`aws/guidelines/resources_list`). The shipped file is a bulleted
 catalogue; a new resource prompt needs one more line in the same style,
 for example a hypothetical `sqs_queue` resource that does not ship
 today:
 
 [source,yaml]
 ----
-description: Names of aws-resources-* prompts the compositor may select from.
+description: Names of aws/resources/* prompts the compositor may select from.
 body: |
   # Available AWS Resource Templates
 
@@ -799,48 +807,51 @@ in that specific file rather than copying another cloud's convention.
   `core/prompts/seed/<provider>/guidelines/resources_list.yaml`.
 . Rebuild the core image (`docker compose build core`) so the new seed
   files are inside it, and start the stack. The seeder creates
-  `<provider>-resources-<name>` and, because `resources_list` does not
-  exist yet either, the updated catalogue.
+  `<provider>/resources/<name>` and the catalogue from the updated
+  `resources_list`.
 
 === Adding or changing a prompt on an already running deployment
 
-The seeder will not touch `<provider>-guidelines-resources_list` once it
-exists, so the catalogue must be edited in Phoenix:
+Without a core rebuild, edit the prompts in Langfuse:
 
-. Open Phoenix (`/monitoring/` in the default stack) and go to
-  *Prompts*.
-. For a new component: either add the seed file and restart the core
-  (new names are created), or create the prompt
-  `<provider>-resources-<name>` directly in Phoenix. In both cases the
-  new version must carry the deployment's `environment` tag
-  (`development` by default); the seeder tags what it creates with all
-  three environments, a manual creation must be tagged by hand.
-. Open `<provider>-guidelines-resources_list`, create a new version with
-  the extra line, and move the environment tag to it.
+. Open Langfuse (`\http://localhost:3000` in the default stack) and go
+  to *Prompts*.
+. For a new component: either add the seed file, rebuild and restart the
+  core (new names are created), or create the *text* prompt
+  `<provider>/resources/<name>` directly in Langfuse. In both cases the
+  new version must carry the deployment's `environment` label
+  (`development` by default); the seeder labels what it creates with all
+  three environments, a manual creation must be labelled by hand.
+. Open `<provider>/guidelines/resources_list`, create a new version with
+  the extra line, and set the environment label on it.
 . Run a session that mentions the new resource. No core rebuild or
   restart is needed for step 3 to take effect.
 
 To *change* an existing prompt (a naming rule, a security default, a
-compliance rule), create a new version in Phoenix and move the tag.
-Keep the previous version; moving the tag back is the rollback.
+compliance rule), create a new version in Langfuse and set the
+environment label on it. Keep the previous version; moving the label
+back is the rollback. When the Langfuse UI offers to set the
+`production` label on a new version, that is the label a `production`
+deployment reads: leave it unticked to try the version out under
+`development` or `staging` first.
 
 == Checklist for operators
 
 * Review every shipped prompt before relying on a deployment: naming
   conventions, security defaults, forbidden actions, and compliance
   rules encode a policy, not yours.
-* Keep Phoenix reachable during core startups; seeding is part of the
+* Keep Langfuse reachable during core startups; seeding is part of the
   boot.
 * Keep the "No arbitrary command execution" section when you replace
-  the body of `general-guidelines-terraform`. It is the only instruction
+  the body of `general/guidelines/terraform`. It is the only instruction
   that keeps `null_resource`, `provisioner` blocks, and
   `data "external"` out of generated code, and nothing enforces it
   outside the prompt, see
   xref:main:guides/deploy-to-production.adoc[Deploy to production].
-* Decide who may edit prompts. Anyone with access to the Phoenix UI can
-  change what the agents generate. Phoenix has no authentication in the
-  default stack.
+* Decide who may edit prompts. Anyone with a role that can edit prompts
+  in the Langfuse project can change what the agents generate; give
+  others a viewer role.
 * Treat the `environment` value as part of the prompt data model: it is
-  the tag every fetch uses.
-* Back up `phoenix-db`; it holds your curated prompts as well as the
-  traces.
+  the label every fetch uses.
+* Back up `langfuse-db`; it holds your curated prompts. Traces are in
+  ClickHouse.

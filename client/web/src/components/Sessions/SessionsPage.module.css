@@ -35,7 +35,7 @@
   color: light-dark(var(--color-status-failed), #fca5a5);
 }
 
-.phoenixLink {
+.monitoringLink {
   display: inline-flex;
   align-items: center;
   gap: 4px;
@@ -48,6 +48,6 @@
   cursor: pointer;
 }
 
-.phoenixLink:hover {
+.monitoringLink:hover {
   text-decoration: underline;
 }

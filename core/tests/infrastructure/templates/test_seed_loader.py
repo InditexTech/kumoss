@@ -38,7 +38,7 @@ class TestSeedLoader(unittest.TestCase):
         self.assertEqual(e.scope, "azurerm")
         self.assertEqual(e.type, "guidelines")
         self.assertEqual(e.name, "networking")
-        self.assertEqual(e.qualified_name, "azurerm-guidelines-networking")
+        self.assertEqual(e.qualified_name, "azurerm/guidelines/networking")
         self.assertEqual(e.description, "Net rules")
         self.assertIn("hub-and-spoke", e.body)
 
@@ -123,9 +123,9 @@ class TestSeedLoader(unittest.TestCase):
         self.assertEqual(
             names,
             [
-                "azurerm-guidelines-networking",
-                "azurerm-guidelines-permissions",
-                "general-guidelines-terraform",
+                "azurerm/guidelines/networking",
+                "azurerm/guidelines/permissions",
+                "general/guidelines/terraform",
             ],
         )
 

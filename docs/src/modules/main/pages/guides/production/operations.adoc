@@ -57,27 +57,35 @@ drills — it is the record of what Kumoss has built. Kumoss never
 deletes a state object. Details and per-provider IAM minimums:
 xref:main:guides/state-backends/kumoss-managed.adoc#operations[Operations].
 
-*Phoenix.* Required at core start-up (prompt seeding retries for about
-27 seconds and then aborts the boot) and on every request (prompt
-fetch). Run it with its own PostgreSQL, back that database up, and put
-the UI and API behind access control: Phoenix has *no authentication of
-its own*, and it holds prompts, plans, generated code, repository
-metadata, and user identifiers. The core sets no exporter headers; OTLP
-header env vars may be honoured by the OpenTelemetry SDK but this is
-not verified here — put an authenticating proxy or collector in front
-of Phoenix if you need auth. Note that the same
-`telemetry.collector_url` serves both trace export and the prompt API
-(xref:main:guides/monitor-with-phoenix.adoc#configuration[Configuration]).
+*Langfuse.* Required at core start-up (prompt seeding retries for about
+90 seconds and then aborts the boot) and on every request (prompt
+fetch). Run it with its PostgreSQL, ClickHouse, Redis and bucket, back
+up the PostgreSQL database (prompts, users, API keys) and ClickHouse
+(traces), and keep the UI behind TLS and network controls: it holds
+prompts, plans, generated code, repository metadata, and user
+identifiers. Both the OTLP export and the prompt API authenticate with
+the project's API key pair (`LANGFUSE_PUBLIC_KEY` /
+`LANGFUSE_SECRET_KEY`); the UI has its own login. The same
+`telemetry.langfuse_url` serves both trace export and the prompt API
+(xref:main:guides/monitor-with-langfuse.adoc#configuration[Configuration]).
 
 *Checked-in defaults you must not carry into production.* The compose
 file hard-codes several credentials and settings that are fine only on
 an isolated workstation:
 
-* `POSTGRES_PASSWORD=postgres` on both `core-db` and `phoenix-db`, and
-  the matching password embedded in `PHOENIX_SQL_DATABASE_URL`. Replace
-  all three with a generated password from your secret store, and
-  update `KUMOSS_SQL_DATABASE_URL` and `PHOENIX_SQL_DATABASE_URL` to
-  match.
+* `POSTGRES_PASSWORD=postgres` on `core-db` and `langfuse-db` (the
+  latter overridable with `LANGFUSE_DB_PASSWORD`), and the matching
+  password embedded in `KUMOSS_SQL_DATABASE_URL`. Replace them with
+  generated passwords from your secret store, and update
+  `KUMOSS_SQL_DATABASE_URL` to match.
+* The Langfuse development defaults: the project key pair
+  `pk-lf-kumoss-dev` / `sk-lf-kumoss-dev`, the admin login
+  `admin@example.com` / `kumoss-admin-1`, and the `SALT`,
+  `ENCRYPTION_KEY`, `NEXTAUTH_SECRET`, ClickHouse and Redis passwords.
+  Each is overridable from the shell or a root `.env` (see the comments
+  on `langfuse-web` in `docker-compose.yml`); keep the core's
+  `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` matching the project
+  keys.
 * `object-storage` sets no `RUSTFS_ACCESS_KEY` / `RUSTFS_SECRET_KEY`,
   so RustFS runs with its built-in `rustfsadmin` / `rustfsadmin`
   credentials. Before onboarding real data, set both on
@@ -132,8 +140,8 @@ the RustFS credentials: `rustfsadmin` / `rustfsadmin` unless you set
 [#backups-and-upgrades]
 == Backups and upgrades
 
-Back up: the core PostgreSQL database, the Phoenix PostgreSQL database
-(prompts and traces), the artifacts bucket, and — with the highest
+Back up: the core PostgreSQL database, the Langfuse PostgreSQL database
+(prompts) and ClickHouse (traces), the artifacts bucket, and — with the highest
 priority — wherever *Terraform state* lives, since losing it means
 losing the record of the infrastructure Kumoss manages. That is the
 state bucket if you enabled Kumoss-managed state, and otherwise the
@@ -155,19 +163,16 @@ Upgrading Kumoss:
   core. Prompts you curated under `azure-*`, `gcp-*` or `vmware-*`
   names must be copied to `azurerm-*`, `google-*` and `vsphere-*`.
 . Rebuild or pull the images and the configuration for the new version.
-. On the next core start new prompt seed files are created in Phoenix,
+. On the next core start new prompt seed files are created in Langfuse,
   and changed seeds replace the versions the seeder pushed: every
-  environment tag on a prompt's `seed` version moves to the new seed
-  version. Tags you point at your own versions never move, so review the
-  seed changes for those and apply the ones you want as new prompt
+  environment label on a prompt's `seed` version moves to the new seed
+  version. Labels you point at your own versions never move, so review
+  the seed changes for those and apply the ones you want as new prompt
   versions.
-. Upgrading from a release before the `seed` tag: the first start tags
-  the latest version of every seeded prompt `seed` and treats it as the
-  seeder's. If you saved your own version of a prompt, it is that
-  prompt's latest version, and the environment tags on it would move to
-  the new seed. Before upgrading, add the `seed` tag in Phoenix to the
-  version the seeder created (the prompt's first version) for every
-  prompt you curated.
+. Upgrading from a release that used Phoenix: export your prompts
+  before upgrading and import them into Langfuse afterwards, as
+  xref:main:guides/upgrade-notes.adoc[Upgrade notes] describes. Traces
+  stay in Phoenix and are not migrated.
 . AWS deployments: the account is enforced by the provider, not by the
   iac service. Generated code passes `aws_account_id`, which the core
   sends as the AWS scope, to the provider's `allowed_account_ids`, so a
@@ -212,7 +217,8 @@ Then, as the bootstrap administrator:
   portal lists users.
 . Run a generate session against a test repository and a test cloud
   project; confirm the branch, the pull request, the report, and the
-  traces in Phoenix under `pro-terraform-day2`. Also confirm state
+  traces in Langfuse, in the `production` environment with the
+  `generate` tag. Also confirm state
   landed where you intended: with the shipped default (Kumoss-managed
   state), the core logs `Terraform state: <provider>
   bucket=<bucket> key=<project_id>/terraform.tfstate` before `init` and
@@ -239,10 +245,21 @@ Then, as the bootstrap administrator:
 `config.yaml`, is empty in the core's environment.
 |Set a distinct bearer token on both sides of every enabled sidecar.
 
-|Core exits with `Phoenix unreachable after 8 attempts`
-|Phoenix is not reachable at `telemetry.collector_url` from the core, or
-the URL lacks the trailing slash.
+|Core exits with `Langfuse unreachable after 15 attempts`
+|Langfuse is not reachable at `telemetry.langfuse_url` from the core,
+or was still migrating its databases.
 |Fix the URL or the network path, then restart the core.
+
+|Core exits with `Langfuse refused the API key pair (401)`
+|`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` are unset (the core then
+uses the bundled stack's development keys) or belong to another
+project.
+|Set the key pair of the Langfuse project, then restart the core.
+
+|Core exits with `telemetry.collector_url was the Phoenix URL`
+|`config.yaml` still carries the Phoenix setting.
+|Replace it with `telemetry.langfuse_url`
+(xref:main:guides/upgrade-notes.adoc[Upgrade notes]).
 
 |Core boots with every optional sidecar disabled although
 `config.yaml` enables them
@@ -322,8 +339,8 @@ uid `10001`.
 |Fix the mount and its ownership, or unset the variable.
 
 |A run stopped without a failure message
-|A prompt was missing in Phoenix for the deployment's `environment`
-tag.
+|A prompt was missing in Langfuse for the deployment's `environment`
+label.
 |See xref:main:guides/customize-prompts.adoc#runtime-lookup[Runtime
 lookup].
 |===

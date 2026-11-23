@@ -32,11 +32,11 @@
   },
   "components": [
     {
-      "id": "phoenix",
+      "id": "langfuse",
       "type": "backend",
-      "label": "phoenix",
+      "label": "langfuse",
       "sublabel": "observability + prompts",
-      "tag": "with phoenix-db",
+      "tag": "with its own stores",
       "row": 0,
       "col": 1,
       "size": [
@@ -96,7 +96,7 @@
       "id": "proxy",
       "type": "cloud",
       "label": "proxy",
-      "sublabel": "web app, API, monitoring",
+      "sublabel": "web app, API, Langfuse UI",
       "row": 1,
       "col": 1,
       "size": [
@@ -218,7 +218,7 @@
       "kind": "region",
       "label": "Core platform components — run as shipped",
       "wraps": [
-        "phoenix",
+        "langfuse",
         "redis",
         "objstore",
         "proxy",
@@ -260,13 +260,13 @@
     {
       "id": "monitoring",
       "from": "proxy",
-      "to": "phoenix",
-      "label": "/monitoring/"
+      "to": "langfuse",
+      "label": ":3000"
     },
     {
       "id": "traces",
       "from": "core",
-      "to": "phoenix",
+      "to": "langfuse",
       "label": "OTLP + prompts"
     },
     {

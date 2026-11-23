@@ -5,250 +5,209 @@
 # pyright: basic
 import asyncio
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
 
-from phoenix.client.types.prompts import PromptVersion
-
 from src.infrastructure.exceptions import PromptSeedPushError
 from src.infrastructure.templates.prompt_seeder import PromptSeeder
+from tests.infrastructure.templates.fake_langfuse import FakeLangfuse
 
-
-def _seeder(tmp_path: Path) -> tuple[PromptSeeder, SimpleNamespace]:
-    seed = tmp_path / "general" / "guidelines" / "terraform.yaml"
-    seed.parent.mkdir(parents=True)
-    seed.write_text("body: anything\n", encoding="utf-8")
-
-    seeder = PromptSeeder(tmp_path, "http://phoenix.invalid")
-    prompts = SimpleNamespace(
-        # 404 for the probe and the existence check: the prompt is missing.
-        get=AsyncMock(side_effect=ValueError("Prompt not found")),
-        create=AsyncMock(return_value=SimpleNamespace(id="v1")),
-        tags=SimpleNamespace(create=AsyncMock()),
-    )
-    seeder._client = SimpleNamespace(prompts=prompts)  # type: ignore[assignment]
-    return seeder, prompts
-
-
-def test_new_prompt_is_tagged_with_every_environment(tmp_path: Path):
-    seeder, prompts = _seeder(tmp_path)
-
-    asyncio.run(seeder.ensure_seeded())
-
-    tagged = [c.kwargs["name"] for c in prompts.tags.create.await_args_list]
-    assert tagged == ["development", "staging", "production", "seed"]
-    assert all(
-        c.kwargs["prompt_version_id"] == "v1"
-        for c in prompts.tags.create.await_args_list
-    )
-
-
-def test_tag_failure_names_the_tags_left_to_apply(tmp_path: Path):
-    seeder, prompts = _seeder(tmp_path)
-    prompts.tags.create.side_effect = [None, httpx.ReadTimeout("boom")]
-
-    with pytest.raises(PromptSeedPushError) as exc:
-        asyncio.run(seeder.ensure_seeded())
-
-    assert "tag that version by hand with: staging, production, seed" in str(
-        exc.value.message
-    )
-
-
+NAME = "general/guidelines/terraform"
 BODY = "anything"
+ENVS = ("development", "staging", "production")
 
 
-def _version(text: str, version_id: str) -> PromptVersion:
-    """A version as the Phoenix client hydrates a GET response, so a change
-    in how the client stores it breaks these tests rather than the seeder."""
-    return PromptVersion._loads(  # pyright: ignore[reportPrivateUsage]
-        {
-            "id": version_id,
-            "model_provider": "OPENAI",
-            "model_name": "kumoss-seed",
-            "template": {
-                "type": "chat",
-                "messages": [
-                    {"role": "user", "content": [{"type": "text", "text": text}]}
-                ],
-            },
-            "template_type": "CHAT",
-            "template_format": "NONE",
-            "invocation_parameters": {"type": "openai", "openai": {}},
-        }
-    )
+def _seed(tmp_path: Path, langfuse: FakeLangfuse) -> None:
+    seed = tmp_path / "general" / "guidelines" / "terraform.yaml"
+    seed.parent.mkdir(parents=True, exist_ok=True)
+    seed.write_text(f"body: {BODY}\ndescription: the seed\n", encoding="utf-8")
+    asyncio.run(PromptSeeder(tmp_path, langfuse.client()).ensure_seeded())
 
 
-def _existing(
-    tmp_path: Path,
-    tagged: dict[str, PromptVersion],
-    latest: PromptVersion | None = None,
-) -> tuple[PromptSeeder, SimpleNamespace]:
-    """A seeder whose prompt already exists, with ``tagged`` the version each
-    tag points at (a tag missing from it is absent) and ``latest`` the newest
-    version, the `seed` one by default."""
-    seeder, prompts = _seeder(tmp_path)
-    newest = latest or tagged["seed"]
+def test_a_new_prompt_gets_every_environment_label_and_seed(tmp_path: Path):
+    langfuse = FakeLangfuse()
 
-    async def get(*, prompt_identifier: str, tag: str | None = None):
-        if prompt_identifier == "kumoss_seed_probe_does_not_exist":
-            raise ValueError("Prompt not found")
-        if tag is None:
-            return newest
-        if tag not in tagged:
-            raise ValueError("Prompt not found")
-        return tagged[tag]
+    _seed(tmp_path, langfuse)
 
-    prompts.get = AsyncMock(side_effect=get)
-    return seeder, prompts
+    # Created with its labels in one request: no window without them.
+    assert langfuse.writes == [("create", NAME, (*ENVS, "seed"))]
+    assert langfuse.labels(NAME) == {
+        "development": 1,
+        "staging": 1,
+        "production": 1,
+        "seed": 1,
+        "latest": 1,
+    }
+    assert langfuse.prompts[NAME][0].body == BODY
 
 
-def _moved(prompts: SimpleNamespace) -> list[tuple[str, str]]:
-    return [
-        (c.kwargs["name"], c.kwargs["prompt_version_id"])
-        for c in prompts.tags.create.await_args_list
-    ]
+def test_a_stale_seed_moves_every_label_on_it(tmp_path: Path):
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, "old body", (*ENVS, "seed"))
+
+    _seed(tmp_path, langfuse)
+
+    assert langfuse.writes == [("create", NAME, (*ENVS, "seed"))]
+    assert langfuse.labels(NAME) == {
+        "development": 2,
+        "staging": 2,
+        "production": 2,
+        "seed": 2,
+        "latest": 2,
+    }
 
 
-def test_a_stale_seed_moves_every_tag_on_it_then_seed(tmp_path: Path):
-    old = _version("old body", "v0")
-    seeder, prompts = _existing(
-        tmp_path,
-        {"development": old, "staging": old, "production": old, "seed": old},
-    )
-
-    asyncio.run(seeder.ensure_seeded())
-
-    prompts.create.assert_awaited_once()
-    assert _moved(prompts) == [
-        ("development", "v1"),
-        ("staging", "v1"),
-        ("production", "v1"),
-        ("seed", "v1"),
-    ]
-
-
-def test_a_tag_on_another_version_is_never_moved(tmp_path: Path):
+def test_a_label_on_another_version_is_never_moved(tmp_path: Path):
     # production points at a version an operator saved; staging was removed.
-    old = _version("old body", "v0")
-    seeder, prompts = _existing(
-        tmp_path,
-        {
-            "development": old,
-            "production": _version("my own prompt", "v5"),
-            "seed": old,
-        },
-        latest=_version("my own prompt", "v5"),
-    )
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, "old body", ("development", "seed"))
+    langfuse.add(NAME, "my own prompt", ("production",))
 
-    asyncio.run(seeder.ensure_seeded())
+    _seed(tmp_path, langfuse)
 
-    assert _moved(prompts) == [("development", "v1"), ("seed", "v1")]
+    assert langfuse.labels(NAME) == {
+        "development": 3,
+        "seed": 3,
+        "production": 2,
+        "latest": 3,
+    }
 
 
 def test_an_up_to_date_seed_is_left_alone(tmp_path: Path):
-    current = _version(BODY, "v0")
-    seeder, prompts = _existing(
-        tmp_path,
-        {"development": current, "production": _version("mine", "v5"), "seed": current},
-    )
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, BODY, ("development", "seed"))
+    langfuse.add(NAME, "mine", ("production",))
 
-    asyncio.run(seeder.ensure_seeded())
+    _seed(tmp_path, langfuse)
 
-    prompts.create.assert_not_awaited()
-    prompts.tags.create.assert_not_awaited()
+    assert langfuse.writes == []
 
 
-def test_without_a_seed_tag_the_latest_version_gets_it(tmp_path: Path):
-    current = _version(BODY, "v3")
-    seeder, prompts = _existing(
-        tmp_path, {"development": current, "production": current}, latest=current
-    )
+def test_without_a_seed_label_the_latest_version_gets_it(tmp_path: Path):
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, BODY, ("development", "production"))
 
-    asyncio.run(seeder.ensure_seeded())
+    _seed(tmp_path, langfuse)
 
-    prompts.create.assert_not_awaited()
-    assert _moved(prompts) == [("seed", "v3")]
+    assert langfuse.writes == [("label", NAME, (1, ("seed",)))]
 
 
-def test_a_stale_latest_version_without_a_seed_tag_is_updated(tmp_path: Path):
-    # An install seeded before the tag existed, on a seed changed since.
-    old = _version("old body", "v3")
-    seeder, prompts = _existing(
-        tmp_path, {"development": old, "production": old}, latest=old
-    )
+def test_a_stale_latest_version_without_a_seed_label_is_updated(tmp_path: Path):
+    # A prompt store migrated without the label, on a seed changed since.
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, "old body", ("development", "production"))
 
-    asyncio.run(seeder.ensure_seeded())
+    _seed(tmp_path, langfuse)
 
-    prompts.create.assert_awaited_once()
-    assert _moved(prompts) == [
-        ("seed", "v3"),
-        ("development", "v1"),
-        ("production", "v1"),
-        ("seed", "v1"),
+    assert langfuse.writes == [
+        ("label", NAME, (1, ("seed",))),
+        ("create", NAME, ("development", "production", "seed")),
     ]
+    assert langfuse.labels(NAME) == {
+        "development": 2,
+        "production": 2,
+        "seed": 2,
+        "latest": 2,
+    }
 
 
-def test_stale_tags_join_a_current_version_instead_of_a_copy(tmp_path: Path):
-    # An earlier boot pushed v2 and moved development, then failed.
-    old = _version("old body", "v0")
-    current = _version(BODY, "v2")
-    seeder, prompts = _existing(
-        tmp_path,
-        {"development": current, "staging": old, "production": old, "seed": old},
-        latest=current,
-    )
+def test_stale_labels_join_a_current_version_instead_of_a_copy(tmp_path: Path):
+    # The new seed text was saved by hand before this boot.
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, "old body", (*ENVS, "seed"))
+    langfuse.add(NAME, BODY)
 
-    asyncio.run(seeder.ensure_seeded())
+    _seed(tmp_path, langfuse)
 
-    prompts.create.assert_not_awaited()
-    assert _moved(prompts) == [
-        ("staging", "v2"),
-        ("production", "v2"),
-        ("seed", "v2"),
-    ]
+    assert langfuse.writes == [("label", NAME, (2, (*ENVS, "seed")))]
 
 
 def test_the_seeder_recognizes_the_versions_it_writes(tmp_path: Path):
-    # Round trip through the client's own serialization: what the seeder
-    # pushes, read back as Phoenix returns it, is current.
-    seeder, prompts = _seeder(tmp_path)
-    asyncio.run(seeder.ensure_seeded())
-    pushed: PromptVersion = prompts.create.await_args.kwargs["version"]
-    stored = PromptVersion._loads(  # pyright: ignore[reportPrivateUsage]
-        {**pushed._dumps(), "id": "v1"}  # pyright: ignore[reportPrivateUsage]
-    )
+    langfuse = FakeLangfuse()
+    _seed(tmp_path, langfuse)
+    writes = list(langfuse.writes)
 
-    seeder, prompts = _existing(tmp_path / "again", {"seed": stored})
-    asyncio.run(seeder.ensure_seeded())
+    _seed(tmp_path, langfuse)
 
-    prompts.create.assert_not_awaited()
-    prompts.tags.create.assert_not_awaited()
+    assert langfuse.writes == writes
 
 
 def test_a_seed_of_another_shape_is_stale(tmp_path: Path):
-    # Only the one text message the seeder writes can match a seed.
-    two_messages = PromptVersion._loads(  # pyright: ignore[reportPrivateUsage]
-        {
-            **_version(BODY, "v0")._dumps(),  # pyright: ignore[reportPrivateUsage]
-            "id": "v0",
-            "template": {
-                "type": "chat",
-                "messages": [
-                    {"role": "user", "content": [{"type": "text", "text": BODY}]},
-                    {"role": "user", "content": [{"type": "text", "text": "more"}]},
-                ],
-            },
-        }
-    )
-    seeder, prompts = _existing(
-        tmp_path, {"production": two_messages, "seed": two_messages}
+    # Only a single text matches a seed: a chat prompt of two messages does not.
+    langfuse = FakeLangfuse()
+    two_messages = [
+        {"role": "user", "content": BODY},
+        {"role": "user", "content": "more"},
+    ]
+    langfuse.add(NAME, two_messages, ("production", "seed"), type="chat")
+
+    _seed(tmp_path, langfuse)
+
+    assert langfuse.writes == [("create", NAME, ("production", "seed"))]
+    # Still a chat prompt: Langfuse refuses a version of another type.
+    pushed = langfuse.prompts[NAME][-1]
+    assert (pushed.type, pushed.body) == ("chat", [{"role": "user", "content": BODY}])
+
+
+def test_a_stale_chat_seed_is_updated_as_a_chat_prompt(tmp_path: Path):
+    # An operator saved the prompt as chat in the Langfuse UI.
+    langfuse = FakeLangfuse()
+    old = [{"role": "system", "content": "old body"}]
+    langfuse.add(NAME, old, (*ENVS, "seed"), type="chat")
+
+    _seed(tmp_path, langfuse)
+
+    assert langfuse.writes == [("create", NAME, (*ENVS, "seed"))]
+    pushed = langfuse.prompts[NAME][-1]
+    assert (pushed.type, pushed.body) == (
+        "chat",
+        [{"role": "system", "content": BODY}],
     )
 
-    asyncio.run(seeder.ensure_seeded())
 
-    prompts.create.assert_awaited_once()
-    assert _moved(prompts) == [("production", "v1"), ("seed", "v1")]
+def test_a_refused_key_pair_fails_at_once_and_says_so(tmp_path: Path):
+    langfuse = FakeLangfuse()
+    langfuse.fail = lambda _: httpx.Response(401, json={"message": "Unauthorized"})
+
+    with patch("asyncio.sleep", AsyncMock()) as sleep:
+        with pytest.raises(PromptSeedPushError) as exc:
+            _seed(tmp_path, langfuse)
+
+    sleep.assert_not_awaited()
+    assert "refused the API key pair (401)" in exc.value.message
+
+
+def test_a_booting_langfuse_is_waited_for(tmp_path: Path):
+    langfuse = FakeLangfuse()
+    answers = iter([httpx.ConnectError("refused"), httpx.Response(503)])
+
+    def booting(request: httpx.Request) -> httpx.Response | None:
+        answer = next(answers, None)
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    langfuse.fail = booting
+
+    with patch("asyncio.sleep", AsyncMock()) as sleep:
+        _seed(tmp_path, langfuse)
+
+    assert sleep.await_count == 2
+    assert langfuse.writes == [("create", NAME, (*ENVS, "seed"))]
+
+
+def test_a_failed_label_move_names_the_version_and_labels(tmp_path: Path):
+    langfuse = FakeLangfuse()
+    langfuse.add(NAME, "old body", (*ENVS, "seed"))
+    langfuse.add(NAME, BODY)
+    langfuse.fail = lambda r: httpx.Response(500) if r.method == "PATCH" else None
+
+    with pytest.raises(PromptSeedPushError) as exc:
+        _seed(tmp_path, langfuse)
+
+    assert (
+        f"Failed to label '{NAME}' version 2 with development, staging, "
+        + "production, seed"
+    ) in exc.value.message

@@ -12,7 +12,7 @@ from src.shared.config.system_config import system_config
 
 
 class DatabaseConfig(BaseSettings):
-    """Database configuration using Phoenix SQL database URL."""
+    """Database configuration from the Kumoss SQL database URL."""
 
     @computed_field
     @property

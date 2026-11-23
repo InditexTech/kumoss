@@ -120,6 +120,22 @@ describe("SessionsPage session id column", () => {
   });
 });
 
+describe("SessionsPage Langfuse link", () => {
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("links the admin table to Langfuse through the proxy", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({}));
+    renderPage("admin", "/admin");
+
+    const link = await screen.findByRole("link", { name: /langfuse/i });
+    expect(link).toHaveAttribute("href", "/langfuse");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+});
+
 describe("SessionsPage providers", () => {
   const providers = [
     { name: "azurerm", scope_id: "sub-123" },

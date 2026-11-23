@@ -2,62 +2,122 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""How the prompt fetcher reports what the Phoenix client raises.
+"""How the prompt fetcher reports what Langfuse answers.
 
-The Phoenix client signals a missing prompt with a ``ValueError``, not an
-HTTP error; provider prompts are optional, so that must surface as a 404
-the template adapter can skip, while anything else stays an error.
+Provider prompts are optional, so a prompt (or label) Langfuse does not
+have must surface as a 404 the template adapter can skip, while anything
+else stays an error.
 """
 
 import unittest
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
-from src.infrastructure.exceptions import PhoenixPromptFetchError
-from src.infrastructure.templates._fetcher import remote_fetcher
+import httpx
+
+from src.infrastructure.exceptions import PromptFetchError
+from src.infrastructure.templates._fetcher import _PromptFetcher
 from src.infrastructure.templates.template_adapter import TemplateAdapter
-
-
-def _prompt(text: str) -> SimpleNamespace:
-    return SimpleNamespace(
-        _template={"messages": [{"content": [{"text": text}]}]},
-    )
+from tests.infrastructure.templates.fake_langfuse import FakeLangfuse
 
 
 class TestFetcher(unittest.IsolatedAsyncioTestCase):
-    def _client_get(self, get: AsyncMock):
-        client = remote_fetcher._PromptFetcher__client  # pyright: ignore[reportAttributeAccessIssue]
-        return patch.object(client.prompts, "get", get)
+    def setUp(self) -> None:
+        self.langfuse = FakeLangfuse()
+        self.fetcher = _PromptFetcher(self.langfuse.client())
+
+    async def _fetch(self, scope: str = "azurerm") -> str:
+        return await self.fetcher.fetch(
+            "forbidden_actions", scope, "guidelines", "development"
+        )
+
+    async def test_the_version_the_environment_label_is_on_is_read(self):
+        self.langfuse.add(
+            "azurerm/guidelines/forbidden_actions", "v1", ("development",)
+        )
+        self.langfuse.add("azurerm/guidelines/forbidden_actions", "v2", ("production",))
+
+        self.assertEqual(await self._fetch(), "v1")
+
+    async def test_the_prompt_is_read_from_its_scope_and_type_folders(self):
+        requested: list[str] = []
+
+        def record(request: httpx.Request) -> None:
+            requested.append(request.url.raw_path.decode().split("?")[0])
+
+        self.langfuse.fail = record
+        self.langfuse.add(
+            "azurerm/guidelines/forbidden_actions", "v1", ("development",)
+        )
+
+        _ = await self._fetch()
+
+        # One path segment: Langfuse wants a folder path URL-encoded.
+        self.assertEqual(
+            requested,
+            ["/api/public/v2/prompts/azurerm%2Fguidelines%2Fforbidden_actions"],
+        )
+
+    async def test_a_chat_prompt_of_one_message_is_read_as_its_text(self):
+        # An operator may save a prompt as chat in the Langfuse UI.
+        self.langfuse.add(
+            "azurerm/guidelines/forbidden_actions",
+            [{"role": "system", "content": "no public IPs"}],
+            ("development",),
+            type="chat",
+        )
+
+        self.assertEqual(await self._fetch(), "no public IPs")
 
     async def test_a_missing_prompt_is_a_404(self):
-        get = AsyncMock(
-            side_effect=ValueError(
-                "Prompt not found: random-guidelines-forbidden_actions"
-            )
-        )
-        with self._client_get(get):
-            with self.assertRaises(PhoenixPromptFetchError) as ctx:
-                _ = await remote_fetcher.fetch(
-                    "forbidden_actions", "random", "guidelines", "development"
-                )
+        with self.assertRaises(PromptFetchError) as ctx:
+            _ = await self._fetch("random")
         self.assertEqual(ctx.exception.error_code, 404)
 
-    async def test_any_other_value_error_is_not_mistaken_for_a_missing_prompt(self):
-        get = AsyncMock(side_effect=ValueError("unexpected response shape"))
-        with self._client_get(get):
-            with self.assertRaises(PhoenixPromptFetchError) as ctx:
-                _ = await remote_fetcher.fetch(
-                    "forbidden_actions", "azurerm", "guidelines", "development"
-                )
+    async def test_a_prompt_without_the_label_is_a_404(self):
+        self.langfuse.add("azurerm/guidelines/forbidden_actions", "v1", ("production",))
+
+        with self.assertRaises(PromptFetchError) as ctx:
+            _ = await self._fetch()
+        self.assertEqual(ctx.exception.error_code, 404)
+
+    async def test_a_refusal_keeps_its_status(self):
+        self.langfuse.fail = lambda _: httpx.Response(401)
+
+        with self.assertRaises(PromptFetchError) as ctx:
+            _ = await self._fetch()
+        self.assertEqual(ctx.exception.error_code, 401)
+
+    async def test_an_unreachable_langfuse_is_not_mistaken_for_a_missing_prompt(self):
+        def down(request: httpx.Request) -> httpx.Response:
+            raise httpx.ConnectError("refused", request=request)
+
+        self.langfuse.fail = down
+
+        with self.assertRaises(PromptFetchError) as ctx:
+            _ = await self._fetch()
+        self.assertEqual(ctx.exception.error_code, 500)
+
+    async def test_a_prompt_of_another_shape_is_an_error(self):
+        self.langfuse.add(
+            "azurerm/guidelines/forbidden_actions",
+            [{"role": "system", "content": "a"}, {"role": "user", "content": "b"}],
+            ("development",),
+            type="chat",
+        )
+
+        with self.assertRaises(PromptFetchError) as ctx:
+            _ = await self._fetch()
         self.assertEqual(ctx.exception.error_code, 502)
 
     async def test_providers_without_prompts_are_skipped_end_to_end(self):
-        async def get(prompt_identifier: str, tag: str):
-            if prompt_identifier.startswith("azurerm-"):
-                return _prompt("no public IPs")
-            raise ValueError(f"Prompt not found: {prompt_identifier}")
+        self.langfuse.add(
+            "azurerm/guidelines/forbidden_actions", "no public IPs", ("development",)
+        )
 
         adapter = TemplateAdapter(providers=("azurerm", "random"), cwd="/w")
-        with self._client_get(AsyncMock(side_effect=get)):
+        with patch(
+            "src.infrastructure.templates.template_adapter.remote_fetcher",
+            self.fetcher,
+        ):
             text = await adapter._fetch_guidelines("forbidden_actions")  # pyright: ignore[reportPrivateUsage]
         self.assertEqual(text, "## azurerm\nno public IPs")

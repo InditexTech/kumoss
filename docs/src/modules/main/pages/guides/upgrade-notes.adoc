@@ -1,9 +1,109 @@
 = Upgrade notes
-:description: Breaking changes to check before upgrading Kumoss: providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
+:description: Breaking changes to check before upgrading Kumoss: Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
 
 This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.
+
+[#phoenix-to-langfuse]
+== Langfuse replaces Phoenix
+
+Traces and prompts moved from Arize Phoenix to a self-hosted Langfuse
+v4. See xref:main:guides/monitor-with-langfuse.adoc[Monitor with
+Langfuse] and xref:main:guides/customize-prompts.adoc[Customize
+prompts].
+
+What changes:
+
+* *Stack.* `phoenix` and `phoenix-db` are gone. Langfuse brings
+  `langfuse-web`, `langfuse-worker`, `langfuse-db` (PostgreSQL),
+  `langfuse-clickhouse`, `langfuse-redis` and a `langfuse` bucket on the
+  object storage. Plan for the extra memory, mostly ClickHouse's.
+* *UI address.* Langfuse is served on its own port, `3000`
+  (`\http://localhost:3000` in Compose), not under `/monitoring/`: the
+  stock image cannot be served under a path. It has a login: the stack
+  provisions `admin@example.com` / `kumoss-admin-1` (Compose) or a
+  generated password (Helm, see
+  xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]). The admin
+  panel's link now reads *Langfuse*; it goes to `/langfuse` on the
+  proxy, which redirects to the UI.
+* *Configuration.* `telemetry.collector_url` is replaced by
+  `telemetry.langfuse_url`, and the core
+  authenticates with a project key pair from `LANGFUSE_PUBLIC_KEY` /
+  `LANGFUSE_SECRET_KEY`. A `config.yaml` still carrying `collector_url`
+  is refused at boot. See
+  xref:main:reference/configuration.adoc#telemetry[the `telemetry`
+  section].
+* *Projects.* The nine Phoenix projects (`dev-terraform-day2`,
+  `pro-terraform-drift`, ...) become one Langfuse project. The
+  environment is Langfuse's environment field, and the operation and
+  providers are trace tags.
+* *Prompt tags are labels.* The seeder labels versions instead of
+  tagging them, with the same names (`development`, `staging`,
+  `production`, `seed`).
+* *Prompt names are folders.* `aws-guidelines-networking` is now
+  `aws/guidelines/networking`, which Langfuse shows as an `aws` folder
+  holding a `guidelines` one. The migration script below renames your
+  prompts accordingly.
+* *Helm.* `phoenix.*` and `postgres.phoenix` are replaced by `langfuse.*`
+  and `postgres.langfuse`; `secrets.phoenixDbPassword` by the
+  `secrets.langfuse*` values. A Secret given as `secrets.existingSecret`
+  must hold the new keys (see the Helm guide). The proxy gets a
+  `langfuse` port (3000) and the Ingress an optional
+  `ingress.langfuseHost`. `charts/kind-up.sh` maps Langfuse to host
+  port 3000; delete and recreate an existing kind cluster to get the
+  mapping.
+* *Local Compose overrides.* A `docker-compose.override.yml` that still
+  configures `phoenix` or `phoenix-db` makes Compose refuse the
+  project; remove those entries.
+
+=== Moving your prompts
+
+Traces are not migrated: Phoenix keeps them until you delete its volume.
+Prompts are moved with `core/scripts/migrate_phoenix_prompts.py`, which
+needs only Python 3.10 or later and runs in two steps, so the two
+stacks never have to run together:
+
+. *Before upgrading*, with Phoenix still running, export every prompt
+  version and its tags:
++
+[source,bash]
+----
+python3 core/scripts/migrate_phoenix_prompts.py export \
+    --phoenix-url http://localhost/monitoring/ --out phoenix-prompts.json
+----
+. Upgrade, and start Langfuse alone (in Compose, `docker compose up -d
+  langfuse-web langfuse-worker`; starting the whole stack is fine too).
+. Import the file. The key pair is the one the core uses
+  (`pk-lf-kumoss-dev` / `sk-lf-kumoss-dev` in the Compose stack):
++
+[source,bash]
+----
+LANGFUSE_PUBLIC_KEY=pk-lf-kumoss-dev LANGFUSE_SECRET_KEY=sk-lf-kumoss-dev \
+python3 core/scripts/migrate_phoenix_prompts.py import \
+    --langfuse-url http://localhost:3000/ --in phoenix-prompts.json
+----
++
+Each Phoenix version becomes a Langfuse version, oldest first, carrying
+its tags as labels, so every label ends up on the version its tag was
+on. A prompt with no `seed` tag (Phoenix installs older than that tag)
+gets `seed` on its oldest version, the one the seeder created, so the
+next core start never moves labels off your own versions. Versions that
+are not a single text are listed and skipped: the core cannot read them. `--dry-run` shows what would be created; running
+the import again skips what it already imported.
+. Start (or restart) the core. The seeder finds the `seed` label where
+  Phoenix had the `seed` tag and carries on as before: a seed changed
+  since reaches only the environments still on the seed.
+
+If the core started before the import, it seeded the shipped prompts
+first; the import then adds your versions on top and moves the labels
+to them, and the next core start brings the seeds up to date as above.
+
+When the prompts are in Langfuse, remove the old Phoenix volume
+(`docker volume rm kumoss_phoenix_db_data` for a Compose project named
+`kumoss`; with Helm, the PersistentVolumeClaim
+`data-<fullname>-phoenix-db-0`, `data-kumoss-phoenix-db-0` for a release
+named `kumoss`).
 
 == Database migrations with Alembic
 

@@ -40,4 +40,16 @@ spec:
                 port:
                   name: storage
     {{- end }}
+    {{- if and .Values.ingress.langfuseHost .Values.langfuse.enabled }}
+    - host: {{ .Values.ingress.langfuseHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "kumoss.component" (list . "proxy") }}
+                port:
+                  name: langfuse
+    {{- end }}
 {{- end }}

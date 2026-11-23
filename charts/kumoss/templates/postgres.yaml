@@ -3,10 +3,10 @@ One single-instance Postgres per database, like docker-compose. Fine for
 evaluation; use a managed database or an operator (CloudNativePG...) in
 production and set postgres.<db>.externalUrl instead.
 */ -}}
-{{- range $db := list "core" "phoenix" }}
+{{- range $db := list "core" "langfuse" }}
 {{- $cfg := index $.Values.postgres $db }}
 {{- $component := printf "%s-db" $db }}
-{{- $enabled := and $cfg.enabled (or (eq $db "core") $.Values.phoenix.enabled) }}
+{{- $enabled := and $cfg.enabled (or (eq $db "core") $.Values.langfuse.enabled) }}
 {{- if $enabled }}
 ---
 apiVersion: apps/v1

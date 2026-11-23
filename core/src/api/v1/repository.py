@@ -23,7 +23,7 @@ from src.domains.entities import SessionContext, User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
 from src.infrastructure.external.mapping_service import MappingServiceClient
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
+from src.infrastructure.telemetry.langfuse_tracer import LangfuseTracer
 from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
 
@@ -91,7 +91,7 @@ async def create_pr(
 
     pr_svc = ApplicationFactory(ctx).get_pull_request_service()
     tracer_token = tracer.set_current_tracer(
-        tracer=PhoenixTracer(
+        tracer=LangfuseTracer(
             session_id=ctx.id,
             user_id=ctx.user_id,
             branch_name=ctx.branch_name,
