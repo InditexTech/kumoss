@@ -56,12 +56,12 @@ var otherProvider = llmProvider{Name: "Other (enter credentials manually)", Free
 var llmProviders = []llmProvider{
 	{
 		Name: "Anthropic", Prefix: "anthropic",
-		DefaultModel: "anthropic/claude-sonnet-5", DefaultSmallModel: "anthropic/claude-haiku-4-5",
+		DefaultModel: "anthropic/claude-sonnet-5-5", DefaultSmallModel: "anthropic/claude-haiku-5-5",
 		Credentials: []credential{{"ANTHROPIC_API_KEY", "Anthropic API key"}},
 	},
 	{
 		Name: "Google Vertex AI", Prefix: "vertex_ai",
-		DefaultModel: "vertex_ai/claude-sonnet-4-5", DefaultSmallModel: "vertex_ai/gemini-3.7-flash",
+		DefaultModel: "vertex_ai/claude-sonnet-5-5", DefaultSmallModel: "vertex_ai/gemini-3.8-flash",
 		Credentials: []credential{
 			{"VERTEXAI_PROJECT", "Vertex AI project id"},
 			{"VERTEXAI_LOCATION", "Vertex AI region (e.g. europe-west1)"},

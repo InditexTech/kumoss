@@ -50,6 +50,20 @@ func TestProviderIndexAndAt(t *testing.T) {
 	}
 }
 
+// The seeds match config.yaml, so a fresh install and a hand-edited file do not
+// disagree on the model the user sees.
+func TestAnthropicAndVertexSeedTheShippedModels(t *testing.T) {
+	for _, c := range []struct{ name, model, small string }{
+		{"Anthropic", "anthropic/claude-sonnet-5-5", "anthropic/claude-haiku-5-5"},
+		{"Google Vertex AI", "vertex_ai/claude-sonnet-5-5", "vertex_ai/gemini-3.8-flash"},
+	} {
+		p := providerAt(providerIndex(prefixOf(c.model)))
+		if p.Name != c.name || p.DefaultModel != c.model || p.DefaultSmallModel != c.small {
+			t.Errorf("%s seeds %s / %s, want %s / %s", p.Name, p.DefaultModel, p.DefaultSmallModel, c.model, c.small)
+		}
+	}
+}
+
 // Every row needs a prefix and a default model, or the form seeds an empty id.
 func TestLLMProvidersAreComplete(t *testing.T) {
 	seen := map[string]string{}
