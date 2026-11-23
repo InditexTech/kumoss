@@ -144,6 +144,14 @@ Browse to http://localhost:80. With the default `config.yaml`, authentication is
 off and every request runs as a local development administrator; to turn it on,
 see xref:main:guides/enable-authentication.adoc[Enable authentication].
 
+The same stack also serves, on host ports:
+
+* http://localhost:9000 - the RustFS S3 API, through the proxy; presigned
+  download links point here.
+* http://localhost/monitoring/ - the Phoenix UI for LLM traces.
+
+`kumoss init` prints the same list once the stack is up.
+
 == What just happened
 
 `kumoss init` created a managed home, `~/.kumoss` by default:
