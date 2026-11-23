@@ -86,8 +86,10 @@ python3 core/scripts/migrate_phoenix_prompts.py import \
 +
 Each Phoenix version becomes a Langfuse version, oldest first, carrying
 its tags as labels, so every label ends up on the version its tag was
-on. Versions that are not a single text are listed and skipped: the
-core cannot read them. `--dry-run` shows what would be created; running
+on. A prompt with no `seed` tag (Phoenix installs older than that tag)
+gets `seed` on its oldest version, the one the seeder created, so the
+next core start never moves labels off your own versions. Versions that
+are not a single text are listed and skipped: the core cannot read them. `--dry-run` shows what would be created; running
 the import again skips what it already imported.
 . Start (or restart) the core. The seeder finds the `seed` label where
   Phoenix had the `seed` tag and carries on as before: a seed changed

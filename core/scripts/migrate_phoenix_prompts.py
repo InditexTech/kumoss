@@ -44,7 +44,9 @@ from collections.abc import Iterator
 from typing import Any
 
 # Langfuse labels: lowercase letters, digits, "_", "-" and ".".
-_LABEL_RE = re.compile(r"^[a-z0-9_.-]+$")
+_LABEL_RE = re.compile(r"^[a-z0-9_.-]{1,36}$")
+# Langfuse's limit on a version's commit message.
+_COMMIT_MESSAGE_MAX = 500
 # Put in the commit message of each imported version; how a rerun knows it.
 _MARKER = "phoenix-version:"
 # A Kumoss prompt name in Phoenix: <scope>-<type>-<name>, where only the
@@ -65,6 +67,9 @@ def langfuse_name(phoenix_name: str) -> str:
 
 class _Http:
     def __init__(self, base_url: str, headers: dict[str, str] | None = None):
+        # urllib would also open file:// and other schemes.
+        if urllib.parse.urlsplit(base_url).scheme not in ("http", "https"):
+            raise SystemExit(f"Not an http(s) URL: {base_url}")
         self.base_url = base_url.rstrip("/") + "/"
         self.headers = {"Accept": "application/json", **(headers or {})}
 
@@ -85,7 +90,10 @@ class _Http:
             headers["Content-Type"] = "application/json"
         request = urllib.request.Request(url, data=data, method=method, headers=headers)
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            # The scheme is checked to be http(s) in __init__.
+            with (
+                urllib.request.urlopen(request, timeout=30) as response
+            ):  # nosemgrep: python.lang.security.audit.dynamic-urllib-use-detected.dynamic-urllib-use-detected
                 raw = response.read()
                 return response.status, json.loads(raw) if raw else None
         except urllib.error.HTTPError as e:
@@ -200,10 +208,47 @@ def _imported(langfuse: _Http, name: str) -> set[str]:
         status, version = langfuse.call(
             "GET", f"v2/prompts/{quoted}", params={"version": number}
         )
-        if status == 200:
-            message = version.get("commitMessage") or ""
-            found.update(re.findall(rf"{_MARKER}(\S+)", message))
+        if status == 404:
+            continue  # version deleted in Langfuse
+        if status != 200:
+            # Writing without knowing what is there could import twice.
+            raise SystemExit(
+                f"Reading {name} version {number} from Langfuse failed: "
+                + f"{status} {version}"
+            )
+        message = version.get("commitMessage") or ""
+        found.update(re.findall(rf"{_MARKER}(\S+)", message))
     return found
+
+
+def _seed_fallback(name: str, versions: list[dict[str, Any]]) -> None:
+    """Put ``seed`` on the oldest readable version when no version has it.
+
+    A Phoenix install older than the seed tag has none. Without it the
+    seeder would take the latest version as its own, which may be an
+    operator's, and move its environment labels to the shipped text. The
+    oldest version is the one the seeder created.
+    """
+    readable = [v for v in versions if v["text"] is not None]
+    if not readable or any("seed" in v["tags"] for v in versions):
+        return
+    readable[0]["tags"] = [*readable[0]["tags"], "seed"]
+    print(
+        f"note {name}: no version tagged seed; labelling the oldest one {readable[0]['id']} seed"
+    )
+
+
+def _commit_message(name: str, version: dict[str, Any]) -> str:
+    """The description, cut to leave room for the import marker."""
+    marker = f"{_MARKER}{version['id']}"
+    description = version.get("description") or ""
+    room = _COMMIT_MESSAGE_MAX - len(marker) - 1
+    if len(description) > room:
+        print(
+            f"note {name} {version['id']}: description cut to fit Langfuse's commit message"
+        )
+        description = description[: room - 1] + "…"
+    return f"{description} {marker}" if description else marker
 
 
 def import_(args: argparse.Namespace) -> None:
@@ -229,6 +274,7 @@ def import_(args: argparse.Namespace) -> None:
         if name != prompt["name"]:
             print(f"rename {prompt['name']} -> {name}")
         imported = _imported(langfuse, name)
+        _seed_fallback(name, prompt["versions"])
         for version in prompt["versions"]:
             if version["id"] in imported:
                 done += 1
@@ -246,11 +292,7 @@ def import_(args: argparse.Namespace) -> None:
                 print(
                     f"note {name} {version['id']}: tag {tag!r} is not a valid Langfuse label, dropped"
                 )
-            message = " ".join(
-                part
-                for part in (version.get("description"), f"{_MARKER}{version['id']}")
-                if part
-            )
+            message = _commit_message(name, version)
             body = {
                 "type": "text",
                 "name": name,
