@@ -178,7 +178,10 @@ services:
     environment:
       <<: &langfuse-env
         NEXTAUTH_URL: ${LANGFUSE_PUBLIC_URL:-http://localhost:3000}
-        DATABASE_URL: postgresql://postgres:${LANGFUSE_DB_PASSWORD:-postgres}@langfuse-db:5432/langfuse
+        # A password with URL-reserved characters (# / @ : ...) breaks the
+        # URL built here: set LANGFUSE_DATABASE_URL instead, with the
+        # password percent-encoded (LANGFUSE_DB_PASSWORD stays as is).
+        DATABASE_URL: ${LANGFUSE_DATABASE_URL:-postgresql://postgres:${LANGFUSE_DB_PASSWORD:-postgres}@langfuse-db:5432/langfuse}
         SALT: ${LANGFUSE_SALT:-kumoss-dev-salt}
         # 64 hex characters; generate with `openssl rand -hex 32`.
         ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}

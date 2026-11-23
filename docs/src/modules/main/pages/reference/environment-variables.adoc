@@ -697,7 +697,11 @@ entirely.
   `LANGFUSE_ADMIN_EMAIL` / `LANGFUSE_ADMIN_PASSWORD` (the UI login),
   `LANGFUSE_PUBLIC_URL` (the URL browsers use, for login redirects),
   `LANGFUSE_NEXTAUTH_SECRET`, `LANGFUSE_SALT`, `LANGFUSE_ENCRYPTION_KEY`
-  (64 hex characters, `openssl rand -hex 32`), `LANGFUSE_DB_PASSWORD`,
+  (64 hex characters, `openssl rand -hex 32`), `LANGFUSE_DB_PASSWORD`
+  (Compose builds Langfuse's database URL from it; for a password with
+  URL-reserved characters such as `#` or `/`, also set
+  `LANGFUSE_DATABASE_URL` to the full URL with the password
+  percent-encoded),
   `LANGFUSE_CLICKHOUSE_PASSWORD` and `LANGFUSE_REDIS_PASSWORD`. Do not
   change `LANGFUSE_SALT` or `LANGFUSE_ENCRYPTION_KEY` once Langfuse has
   stored data with them. The RustFS web console is disabled
