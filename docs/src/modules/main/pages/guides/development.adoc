@@ -93,7 +93,7 @@ belongs to the sinkhole. No configuration fixes that one.
 
 == Core tests
 
-Python 3.14, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
+Python 3.15, `uv`. `pytest` and `pytest-cov` are part of the `tooling`
 dependency group, so sync the project first:
 
 [source,bash]
