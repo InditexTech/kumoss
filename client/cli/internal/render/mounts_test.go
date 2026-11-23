@@ -41,8 +41,8 @@ func TestCloudKeyFilesAreMountedAndPointedAt(t *testing.T) {
 	iac := doc["services"].(map[string]any)["iac"].(map[string]any)
 	volumes := iac["volumes"].([]any)
 	want := map[string]bool{
-		"/home/me:/etc/kumoss/creds/gcp:ro":             true,
-		"/home/me/kube:/etc/kumoss/creds/kubernetes:ro": true,
+		"/home/me/gcp.json:/etc/kumoss/creds/gcp/gcp.json:ro": true,
+		"/home/me/kube:/etc/kumoss/creds/kubernetes:ro":       true,
 	}
 	for _, v := range volumes {
 		delete(want, v.(string))
@@ -76,11 +76,15 @@ func TestEachCloudGetsItsOwnMountPoint(t *testing.T) {
 	// Each var must resolve inside its own mount, or the engine looks elsewhere.
 	vars := CloudVars(s.Cloud)
 	for _, c := range []struct{ env, host string }{
-		{"GOOGLE_APPLICATION_CREDENTIALS", "/home/me/gcp"},
+		{"GOOGLE_APPLICATION_CREDENTIALS", "/home/me/gcp/sa.json"},
 		{"OCI_CONFIG_FILE", "/home/me/oci"},
 		{"KUBE_CONFIG_PATH", "/home/me/kube"},
 	} {
 		got := vars[c.env]
+		// A file mount lands at its own target, not in a directory mount.
+		if seen[got] == c.host {
+			continue
+		}
 		target, ok := seen[path.Dir(got)]
 		if !ok {
 			t.Errorf("%s = %q, which is not inside any mount %v", c.env, got, seen)
@@ -89,6 +93,20 @@ func TestEachCloudGetsItsOwnMountPoint(t *testing.T) {
 		if target != c.host {
 			t.Errorf("%s = %q, which is inside the mount of %s, not %s", c.env, got, target, c.host)
 		}
+	}
+}
+
+// A GCP key file is mounted alone: mounting its directory would expose every
+// other file beside it, an SSH key among them.
+func TestGCPKeyFileMountsOnlyThatFile(t *testing.T) {
+	mounts := IACMounts(&state.State{Cloud: state.Cloud{
+		GCP: &state.GCPAuth{Method: "file", KeyFile: "/home/me/gcp.json"},
+	}})
+	if len(mounts) != 1 {
+		t.Fatalf("mounts = %v, want one", mounts)
+	}
+	if mounts[0].Source != "/home/me/gcp.json" || mounts[0].Target != "/etc/kumoss/creds/gcp/gcp.json" {
+		t.Errorf("mount = %+v, want the file itself at its container path", mounts[0])
 	}
 }
 

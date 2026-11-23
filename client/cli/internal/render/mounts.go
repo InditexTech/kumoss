@@ -35,13 +35,13 @@ func credsDir(cloud string) string {
 	return ContainerCreds + "/" + cloud
 }
 
-// Mount is one read-only host directory bind-mounted into a service. Source is
-// the host path; compose resolves a relative one against the base compose
-// file's directory (src/), so the pipeline passes a path relative to it.
+// Mount is one read-only host path bind-mounted into a service. Source is the
+// host path; compose resolves a relative one against the base compose file's
+// directory (src/), so the pipeline passes a path relative to it.
 type Mount struct {
 	Service string // "iac"
-	Source  string // host directory
-	Target  string // container directory
+	Source  string // host file or directory
+	Target  string // container path
 }
 
 // containerPath is where one cloud's credential file lands, and what CloudVars
@@ -61,27 +61,36 @@ func awsHomeDir() string {
 	return filepath.Join(home, ".aws")
 }
 
-// IACMounts returns the credential mounts the answers need. A host path is a
-// file, so its directory is mounted read-only; compose resolves a relative
-// Source against the base compose file's directory, so Source must be relative
-// to src/.
+// IACMounts returns the credential mounts the answers need. compose resolves a
+// relative Source against the base compose file's directory, so Source must be
+// relative to src/.
 func IACMounts(s *state.State) []Mount {
 	c := s.Cloud
 	var mounts []Mount
-	add := func(cloud, host string) {
+	// The key file alone: mounting its directory would put every neighbour of
+	// it, SSH keys included, in reach of the provider code.
+	addFile := func(cloud, host string) {
+		if host == "" {
+			return
+		}
+		mounts = append(mounts, Mount{Service: "iac", Source: host, Target: containerPath(cloud, host)})
+	}
+	// A directory, because these formats read companion files beside the
+	// selected one.
+	addDir := func(cloud, host string) {
 		if host == "" {
 			return
 		}
 		mounts = append(mounts, Mount{Service: "iac", Source: filepath.Dir(host), Target: credsDir(cloud)})
 	}
 	if c.GCP != nil && c.GCP.InlineJSON == "" {
-		add(cloudGCP, c.GCP.KeyFile)
+		addFile(cloudGCP, c.GCP.KeyFile)
 	}
 	if c.OCI != nil {
-		add(cloudOCI, c.OCI.ConfigPath)
+		addDir(cloudOCI, c.OCI.ConfigPath)
 	}
 	if c.Kubernetes != nil {
-		add(cloudKube, c.Kubernetes.KubeconfigPath)
+		addDir(cloudKube, c.Kubernetes.KubeconfigPath)
 	}
 	if c.AWS != nil && c.AWS.Method == "profile" && c.AWS.Profile != "" {
 		if dir := awsHomeDir(); dir != "" {

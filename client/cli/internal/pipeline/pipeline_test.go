@@ -354,7 +354,7 @@ func TestIACMountsResolveAgainstTheComposeProjectDir(t *testing.T) {
 	if filepath.IsAbs(mounts[0].Source) {
 		t.Fatalf("Source = %q, want a path relative to src/", mounts[0].Source)
 	}
-	if got := filepath.Clean(filepath.Join(h.SrcDir(), mounts[0].Source)); got != keyDir {
-		t.Errorf("mount %q resolves to %s, want %s", mounts[0].Source, got, keyDir)
+	if got := filepath.Clean(filepath.Join(h.SrcDir(), mounts[0].Source)); got != filepath.Join(keyDir, "sa.json") {
+		t.Errorf("mount %q resolves to %s, want the key file", mounts[0].Source, got)
 	}
 }
