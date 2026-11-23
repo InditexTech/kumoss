@@ -11,6 +11,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
@@ -288,20 +289,34 @@ func diffReport(files []fileDiff, services []string) string {
 	return b.String()
 }
 
-// writeDiff prints the changed lines. Values are compared as rendered text, so
-// a changed key shows both sides; secrets are masked on the way out.
+// writeDiff prints the changed lines. Lines are paired by key and compared as
+// rendered text, so a changed key shows both sides and a removed one shows as
+// a "-". Only the printed copy is masked: masking first would hide a rotated
+// secret behind two identical <redacted> lines.
 func writeDiff(w io.Writer, before, after string) {
 	old := map[string]string{}
-	for _, line := range maskLines(before) {
+	var order []string
+	for _, line := range strings.Split(strings.TrimRight(before, "\n"), "\n") {
+		if _, seen := old[keyOf(line)]; !seen {
+			order = append(order, keyOf(line))
+		}
 		old[keyOf(line)] = line
 	}
-	for _, line := range maskLines(after) {
-		if was, ok := old[keyOf(line)]; ok && was == line {
+	for _, line := range strings.Split(strings.TrimRight(after, "\n"), "\n") {
+		key := keyOf(line)
+		was, existed := old[key]
+		delete(old, key)
+		if existed && was == line {
 			continue
 		}
-		if was, ok := old[keyOf(line)]; ok {
-			fmt.Fprintf(w, "- %s\n", was)
+		if existed {
+			fmt.Fprintf(w, "- %s\n", maskLine(was))
 		}
-		fmt.Fprintf(w, "+ %s\n", line)
+		fmt.Fprintf(w, "+ %s\n", maskLine(line))
+	}
+	for _, key := range order {
+		if was, ok := old[key]; ok {
+			fmt.Fprintf(w, "- %s\n", maskLine(was))
+		}
 	}
 }

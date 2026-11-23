@@ -270,6 +270,26 @@ func TestDiffReportMasksSecrets(t *testing.T) {
 	}
 }
 
+// A rotated secret must show that its key changed without showing either
+// value, and a dropped key must show as a removal rather than vanish.
+func TestDiffReportShowsSecretRotationAndRemovals(t *testing.T) {
+	before := "KUMOSS_IAC_TOKEN=aaaa\nGIT_USER=me\nSLACK_WEBHOOK_URL=https://hooks/x\n"
+	after := "KUMOSS_IAC_TOKEN=bbbb\nGIT_USER=me\n"
+
+	got := diffReport([]fileDiff{{path: "core/.env", before: before, after: after}}, nil)
+
+	for _, leaked := range []string{"aaaa", "bbbb", "hooks/x"} {
+		if strings.Contains(got, leaked) {
+			t.Errorf("report leaks %q:\n%s", leaked, got)
+		}
+	}
+	for _, want := range []string{"- KUMOSS_IAC_TOKEN=" + maskValue, "+ KUMOSS_IAC_TOKEN=" + maskValue, "- SLACK_WEBHOOK_URL=" + maskValue} {
+		if !strings.Contains(got, want) {
+			t.Errorf("report does not show %q:\n%s", want, got)
+		}
+	}
+}
+
 // An untouched file is named, so "nothing changed" is visible rather than a
 // blank screen.
 func TestDiffReportNamesUnchangedFiles(t *testing.T) {

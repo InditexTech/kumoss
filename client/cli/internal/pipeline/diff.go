@@ -16,16 +16,6 @@ var secretLine = regexp.MustCompile(`(?i)(TOKEN|SECRET|PASSWORD|_KEY|CREDENTIALS
 // maskValue is what replaces a secret in the diff.
 const maskValue = "<redacted>"
 
-// maskLines splits rendered text into lines with every secret masked. It works
-// on the rendered form, so one masking covers .env and YAML alike.
-func maskLines(s string) []string {
-	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
-	for i, line := range lines {
-		lines[i] = maskLine(line)
-	}
-	return lines
-}
-
 // maskLine keeps the key and replaces the value.
 func maskLine(line string) string {
 	trimmed := strings.TrimSpace(line)
