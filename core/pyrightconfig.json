@@ -26,6 +26,6 @@
   "reportAny": false,
   "reportArgumentType": false,
 
-  "pythonVersion": "3.14",
+  "pythonVersion": "3.15",
   "pythonPlatform": "Linux"
 }

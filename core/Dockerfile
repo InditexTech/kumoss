@@ -1,4 +1,4 @@
-FROM ghcr.io/astral-sh/uv:0.13.8@sha256:5cc1805e2426484abca4ad46ea783bab281fdb225fd82d8ce6d66a81254bac85 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.9@sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d AS uv
 
 # terraform-config-inspect has no binary releases: build it from a pinned
 # commit. Static (CGO off) so it runs on the bookworm base below.
@@ -11,7 +11,7 @@ RUN update-ca-certificates
 RUN CGO_ENABLED=0 GOBIN=/out go install \
     "github.com/hashicorp/terraform-config-inspect@${TERRAFORM_CONFIG_INSPECT_VERSION}"
 
-FROM python:3.14-bookworm@sha256:7ee7e4d4fb42c3ad45b8fdc473b64ec69c3cf6e80ae5d52f6fa55f77fac29027
+FROM python:3.15-bookworm@sha256:6f060cab421d9509c6c6a6a7762c651baf03c3f1d0145befe16b688762b7fe81
 
 # Minimal apt deps the core actually uses at runtime: git for cloning user
 # repos, ripgrep for the workspace inspection tools, curl for general use.
