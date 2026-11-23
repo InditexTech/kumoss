@@ -148,8 +148,10 @@ EOF
 	# filesystem, where mv copies and an interrupted upgrade leaves half a
 	# binary. A failed copy removes the staged file, never the installed one.
 	staged=$(mktemp "${INSTALL_DIR}/.kumoss.XXXXXX") || die "cannot write to ${INSTALL_DIR}"
-	cp "${tmp}/kumoss" "$staged" && chmod 0755 "$staged" && mv -f "$staged" "${INSTALL_DIR}/kumoss" ||
-		{ rm -f "$staged"; die "cannot install to ${INSTALL_DIR}/kumoss"; }
+	if ! { cp "${tmp}/kumoss" "$staged" && chmod 0755 "$staged" && mv -f "$staged" "${INSTALL_DIR}/kumoss"; }; then
+		rm -f "$staged"
+		die "cannot install to ${INSTALL_DIR}/kumoss"
+	fi
 
 	say "Installed kumoss ${version} to ${INSTALL_DIR}/kumoss"
 	if ! on_path; then
