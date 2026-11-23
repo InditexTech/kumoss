@@ -143,10 +143,13 @@ EOF
 	tar -xzf "${tmp}/${archive}" -C "${tmp}"
 	[ -f "${tmp}/kumoss" ] || die "archive does not contain a kumoss binary"
 
-	mkdir -p "$INSTALL_DIR"
-	# Same-directory rename, so an upgrade is never a half-written binary.
-	mv -f "${tmp}/kumoss" "${INSTALL_DIR}/kumoss"
-	chmod 0755 "${INSTALL_DIR}/kumoss"
+	mkdir -p "$INSTALL_DIR" || die "cannot create ${INSTALL_DIR}"
+	# Staged inside INSTALL_DIR, so the rename is atomic: /tmp may be another
+	# filesystem, where mv copies and an interrupted upgrade leaves half a
+	# binary. A failed copy removes the staged file, never the installed one.
+	staged=$(mktemp "${INSTALL_DIR}/.kumoss.XXXXXX") || die "cannot write to ${INSTALL_DIR}"
+	cp "${tmp}/kumoss" "$staged" && chmod 0755 "$staged" && mv -f "$staged" "${INSTALL_DIR}/kumoss" ||
+		{ rm -f "$staged"; die "cannot install to ${INSTALL_DIR}/kumoss"; }
 
 	say "Installed kumoss ${version} to ${INSTALL_DIR}/kumoss"
 	if ! on_path; then
