@@ -38,7 +38,7 @@ from src.domains.services.tracer_service import tracer
 from src.domains.value_objects.token_claims import TokenClaims
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
+from src.infrastructure.telemetry.langfuse_tracer import LangfuseTracer
 from src.shared.constants import (
     OperationRole,
     OperationType,
@@ -198,7 +198,7 @@ def _make_runner(
         # the runner owns it from here and releases it when done.
         call_dir: Path | None = None
         tracer_token = tracer.set_current_tracer(
-            tracer=PhoenixTracer(
+            tracer=LangfuseTracer(
                 session_id=ctx.id,
                 user_id=ctx.user_id,
                 branch_name=ctx.branch_name,

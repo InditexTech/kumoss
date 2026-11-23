@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Names of azure-resources-* prompts the compositor may select from.
+description: Names of azurerm/resources/* prompts the compositor may select from.
 body: |
   # Available Azure Resource Templates
 

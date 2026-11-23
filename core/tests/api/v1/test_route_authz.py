@@ -287,7 +287,7 @@ class TestRunnerAuthorizesFirstCallSetup(unittest.IsolatedAsyncioTestCase):
             ("src.api.v1.terraform._orchestration", orchestration),
             ("src.api.v1.terraform._workspace", workspace),
             ("src.api.v1.terraform.tracer", MagicMock()),
-            ("src.api.v1.terraform.PhoenixTracer", MagicMock()),
+            ("src.api.v1.terraform.LangfuseTracer", MagicMock()),
             ("src.api.v1.terraform.DatabaseService", self.db),
             (
                 "src.api.v1.terraform.NotificationServiceClient",

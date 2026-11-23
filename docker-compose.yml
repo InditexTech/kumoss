@@ -24,11 +24,14 @@ services:
       # Presigned artifact URLs: browser -> localhost:9000 -> nginx ->
       # object-storage:9000 (see nginx/nginx.conf).
       - "9000:9000"
+      # Langfuse UI: browser -> localhost:3000 -> nginx -> langfuse-web:3000.
+      # Its own port, as the stock Langfuse image cannot serve under a path.
+      - "3000:3000"
     expose:
       - 80
     depends_on:
       - core
-      - phoenix
+      - langfuse-web
       - object-storage
     networks:
       - bridge-network
@@ -53,12 +56,22 @@ services:
       - workspaces:/workspaces
       - ./config.yaml:/etc/kumoss/config.yaml:ro
     depends_on:
-      - core-db
-      - notifications
-      - mapping
-      - iac
-      - redis
-      - object-storage
+      core-db:
+        condition: service_started
+      notifications:
+        condition: service_started
+      mapping:
+        condition: service_started
+      iac:
+        condition: service_started
+      redis:
+        condition: service_started
+      object-storage:
+        condition: service_started
+      # The core seeds its prompts into Langfuse at startup, and a cold
+      # Langfuse migrates its databases for a while before it answers.
+      langfuse-web:
+        condition: service_healthy
     networks:
       - bridge-network
 
@@ -140,30 +153,176 @@ services:
     networks:
       - bridge-network
 
-  phoenix:
-    image: arizephoenix/phoenix:20.27.0
+  # --- Langfuse: traces and prompts ------------------------------------
+  # Self-hosted Langfuse v4: web (UI + API), worker, its own Postgres,
+  # ClickHouse and Redis, and a bucket on the object-storage service. The
+  # defaults below are development values for a local stack; override
+  # them from the shell or a root .env (compose interpolation) and keep
+  # LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY in core/.env matching the
+  # project keys. The first start provisions the organization, the
+  # project with those keys, and the admin user to log in with.
+  langfuse-web:
+    image: langfuse/langfuse:4.83.0
+    restart: on-failure
+    depends_on: &langfuse-depends-on
+      langfuse-db:
+        condition: service_healthy
+      langfuse-clickhouse:
+        condition: service_healthy
+      langfuse-redis:
+        condition: service_healthy
+      langfuse-bucket:
+        condition: service_completed_successfully
     expose:
-      - 6006
-      - 4317
-    depends_on:
-      - phoenix-db
+      - 3000
     environment:
-      - PHOENIX_SQL_DATABASE_URL=postgresql://postgres:postgres@phoenix-db:5432/phoenix
-      - PHOENIX_HOST_ROOT_PATH=/monitoring
-      - PHOENIX_ENABLE_MCP_SERVER=false
+      <<: &langfuse-env
+        NEXTAUTH_URL: ${LANGFUSE_PUBLIC_URL:-http://localhost:3000}
+        DATABASE_URL: postgresql://postgres:${LANGFUSE_DB_PASSWORD:-postgres}@langfuse-db:5432/langfuse
+        SALT: ${LANGFUSE_SALT:-kumoss-dev-salt}
+        # 64 hex characters; generate with `openssl rand -hex 32`.
+        ENCRYPTION_KEY: ${LANGFUSE_ENCRYPTION_KEY:-0000000000000000000000000000000000000000000000000000000000000000}
+        TELEMETRY_ENABLED: "false"
+        CLICKHOUSE_MIGRATION_URL: clickhouse://langfuse-clickhouse:9000
+        CLICKHOUSE_URL: http://langfuse-clickhouse:8123
+        CLICKHOUSE_USER: clickhouse
+        CLICKHOUSE_PASSWORD: ${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}
+        CLICKHOUSE_CLUSTER_ENABLED: "false"
+        REDIS_HOST: langfuse-redis
+        REDIS_PORT: "6379"
+        REDIS_AUTH: ${LANGFUSE_REDIS_PASSWORD:-langfuse}
+        # Raw events and media go to the object-storage service (RustFS),
+        # in a bucket of their own that langfuse-bucket creates.
+        LANGFUSE_S3_EVENT_UPLOAD_BUCKET: langfuse
+        LANGFUSE_S3_EVENT_UPLOAD_REGION: us-east-1
+        LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://object-storage:9000
+        LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+        LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+        LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+        LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+        LANGFUSE_S3_MEDIA_UPLOAD_BUCKET: langfuse
+        LANGFUSE_S3_MEDIA_UPLOAD_REGION: us-east-1
+        LANGFUSE_S3_MEDIA_UPLOAD_ENDPOINT: http://object-storage:9000
+        LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID: ${RUSTFS_ACCESS_KEY:-rustfsadmin}
+        LANGFUSE_S3_MEDIA_UPLOAD_SECRET_ACCESS_KEY: ${RUSTFS_SECRET_KEY:-rustfsadmin}
+        LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE: "true"
+        LANGFUSE_S3_MEDIA_UPLOAD_PREFIX: media/
+      NEXTAUTH_SECRET: ${LANGFUSE_NEXTAUTH_SECRET:-kumoss-dev-nextauth-secret}
+      # Only the provisioned admin logs in; add users from the Langfuse UI.
+      AUTH_DISABLE_SIGNUP: "true"
+      LANGFUSE_INIT_ORG_ID: kumoss
+      LANGFUSE_INIT_ORG_NAME: Kumoss
+      LANGFUSE_INIT_PROJECT_ID: kumoss
+      LANGFUSE_INIT_PROJECT_NAME: Kumoss
+      # Must match LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY in core/.env.
+      LANGFUSE_INIT_PROJECT_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-pk-lf-kumoss-dev}
+      LANGFUSE_INIT_PROJECT_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-sk-lf-kumoss-dev}
+      LANGFUSE_INIT_USER_EMAIL: ${LANGFUSE_ADMIN_EMAIL:-admin@example.com}
+      LANGFUSE_INIT_USER_NAME: Kumoss admin
+      LANGFUSE_INIT_USER_PASSWORD: ${LANGFUSE_ADMIN_PASSWORD:-kumoss-admin-1}
+    healthcheck:
+      # Next.js listens on the container hostname, not on loopback.
+      test: ["CMD-SHELL", "wget -qO /dev/null http://$$HOSTNAME:3000/api/public/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      start_period: 10s
     networks:
       - bridge-network
 
-  phoenix-db:
+  langfuse-worker:
+    image: langfuse/langfuse-worker:4.83.0
+    restart: on-failure
+    # After the web service, which migrates the databases: a worker that
+    # starts first loads its model prices into tables not created yet,
+    # and generations then carry no cost.
+    depends_on:
+      <<: *langfuse-depends-on
+      langfuse-web:
+        condition: service_healthy
+    expose:
+      - 3030
+    environment: *langfuse-env
+    networks:
+      - bridge-network
+
+  langfuse-db:
     image: postgres:17
     environment:
       - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
-      - POSTGRES_DB=phoenix
+      - POSTGRES_PASSWORD=${LANGFUSE_DB_PASSWORD:-postgres}
+      - POSTGRES_DB=langfuse
     expose:
       - 5432
     volumes:
-      - phoenix_db_data:/var/lib/postgresql/data
+      - langfuse_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d langfuse"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks:
+      - bridge-network
+
+  langfuse-clickhouse:
+    image: clickhouse/clickhouse-server:26.3.66.4
+    user: "101:101"
+    environment:
+      - CLICKHOUSE_DB=default
+      - CLICKHOUSE_USER=clickhouse
+      - CLICKHOUSE_PASSWORD=${LANGFUSE_CLICKHOUSE_PASSWORD:-clickhouse}
+    expose:
+      - 8123
+      - 9000
+    volumes:
+      - langfuse_clickhouse_data:/var/lib/clickhouse
+      - langfuse_clickhouse_logs:/var/log/clickhouse-server
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:8123/ping || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bridge-network
+
+  # Langfuse's job queue. Not shared with the core's Redis: the queue
+  # must never evict a key, while the core's is a cache.
+  langfuse-redis:
+    image: redis:8.8
+    command: >
+      --requirepass ${LANGFUSE_REDIS_PASSWORD:-langfuse}
+      --maxmemory-policy noeviction
+    expose:
+      - 6379
+    volumes:
+      - langfuse_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${LANGFUSE_REDIS_PASSWORD:-langfuse}", "--no-auth-warning", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 20
+    networks:
+      - bridge-network
+
+  # One-shot: creates Langfuse's bucket on the object-storage service
+  # (an S3 PUT signed with SigV4) and exits. Langfuse does not create it.
+  langfuse-bucket:
+    image: curlimages/curl:8.17.0
+    restart: on-failure
+    depends_on:
+      - object-storage
+    environment:
+      - S3_USER=${RUSTFS_ACCESS_KEY:-rustfsadmin}:${RUSTFS_SECRET_KEY:-rustfsadmin}
+    # 200: created; 409: it already exists.
+    command:
+      - sh
+      - -c
+      - >-
+        code=$$(curl -s -o /dev/null -w '%{http_code}' -X PUT
+        --aws-sigv4 'aws:amz:us-east-1:s3' --user "$$S3_USER"
+        http://object-storage:9000/langfuse);
+        echo "PUT /langfuse: $$code";
+        [ "$$code" = 200 ] || [ "$$code" = 409 ]
     networks:
       - bridge-network
 
@@ -188,7 +347,13 @@ services:
 volumes:
   core_db_data:
     driver: local
-  phoenix_db_data:
+  langfuse_db_data:
+    driver: local
+  langfuse_clickhouse_data:
+    driver: local
+  langfuse_clickhouse_logs:
+    driver: local
+  langfuse_redis_data:
     driver: local
   object_storage_data:
     driver: local

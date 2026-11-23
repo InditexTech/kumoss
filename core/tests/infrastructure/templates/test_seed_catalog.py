@@ -24,7 +24,7 @@ from src.shared.constants import SCOPED_PROVIDERS
 SEED_DIR = Path(__file__).resolve().parents[3] / "prompts" / "seed"
 
 # Providers that ship prompts, by Terraform provider type name (the seed
-# directory, and the prefix of their Phoenix prompt names).
+# directory, and the prefix of their Langfuse prompt names).
 SEEDED_PROVIDERS = ("aws", "azurerm", "google", "kubernetes", "oci", "vsphere")
 
 # Fetched by TemplateAdapter for every provider scope.

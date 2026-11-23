@@ -23,7 +23,7 @@ from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.storage import default_object_storage, terraform_state_storage
-from src.infrastructure.telemetry._initializer import shutdown_tracer_providers
+from src.infrastructure.telemetry._initializer import shutdown_tracer_provider
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
@@ -62,7 +62,7 @@ async def lifespan(app: FastAPI):
     try:
         await build_default_seeder().ensure_seeded()
     except Exception as e:
-        logging.error(f"Failed to seed prompts into Phoenix: {e}")
+        logging.error(f"Failed to seed prompts into Langfuse: {e}")
         raise
 
     try:
@@ -74,8 +74,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logging.info("Shutting down Kumoss application...")
-    shutdown_tracer_providers()
-    logging.info("Tracer providers flushed and shut down")
+    shutdown_tracer_provider()
+    logging.info("Tracer provider flushed and shut down")
     await redis_client.close()
     logging.info("Redis connection closed")
     await db.close()

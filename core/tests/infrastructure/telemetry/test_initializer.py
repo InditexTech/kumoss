@@ -2,61 +2,42 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+import base64
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from opentelemetry.trace import Tracer
 
-from src.infrastructure.telemetry._initializer import _route_tracer_project, get_tracer
-from src.shared.constants import OperationType, TracerProject
+from src.infrastructure.telemetry import _initializer
+from src.infrastructure.telemetry._initializer import get_tracer
+from src.shared.config.system_config import TelemetryConfig
 
-_CONFIG = "src.infrastructure.telemetry._initializer.system_config"
 
+class TestExport(unittest.TestCase):
+    def test_spans_go_to_the_langfuse_otlp_endpoint_with_the_key_pair(self):
+        telemetry = TelemetryConfig(langfuse_url="https://langfuse.example.com")
+        env = {"LANGFUSE_PUBLIC_KEY": "pk-lf-1", "LANGFUSE_SECRET_KEY": "sk-lf-2"}
 
-class TestRouteTracerProject(unittest.TestCase):
-    @patch(_CONFIG)
-    def test_development_returns_dev(self, mock_config):
-        mock_config.environment = "development"
-        self.assertEqual(
-            _route_tracer_project(OperationType.GENERATE),
-            TracerProject.DEV_TERRAFORM_DAY2,
+        with (
+            patch.dict("os.environ", env),
+            patch.object(
+                _initializer, "system_config", SimpleNamespace(telemetry=telemetry)
+            ),
+            patch.object(_initializer, "OTLPSpanExporter") as exporter,
+        ):
+            _ = _initializer._build_provider()  # pyright: ignore[reportPrivateUsage]
+
+        token = base64.b64encode(b"pk-lf-1:sk-lf-2").decode()
+        exporter.assert_called_once_with(
+            endpoint="https://langfuse.example.com/api/public/otel/v1/traces",
+            headers={"Authorization": f"Basic {token}"},
         )
-
-    @patch(_CONFIG)
-    def test_staging_returns_pre(self, mock_config):
-        mock_config.environment = "staging"
-        self.assertEqual(
-            _route_tracer_project(OperationType.GENERATE),
-            TracerProject.PRE_TERRAFORM_DAY2,
-        )
-
-    @patch(_CONFIG)
-    def test_production_returns_pro(self, mock_config):
-        mock_config.environment = "production"
-        self.assertEqual(
-            _route_tracer_project(OperationType.GENERATE),
-            TracerProject.PRO_TERRAFORM_DAY2,
-        )
-
-    @patch(_CONFIG)
-    def test_drift_routes_to_the_drift_project(self, mock_config):
-        mock_config.environment = "production"
-        self.assertEqual(
-            _route_tracer_project(OperationType.DRIFT),
-            TracerProject.PRO_TERRAFORM_DRIFT,
-        )
-
-    @patch(_CONFIG)
-    def test_unknown_environment_raises(self, mock_config):
-        mock_config.environment = "anything-else"
-        with self.assertRaises(ValueError):
-            _route_tracer_project(OperationType.GENERATE)
 
 
 class TestGetTracer(unittest.TestCase):
     def test_returns_otel_tracer(self):
-        tracer = get_tracer(OperationType.GENERATE)
-        self.assertIsInstance(tracer, Tracer)
+        self.assertIsInstance(get_tracer(), Tracer)
 
 
 if __name__ == "__main__":

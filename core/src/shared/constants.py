@@ -6,7 +6,8 @@ from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Literal
 
-# Deployment tiers; also the Phoenix tags every seeded prompt version gets.
+# Deployment tiers; also the Langfuse environment traces are recorded under
+# and the Langfuse labels every seeded prompt version gets.
 Environment = Literal["development", "staging", "production"]
 
 
@@ -189,23 +190,6 @@ class ContentType(Enum):
 
     TEXT = "text/plain"
     JSON = "application/json"
-
-
-@unique
-class TracerProject(Enum):
-    """Defines all possible tracer projects.
-    Note: a project in Phoenix is defined as a group of traces
-    """
-
-    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
-    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
-    DEV_TERRAFORM_IMPORT = "dev-terraform-import"
-    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
-    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
-    PRE_TERRAFORM_IMPORT = "pre-terraform-import"
-    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
-    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
-    PRO_TERRAFORM_IMPORT = "pro-terraform-import"
 
 
 @unique

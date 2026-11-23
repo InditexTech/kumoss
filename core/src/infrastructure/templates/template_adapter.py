@@ -6,7 +6,7 @@ from collections.abc import Sequence
 from typing import Any, Literal, final, override
 
 from src.domains.interfaces.template_interface import ITemplate
-from src.infrastructure.exceptions import PhoenixPromptFetchError
+from src.infrastructure.exceptions import PromptFetchError
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
@@ -27,8 +27,8 @@ class TemplateAdapter(ITemplate):
 
     def __init__(self, providers: Sequence[str], cwd: str):
         """``providers`` are the root module's Terraform provider types; each
-        one's prompts (``<provider>-guidelines-*``, ``<provider>-resources-*``)
-        are used when Phoenix has them. A provider without prompts, or a
+        one's prompts (``<provider>/guidelines/*``, ``<provider>/resources/*``)
+        are used when Langfuse has them. A provider without prompts, or a
         module with none yet, gets the general prompts only."""
         self._providers = tuple(providers)
         self._cwd = cwd
@@ -288,7 +288,7 @@ class TemplateAdapter(ITemplate):
         type: Literal["resources", "guidelines"],
         name: str,
     ) -> str | None:
-        """A provider prompt, or None when Phoenix has no such prompt."""
+        """A provider prompt, or None when Langfuse has no such prompt."""
         try:
             return await remote_fetcher.fetch(
                 prompt_name=name,
@@ -296,7 +296,7 @@ class TemplateAdapter(ITemplate):
                 type=type,
                 tag=system_config.environment,
             )
-        except PhoenixPromptFetchError as e:
+        except PromptFetchError as e:
             if e.error_code == 404:
                 return None
             raise

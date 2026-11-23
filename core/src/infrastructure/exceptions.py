@@ -29,8 +29,8 @@ class InferenceCallAPIError(ExceptionHandler):
     pass
 
 
-class PhoenixPromptFetchError(ExceptionHandler):
-    """Raised if a prompt could not be fetched from Phoenix API"""
+class PromptFetchError(ExceptionHandler):
+    """Raised if a prompt could not be fetched from Langfuse"""
 
     pass
 
@@ -42,19 +42,13 @@ class PromptSeedLoadError(ExceptionHandler):
 
 
 class PromptSeedPushError(ExceptionHandler):
-    """Raised when seeding prompts into Phoenix fails (after connect retries)"""
+    """Raised when seeding prompts into Langfuse fails (after connect retries)"""
 
     pass
 
 
 class TracerProviderError(ExceptionHandler):
     """Raised if a tracer provider could not be initialized"""
-
-    pass
-
-
-class ProviderOpenInferenceNotFound(ExceptionHandler):
-    """Raised when an OpenInference provider couldn't be found"""
 
     pass
 
