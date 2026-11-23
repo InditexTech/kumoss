@@ -5,6 +5,7 @@
 package tui
 
 import (
+	"errors"
 	"strconv"
 	"strings"
 
@@ -89,29 +90,6 @@ func (w *Wizard) RotateSecrets(found []Secret) ([]string, error) {
 	return rotate, nil
 }
 
-// ExtraVars asks for the sample keys the wizard does not own. Blank answers
-// are allowed: an empty var is how the stack says "not configured".
-func (w *Wizard) ExtraVars(keys []Secret) (map[string]string, error) {
-	// huh binds to addresses, so collect into a slice and zip back by index.
-	answers := make([]string, len(keys))
-	fields := make([]huh.Field, len(keys))
-	for i, k := range keys {
-		fields[i] = huh.NewInput().
-			Title(k.Label).
-			Description(k.Key).
-			EchoMode(huh.EchoModePassword).
-			Value(&answers[i])
-	}
-	if err := w.run(huh.NewForm(huh.NewGroup(fields...).Title("Additional settings"))); err != nil {
-		return nil, err
-	}
-	values := make(map[string]string, len(keys))
-	for i, k := range keys {
-		values[k.Key] = answers[i]
-	}
-	return values, nil
-}
-
 // ConfirmRegenerate defaults to no: losing a hand-edited file is silent.
 func (w *Wizard) ConfirmRegenerate(what string) (bool, error) {
 	regenerate := false
@@ -150,23 +128,62 @@ func (w *Wizard) RunDocker() (bool, error) {
 	return run, nil
 }
 
-// llmProviderStep returns the chosen row index, or -1 for "Other".
-// Preselected from the stored model prefix on reconfigure.
-func (w *Wizard) llmProviderStep(s *state.State) (int, error) {
-	prefix := s.LLM.Provider
-	if prefix == "" {
-		prefix = prefixOf(s.LLM.Model)
+// providerLimit is the most providers a setup can name: the complex and the
+// cheap model, one vendor each.
+const providerLimit = 2
+
+// llmProviderStep returns the chosen rows, in the order picked, each index or
+// -1 for "Other". One provider covers both model roles; two let the complex and
+// the cheap model come from different vendors. Preselected from the stored
+// prefixes on reconfigure.
+func (w *Wizard) llmProviderStep(s *state.State) ([]int, error) {
+	var picked []int
+	for _, prefix := range s.LLM.Providers {
+		if idx := providerIndex(prefix); idx >= 0 {
+			picked = append(picked, idx)
+		}
 	}
-	idx := providerIndex(prefix)
 
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewSelect[int]().
-				Title("LLM provider").
-				Description("Determines the credential variables the core reads at boot.").
+			huh.NewMultiSelect[int]().
+				Title("LLM providers").
+				Description("Pick one, or two to use a different vendor for the complex and the cheap model. Space (or x) toggles, enter confirms.").
 				Options(llmProviderOptions()...).
-				Value(&idx),
+				// One line per provider, plus title, description and help bar.
+				Height(len(llmProviders) + 6).
+				Limit(providerLimit).
+				Value(&picked),
 		).Title("LLM provider"),
+	).WithKeyMap(multiSelectKeyMap())
+	if err := w.run(form); err != nil {
+		return nil, err
+	}
+	if len(picked) == 0 {
+		return nil, errors.New("pick at least one LLM provider")
+	}
+	return picked, nil
+}
+
+// llmRoleStep returns which of the two picked providers serves the complex-tasks
+// model; the other serves the cheap one. Preselected from the stored models so
+// a reconfigure keeps the same split.
+func (w *Wizard) llmRoleStep(s *state.State, providers []llmProvider) (int, error) {
+	idx := 0
+	if complexPrefix := prefixOf(s.LLM.Model); complexPrefix == providers[1].Prefix {
+		idx = 1
+	}
+	form := huh.NewForm(
+		huh.NewGroup(
+			huh.NewSelect[int]().
+				Title("Complex-tasks provider").
+				Description("Serves llm.model; the other serves llm.small_model.").
+				Options(
+					huh.NewOption(providers[0].Name, 0),
+					huh.NewOption(providers[1].Name, 1),
+				).
+				Value(&idx),
+		).Title("LLM model roles"),
 	)
 	if err := w.run(form); err != nil {
 		return 0, err
@@ -174,74 +191,131 @@ func (w *Wizard) llmProviderStep(s *state.State) (int, error) {
 	return idx, nil
 }
 
-// llmDetailsStep collects the models, the knobs and the provider's
-// credentials — or asks for name/value pairs by hand for "Other".
-func (w *Wizard) llmDetailsStep(s *state.State, provider llmProvider) error {
-	s.LLM.Provider = provider.Prefix
-	if s.LLM.Model == "" {
-		s.LLM.Model = provider.DefaultModel
-	}
-	if s.LLM.SmallModel == "" {
-		s.LLM.SmallModel = provider.DefaultSmallModel
-	}
-	// The knobs have no default here: nil leaves the fetched config.yaml value
-	// in place (render.overlay), so the repo stays the source of truth.
+// llmDetailsStep collects the models, the knobs and the credentials of every
+// picked provider — or asks for name/value pairs by hand for "Other". The knobs
+// are asked once, before the providers: they apply to both models.
+func (w *Wizard) llmDetailsStep(s *state.State, providers []llmProvider) error {
 	if s.LLM.Credentials == nil {
 		s.LLM.Credentials = map[string]string{}
 	}
+	// One knob form for both providers: the values apply to both models.
+	if err := w.llmKnobsStep(s); err != nil {
+		return err
+	}
 
-	// huh binds *string, so each knob and credential gets a local that commit
-	// parses back once the form has run. An unset knob shows blank: pre-filling
-	// 0 claimed an answer the user never gave.
-	temp := knobFloat(s.LLM.Temperature)
-	maxTokens := knobInt(s.LLM.MaxOutputTokens)
-	timeout := knobFloat(s.LLM.Timeout)
-	values := make([]string, len(provider.Credentials))
-	fields := []huh.Field{
-		huh.NewInput().
-			Title("Complex-tasks model").
-			Description(modelHint(provider) + " — code generation, planning.").
-			Value(&s.LLM.Model).
-			Validate(required),
-		huh.NewInput().
-			Title("Cheap-filler model").
-			Description(modelHint(provider) + " — filtering, summaries, status.").
-			Value(&s.LLM.SmallModel).
-			Validate(required),
+	// The first provider fills the complex role, the second the cheap one; one
+	// provider fills both. Cleared first, so a reconfigure does not double it.
+	s.LLM.Providers = nil
+	for i, p := range providers {
+		s.LLM.Providers = append(s.LLM.Providers, p.Prefix)
+		if err := w.llmProviderForm(s, p, i == 0, len(providers)); err != nil {
+			return err
+		}
 	}
-	for i, c := range provider.Credentials {
-		values[i] = s.LLM.Credentials[c.Name]
-		fields = append(fields, huh.NewInput().
-			Title(c.Title).
-			Description(c.Name).
-			EchoMode(huh.EchoModePassword).
-			Value(&values[i]))
-	}
-	fields = append(fields,
+	return nil
+}
+
+// llmKnobsStep asks the three settings both models share.
+func (w *Wizard) llmKnobsStep(s *state.State) error {
+	seed := llmDefaults(w.Doc)
+	// huh binds *string, so each knob gets a local that commit parses back once
+	// the form has run. A value neither the state nor the file set stays blank:
+	// pre-filling 0 would claim an answer nobody gave.
+	temp := firstNonEmpty(knobFloat(s.LLM.Temperature), seed.temperature)
+	maxTokens := firstNonEmpty(knobInt(s.LLM.MaxOutputTokens), seed.maxTokens)
+	timeout := firstNonEmpty(knobFloat(s.LLM.Timeout), seed.timeout)
+	form := huh.NewForm(huh.NewGroup(
 		huh.NewInput().
-			Title("Temperature").
+			Title(titled("Temperature", false)).
 			Description("0–1, sent with every chat completion (default 0.1).").
 			Value(&temp).
 			Validate(floatRange(0, 1)),
 		huh.NewInput().
-			Title("Max output tokens").
+			Title(titled("Max output tokens", false)).
 			Description("Completion cap per call (default 64000).").
 			Value(&maxTokens).
 			Validate(intMin(1)),
 		huh.NewInput().
-			Title("Timeout (seconds)").
+			Title(titled("Timeout (seconds)", false)).
 			Description("Per inference call, before retries (default 600).").
 			Value(&timeout).
 			Validate(floatMin(0)),
-	)
-
-	form := huh.NewForm(huh.NewGroup(fields...).Title("LLM — " + provider.Name))
+	).Title("LLM settings"))
 	if err := w.run(form); err != nil {
 		return err
 	}
 	s.LLM.Temperature = parseKnobFloat(temp)
 	s.LLM.MaxOutputTokens = parseKnobInt(maxTokens)
 	s.LLM.Timeout = parseKnobFloat(timeout)
+	return nil
+}
+
+// llmProviderForm asks one provider's models and credentials. complex is true
+// for the provider serving the complex role; count is how many were picked, so a
+// lone provider is asked for both of its models.
+func (w *Wizard) llmProviderForm(s *state.State, provider llmProvider, complex bool, count int) error {
+	seed := llmDefaults(w.Doc)
+	// Two providers: the first serves the complex role, the second the cheap
+	// one. One provider fills both, so its second model comes from the same row.
+	model, small := s.LLM.Model, s.LLM.SmallModel
+	if complex {
+		if model == "" {
+			model = firstNonEmpty(seed.model, provider.DefaultModel)
+		}
+		if count == 1 && small == "" {
+			small = firstNonEmpty(seed.small, provider.DefaultSmallModel)
+		}
+	} else if small == "" {
+		small = firstNonEmpty(seed.small, provider.DefaultSmallModel)
+	}
+
+	values := make([]string, len(provider.Credentials))
+	fields := []huh.Field{}
+	if complex {
+		fields = append(fields, huh.NewInput().
+			Title(titled("Complex-tasks model", false)).
+			Description(modelHint(provider)+" — code generation, planning.").
+			Value(&model).
+			Validate(required))
+	}
+	// A provider picked alone fills both roles, so it is asked for both models.
+	if !complex || count == 1 {
+		title, hint := "Cheap-filler model", " — filtering, summaries, status."
+		if complex {
+			title = "Complex and cheap-filler models"
+			hint = " — the same provider serves both."
+		}
+		fields = append(fields, huh.NewInput().
+			Title(titled(title, false)).
+			Description(modelHint(provider)+hint).
+			Value(&small).
+			Validate(required))
+	}
+	for i, c := range provider.Credentials {
+		values[i] = s.LLM.Credentials[c.Name]
+		optional := optionalCredentials[c.Name]
+		field := huh.NewInput().
+			Title(titled(c.Title, optional)).
+			Description(c.Name).
+			EchoMode(huh.EchoModePassword).
+			Value(&values[i])
+		// A blank key is a stack that cannot call the model: block it here
+		// rather than at `kumoss run`. Only the optional ones may stay empty.
+		if !optional {
+			field.Validate(required)
+		}
+		fields = append(fields, field)
+	}
+	form := huh.NewForm(huh.NewGroup(fields...).Title("LLM — " + provider.Name))
+	if err := w.run(form); err != nil {
+		return err
+	}
+	if complex {
+		s.LLM.Model = model
+	}
+	if !complex || count == 1 {
+		s.LLM.SmallModel = small
+	}
 	for i, c := range provider.Credentials {
 		s.LLM.Credentials[c.Name] = values[i]
 	}
@@ -276,9 +350,10 @@ func (w *Wizard) collectFreeformCredentials(s *state.State) error {
 		valueForm := huh.NewForm(
 			huh.NewGroup(
 				huh.NewInput().
-					Title("Value for " + name).
+					Title(titled("Value for "+name, false)).
 					EchoMode(huh.EchoModePassword).
-					Value(&value),
+					Value(&value).
+					Validate(required),
 			).Title("Credentials"),
 		)
 		if err := w.run(valueForm); err != nil {
@@ -286,6 +361,21 @@ func (w *Wizard) collectFreeformCredentials(s *state.State) error {
 		}
 		s.LLM.Credentials[name] = value
 	}
+}
+
+// optionalTitle marks a field a blank answer is a supported setup for;
+// requiredTitle is for the rest, so the form never leaves it to guesswork.
+const (
+	requiredTitle = " (required)"
+	optionalTitle = " (optional)"
+)
+
+// titled appends the marker the title needs.
+func titled(title string, optional bool) string {
+	if optional {
+		return title + optionalTitle
+	}
+	return title + requiredTitle
 }
 
 // modelHint is the description prefix for the two model fields.
@@ -327,11 +417,11 @@ func (w *Wizard) gitStep(s *state.State) (*huh.Form, func()) {
 				Value(&s.Git.AuthorEmail).
 				Validate(email),
 			huh.NewInput().
-				Title("Git username").
+				Title(titled("Git username", true)).
 				Description("GIT_USER. Blank skips credential setup.").
 				Value(&s.Git.User),
 			huh.NewInput().
-				Title("Git token").
+				Title(titled("Git token", true)).
 				Description("GIT_TOKEN. Personal access token for push and pull requests.").
 				EchoMode(huh.EchoModePassword).
 				Value(&s.Git.Token),
@@ -383,37 +473,37 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 	values := make([]string, len(model.Credentials))
 	fields := []huh.Field{
 		huh.NewInput().
-			Title("Artifacts bucket").
+			Title(titled("Artifacts bucket", false)).
 			Description("Generated reports, plans and code changes.").
 			Value(&s.Storage.Bucket).
 			Validate(required),
 	}
 	if model.Managed {
 		fields = append(fields, huh.NewInput().
-			Title("Terraform state bucket").
+			Title(titled("Terraform state bucket", true)).
 			Description("Blank = each repository declares its own backend.").
 			Value(&s.Storage.TerraformStateBucket))
 	}
 	if model.Region {
 		fields = append(fields, huh.NewInput().
-			Title("Region").
+			Title(titled("Region", false)).
 			Description("Ignored by Azure Storage Account.").
 			Value(&s.Storage.Region))
 	}
 	fields = append(fields,
 		huh.NewInput().
-			Title("Endpoint URL").
-			Description("In-cluster address of the store.").
+			Title(titled("Endpoint URL", false)).
+			Description(storageDescriptions()[0]).
 			Value(&s.Storage.EndpointURL),
 		huh.NewInput().
-			Title("Public endpoint URL").
-			Description("Browser-facing address used to sign download links.").
+			Title(titled("Public endpoint URL", false)).
+			Description(storageDescriptions()[1]).
 			Value(&s.Storage.PublicEndpointURL),
 	)
 	for i, c := range model.Credentials {
 		values[i] = s.Storage.Credentials[c.Name]
 		fields = append(fields, huh.NewInput().
-			Title(c.Title).
+			Title(titled(c.Title, false)).
 			Description(c.Name).
 			EchoMode(huh.EchoModePassword).
 			Value(&values[i]))
@@ -504,7 +594,9 @@ func (w *Wizard) engineStep(s *state.State) (*huh.Form, func()) {
 }
 
 // notificationsStep asks both questions in one form: the service refuses to
-// start without a webhook, so enabled and the URL must not disagree.
+// start without a webhook, so enabled and the URL must not disagree. The webhook
+// is its own group, hidden until the answer is Yes: huh hides groups, not
+// fields, and a visible empty URL reads as a second question to answer.
 func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
 	form := huh.NewForm(
 		huh.NewGroup(
@@ -514,9 +606,11 @@ func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
 				Affirmative("Yes").
 				Negative("No").
 				Value(&s.Notifications.Enabled),
+		).Title("Notifications"),
+		huh.NewGroup(
 			huh.NewInput().
-				Title("Slack webhook URL").
-				Description("SLACK_WEBHOOK_URL. Required to enable: anyone holding it can post to the channel.").
+				Title(titled("Slack webhook URL", false)).
+				Description("SLACK_WEBHOOK_URL. Anyone holding it can post to the channel.").
 				EchoMode(huh.EchoModePassword).
 				Value(&s.Notifications.SlackWebhookURL).
 				// Only when enabling, or "No" would still demand a webhook.
@@ -526,10 +620,14 @@ func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
 					}
 					return nil
 				}),
-		).Title("Notifications"),
+		).WithHideFunc(func() bool { return notificationsWebhookHidden(s) }),
 	)
 	return form, func() {}
 }
+
+// notificationsWebhookHidden is the rule the form uses, kept callable so a test
+// checks it without a terminal.
+func notificationsWebhookHidden(s *state.State) bool { return !s.Notifications.Enabled }
 
 func cloudOptions() []huh.Option[string] {
 	opts := make([]huh.Option[string], len(clouds))
@@ -568,21 +666,21 @@ func awsGroup(s *state.State) *huh.Group {
 			).
 			Value(&a.Method),
 		huh.NewInput().
-			Title("Access key id").
+			Title(titled("Access key id", false)).
 			Description("AWS_ACCESS_KEY_ID").
 			EchoMode(huh.EchoModePassword).
 			Value(&a.AccessKey),
 		huh.NewInput().
-			Title("Secret access key").
+			Title(titled("Secret access key", false)).
 			Description("AWS_SECRET_ACCESS_KEY").
 			EchoMode(huh.EchoModePassword).
 			Value(&a.SecretKey),
 		huh.NewInput().
-			Title("Region").
+			Title(titled("Region", false)).
 			Description("AWS_REGION. Required.").
 			Value(&a.Region),
 		huh.NewInput().
-			Title("Profile name").
+			Title(titled("Profile name", true)).
 			Description("AWS_PROFILE. For the named-profile method; mounts ~/.aws read-only.").
 			Value(&a.Profile),
 	).Title("AWS")
@@ -591,9 +689,9 @@ func awsGroup(s *state.State) *huh.Group {
 func azureGroup(s *state.State) *huh.Group {
 	a := ensureCloud(s, "azure").(*state.AzureAuth)
 	return huh.NewGroup(
-		huh.NewInput().Title("Tenant id").Description("ARM_TENANT_ID").Value(&a.TenantID),
-		huh.NewInput().Title("Client id").Description("ARM_CLIENT_ID").Value(&a.ClientID),
-		huh.NewInput().Title("Client secret").Description("ARM_CLIENT_SECRET").
+		huh.NewInput().Title(titled("Tenant id", false)).Description("ARM_TENANT_ID").Value(&a.TenantID),
+		huh.NewInput().Title(titled("Client id", false)).Description("ARM_CLIENT_ID").Value(&a.ClientID),
+		huh.NewInput().Title(titled("Client secret", false)).Description("ARM_CLIENT_SECRET").
 			EchoMode(huh.EchoModePassword).Value(&a.ClientSecret),
 	).Title("Azure")
 }
@@ -613,7 +711,7 @@ func gcpGroup(s *state.State) *huh.Group {
 			).
 			Value(&a.Method),
 		huh.NewText().
-			Title("Service-account JSON").
+			Title(titled("Service-account JSON", false)).
 			Description("GOOGLE_CREDENTIALS. The whole key, pasted. It stays in services/iac/.env, never in kumoss.yaml.").
 			Value(&a.InlineJSON).
 			Validate(func(v string) error {
@@ -623,7 +721,7 @@ func gcpGroup(s *state.State) *huh.Group {
 				return nil
 			}),
 		huh.NewInput().
-			Title("Service-account key file path").
+			Title(titled("Service-account key file path", false)).
 			Description("GOOGLE_APPLICATION_CREDENTIALS. Host path, mounted read-only into the iac container.").
 			Value(&a.KeyFile).
 			Validate(func(v string) error {
@@ -639,7 +737,7 @@ func ociGroup(s *state.State) *huh.Group {
 	a := ensureCloud(s, "oci").(*state.OCIAuth)
 	return huh.NewGroup(
 		huh.NewInput().
-			Title("OCI config file path").
+			Title(titled("OCI config file path", false)).
 			Description("OCI_CONFIG_FILE. Host path, mounted read-only into the iac container.").
 			Value(&a.ConfigPath),
 	).Title("Oracle Cloud")
@@ -649,10 +747,20 @@ func kubernetesGroup(s *state.State) *huh.Group {
 	a := ensureCloud(s, "kubernetes").(*state.KubernetesAuth)
 	return huh.NewGroup(
 		huh.NewInput().
-			Title("Kubeconfig path").
+			Title(titled("Kubeconfig path", false)).
 			Description("KUBE_CONFIG_PATH. Host path, mounted read-only into the iac container.").
 			Value(&a.KubeconfigPath),
 	).Title("Kubernetes")
+}
+
+// storageDescriptions are the two endpoint hints, kept together so the form and
+// its test read the same words. The first is where the core writes, the second
+// what a browser downloads from: the same store, reached two ways.
+func storageDescriptions() [2]string {
+	return [2]string{
+		"In-cluster address the core writes to, e.g. http://object-storage:9000. Use a host address only if the core can reach it.",
+		"Browser-facing address of the same store, e.g. http://localhost:9000 through the proxy. Download links are signed against it, so it must serve the same bucket.",
+	}
 }
 
 // pickStorage preselects the storage model row from the stored discriminator.

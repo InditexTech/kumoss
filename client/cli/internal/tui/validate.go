@@ -13,6 +13,8 @@ import (
 )
 
 // required rejects an empty value.
+// required is the validator for a field the stack cannot start without. The
+// word matches the title suffix, so the error repeats what the user read.
 func required(v string) error {
 	if strings.TrimSpace(v) == "" {
 		return errors.New("required")
