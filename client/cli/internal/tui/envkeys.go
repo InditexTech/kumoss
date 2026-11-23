@@ -5,6 +5,8 @@
 package tui
 
 import (
+	"slices"
+
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
@@ -23,10 +25,14 @@ func EnvKeys(provider string) []string {
 	return keys
 }
 
-// ProviderEnvKeys is EnvKeys for a state. The provider is re-derived by
-// state.Load, so the stored field is always set here.
+// ProviderEnvKeys is EnvKeys for a state, for every picked provider: two of them
+// mean two credential sets the core reads at boot.
 func ProviderEnvKeys(s *state.State) []string {
-	return EnvKeys(s.LLM.Provider)
+	var keys []string
+	for _, prefix := range s.LLM.Providers {
+		keys = append(keys, EnvKeys(prefix)...)
+	}
+	return keys
 }
 
 // RequiredEnvKeys is ProviderEnvKeys without the variables a blank value is a
@@ -35,7 +41,10 @@ func ProviderEnvKeys(s *state.State) []string {
 func RequiredEnvKeys(s *state.State) []string {
 	var keys []string
 	for _, key := range ProviderEnvKeys(s) {
-		if !optionalCredentials[key] {
+		if optionalCredentials[key] {
+			continue
+		}
+		if !slices.Contains(keys, key) {
 			keys = append(keys, key)
 		}
 	}

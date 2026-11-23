@@ -10,14 +10,30 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// LLM asks the provider, the models, the knobs and the credentials.
+// LLM asks the providers, the models, the knobs and every provider's
+// credentials.
 func (w *Wizard) LLM(s *state.State) error {
-	// Split in two: the credential fields depend on the provider picked first.
-	idx, err := w.llmProviderStep(s)
+	// Split in two: the credential fields depend on the providers picked first.
+	picked, err := w.llmProviderStep(s)
 	if err != nil {
 		return err
 	}
-	return w.llmDetailsStep(s, providerAt(idx))
+	providers := make([]llmProvider, len(picked))
+	for i, idx := range picked {
+		providers[i] = providerAt(idx)
+	}
+	// Two providers: ask which one serves the complex role. The multi-select
+	// returns list order, so index 0 would always mean Anthropic.
+	if len(providers) == 2 {
+		complex, err := w.llmRoleStep(s, providers)
+		if err != nil {
+			return err
+		}
+		if complex == 1 {
+			providers[0], providers[1] = providers[1], providers[0]
+		}
+	}
+	return w.llmDetailsStep(s, providers)
 }
 
 // Git asks the push provider, the author identity and the credentials.

@@ -138,7 +138,7 @@ func TestPrintSkippedReportsOnlyBlankCredentials(t *testing.T) {
 	if err := os.MkdirAll(h.CoreDir(), 0o700); err != nil {
 		t.Fatal(err)
 	}
-	s := &state.State{LLM: state.LLM{Provider: "anthropic"}}
+	s := &state.State{LLM: state.LLM{Providers: []string{"anthropic"}}}
 
 	// Configured: nothing to report.
 	if err := os.WriteFile(h.CoreEnv(), []byte("ANTHROPIC_API_KEY=sk-ant\n"), 0o600); err != nil {
@@ -172,7 +172,7 @@ func TestPrintSkippedIgnoresOptionalCredentials(t *testing.T) {
 		t.Fatal(err)
 	}
 	var b bytes.Buffer
-	printSkipped(&b, h, &state.State{LLM: state.LLM{Provider: "vertex_ai"}, Notifications: state.Notifications{Enabled: true}})
+	printSkipped(&b, h, &state.State{LLM: state.LLM{Providers: []string{"vertex_ai"}}, Notifications: state.Notifications{Enabled: true}})
 	if strings.Contains(b.String(), "VERTEXAI_CREDENTIALS") {
 		t.Errorf("optional credential reported as a skip:\n%s", b.String())
 	}

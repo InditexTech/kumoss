@@ -52,7 +52,7 @@ func configured(t *testing.T) (home.Home, *state.State) {
 	s := &state.State{
 		SchemaVersion: 1,
 		LLM: state.LLM{
-			Provider:   "anthropic",
+			Providers:  []string{"anthropic"},
 			Model:      "anthropic/claude-sonnet-5",
 			SmallModel: "anthropic/claude-haiku-4-5",
 		},
@@ -209,6 +209,11 @@ func TestPreflightReportsABlankLLMCredential(t *testing.T) {
 	if !strings.Contains(got[0].Message, "ANTHROPIC_API_KEY") {
 		t.Errorf("the problem does not name ANTHROPIC_API_KEY: %q", got[0].Message)
 	}
+	// The message names the providers whose credential it is, not a single one:
+	// two picked providers both appear.
+	if !strings.Contains(got[0].Message, "anthropic") {
+		t.Errorf("the problem does not name the provider: %q", got[0].Message)
+	}
 	if got[0].Fix != "kumoss config llm" {
 		t.Errorf("Fix = %q, want kumoss config llm", got[0].Fix)
 	}
@@ -220,7 +225,7 @@ func TestPreflightReportsABlankLLMCredential(t *testing.T) {
 func TestPreflightAllowsABlankOptionalLLMCredential(t *testing.T) {
 	h, s := configured(t)
 	s.LLM = state.LLM{
-		Provider:   "vertex_ai",
+		Providers:  []string{"vertex_ai"},
 		Model:      "vertex_ai/claude-sonnet-5-5",
 		SmallModel: "vertex_ai/gemini-3.8-flash",
 	}

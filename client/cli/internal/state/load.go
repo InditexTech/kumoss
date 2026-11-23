@@ -34,12 +34,24 @@ func Load(path string) (*State, error) {
 	if err := yaml.Unmarshal(raw, &s); err != nil {
 		return nil, err
 	}
-	s.LLM.Provider = providerOf(s.LLM.Model)
+	s.LLM.Providers = providersOf(s.LLM.Model, s.LLM.SmallModel)
 	return &s, nil
 }
 
+// providersOf is the distinct prefixes of the two model ids, in model order: a
+// setup that uses one vendor for both roles lists it once.
+func providersOf(model, small string) []string {
+	var out []string
+	for _, id := range []string{model, small} {
+		if p := providerOf(id); p != "" && (len(out) == 0 || out[len(out)-1] != p) {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
 // providerOf is the `<provider>/` part of a LiteLLM model string, or "". The
-// provider is never stored, so it is re-derived on load.
+// providers are never stored, so they are re-derived on load.
 func providerOf(model string) string {
 	if i := strings.IndexByte(model, '/'); i > 0 {
 		return model[:i]

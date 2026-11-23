@@ -55,9 +55,9 @@ func TestSaveLoadRoundTripWithoutSecrets(t *testing.T) {
 	if got.Cloud.AWS == nil || got.Cloud.AWS.Region != "eu-west-1" || got.Cloud.AWS.Method != "static" {
 		t.Errorf("cloud answers lost: %+v", got.Cloud.AWS)
 	}
-	// The provider is re-derived from the model on load, not stored.
-	if got.LLM.Provider != "anthropic" {
-		t.Errorf("LLM.Provider = %q, want anthropic", got.LLM.Provider)
+	// The providers are re-derived from the models on load, not stored.
+	if len(got.LLM.Providers) != 1 || got.LLM.Providers[0] != "anthropic" {
+		t.Errorf("LLM.Providers = %v, want [anthropic]", got.LLM.Providers)
 	}
 }
 
@@ -171,5 +171,29 @@ func TestCloudAnswersRoundTripWithoutTheirSecrets(t *testing.T) {
 	}
 	if got.Cloud.Azure == nil || got.Cloud.Azure.TenantID != "t" {
 		t.Errorf("azure answers lost: %+v", got.Cloud.Azure)
+	}
+}
+
+// The picked providers are derived from the two model ids: one vendor for both
+// roles lists once, two vendors list in model order.
+func TestLoadDerivesTheProvidersFromBothModels(t *testing.T) {
+	for _, c := range []struct {
+		model, small string
+		want         []string
+	}{
+		{"anthropic/claude-sonnet-5-5", "anthropic/claude-haiku-5-5", []string{"anthropic"}},
+		{"anthropic/claude-sonnet-5-5", "vertex_ai/gemini-3.8-flash", []string{"anthropic", "vertex_ai"}},
+		{"no-prefix", "", nil},
+	} {
+		got := providersOf(c.model, c.small)
+		if len(got) != len(c.want) {
+			t.Errorf("providersOf(%q, %q) = %v, want %v", c.model, c.small, got, c.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != c.want[i] {
+				t.Errorf("providersOf(%q, %q) = %v, want %v", c.model, c.small, got, c.want)
+			}
+		}
 	}
 }

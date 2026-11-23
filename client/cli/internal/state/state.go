@@ -18,7 +18,10 @@ type State struct {
 }
 
 type LLM struct {
-	Provider string `yaml:"-" json:"-"` // Wizard-only: which provider row was picked. Re-derived from llm.model on load, never persisted, so one parser (state.Load) owns it.
+	// Providers is every picked row's prefix: one fills both model roles, two
+	// split them. Wizard-only, derived from the two model ids on load, never
+	// persisted, so one parser (state.Load) owns it.
+	Providers []string `yaml:"-" json:"-"`
 
 	Model      string `yaml:"model" json:"model"`             // → config.yaml llm.model
 	SmallModel string `yaml:"small_model" json:"small_model"` // → config.yaml llm.small_model

@@ -44,12 +44,12 @@ func envProblems(h home.Home, s *state.State) []Problem {
 	iac := render.ReadEnv(h.ServiceEnv("iac"))
 
 	problems := cloudDrift(iac, s)
-	// The provider in llm.model decides which variables the core needs; the
-	// optional ones document a blank as a supported setup.
+	// The providers in llm.model and llm.small_model decide which variables the
+	// core needs; the optional ones document a blank as a supported setup.
 	for _, key := range tui.RequiredEnvKeys(s) {
 		if core[key] == "" {
 			problems = append(problems, Problem{
-				Message: key + " is blank in core/.env, and " + s.LLM.Provider + " needs it",
+				Message: key + " is blank in core/.env, and " + strings.Join(s.LLM.Providers, " + ") + " needs it",
 				Fix:     "kumoss config llm",
 			})
 		}

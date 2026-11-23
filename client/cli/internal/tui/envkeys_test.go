@@ -16,7 +16,7 @@ import (
 // Application Default Credentials, and demanding the key would block a
 // working stack.
 func TestRequiredEnvKeysDropsTheOptionalCredentials(t *testing.T) {
-	s := &state.State{LLM: state.LLM{Provider: "vertex_ai", Model: "vertex_ai/claude-sonnet-5-5"}}
+	s := &state.State{LLM: state.LLM{Providers: []string{"vertex_ai"}, Model: "vertex_ai/claude-sonnet-5-5"}}
 
 	got := RequiredEnvKeys(s)
 
@@ -39,9 +39,27 @@ func TestEnvKeysStillListsTheOptionalCredentials(t *testing.T) {
 
 // A provider with one mandatory key keeps it.
 func TestRequiredEnvKeysKeepsASoleAPIKey(t *testing.T) {
-	s := &state.State{LLM: state.LLM{Provider: "anthropic", Model: "anthropic/claude-sonnet-5"}}
+	s := &state.State{LLM: state.LLM{Providers: []string{"anthropic"}, Model: "anthropic/claude-sonnet-5"}}
 
 	if got := RequiredEnvKeys(s); !slices.Equal(got, []string{"ANTHROPIC_API_KEY"}) {
 		t.Errorf("RequiredEnvKeys = %v, want [ANTHROPIC_API_KEY]", got)
+	}
+}
+
+// Two providers mean two credential sets the core reads at boot, so both are
+// reported: missing one would let a stack start that cannot call a model.
+func TestRequiredEnvKeysCoversBothProviders(t *testing.T) {
+	s := &state.State{LLM: state.LLM{
+		Providers:  []string{"anthropic", "vertex_ai"},
+		Model:      "anthropic/claude-sonnet-5-5",
+		SmallModel: "vertex_ai/gemini-3.8-flash",
+	}}
+
+	got := RequiredEnvKeys(s)
+
+	for _, want := range []string{"ANTHROPIC_API_KEY", "VERTEXAI_PROJECT", "VERTEXAI_LOCATION"} {
+		if !slices.Contains(got, want) {
+			t.Errorf("%s is required but missing from %v", want, got)
+		}
 	}
 }
