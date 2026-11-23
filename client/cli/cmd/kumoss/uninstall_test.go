@@ -20,6 +20,7 @@ import (
 // src/docker-compose.yml skips the compose step, so no daemon is needed.
 func runUninstall(t *testing.T, root string, purge bool, answer string) string {
 	t.Helper()
+	isolateHome(t)
 	var out bytes.Buffer
 	c := &cobra.Command{Use: "uninstall", SilenceUsage: true, SilenceErrors: true}
 	c.SetOut(&out)
@@ -83,6 +84,7 @@ func TestUninstallPurgeRemovesTheHome(t *testing.T) {
 // A stray --home must not delete a directory Kumoss never created, even with
 // --purge: no kumoss.yaml means it is not a home.
 func TestUninstallRefusesAnUnmanagedDirectory(t *testing.T) {
+	isolateHome(t)
 	root := t.TempDir()
 	if err := os.WriteFile(filepath.Join(root, "notes.txt"), []byte("keep me"), 0o600); err != nil {
 		t.Fatal(err)

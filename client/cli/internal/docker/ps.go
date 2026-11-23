@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 // PS is one row of `docker compose ps --format json`. Compose emits one JSON
@@ -15,11 +16,15 @@ import (
 type PS struct {
 	Name    string `json:"Name"`
 	Service string `json:"Service"`
-	State   string `json:"State"`        // running, exited, restarting…
-	Status  string `json:"Status"`       // "Up 3 minutes (healthy)"
-	Health  string `json:"Health"`       // healthy, unhealthy, "" when no check
-	Created int64  `json:"Created"`      // unix seconds, when the container was created
-	Restart int    `json:"RestartCount"` // restarts so far
+	State   string `json:"State"`  // running, exited, restarting…
+	Status  string `json:"Status"` // "Up 3 minutes (healthy)"
+	Health  string `json:"Health"` // healthy, unhealthy, "" when no check
+	// CreatedAt is RFC 3339. Compose has no Created field, so a name that
+	// matched nothing left every container looking brand new.
+	CreatedAt time.Time `json:"CreatedAt"`
+	// RestartCount is absent on older Compose releases; the zero reads as
+	// "none yet", the same thing it prints for a fresh container.
+	RestartCount int `json:"RestartCount"`
 }
 
 // PS returns the stack's containers. The output is parsed here, not by compose

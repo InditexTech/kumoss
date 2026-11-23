@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/docker"
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
@@ -18,13 +19,21 @@ import (
 
 // compose emits one JSON object per line; a bad line must not hide the rest.
 func TestParsePSReadsLineDelimitedJSON(t *testing.T) {
-	rows := docker.ParsePS(`{"Service":"core","State":"running","Status":"Up 2 minutes (healthy)","Health":"healthy"}
+	rows := docker.ParsePS(`{"Service":"core","State":"running","Status":"Up 2 minutes (healthy)","Health":"healthy","CreatedAt":"2024-06-01T10:00:00.123456789Z","RestartCount":1}
 {"Service":"iac","State":"exited","Status":"Exited (1) 1 minute ago"}`)
 	if len(rows) != 2 {
 		t.Fatalf("parsed %d rows, want 2", len(rows))
 	}
 	if rows[0].Service != "core" || rows[0].Health != "healthy" {
 		t.Errorf("row 0 = %+v", rows[0])
+	}
+	// Without the creation time staleFiles skips the container, so run never
+	// force-recreates it after a config edit.
+	if want := time.Date(2024, 6, 1, 10, 0, 0, 123456789, time.UTC); !rows[0].CreatedAt.Equal(want) {
+		t.Errorf("CreatedAt = %v, want %v", rows[0].CreatedAt, want)
+	}
+	if rows[0].RestartCount != 1 {
+		t.Errorf("RestartCount = %d, want 1", rows[0].RestartCount)
 	}
 }
 

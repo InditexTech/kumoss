@@ -99,7 +99,7 @@ func printServices(w io.Writer, rows []docker.PS) {
 		if r.Health != "" {
 			state += "/" + r.Health
 		}
-		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", r.Service, state, uptimeOf(r.Status), r.Restart)
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%d\n", r.Service, state, uptimeOf(r.Status), r.RestartCount)
 	}
 	_ = tw.Flush()
 }

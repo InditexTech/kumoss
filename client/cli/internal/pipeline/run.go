@@ -139,8 +139,8 @@ func generatedFiles(h home.Home) map[string][]string {
 func staleFiles(h home.Home, rows []docker.PS) []string {
 	created := map[string]time.Time{}
 	for _, r := range rows {
-		if r.Created > 0 {
-			created[r.Service] = time.Unix(r.Created, 0)
+		if !r.CreatedAt.IsZero() {
+			created[r.Service] = r.CreatedAt
 		}
 	}
 	var stale []string

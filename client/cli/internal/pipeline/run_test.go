@@ -53,7 +53,7 @@ func runnable(t *testing.T) (opts RunOptions, rec *recordingDocker) {
 
 // container is a ps row created at the given time.
 func container(service string, created time.Time) docker.PS {
-	return docker.PS{Service: service, State: "running", Created: created.Unix()}
+	return docker.PS{Service: service, State: "running", CreatedAt: created}
 }
 
 // Without kumoss.yaml there is nothing to reconcile the files against, so run
