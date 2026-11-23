@@ -227,7 +227,7 @@ layout needs from Langfuse with the `<scope>/<type>/<name>` name and the
 `environment` label, and reads the version's text: the text of a text
 prompt, or the content of a chat prompt holding a single message (any
 other shape is an error). The text is used as it is: Langfuse's
-`{{variable}}` placeholders are not filled in. There is no cache: every
+`+{{variable}}+` placeholders are not filled in. There is no cache: every
 session sees the version the label is on now, so editing a prompt in
 Langfuse takes effect on the next run without rebuilding or restarting
 the core.
