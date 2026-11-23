@@ -96,11 +96,18 @@ func overlay(doc map[string]any, s *state.State) {
 		llm["timeout"] = *v
 	}
 	doc["llm"] = llm
-	doc["git"] = map[string]any{
-		"provider":     s.Git.Provider,
-		"author_name":  s.Git.AuthorName,
-		"author_email": s.Git.AuthorEmail,
+	// Merge too: pat_user_env and pat_token_env name the credentials, and
+	// replacing the block would point the core back at GIT_USER/GIT_TOKEN.
+	git := map[string]any{}
+	if existing, ok := doc["git"].(map[string]any); ok {
+		for k, v := range existing {
+			git[k] = v
+		}
 	}
+	git["provider"] = s.Git.Provider
+	git["author_name"] = s.Git.AuthorName
+	git["author_email"] = s.Git.AuthorEmail
+	doc["git"] = git
 	doc["storage"] = storageBlock(doc, s)
 	doc["services"] = servicesBlock(doc, s)
 }

@@ -49,6 +49,8 @@ git:
   provider: "GITHUB"
   author_name: "Kumoss"
   author_email: "kumoss@noreply.invalid"
+  pat_user_env: "CORP_GIT_USER"
+  pat_token_env: "CORP_GIT_TOKEN"
 services:
   notifications:
     enabled: true
@@ -127,6 +129,11 @@ func TestRenderOverlaysAnswersAndKeepsTheRest(t *testing.T) {
 	git := doc["git"].(map[string]any)
 	if git["provider"] != "GITLAB" || git["author_email"] != "bot@example.invalid" {
 		t.Errorf("git not overlaid: %+v", git)
+	}
+	// The env var names are not form answers: losing them points the core
+	// back at GIT_USER/GIT_TOKEN.
+	if git["pat_token_env"] != "CORP_GIT_TOKEN" || git["pat_user_env"] != "CORP_GIT_USER" {
+		t.Errorf("untouched git key lost: %+v", git)
 	}
 
 	// Storage: overlaid provider/bucket, empty terraform_state_bucket preserved
