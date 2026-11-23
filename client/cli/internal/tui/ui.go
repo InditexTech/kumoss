@@ -28,11 +28,12 @@ type UI interface {
 	Configure(mode Mode, s *state.State) error
 	// RotateSecrets returns the keys to regenerate; empty keeps them all.
 	RotateSecrets(found []Secret) (rotate []string, err error)
-	// ExtraVars asks for the sample keys the wizard does not own.
-	ExtraVars(keys []Secret) (map[string]string, error)
 	// ConfirmRegenerate guards compose.override.yml, which may be hand-edited.
 	ConfirmRegenerate(what string) (bool, error)
 	RunDocker() (bool, error)
+	// SetDefaults hands the wizard the installed config.yaml, so its forms can
+	// pre-fill what the file already holds. Nil means nothing to show.
+	SetDefaults(doc map[string]any)
 }
 
 // Secret is one rotatable value. Defined here, not in render, so the pipeline
@@ -48,6 +49,12 @@ type Wizard struct {
 	In         io.Reader
 	Out        io.Writer
 	Accessible bool
+	// Doc is the installed config.yaml, parsed: the forms pre-fill from it
+	// when the state holds no answer of its own.
+	Doc map[string]any
 }
+
+// SetDefaults stores the parsed config.yaml for the forms.
+func (w *Wizard) SetDefaults(doc map[string]any) { w.Doc = doc }
 
 var _ UI = (*Wizard)(nil) // compile-time check that Wizard satisfies UI
