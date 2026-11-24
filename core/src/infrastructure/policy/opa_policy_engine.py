@@ -28,7 +28,7 @@ import json
 import tempfile
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Literal, final, override
+from typing import Any, Literal, cast, final, override
 
 from src.domains.dto import ComplianceViolation, PolicyDecision
 from src.domains.exceptions import PolicyEvaluationError
@@ -165,7 +165,12 @@ class OpaPolicyEngine(IPolicyEngine):
 
     @classmethod
     def __errors(cls, output: Any, stderr: str) -> str:
-        """OPA's errors, one ``file:row: message`` each, else its stderr."""
+        """OPA's errors, one ``file:row: message`` each, else its stderr.
+
+        Runtime (``eval_*``) errors give only their code: their message may
+        quote input values, and the plan carries secrets unmasked. Parse,
+        compile and type errors come from the policy text and keep theirs.
+        """
         errors = output.get("errors") if isinstance(output, dict) else None
         if not isinstance(errors, list) or not errors:
             return stderr.strip() or "no error output"
@@ -179,7 +184,11 @@ class OpaPolicyEngine(IPolicyEngine):
                 if isinstance(location, dict) and location.get("row")
                 else ""
             )
-            lines.append(f"{where}{err.get('message', err)}")
+            code = err.get("code")
+            if isinstance(code, str) and code.startswith("eval_"):
+                lines.append(f"{where}{code}")
+            else:
+                lines.append(f"{where}{err.get('message', code)}")
         return "; ".join(lines)
 
     @classmethod
@@ -212,18 +221,29 @@ class OpaPolicyEngine(IPolicyEngine):
             )
         return items
 
+    @staticmethod
+    def __shown(value: Any) -> str:
+        """A rejected value fit for an error message: a short string as is,
+        anything else by type only, so no plan value is echoed."""
+        if isinstance(value, str) and len(value) <= 16:
+            return repr(value)
+        return f"of type {type(value).__name__}"
+
     @classmethod
     def __finding(cls, item: Any, kind: str) -> ComplianceViolation:
         if not isinstance(item, dict):
             raise PolicyEvaluationError(
-                message=f"a `{kind}` finding must be an object, got {item!r}",
+                message=f"a `{kind}` finding must be an object, got a {type(item).__name__}",
                 error_code=502,
             )
         rule_id, message = item.get("rule_id"), item.get("message")
         resource = item.get("resource")
         if not (isinstance(rule_id, str) and rule_id):
             raise PolicyEvaluationError(
-                message=f"a `{kind}` finding has no `rule_id`: {item!r}",
+                message=(
+                    f"a `{kind}` finding has no string `rule_id` "
+                    + f"(keys: {', '.join(sorted(cast(dict[str, Any], item))) or 'none'})"
+                ),
                 error_code=502,
             )
         if not (isinstance(message, str) and message):
@@ -242,7 +262,7 @@ class OpaPolicyEngine(IPolicyEngine):
             if requested not in ("error", "critical"):
                 raise PolicyEvaluationError(
                     message=(
-                        f"`deny` finding {rule_id} has severity {requested!r}; "
+                        f"`deny` finding {rule_id} has severity {cls.__shown(requested)}; "
                         + "expected 'error' or 'critical'"
                     ),
                     error_code=502,

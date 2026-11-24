@@ -152,6 +152,56 @@ deny contains {"rule_id": "r", "message": "m", "severity": "warning"}
         self.assertIn("`deny` must be a set", message)
 
 
+@unittest.skipUnless(shutil.which("opa"), "the opa binary is not on PATH")
+class TestErrorsQuoteNoPlanValue(_EngineTestCase):
+    """The plan carries secrets unmasked, and an evaluation error reaches
+    the logs and the stored report: no error may echo a plan value."""
+
+    SECRET = "hunter2-not-for-logs"
+
+    def _secret_changes(self) -> list[dict]:
+        change = _change("aws_db_instance.main", ["update"])
+        change["change"]["after"] = {"password": self.SECRET}
+        return [change]
+
+    async def test_a_finding_without_rule_id_lists_only_its_keys(self):
+        message = await self._error(
+            """package kumoss.compliance
+deny contains c if some c in input.plan.resource_changes
+""",
+            self._secret_changes(),
+        )
+        self.assertNotIn(self.SECRET, message)
+        self.assertIn("keys: address, change, mode", message)
+
+    async def test_a_non_object_finding_gives_only_its_type(self):
+        message = await self._error(
+            """package kumoss.compliance
+deny contains p if p := input.plan.resource_changes[_].change.after.password
+""",
+            self._secret_changes(),
+        )
+        self.assertNotIn(self.SECRET, message)
+        self.assertIn("got a str", message)
+
+    async def test_a_runtime_error_gives_only_its_code(self):
+        # OPA's builtin errors quote their operands.
+        message = await self._error(
+            """package kumoss.compliance
+deny contains {"rule_id": "r", "message": "m"} if {
+	to_number(input.plan.resource_changes[_].change.after.password) > 1
+}
+""",
+            self._secret_changes(),
+        )
+        self.assertNotIn(self.SECRET, message)
+        self.assertIn("compliance.rego:3: eval_builtin_error", message)
+
+    async def test_a_parse_error_keeps_its_message(self):
+        message = await self._error("package kumoss.compliance\ndeny contains x if {\n")
+        self.assertIn("unexpected eof token", message)
+
+
 class TestFailures(_EngineTestCase):
     async def test_a_fetch_failure_is_an_evaluation_error(self):
         fetch = AsyncMock(side_effect=PromptFetchError(message="down", error_code=502))
