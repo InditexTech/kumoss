@@ -97,7 +97,7 @@ kumoss init
 
 ### 🧭 What the CLI does for you
 
-- **Asks only what the local stack needs.** LLM provider and credentials, Git host, cloud credentials, IaC engine, state backend, optional Slack notifications.
+- **Asks only what the local stack needs.** One LLM provider, or two to split the complex and the cheap model, with each one's credentials; Git host; cloud credentials; IaC engine; state backend; optional Slack notifications.
 - **Generates the shared secrets.** The core ↔ sidecar bearer tokens are random, written identically to both sides — nothing to paste twice or keep in step by hand.
 - **Keeps the repository authoritative.** `config.yaml` is overlaid, not replaced: every key the wizard does not own keeps the value and behaviour the project ships.
 - **Configuration without rebuilds.** The generated `config.yaml` is bind-mounted over the path the core already reads, so a change needs `docker compose up -d --force-recreate core`, never an image build.
@@ -116,7 +116,7 @@ kumoss init
 
 | Component           | Configured by the wizard | Hand-edited in `config.yaml`                     |
 | ------------------- | ------------------------ | ------------------------------------------------ |
-| **Model**           | Provider, models, credentials, tuning | `llm.model_list` routing             |
+| **Model**           | One or two providers, their models, credentials, tuning | `llm.model_list` routing             |
 | **Git**             | Provider, author, token  | —                                                |
 | **Cloud**           | Credentials for the IaC sidecar | Anything the wizard does not ask for     |
 | **IaC executor**    | OpenTofu or Terraform    | The sidecar-supplied backend                     |
@@ -133,7 +133,7 @@ Azure Container Apps, secret stores, TLS termination) is out of scope: see
 
 1. **You install.** One `curl … | bash` puts a checksum-verified binary in `~/.local/bin`.
 2. **The CLI checks the machine.** It detects the OS and architecture, then resolves the release to install.
-3. **You run `kumoss init`.** The wizard asks for the LLM, Git, cloud credentials, the IaC engine, the state backend and notifications.
+3. **You run `kumoss init`.** The wizard asks for the LLM providers, Git, cloud credentials, the IaC engine, the state backend and notifications.
 4. **It fetches the stack.** `docker-compose.yml`, `config.yaml` and the `env.sample` files come from the release tag the binary was built at.
 5. **It writes every file.** `kumoss.yaml`, `config/config.yaml`, three `.env` files and `compose.override.yml`, atomically, with `.env` files at `0600`.
 6. **It starts the stack.** Pulls the missing images and runs `docker compose up -d`, or attached with `--foreground`.
@@ -225,6 +225,9 @@ Install or reconfigure the stack. See [How it works](#how-it-works).
 | `--foreground`   | off          | Stream logs instead of detaching; Ctrl-C also stops the stack          |
 | `--host-certs`   | off          | Trust this host's CA roots in `core` and `searxng`, behind a TLS proxy |
 
+Once the stack is up it prints the app, RustFS API and Phoenix addresses. With
+`--foreground` the logs own the terminal, so the list is not printed.
+
 ### `kumoss run`
 
 Start a stack that is already configured. `run` writes nothing: it checks the
@@ -233,7 +236,7 @@ managed home, then hands the stack to compose.
 The checks, in order. A home with no `kumoss.yaml` has nothing to check
 against, so it is sent to `kumoss init`. Otherwise every answer recorded in
 `kumoss.yaml` must be present and identical in `config/config.yaml` and the
-`.env` files, and the credentials the configured LLM provider and clouds need
+`.env` files, and the credentials every configured LLM provider and cloud needs
 must be filled in. Secrets are checked for presence only — `kumoss.yaml` never
 stores them — and never printed. Anything wrong is listed with the
 `kumoss config <section>` that rewrites it, and nothing is started.
@@ -334,7 +337,8 @@ One screen for the whole stack:
 
 - **The table** — every container with its state (plus health when the image
   defines a check), how long it has been up and how often it restarted, from
-  `docker compose ps`.
+  `docker compose ps`. An empty table means the home holds no stack; a home
+  with no compose file is named as an incomplete install instead.
 - **The probes** — the core's `/api/v1/auth/config`, which proves it serves and
   not merely runs, then `/healthz` for each running sidecar.
 - **The Kumoss tag** the stack was built from, and the optional pieces `init`
@@ -561,7 +565,7 @@ dc config                         # the fully merged stack
 | `Cannot connect to the Docker daemon`      | Start Docker; on WSL2 enable the integration for the distribution   |
 | `docker compose` line reads `FAIL`         | v1 found or Compose missing: install Compose v2 or newer            |
 | `home` line says not writable              | `--home` points somewhere you cannot write; pick another root       |
-| Port 80 or 9000 in use                     | `ss -lntp` / `lsof -i :80`, stop the process, run `kumoss init` again |
+| Port 80 or 9000 in use                     | `ss -lntp` or `lsof -i :80` / `-i :9000`; stop the process, run `kumoss init` again |
 | The core exits right after start           | `dc logs core`; the first error line names the cause                |
 | Notifications container shows `Exited`     | Webhook missing or empty: re-run and paste one, or answer No        |
 | A cloud credential file is not found       | File-based methods only; re-pick the cloud, or paste the GCP JSON inline |

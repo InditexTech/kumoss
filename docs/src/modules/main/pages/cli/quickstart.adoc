@@ -95,8 +95,9 @@ kumoss init
 
 The wizard asks, in order:
 
-. *LLM* - the provider and its credentials, plus the two model strings that
-  `config.yaml` will carry.
+. *LLM* - one provider, or two to use a different vendor for the complex and
+  the cheap model, with each provider's credentials and its model strings.
+  The form starts from what `config.yaml` already holds.
 . *Git* - the host, the author identity, and the token used for pull requests.
 . *Storage* - the bundled RustFS, an external S3-compatible store, an Azure
   Storage Account, or repository-declared state.

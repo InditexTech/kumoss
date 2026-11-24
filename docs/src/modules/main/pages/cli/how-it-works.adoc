@@ -160,7 +160,9 @@ mismatch makes the sidecar reject every call.
 
 One screen for the running stack:
 
-* a table from `docker compose ps`: state, health, uptime and restart count;
+* a table from `docker compose ps`: state, health, uptime and restart count.
+  An empty table means this home holds no stack; a home with no compose file
+  is named as an incomplete install rather than shown as empty;
 * live probes: the core's `/api/v1/auth/config`, which proves the API answers
   rather than merely that the container runs, and `/healthz` for each running
   sidecar;
@@ -335,7 +337,7 @@ written `0600`.
   service is enabled;
 * a value recorded in `kumoss.yaml` is absent from, or different in,
   `config.yaml` or the `.env` files;
-* a credential the configured LLM provider needs is blank in `core/.env`;
+* a credential a configured LLM provider needs is blank in `core/.env`;
 * a cloud variable differs from what `kumoss.yaml` records;
 * a bearer token is blank on either side, or differs between the core and its
   sidecar.
