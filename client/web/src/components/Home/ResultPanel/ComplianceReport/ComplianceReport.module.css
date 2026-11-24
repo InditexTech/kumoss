@@ -133,6 +133,15 @@
   overflow-wrap: anywhere;
 }
 
+.source {
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  letter-spacing: 0.08em;
+  padding: 0 6px;
+  text-transform: uppercase;
+}
+
 .resource {
   color: var(--color-text-muted);
   font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;

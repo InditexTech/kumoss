@@ -115,6 +115,16 @@ export function ComplianceViolations({
               <Typography variant="subtitleSemiBold" component="span" className={styles.ruleId}>
                 {violation.rule_id}
               </Typography>
+              {violation.source === "opa" && (
+                <Typography
+                  variant="micro"
+                  component="span"
+                  className={styles.source}
+                  title="Reported by the OPA compliance policy"
+                >
+                  policy
+                </Typography>
+              )}
             </div>
             {violation.resource && (
               <Typography variant="subtitle2" className={styles.resource}>
