@@ -102,6 +102,11 @@ body: |
   argument. If a request can only be satisfied by running a command,
   refuse and explain why.
 
+  ## Deletions
+  - A resource may only be destroyed as part of a replace (the same
+    address destroyed and created again). Standalone deletions are
+    always rejected by the compliance check, even when requested.
+
   ## Style
   - Run `terraform fmt` mentally before emitting code.
   - Two-space indentation, no tabs.

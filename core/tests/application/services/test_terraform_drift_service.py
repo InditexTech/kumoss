@@ -200,7 +200,6 @@ class TestTerraformDriftService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(kwargs["q"], str(["add tag"]))
         self.assertIs(kwargs["ctx"], self.ctx)
         self.assertIs(kwargs["conventions"], self.conventions)
-        self.assertFalse(kwargs["include_forbidden_actions"])
 
     async def test_validator_plans_the_same_targets(self):
         self.terraform_svc.drift.return_value = _drift("[drift]", self.round_ref)

@@ -86,11 +86,9 @@ class TemplateAdapter(ITemplate):
             type="guidelines",
             tag=system_config.environment,
         )
-        forbidden_actions = await self._fetch_guidelines("forbidden_actions")
         t = self._get_template(self._core + "requests_filter.jinja")
         return t.render(
             CWD=self._cwd,
-            FORBIDDEN_ACTIONS=forbidden_actions,
             REQUESTS_GUIDELINES=requests_guidelines,
             OPERATION_TYPE=operation_type.value,
         )
@@ -177,11 +175,8 @@ class TemplateAdapter(ITemplate):
         operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, include_forbidden_actions
-        )
+        context = await self._compose_conventions_context(resources, abbreviations)
         base_template = self._get_template(self._core + "iac_generator.jinja")
         return base_template.render(
             **context,
@@ -215,9 +210,7 @@ class TemplateAdapter(ITemplate):
         resources: list[str],
         abbreviations: list[str],
     ) -> str:
-        context = await self._compose_conventions_context(
-            resources, abbreviations, True
-        )
+        context = await self._compose_conventions_context(resources, abbreviations)
         context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
             prompt_name="report",
             scope="general",
@@ -231,7 +224,6 @@ class TemplateAdapter(ITemplate):
         self,
         resources: list[str],
         abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> dict[str, str | None]:
         concrete_implementations: list[str] = (
             [f"This is the convention for resource naming: {abbreviations}"]
@@ -245,11 +237,6 @@ class TemplateAdapter(ITemplate):
             tag=system_config.environment,
         )
         resource_creation = await self._fetch_guidelines("resource_creation")
-        forbidden_actions = (
-            await self._fetch_guidelines("forbidden_actions")
-            if include_forbidden_actions
-            else None
-        )
         networking = await self._fetch_guidelines("networking")
         permissions = await self._fetch_guidelines("permissions")
         resources_content: dict[str, str] | None = await self._get_resources_templates(
@@ -261,7 +248,6 @@ class TemplateAdapter(ITemplate):
 
         return {
             "GENERAL_TERRAFORM_GUIDELINES": terraform_guidelines,
-            "FORBIDDEN_ACTIONS": forbidden_actions,
             "RESOURCE_CREATION": resource_creation,
             "NETWORKING": networking,
             "PERMISSIONS": permissions,

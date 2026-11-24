@@ -392,7 +392,6 @@ class TestTerraformImportHandler(unittest.IsolatedAsyncioTestCase):
         # says which resources to write it for.
         gen_kwargs = self.validation_svc.generate_and_validate.await_args.kwargs
         self.assertIs(gen_kwargs["operation_type"], OperationType.IMPORT)
-        self.assertFalse(gen_kwargs["include_forbidden_actions"])
         self.assertNotIn("selected_ids", gen_kwargs)
         self.assertIn("- res-1", gen_kwargs["q"])
 

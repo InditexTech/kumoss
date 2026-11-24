@@ -37,7 +37,7 @@ body: |
   - Grant `roles/iam.serviceAccountUser` and
     `roles/iam.serviceAccountTokenCreator` on the individual service
     account, never project-wide.
-  - Never create service account keys (see the forbidden actions).
+  - Never create service account keys.
     Use attached service accounts, Workload Identity Federation, or
     service account impersonation instead.
 
