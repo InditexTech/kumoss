@@ -132,10 +132,11 @@ func (w *Wizard) RunDocker() (bool, error) {
 // cheap model, one vendor each.
 const providerLimit = 2
 
-// llmProviderStep returns the chosen rows, in the order picked, each index or
-// -1 for "Other". One provider covers both model roles; two let the complex and
-// the cheap model come from different vendors. Preselected from the stored
-// prefixes on reconfigure.
+// llmProviderStep returns the chosen rows as indexes into llmProviders, -1 for
+// "Other". huh returns multi-select values in list order, not press order, so
+// llmRoleStep decides which of two leads. One provider covers both model roles;
+// two let the complex and the cheap model come from different vendors.
+// Preselected from the stored prefixes on reconfigure.
 func (w *Wizard) llmProviderStep(s *state.State) ([]int, error) {
 	var picked []int
 	for _, prefix := range s.LLM.Providers {
@@ -469,6 +470,14 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 	if s.Storage.Credentials == nil {
 		s.Storage.Credentials = map[string]string{}
 	}
+	// The bundled container's addresses are known, so they are seeded rather
+	// than asked; an external store has none to guess.
+	if s.Storage.EndpointURL == "" {
+		s.Storage.EndpointURL = model.EndpointURL
+	}
+	if s.Storage.PublicEndpointURL == "" {
+		s.Storage.PublicEndpointURL = model.PublicEndpointURL
+	}
 
 	values := make([]string, len(model.Credentials))
 	fields := []huh.Field{
@@ -488,17 +497,20 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 		fields = append(fields, huh.NewInput().
 			Title(titled("Region", false)).
 			Description("Ignored by Azure Storage Account.").
-			Value(&s.Storage.Region))
+			Value(&s.Storage.Region).
+			Validate(required))
 	}
 	fields = append(fields,
 		huh.NewInput().
 			Title(titled("Endpoint URL", false)).
 			Description(storageDescriptions()[0]).
-			Value(&s.Storage.EndpointURL),
+			Value(&s.Storage.EndpointURL).
+			Validate(required),
 		huh.NewInput().
 			Title(titled("Public endpoint URL", false)).
 			Description(storageDescriptions()[1]).
-			Value(&s.Storage.PublicEndpointURL),
+			Value(&s.Storage.PublicEndpointURL).
+			Validate(required),
 	)
 	for i, c := range model.Credentials {
 		values[i] = s.Storage.Credentials[c.Name]
@@ -506,7 +518,8 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 			Title(titled(c.Title, false)).
 			Description(c.Name).
 			EchoMode(huh.EchoModePassword).
-			Value(&values[i]))
+			Value(&values[i]).
+			Validate(required))
 	}
 
 	form := huh.NewForm(huh.NewGroup(fields...).Title("Storage — " + model.Name))

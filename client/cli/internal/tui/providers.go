@@ -171,17 +171,20 @@ func prefixOf(model string) string {
 // storageModel is the CLI discriminator driving storage.provider and whether
 // terraform_state_bucket is empty.
 type storageModel struct {
-	Name        string // select key
-	Model       string // state.Storage.Model
-	Provider    string // → storage.provider enum
-	Managed     bool   // false = repository-declared state (empty terraform_state_bucket)
-	Region      bool   // whether the region field is relevant
-	Credentials []credential
+	Name              string // select key
+	Model             string // state.Storage.Model
+	Provider          string // → storage.provider enum
+	Managed           bool   // false = repository-declared state (empty terraform_state_bucket)
+	Region            bool   // whether the region field is relevant
+	EndpointURL       string // in-cluster address the core writes to
+	PublicEndpointURL string // browser-facing address presigned links are signed against
+	Credentials       []credential
 }
 
 var storageModels = []storageModel{
 	{
 		Name: "Bundled RustFS", Model: "bundled", Provider: "RUSTFS", Managed: true,
+		EndpointURL: "http://object-storage:9000", PublicEndpointURL: "http://localhost:9000",
 		// Keys are generated, not typed: they must match the container's own.
 	},
 	{

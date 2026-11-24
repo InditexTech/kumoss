@@ -34,6 +34,18 @@ func TestStorageEndpointDescriptionsExplainTheTwoAddresses(t *testing.T) {
 	}
 }
 
+// The bundled store's two addresses are known and seeded; a required field the
+// form asks must arrive filled, or the wizard cannot leave the step.
+func TestBundledStorageSeedsItsAddresses(t *testing.T) {
+	m := pickStorage(&state.State{Storage: state.Storage{Model: "bundled"}})
+	if m.EndpointURL == "" || m.PublicEndpointURL == "" {
+		t.Fatalf("bundled model has no seed: %+v", m)
+	}
+	if err := required(m.EndpointURL); err != nil {
+		t.Error("the seeded endpoint would be rejected by the form")
+	}
+}
+
 // The webhook is asked for only once notifications are on: with "No" the form
 // is one question, and a blank URL never reaches the file.
 func TestWebhookHidesUntilNotificationsAreEnabled(t *testing.T) {
