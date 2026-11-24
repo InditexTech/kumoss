@@ -123,6 +123,7 @@ class TerraformCRUDHandler:
                     ctx=ctx,
                     conventions=conventions,
                     plan=drift.stdout,
+                    plan_json=drift.plan_json,
                 )
 
                 high_impact = (

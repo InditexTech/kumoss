@@ -97,6 +97,24 @@ class TestSeedCatalog(unittest.TestCase):
             body,
         )
 
+    def test_policy_and_llm_rules_do_not_overlap(self):
+        # A rule enforced by the policy and audited by the LLM would be
+        # reported twice, possibly with different verdicts.
+        policy = (SEED_DIR / "general" / "policies" / "compliance.rego").read_text(
+            encoding="utf-8"
+        )
+        policy_rules = set(re.findall(r'^rules contains "([a-z0-9_]+)"', policy, re.M))
+        llm_rules = set(
+            re.findall(
+                r"^## ([a-z0-9_]+) \(severity:",
+                _body("general", "compliance", "report"),
+                re.M,
+            )
+        )
+        self.assertIn("critical_deletion", policy_rules)
+        self.assertTrue(llm_rules)
+        self.assertEqual(policy_rules & llm_rules, set())
+
     def test_existing_provider_pins_are_kept(self):
         # The seeds pin newer majors than earlier releases did, and `init`
         # runs without -upgrade: rewriting an existing workspace's pin

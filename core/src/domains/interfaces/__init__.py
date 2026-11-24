@@ -9,6 +9,7 @@ from .llm_interface import ILLMProvider
 from .manifest_repository_interface import IManifestRepository
 from .manifest_secret_store_interface import IManifestSecretStore
 from .object_storage_interface import IObjectStorage
+from .policy_engine_interface import IPolicyEngine
 from .root_module_detector_interface import IRootModuleDetector
 from .template_interface import ITemplate
 from .terraform_interface import ITerraform
@@ -24,6 +25,7 @@ __all__ = [
     "IManifestRepository",
     "IManifestSecretStore",
     "IObjectStorage",
+    "IPolicyEngine",
     "IRootModuleDetector",
     "ITemplate",
     "ITerraform",

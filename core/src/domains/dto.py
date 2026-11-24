@@ -4,7 +4,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Literal, Protocol
+from typing import Any, ClassVar, Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -159,6 +159,10 @@ class TerraformDriftDTO:
     remediation, one note per iteration that excluded something. It is
     defaulted so the terraform adapter's construction sites need not know
     about it: only the drift loop fills it in.
+
+    ``plan_json`` is the parsed ``show -json`` of ``plan``, the document the
+    policy engine evaluates; None whenever ``plan`` is. It carries secrets
+    unmasked, so it stays out of ``repr`` and therefore out of logs.
     """
 
     in_sync: bool
@@ -167,6 +171,7 @@ class TerraformDriftDTO:
     stdout: str
     plan: "PlanRef | None"
     excluded: list[str] = field(default_factory=list)
+    plan_json: dict[str, Any] | None = field(default=None, repr=False)
 
     @property
     def ok(self) -> bool:
@@ -562,11 +567,31 @@ Reports = (
 
 
 class ComplianceViolation(BaseModel):
+    """One finding. ``source`` defaults to the LLM so reports stored before
+    the policy engine existed still load."""
+
+    BLOCKING_SEVERITIES: ClassVar[frozenset[str]] = frozenset({"error", "critical"})
+
     rule_id: str
     severity: Literal["info", "warning", "error", "critical"]
     resource: str | None = None
     message: str
     suggested_fix: str | None = None
+    source: Literal["llm", "opa"] = "llm"
+
+    @property
+    def blocking(self) -> bool:
+        return self.severity in self.BLOCKING_SEVERITIES
+
+
+@dataclass(frozen=True)
+class PolicyDecision:
+    """What the policy engine returned for one plan: its findings, every
+    rule it evaluated, and the policy version that produced them."""
+
+    violations: list[ComplianceViolation]
+    checked_rules: list[str]
+    revision: str | None
 
 
 class ComplianceCheckReport(BaseModel):
@@ -574,6 +599,9 @@ class ComplianceCheckReport(BaseModel):
     violations: list[ComplianceViolation]
     summary: str
     checked_rules: list[str]
+    # The policy version the OPA findings came from, as Langfuse's
+    # "<prompt name>@<version>"; None when no policy ran.
+    policy_revision: str | None = None
 
     @classmethod
     def empty(cls):
@@ -582,6 +610,35 @@ class ComplianceCheckReport(BaseModel):
             violations=[],
             summary="",
             checked_rules=[],
+        )
+
+    @classmethod
+    def merge(
+        cls, audit: "ComplianceCheckReport", policy: PolicyDecision
+    ) -> "ComplianceCheckReport":
+        """One report out of the LLM audit and the policy decision.
+
+        The policy's findings come first: they are the deterministic ones.
+        The summary leads with them, since it is the body of the compliance
+        failure notice and the LLM's summary knows nothing of them.
+        """
+        blocking = [v for v in policy.violations if v.blocking]
+        summary = audit.summary
+        if blocking:
+            rules = ", ".join(sorted({v.rule_id for v in blocking}))
+            noun = "finding" if len(blocking) == 1 else "findings"
+            lead = (
+                f"Blocked by the compliance policy: {len(blocking)} {noun} ({rules})."
+            )
+            summary = f"{lead} {summary}" if summary else lead
+        return cls(
+            passed=audit.passed and not blocking,
+            violations=[*policy.violations, *audit.violations],
+            summary=summary,
+            checked_rules=list(
+                dict.fromkeys([*policy.checked_rules, *audit.checked_rules])
+            ),
+            policy_revision=policy.revision,
         )
 
 

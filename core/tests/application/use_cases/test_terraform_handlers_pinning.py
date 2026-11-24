@@ -204,6 +204,22 @@ class TestCrudHandlerBlocking(_CrudHandlerTestCase):
         )
         self.notifications.notify_high_impact.assert_not_awaited()
 
+    async def test_compliance_audits_the_final_plan_text_and_json(self):
+        self.drift_svc.detect_and_resolve_drift.return_value = TerraformDriftDTO(
+            in_sync=True,
+            drift="",
+            feedback="",
+            stdout="final plan",
+            plan=None,
+            plan_json={"resource_changes": []},
+        )
+
+        await self._run()
+
+        kwargs = self.compliance_svc.check.await_args.kwargs
+        self.assertEqual(kwargs["plan"], "final plan")
+        self.assertEqual(kwargs["plan_json"], {"resource_changes": []})
+
     async def test_high_impact_locks_and_notifies_high_impact_only(self):
         self.report_svc.generate_report.return_value = _report("high")
 
