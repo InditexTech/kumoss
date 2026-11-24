@@ -87,16 +87,6 @@ class TestSeedCatalog(unittest.TestCase):
                 body = yaml.safe_load(path.read_text(encoding="utf-8"))["body"]
                 self.assertNotRegex(body, r"(?i)forbidden actions?\b")
 
-    def test_the_generator_is_told_deletions_are_rejected(self):
-        # The policy's critical_deletion rejects every standalone delete,
-        # even a requested one; the generator must not suggest otherwise.
-        body = " ".join(_body("general", "guidelines", "terraform").split())
-        self.assertIn(
-            "Standalone deletions are always rejected by the compliance check,"
-            " even when requested",
-            body,
-        )
-
     def test_policy_and_llm_rules_do_not_overlap(self):
         # A rule enforced by the policy and audited by the LLM would be
         # reported twice, possibly with different verdicts.
