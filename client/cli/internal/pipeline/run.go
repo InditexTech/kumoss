@@ -140,7 +140,7 @@ func staleFiles(h home.Home, rows []docker.PS) []string {
 	created := map[string]time.Time{}
 	for _, r := range rows {
 		if !r.CreatedAt.IsZero() {
-			created[r.Service] = r.CreatedAt
+			created[r.Service] = r.CreatedAt.Time
 		}
 	}
 	var stale []string

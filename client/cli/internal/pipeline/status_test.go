@@ -37,6 +37,23 @@ func TestParsePSReadsLineDelimitedJSON(t *testing.T) {
 	}
 }
 
+// Docker Desktop prints CreatedAt in its own layout, and a time.Time field
+// rejected the row outright: a running stack then listed as empty. Both layouts
+// are read, and an unreadable one is zero rather than a lost container.
+func TestParsePSReadsDockerDesktopCreatedAt(t *testing.T) {
+	rows := docker.ParsePS(`{"Service":"core","State":"running","CreatedAt":"2026-11-24 10:07:54 +0100 CET"}
+{"Service":"iac","State":"running","CreatedAt":"2024-06-01T10:00:00.123456789Z"}`)
+	if len(rows) != 2 {
+		t.Fatalf("parsed %d rows, want 2", len(rows))
+	}
+	if want := time.Date(2026, 11, 24, 10, 7, 54, 0, time.FixedZone("CET", 3600)); !rows[0].CreatedAt.Equal(want) {
+		t.Errorf("CreatedAt = %v, want %v", rows[0].CreatedAt, want)
+	}
+	if rows[1].CreatedAt.IsZero() {
+		t.Error("RFC 3339 stopped parsing")
+	}
+}
+
 // The probe reads curl's -w status, not the body: a 500 is not ok.
 func TestProbeRequiresA2xx(t *testing.T) {
 	for _, c := range []struct {
