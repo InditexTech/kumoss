@@ -140,3 +140,39 @@ func TestDownloadSaveCreatesParent(t *testing.T) {
 		t.Errorf("file not written: %v", err)
 	}
 }
+
+func TestComposeConsoleBlock(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml", Console: true}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := string(out)
+	for _, want := range []string{
+		"object-storage:",
+		"RUSTFS_CONSOLE_ENABLE=true",
+		"./object-storage.env",
+		"127.0.0.1:9001:9001",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("override is missing %q:\n%s", want, got)
+		}
+	}
+	// The keys belong in the 0600 env file, never in this 0644 one.
+	for _, never := range []string{"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY"} {
+		if strings.Contains(got, never) {
+			t.Errorf("override names %q; the keys must stay in object-storage.env:\n%s", never, got)
+		}
+	}
+}
+
+func TestComposeNoConsoleBlockWhenOff(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml"}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(string(out), "object-storage") {
+		t.Errorf("override touches object-storage with the console off:\n%s", out)
+	}
+}

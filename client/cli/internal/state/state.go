@@ -122,6 +122,12 @@ type Storage struct {
 
 	// → services/iac/.env: backend credential variables for the repository-declared model.
 	BackendCredentials map[string]string `yaml:"-" json:"-"`
+
+	// ConsoleEnabled turns on the bundled RustFS web console. Only the
+	// bundled model has one; the compose override publishes its port and
+	// sets RUSTFS_CONSOLE_ENABLE. Not a config.yaml key: the core never
+	// talks to the console, only to the S3 API.
+	ConsoleEnabled bool `yaml:"console_enabled,omitempty" json:"console_enabled,omitempty"`
 }
 
 type Notifications struct {

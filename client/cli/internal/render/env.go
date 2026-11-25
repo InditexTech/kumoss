@@ -132,8 +132,11 @@ func Fill(s *state.State, existing state.Secrets, rotate []string) {
 	s.Secrets.NotificationsToken = keep("KUMOSS_NOTIFICATIONS_TOKEN", existing.NotificationsToken)
 	s.Secrets.MappingToken = keep("KUMOSS_MAPPING_TOKEN", existing.MappingToken)
 	s.Secrets.AuthzToken = keep("KUMOSS_AUTHZ_TOKEN", existing.AuthzToken)
-	s.Secrets.RustFSAccessKey = keep("RUSTFS_ACCESS_KEY", existing.RustFSAccessKey)
-	s.Secrets.RustFSSecretKey = keep("RUSTFS_SECRET_KEY", existing.RustFSSecretKey)
+	// These two are the only secrets a form asks for rather than generating,
+	// so an answer just collected wins over whatever the old files hold.
+	// Assigning outright would throw away the key the user had typed.
+	s.Secrets.RustFSAccessKey = first(s.Secrets.RustFSAccessKey, keep("RUSTFS_ACCESS_KEY", existing.RustFSAccessKey))
+	s.Secrets.RustFSSecretKey = first(s.Secrets.RustFSSecretKey, keep("RUSTFS_SECRET_KEY", existing.RustFSSecretKey))
 	s.Secrets.CoreDBPassword = keep("KUMOSS_SQL_DATABASE_URL", existing.CoreDBPassword)
 }
 
@@ -255,6 +258,15 @@ func (e *Env) owned(s *state.State) map[string]string {
 		if v != "" {
 			owned[k] = v
 		}
+	}
+	// The bundled store's own keys, when a form collected them. Blank is left
+	// to the sample, whose value is the container's built-in default; writing
+	// an empty one would make the core and the container disagree.
+	if s.Secrets.RustFSAccessKey != "" {
+		owned["RUSTFS_ACCESS_KEY"] = s.Secrets.RustFSAccessKey
+	}
+	if s.Secrets.RustFSSecretKey != "" {
+		owned["RUSTFS_SECRET_KEY"] = s.Secrets.RustFSSecretKey
 	}
 	// Object-storage credentials (STORAGE_ACCOUNT_KEY). Blanks skipped so they
 	// cannot shadow a sample default the user never overrode.
@@ -464,4 +476,25 @@ func randomHex() string {
 		panic("render: cannot read randomness: " + err.Error())
 	}
 	return hex.EncodeToString(b)
+}
+
+// WriteObjectStorageEnv writes the bundled RustFS container's own credentials.
+//
+// Its own file rather than core's: compose hands it to object-storage with
+// env_file, and core/.env carries every other secret the storage container has
+// no business seeing. The same pair is mirrored into core/.env, because the
+// core signs its presigned URLs with them and RustFS must accept the
+// signature. Written only when the console is enabled; without it nothing
+// reaches the container and both sides keep the built-in default.
+func WriteObjectStorageEnv(path string, s *state.State) error {
+	return writeFile(path, RenderEnvFile(ObjectStorageEnvVars(s)), 0o600)
+}
+
+// ObjectStorageEnvVars is what that file holds, shared so --dry-run previews
+// exactly what a real run would write.
+func ObjectStorageEnvVars(s *state.State) map[string]string {
+	return map[string]string{
+		"RUSTFS_ACCESS_KEY": first(s.Secrets.RustFSAccessKey, "rustfsadmin"),
+		"RUSTFS_SECRET_KEY": first(s.Secrets.RustFSSecretKey, "rustfsadmin"),
+	}
 }

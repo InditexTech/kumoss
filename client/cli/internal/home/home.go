@@ -117,6 +117,14 @@ func (h Home) ComposeFile() string { return filepath.Join(h.SrcDir(), "docker-co
 // CoreEnv is src/core/.env.
 func (h Home) CoreEnv() string { return filepath.Join(h.SrcDir(), "core", ".env") }
 
+// ObjectStorageEnv holds the bundled RustFS container's own credentials. Its
+// own file, not core's: the override hands it to object-storage with env_file,
+// and core's .env carries every other secret the storage container must not
+// see. Written only when the console is enabled.
+func (h Home) ObjectStorageEnv() string {
+	return filepath.Join(h.SrcDir(), "object-storage.env")
+}
+
 // CoreDir is src/core/ — the core's env file lives here.
 func (h Home) CoreDir() string { return filepath.Join(h.SrcDir(), "core") }
 

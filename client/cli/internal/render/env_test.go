@@ -402,3 +402,124 @@ func TestEnvFilesKeepTheModelAccountApartFromTheCloudOne(t *testing.T) {
 		t.Errorf("iac AWS_REGION = %q, want the infrastructure region", iac["AWS_REGION"])
 	}
 }
+
+func TestObjectStorageEnvHoldsTheConsoleKeysAt0600(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "object-storage.env")
+	s := &state.State{}
+	s.Secrets.RustFSAccessKey = "ak"
+	s.Secrets.RustFSSecretKey = "sk"
+
+	if err := WriteObjectStorageEnv(path, s); err != nil {
+		t.Fatalf("WriteObjectStorageEnv: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	for _, want := range []string{"RUSTFS_ACCESS_KEY=ak", "RUSTFS_SECRET_KEY=sk"} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("file is missing %q:\n%s", want, raw)
+		}
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat: %v", err)
+	}
+	// Credentials, so the same mode as every other .env the CLI writes.
+	if got := info.Mode().Perm(); got != 0o600 {
+		t.Errorf("mode = %o, want 600", got)
+	}
+}
+
+// The container falls back to rustfsadmin when the variables are absent, so a
+// blank answer must write that rather than an empty value the core would not
+// match.
+func TestObjectStorageEnvFallsBackToTheContainerDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "object-storage.env")
+	if err := WriteObjectStorageEnv(path, &state.State{}); err != nil {
+		t.Fatalf("WriteObjectStorageEnv: %v", err)
+	}
+	raw, _ := os.ReadFile(path)
+	for _, want := range []string{"RUSTFS_ACCESS_KEY=rustfsadmin", "RUSTFS_SECRET_KEY=rustfsadmin"} {
+		if !strings.Contains(string(raw), want) {
+			t.Errorf("file is missing %q:\n%s", want, raw)
+		}
+	}
+}
+
+// The RustFS keys are the only secrets the wizard asks for rather than
+// generating, so Fill must not overwrite a fresh answer with what the old
+// .env files happen to hold.
+func TestFillKeepsTheAnsweredConsoleKeys(t *testing.T) {
+	s := &state.State{}
+	s.Secrets.RustFSAccessKey = "typed-access"
+	s.Secrets.RustFSSecretKey = "typed-secret"
+
+	Fill(s, state.Secrets{
+		RustFSAccessKey: "rustfsadmin",
+		RustFSSecretKey: "rustfsadmin",
+	}, nil)
+
+	if s.Secrets.RustFSAccessKey != "typed-access" {
+		t.Errorf("access key = %q, want the answer the wizard collected", s.Secrets.RustFSAccessKey)
+	}
+	if s.Secrets.RustFSSecretKey != "typed-secret" {
+		t.Errorf("secret key = %q, want the answer the wizard collected", s.Secrets.RustFSSecretKey)
+	}
+}
+
+// With no answer, the existing files still carry the pair over, or a
+// reconfigure would reset a changed key back to the container default.
+func TestFillCarriesTheConsoleKeysOverWhenUnanswered(t *testing.T) {
+	s := &state.State{}
+
+	Fill(s, state.Secrets{RustFSAccessKey: "stored", RustFSSecretKey: "stored-secret"}, nil)
+
+	if s.Secrets.RustFSAccessKey != "stored" {
+		t.Errorf("access key = %q, want the stored value", s.Secrets.RustFSAccessKey)
+	}
+	if s.Secrets.RustFSSecretKey != "stored-secret" {
+		t.Errorf("secret key = %q, want the stored value", s.Secrets.RustFSSecretKey)
+	}
+}
+
+// The console keys are collected by a form, so core/.env must carry the
+// answer rather than whatever the sample declares. The core signs download
+// links with them and RustFS has to accept the signature.
+func TestCoreEnvCarriesTheAnsweredConsoleKeys(t *testing.T) {
+	p := EnvPaths{Core: "/core/.env", IAC: "/iac/.env", Notifications: "/n/.env"}
+	s := &state.State{}
+	s.Secrets.RustFSAccessKey = "my-access"
+	s.Secrets.RustFSSecretKey = "my-secret"
+
+	e := &Env{Samples: &Samples{
+		Core:          ParseSample("RUSTFS_ACCESS_KEY=rustfsadmin\nRUSTFS_SECRET_KEY=rustfsadmin\n"),
+		IAC:           ParseSample(""),
+		Notifications: ParseSample(""),
+	}}
+	core := e.Files(p, s)[p.Core]
+
+	if got := core["RUSTFS_ACCESS_KEY"]; got != "my-access" {
+		t.Errorf("RUSTFS_ACCESS_KEY = %q, want the answered key", got)
+	}
+	if got := core["RUSTFS_SECRET_KEY"]; got != "my-secret" {
+		t.Errorf("RUSTFS_SECRET_KEY = %q, want the answered key", got)
+	}
+}
+
+// Unanswered, the sample's value stands: a blank must not shadow it.
+func TestCoreEnvKeepsTheSampleConsoleKeysWhenUnanswered(t *testing.T) {
+	p := EnvPaths{Core: "/core/.env", IAC: "/iac/.env", Notifications: "/n/.env"}
+	e := &Env{Samples: &Samples{
+		Core:          ParseSample("RUSTFS_ACCESS_KEY=rustfsadmin\n"),
+		IAC:           ParseSample(""),
+		Notifications: ParseSample(""),
+	}}
+
+	core := e.Files(p, &state.State{})[p.Core]
+
+	if got := core["RUSTFS_ACCESS_KEY"]; got != "rustfsadmin" {
+		t.Errorf("RUSTFS_ACCESS_KEY = %q, want the sample value", got)
+	}
+}

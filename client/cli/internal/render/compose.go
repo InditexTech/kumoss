@@ -33,6 +33,30 @@ type Compose struct {
 	// Mounts are the read-only credential mounts for the iac service; compose
 	// merges them into the service's existing volume list.
 	Mounts []Mount
+	// Console turns on the bundled RustFS web console: the base file disables
+	// it and publishes nothing, so this flips the variable and binds its port.
+	Console bool
+}
+
+// ObjectStorageEnvName is the credential file the console block hands to
+// object-storage. Relative to the BASE compose file, like every other path in
+// this override, so it names src/object-storage.env from src/.
+const ObjectStorageEnvName = "./object-storage.env"
+
+// consoleAddress binds the console to loopback. RustFS serves it on 9001 and
+// nothing publishes or proxies that today; loopback is what the operations
+// guide recommends for a workstation, and this CLI only builds those.
+const consoleAddress = "127.0.0.1:9001:9001"
+
+// objectStorageConsole is the override block that turns the console on. The
+// credentials come from the env file rather than from here: this file is
+// generated 0644 and the keys belong with the other secrets at 0600.
+func objectStorageConsole() map[string]any {
+	return map[string]any{
+		"environment": []string{"RUSTFS_CONSOLE_ENABLE=true"},
+		"env_file":    []string{ObjectStorageEnvName},
+		"ports":       []string{consoleAddress},
+	}
 }
 
 // ContainerConfigPath is where core reads its config. It must match the base
@@ -80,6 +104,11 @@ func (c *Compose) Render() ([]byte, error) {
 			"core": core,
 			"iac":  map[string]any{"volumes": volumes},
 		}
+	}
+	if c.Console {
+		services := doc["services"].(map[string]any)
+		services["object-storage"] = objectStorageConsole()
+		doc["services"] = services
 	}
 	if c.HostCerts {
 		// Both services merge the same anchor; core's own volumes entry above
