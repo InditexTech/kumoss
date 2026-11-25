@@ -28,9 +28,6 @@ body: |
     `where` conditions (e.g. `target.key.id`, `target.bucket.name`).
   - Never use `manage all-resources in tenancy` without an explicit
     user request, and then only for an administrators group.
-  - Never write `Allow any-user` statements, except documented
-    service patterns constrained by a `request.principal` condition
-    and only when the request needs them.
   - Policy statements should reference groups or dynamic groups,
     never individual users. In tenancies with identity domains,
     qualify the subject with the domain, e.g.

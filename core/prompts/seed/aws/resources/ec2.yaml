@@ -51,11 +51,6 @@ body: |
     no SSH keys, no bastion host, and no inbound security group
     rules. Attach the AmazonSSMManagedInstanceCore managed policy
     to the instance role.
-  - Configure the guest only through `user_data` (shell script or
-    cloud-init) — never provisioners. Never put secrets in
-    `user_data`; it is readable from the instance metadata and the
-    EC2 API. Fetch secrets from Secrets Manager or SSM Parameter
-    Store at boot.
   - Changing `user_data` on an existing instance stops and starts it
     (or replaces it when `user_data_replace_on_change = true`). Both
     are high impact: state the restart or replacement in the

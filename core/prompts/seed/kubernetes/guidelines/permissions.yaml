@@ -24,7 +24,6 @@ body: |
   - Prefer namespace-scoped `Role` + `RoleBinding` over cluster-wide
     `ClusterRole` + `ClusterRoleBinding` unless cluster-level access
     is genuinely required.
-  - Never bind `cluster-admin` to application service accounts.
   - Use separate ServiceAccounts per workload — never use the
     `default` service account for application pods.
   - Roles prefixed with `system:` are reserved for Kubernetes

@@ -76,9 +76,6 @@ body: |
     and state in the summary that the instance will restart.
 
   ## Configuration and cost
-  - Configure the guest only through `metadata_startup_script` or
-    cloud-init `user-data` metadata — never provisioners. Never put
-    secrets in them; read secrets from Secret Manager at boot.
   - Install the Ops Agent through the image or a VM Manager OS
     policy assignment for logs and metrics.
   - Non-production instances get an instance schedule: a

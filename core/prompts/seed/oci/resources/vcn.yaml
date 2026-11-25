@@ -23,14 +23,6 @@ body: |
     not specified, use the application compartment variable.
   - Do not create an Internet Gateway, NAT Gateway, or Service
     Gateway inline — use separate resources for each.
-  - Default security list: on a VCN created in the same request,
-    bring it under management with `oci_core_default_security_list`
-    (`manage_default_resource_id =
-    oci_core_vcn.<name>.default_security_list_id`) and define
-    locked-down rules — stateful egress as required, ICMP type 3
-    code 4 for path MTU discovery, and no `0.0.0.0/0` ingress on
-    port 22 (the rule OCI adds by default). On existing VCNs, change
-    it only on explicit request.
   - Do not attach subnets to the default route table or default
     DHCP options — create dedicated ones (see `route_table`).
   - Enable VCN flow logs for audit and troubleshooting (see the

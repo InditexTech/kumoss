@@ -38,13 +38,6 @@ body: |
   ## Security
   - Use Network Security Groups (NSGs) over Security Lists for
     granular, resource-level traffic control.
-  - On a new VCN, manage the default security list with
-    `oci_core_default_security_list` and lock it down (no
-    `0.0.0.0/0` port 22 ingress, which OCI adds by default). Put
-    workload rules in dedicated security lists or NSGs. On existing
-    VCNs, change the default security list only on explicit request.
-  - Never open `0.0.0.0/0` or `::/0` ingress on ports other than 80
-    and 443.
   - Administrative access goes through the OCI Bastion service (see
     `bastion`), not public SSH.
   - Enable VCN Flow Logs for audit and troubleshooting (see

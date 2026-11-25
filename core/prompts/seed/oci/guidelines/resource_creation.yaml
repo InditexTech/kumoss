@@ -145,10 +145,6 @@ body: |
     node pools with one placement per AD) for production workloads.
 
   ## Deletion safeguards
-  - Keep the protective service defaults: MySQL `deletion_policy`
-    with `is_delete_protected = true`, compartments with
-    `enable_delete = false`, automatic database backups on, and
-    customer-managed keys kept once set.
   - Add `lifecycle { prevent_destroy = true }` to stateful
     production resources (Autonomous Databases, MySQL DB systems,
     block and boot volumes, File Storage file systems, Object

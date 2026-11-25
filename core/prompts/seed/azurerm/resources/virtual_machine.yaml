@@ -44,12 +44,6 @@ body: |
   - For Windows VMs, use Azure AD join where possible, and generate
     the admin password with `random_password` stored in Key Vault;
     never a variable default or output.
-  - Configure the guest only through `custom_data` (base64-encoded
-    cloud-init). Never use the CustomScript extension,
-    `azurerm_virtual_machine_run_command`, or provisioners. Never
-    put secrets in `custom_data`; read them from Key Vault at boot
-    with the managed identity. Changing `custom_data` forces
-    replacement.
   - Add `boot_diagnostics {}` with no storage account URI, so Azure
     uses managed storage.
   - Install the Azure Monitor Agent extension only together with an

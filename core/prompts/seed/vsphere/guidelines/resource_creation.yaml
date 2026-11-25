@@ -26,9 +26,6 @@ body: |
     the TLS settings from its environment (`VSPHERE_SERVER`,
     `VSPHERE_USER`, `VSPHERE_PASSWORD` and, in labs only,
     `VSPHERE_ALLOW_UNVERIFIED_SSL`). Leave the provider block empty.
-  - Never set `vsphere_server`, `user`, `password` or
-    `allow_unverified_ssl` in code: an explicit argument overrides the
-    engine's environment.
   - Never add variables for vCenter credentials.
   - Never add, change, or remove a `backend` or `cloud` block. State
     is configured outside the generated code: by Kumoss, or by the
@@ -88,10 +85,6 @@ body: |
     enable tagging.
   - Never create these tags per workload: tag names are unique per
     category, so a second `prod` tag fails.
-
-  ## Guest configuration
-  - Configure guests through guest customization or cloud-init
-    `guestinfo` keys, never through provisioners.
 
   ## Deletion safeguards
   - Keep the protective defaults: virtual disks in `persistent` mode,
