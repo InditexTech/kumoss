@@ -1068,6 +1068,41 @@ the branch, including the ones an earlier round made.</p>
 </div>
 </div>
 <div class="sect1">
+<h2 id="drift-report"><a class="anchor" href="#drift-report"></a>Read the drift report</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A drift round&#8217;s <strong>Report</strong> tab shows a <strong>Drift Summary</strong>, an outcome
+(<strong>Succeeded</strong>, <strong>Partial</strong>, or <strong>Failed</strong>), and these sections:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Remediated Resources</strong>: each resource Kumoss reconciled, with the file,
+the change, and the reason.</p>
+</li>
+<li>
+<p><strong>Drift Not Reconciled</strong>: drift Kumoss could <strong>not</strong> fix, because the
+remediation ran out of iterations or the drift could not be read. Each
+entry gives the reason and what still differs. This is what makes an
+outcome <strong>Partial</strong>; act on it.</p>
+</li>
+<li>
+<p><strong>Left Alone by Exception Rules</strong>: drift Kumoss deliberately did not
+touch, because one of your platform&#8217;s drift exception rules covers it.
+Each entry names the change and quotes the rule. This is the intended
+behavior and does not lower the outcome, so a report can say
+<strong>Succeeded</strong> and still list entries here.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The last two sections appear only when the round left drift behind. For
+the rest of the results screen, see
+<a href="../follow-a-session/#results" class="xref page">Read the results</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="next-steps"><a class="anchor" href="#next-steps"></a>Next steps</h2>
 <div class="sectionbody">
 <div class="ulist">
