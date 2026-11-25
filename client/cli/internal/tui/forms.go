@@ -43,15 +43,26 @@ func (w *Wizard) Configure(mode Mode, s *state.State) error {
 		return nil
 	}
 
-	if err := w.LLM(s); err != nil {
-		return err
+	return w.runSequence(s, w.allSteps())
+}
+
+// allSteps is every section's forms as one flat list, in the order the wizard
+// asks them. Flat, not a sequence per section: the back keys walk this list, so
+// leaving the first form of a section has to land on the last form of the one
+// before it, not on the first form of its own section.
+func (w *Wizard) allSteps() []step {
+	var all []step
+	for _, section := range [][]step{
+		w.llmSteps(),
+		w.gitSteps(),
+		w.stateSteps(),
+		w.cloudSteps(),
+		w.engineSteps(),
+		w.notifySteps(),
+	} {
+		all = append(all, section...)
 	}
-	for _, step := range []func(*state.State) error{w.Git, w.State, w.Cloud, w.Engine, w.Notifications} {
-		if err := step(s); err != nil {
-			return err
-		}
-	}
-	return nil
+	return all
 }
 
 // multiSelectKeyMap renames the toggle help to "space". huh labels it "x",
@@ -132,21 +143,27 @@ func (w *Wizard) RunDocker() (bool, error) {
 // cheap model, one vendor each.
 const providerLimit = 2
 
-// llmProviderStep returns the chosen rows as indexes into llmProviders, -1 for
-// "Other". huh returns multi-select values in list order, not press order, so
-// llmRoleStep decides which of two leads. One provider covers both model roles;
-// two let the complex and the cheap model come from different vendors.
-// Preselected from the stored prefixes on reconfigure.
-func (w *Wizard) llmProviderStep(s *state.State) ([]int, error) {
+// llmPreselect maps stored prefixes back to select rows. "Other" has an empty
+// prefix and is the -1 row, so it must be carried through rather than dropped:
+// walking back to this form and forward again would otherwise lose the pick.
+func llmPreselect(prefixes []string) []int {
 	var picked []int
-	for _, prefix := range s.LLM.Providers {
-		if idx := providerIndex(prefix); idx >= 0 {
-			picked = append(picked, idx)
-		}
+	for _, prefix := range prefixes {
+		picked = append(picked, providerIndex(prefix))
 	}
+	return picked
+}
 
-	form := huh.NewForm(
-		huh.NewGroup(
+// llmProviderStep writes the chosen rows into s.LLM.Providers as prefixes, in
+// option-list order — huh returns multi-select values in list order, not press
+// order, so llmRoleStep decides which of two leads. One provider covers both
+// model roles; two let the complex and the cheap model come from different
+// vendors. Preselected from the stored prefixes on reconfigure.
+func (w *Wizard) llmProviderStep(s *state.State) error {
+	picked := llmPreselect(s.LLM.Providers)
+
+	form := newStepForm(
+		newStepGroup(
 			huh.NewMultiSelect[int]().
 				Title("LLM providers").
 				Description("Pick one, or two to use a different vendor for the complex and the cheap model. Space (or x) toggles, enter confirms.").
@@ -156,26 +173,52 @@ func (w *Wizard) llmProviderStep(s *state.State) ([]int, error) {
 				Limit(providerLimit).
 				Value(&picked),
 		).Title("LLM provider"),
-	).WithKeyMap(multiSelectKeyMap())
-	if err := w.run(form); err != nil {
-		return nil, err
+	)
+	err := w.execStep(form)
+	// Kept on a back too, so stepping away to fix an earlier answer does not
+	// revert the pick. The rows are kept beside the prefixes: two rows share
+	// the "openai" prefix, so only the row says which one was picked.
+	if err == nil || errors.Is(err, errBack) {
+		w.llmPicked = picked
+		s.LLM.Providers = prefixesOf(picked)
+	}
+	if err != nil {
+		return err
 	}
 	if len(picked) == 0 {
-		return nil, errors.New("pick at least one LLM provider")
+		return errors.New("pick at least one LLM provider")
 	}
-	return picked, nil
+	return nil
 }
 
-// llmRoleStep returns which of the two picked providers serves the complex-tasks
-// model; the other serves the cheap one. Preselected from the stored models so
-// a reconfigure keeps the same split.
-func (w *Wizard) llmRoleStep(s *state.State, providers []llmProvider) (int, error) {
+// prefixesOf turns picked select rows into the prefixes state stores.
+func prefixesOf(picked []int) []string {
+	prefixes := make([]string, 0, len(picked))
+	for _, idx := range picked {
+		prefixes = append(prefixes, providerAt(idx).Prefix)
+	}
+	return prefixes
+}
+
+// llmRoleStep reorders s.LLM.Providers so index 0 is the provider serving the
+// complex-tasks model; the other serves the cheap one. Preselected from the
+// stored model so a reconfigure keeps the same split. Skipped unless exactly
+// two providers were picked: with one, any order is role order.
+func (w *Wizard) llmRoleStep(s *state.State) error {
+	if len(s.LLM.Providers) != providerLimit {
+		return errSkip
+	}
+	providers := w.llmProvidersOf(s)
 	idx := 0
-	if complexPrefix := prefixOf(s.LLM.Model); complexPrefix == providers[1].Prefix {
+	// A stored model matching neither pick leaves the list order alone, which
+	// is the same default a fresh run gets.
+	// An empty prefix must not count: with no stored model prefixOf is "",
+	// which would match the Other row's empty prefix and preselect it.
+	if complexPrefix := prefixOf(s.LLM.Model); complexPrefix != "" && complexPrefix == providers[1].Prefix {
 		idx = 1
 	}
-	form := huh.NewForm(
-		huh.NewGroup(
+	form := newStepForm(
+		newStepGroup(
 			huh.NewSelect[int]().
 				Title("Complex-tasks provider").
 				Description("Serves llm.model; the other serves llm.small_model.").
@@ -186,34 +229,86 @@ func (w *Wizard) llmRoleStep(s *state.State, providers []llmProvider) (int, erro
 				Value(&idx),
 		).Title("LLM model roles"),
 	)
-	if err := w.run(form); err != nil {
-		return 0, err
-	}
-	return idx, nil
-}
-
-// llmDetailsStep collects the models, the knobs and the credentials of every
-// picked provider — or asks for name/value pairs by hand for "Other". The knobs
-// are asked once, before the providers: they apply to both models.
-func (w *Wizard) llmDetailsStep(s *state.State, providers []llmProvider) error {
-	if s.LLM.Credentials == nil {
-		s.LLM.Credentials = map[string]string{}
-	}
-	// One knob form for both providers: the values apply to both models.
-	if err := w.llmKnobsStep(s); err != nil {
-		return err
-	}
-
-	// The first provider fills the complex role, the second the cheap one; one
-	// provider fills both. Cleared first, so a reconfigure does not double it.
-	s.LLM.Providers = nil
-	for i, p := range providers {
-		s.LLM.Providers = append(s.LLM.Providers, p.Prefix)
-		if err := w.llmProviderForm(s, p, i == 0, len(providers)); err != nil {
-			return err
+	err := w.execStep(form)
+	if err == nil || errors.Is(err, errBack) {
+		if idx == 1 {
+			s.LLM.Providers[0], s.LLM.Providers[1] = s.LLM.Providers[1], s.LLM.Providers[0]
+			if len(w.llmPicked) == providerLimit {
+				w.llmPicked[0], w.llmPicked[1] = w.llmPicked[1], w.llmPicked[0]
+			}
 		}
 	}
-	return nil
+	return err
+}
+
+// llmProviderAt resolves slot i to its provider row. The row the user picked
+// is authoritative; the stored prefix is the fallback for a reconfigure that
+// has not reopened the provider form yet, where it is all there is.
+func (w *Wizard) llmProviderAt(s *state.State, i int) llmProvider {
+	if i < len(w.llmPicked) {
+		return providerAt(w.llmPicked[i])
+	}
+	return providerAt(providerIndex(s.LLM.Providers[i]))
+}
+
+// llmProvidersOf resolves every picked slot to its provider row.
+func (w *Wizard) llmProvidersOf(s *state.State) []llmProvider {
+	providers := make([]llmProvider, 0, len(s.LLM.Providers))
+	for i := range s.LLM.Providers {
+		providers = append(providers, w.llmProviderAt(s, i))
+	}
+	return providers
+}
+
+// llmProviderSlot asks slot i's models and credentials. Slot 0 serves the
+// complex role and slot 1 the cheap one; a single provider fills both. The
+// slot count is fixed so the step list never changes length, and a slot
+// nobody picked skips itself.
+func (w *Wizard) llmProviderSlot(i int) step {
+	return func(s *state.State) error {
+		if i >= len(s.LLM.Providers) {
+			return errSkip
+		}
+		if s.LLM.Credentials == nil {
+			s.LLM.Credentials = map[string]string{}
+		}
+		provider := w.llmProviderAt(s, i)
+		return w.llmProviderForm(s, provider, i == 0, len(s.LLM.Providers))
+	}
+}
+
+// llmFreeformSlot asks slot i's hand-entered credential pairs. It sits next to
+// its own provider rather than at the end, so the order matches the single
+// inline prompt it replaces.
+func (w *Wizard) llmFreeformSlot(i int) step {
+	return func(s *state.State) error {
+		if i >= len(s.LLM.Providers) {
+			return errSkip
+		}
+		if !w.llmProviderAt(s, i).Freeform {
+			return errSkip
+		}
+		if s.LLM.Credentials == nil {
+			s.LLM.Credentials = map[string]string{}
+		}
+		return w.collectFreeformCredentials(s)
+	}
+}
+
+// llmSteps is the LLM section: seven slots, fixed in number, each skipping
+// itself when the answers so far do not call for it. A fixed list is what lets
+// the wizard walk backwards into the section and land on the last form that
+// actually applies.
+func (w *Wizard) llmSteps() []step {
+	return []step{
+		w.llmProviderStep,
+		w.llmRoleStep,
+		w.llmKnobsStep,
+		w.llmProviderSlot(0),
+		w.llmFreeformSlot(0),
+		w.llmProviderSlot(1),
+		w.llmFreeformSlot(1),
+	}
 }
 
 // llmKnobsStep asks the three settings both models share.
@@ -225,7 +320,7 @@ func (w *Wizard) llmKnobsStep(s *state.State) error {
 	temp := firstNonEmpty(knobFloat(s.LLM.Temperature), seed.temperature)
 	maxTokens := firstNonEmpty(knobInt(s.LLM.MaxOutputTokens), seed.maxTokens)
 	timeout := firstNonEmpty(knobFloat(s.LLM.Timeout), seed.timeout)
-	form := huh.NewForm(huh.NewGroup(
+	form := newStepForm(newStepGroup(
 		huh.NewInput().
 			Title(titled("Temperature", false)).
 			Description("0–1, sent with every chat completion (default 0.1).").
@@ -242,13 +337,13 @@ func (w *Wizard) llmKnobsStep(s *state.State) error {
 			Value(&timeout).
 			Validate(floatMin(0)),
 	).Title("LLM settings"))
-	if err := w.run(form); err != nil {
-		return err
+	err := w.execStep(form)
+	if err == nil || errors.Is(err, errBack) {
+		s.LLM.Temperature = parseKnobFloat(temp)
+		s.LLM.MaxOutputTokens = parseKnobInt(maxTokens)
+		s.LLM.Timeout = parseKnobFloat(timeout)
 	}
-	s.LLM.Temperature = parseKnobFloat(temp)
-	s.LLM.MaxOutputTokens = parseKnobInt(maxTokens)
-	s.LLM.Timeout = parseKnobFloat(timeout)
-	return nil
+	return err
 }
 
 // llmProviderForm asks one provider's models and credentials. complex is true
@@ -258,16 +353,12 @@ func (w *Wizard) llmProviderForm(s *state.State, provider llmProvider, complex b
 	seed := llmDefaults(w.Doc)
 	// Two providers: the first serves the complex role, the second the cheap
 	// one. One provider fills both, so its second model comes from the same row.
-	model, small := s.LLM.Model, s.LLM.SmallModel
+	var model, small string
 	if complex {
-		if model == "" {
-			model = firstNonEmpty(seed.model, provider.DefaultModel)
-		}
-		if count == 1 && small == "" {
-			small = firstNonEmpty(seed.small, provider.DefaultSmallModel)
-		}
-	} else if small == "" {
-		small = firstNonEmpty(seed.small, provider.DefaultSmallModel)
+		model = modelFor(s.LLM.Model, seed.model, provider.DefaultModel, provider.Prefix)
+	}
+	if !complex || count == 1 {
+		small = modelFor(s.LLM.SmallModel, seed.small, provider.DefaultSmallModel, provider.Prefix)
 	}
 
 	values := make([]string, len(provider.Credentials))
@@ -309,40 +400,68 @@ func (w *Wizard) llmProviderForm(s *state.State, provider llmProvider, complex b
 		}
 		fields = append(fields, field)
 	}
-	form := huh.NewForm(huh.NewGroup(fields...).Title("LLM — " + provider.Name))
-	if err := w.run(form); err != nil {
-		return err
+	form := newStepForm(newStepGroup(fields...).Title("LLM — " + provider.Name))
+	err := w.execStep(form)
+	// Also on a back: these are locals seeded from the state, so an API key
+	// typed here survives stepping away to fix an earlier answer. A freeform
+	// provider's hand-entered pairs are their own slot, right after this one.
+	if err == nil || errors.Is(err, errBack) {
+		if complex {
+			s.LLM.Model = model
+		}
+		if !complex || count == 1 {
+			s.LLM.SmallModel = small
+		}
+		for i, c := range provider.Credentials {
+			s.LLM.Credentials[c.Name] = values[i]
+		}
 	}
-	if complex {
-		s.LLM.Model = model
+	return err
+}
+
+// modelFor picks what to show in a model box: the stored answer, else what
+// config.yaml holds, else this provider's default — but only a candidate this
+// provider actually serves. Dropping a provider leaves its model behind in the
+// state, and offering that as the survivor's answer writes a stack that cannot
+// call it: nothing would ask for the absent provider's key, and preflight
+// would pass. A freeform provider has no prefix to check against, so anything
+// stored for it stands.
+func modelFor(stored, seeded, fallback, prefix string) string {
+	for _, candidate := range []string{stored, seeded} {
+		if candidate != "" && (prefix == "" || prefixOf(candidate) == prefix) {
+			return candidate
+		}
 	}
-	if !complex || count == 1 {
-		s.LLM.SmallModel = small
-	}
-	for i, c := range provider.Credentials {
-		s.LLM.Credentials[c.Name] = values[i]
-	}
-	// Looped after the fixed form, since huh cannot add fields mid-run.
-	if provider.Freeform {
-		return w.collectFreeformCredentials(s)
-	}
-	return nil
+	return fallback
 }
 
 // collectFreeformCredentials loops one form per pair until the name is left
 // blank. The last value for a repeated name wins.
+//
+// The loop has no fixed length, so it cannot be a list of steps. Back out of
+// the value form and the name form reopens; back out of the name form and the
+// loop either hands the request up — when nothing has been entered, so the
+// sequence reopens this provider's credential form — or finishes forward,
+// keeping the pairs already given.
 func (w *Wizard) collectFreeformCredentials(s *state.State) error {
+	pairs := 0
 	for {
 		name := ""
-		nameForm := huh.NewForm(
-			huh.NewGroup(
+		nameForm := newStepForm(
+			newStepGroup(
 				huh.NewInput().
 					Title("Credential env-var name").
 					Description("e.g. MY_PROVIDER_API_KEY. Leave blank to finish.").
 					Value(&name),
 			).Title("Credentials"),
 		)
-		if err := w.run(nameForm); err != nil {
+		if err := w.execStep(nameForm); err != nil {
+			if errors.Is(err, errBack) {
+				if pairs == 0 {
+					return errBack
+				}
+				return nil
+			}
 			return err
 		}
 		if strings.TrimSpace(name) == "" {
@@ -350,8 +469,8 @@ func (w *Wizard) collectFreeformCredentials(s *state.State) error {
 		}
 
 		value := ""
-		valueForm := huh.NewForm(
-			huh.NewGroup(
+		valueForm := newStepForm(
+			newStepGroup(
 				huh.NewInput().
 					Title(titled("Value for "+name, false)).
 					EchoMode(huh.EchoModePassword).
@@ -359,10 +478,15 @@ func (w *Wizard) collectFreeformCredentials(s *state.State) error {
 					Validate(required),
 			).Title("Credentials"),
 		)
-		if err := w.run(valueForm); err != nil {
+		if err := w.execStep(valueForm); err != nil {
+			if errors.Is(err, errBack) {
+				// Reopen the name form; this pair is not committed.
+				continue
+			}
 			return err
 		}
 		s.LLM.Credentials[name] = value
+		pairs++
 	}
 }
 
@@ -390,7 +514,7 @@ func modelHint(provider llmProvider) string {
 }
 
 // gitStep collects the push provider, author identity, and credentials.
-func (w *Wizard) gitStep(s *state.State) (*huh.Form, func()) {
+func (w *Wizard) gitStep(s *state.State) (*stepForm, func()) {
 	if s.Git.Provider == "" {
 		s.Git.Provider = "GITHUB"
 	}
@@ -400,8 +524,8 @@ func (w *Wizard) gitStep(s *state.State) (*huh.Form, func()) {
 	if s.Git.AuthorEmail == "" {
 		s.Git.AuthorEmail = "kumoss@noreply.invalid"
 	}
-	form := huh.NewForm(
-		huh.NewGroup(
+	form := newStepForm(
+		newStepGroup(
 			huh.NewSelect[string]().
 				Title("Git provider").
 				Description("Host the core pushes branches to and opens pull requests on.").
@@ -439,8 +563,8 @@ func (w *Wizard) gitStep(s *state.State) (*huh.Form, func()) {
 func (w *Wizard) storageModelStep(s *state.State) error {
 	model := pickStorage(s)
 	picked := model.Model
-	form := huh.NewForm(
-		huh.NewGroup(
+	form := newStepForm(
+		newStepGroup(
 			huh.NewSelect[string]().
 				Title("Storage model").
 				Description("Where artifacts and, optionally, Terraform state are kept.").
@@ -448,16 +572,18 @@ func (w *Wizard) storageModelStep(s *state.State) error {
 				Value(&picked),
 		).Title("Storage"),
 	)
-	if err := w.run(form); err != nil {
-		return err
-	}
+	err := w.execStep(form)
 	// Picked before the next step reads it, so its fields follow this choice.
-	s.Storage.Model = picked
-	return nil
+	// Kept on a back too, or stepping away to fix an earlier answer would
+	// quietly revert the model.
+	if err == nil || errors.Is(err, errBack) {
+		s.Storage.Model = picked
+	}
+	return err
 }
 
 // storageStep collects the storage model's settings.
-func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
+func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 	model := pickStorage(s)
 	s.Storage.Provider = model.Provider
 	if s.Storage.Bucket == "" {
@@ -527,7 +653,7 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 		fields = append(fields, field)
 	}
 
-	form := huh.NewForm(huh.NewGroup(fields...).Title("Storage — " + model.Name))
+	form := newStepForm(newStepGroup(fields...).Title("Storage — " + model.Name))
 	commit := func() {
 		for i, c := range model.Credentials {
 			s.Storage.Credentials[c.Name] = values[i]
@@ -538,7 +664,7 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 
 // cloudStep opens one credential group per picked cloud; the rest stay hidden
 // and their structs stay nil.
-func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
+func (w *Wizard) cloudStep(s *state.State) (*stepForm, func()) {
 	picked := []string{}
 	for _, c := range clouds {
 		if cloudPicked(s, c.Key) {
@@ -546,8 +672,8 @@ func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 		}
 	}
 
-	groups := []*huh.Group{
-		huh.NewGroup(
+	groups := []*stepGroup{
+		newStepGroup(
 			huh.NewMultiSelect[string]().
 				Title("Cloud providers").
 				Description("Which clouds your Terraform modules target? Space (or x) toggles a cloud, enter confirms. Skip if none.").
@@ -579,16 +705,16 @@ func (w *Wizard) cloudStep(s *state.State) (*huh.Form, func()) {
 			s.Cloud.Kubernetes = nil
 		}
 	}
-	return huh.NewForm(groups...).WithKeyMap(multiSelectKeyMap()), commit
+	return newStepForm(groups...), commit
 }
 
 // engineStep selects the IaC engine and, for Terraform, gates on its license.
-func (w *Wizard) engineStep(s *state.State) (*huh.Form, func()) {
+func (w *Wizard) engineStep(s *state.State) (*stepForm, func()) {
 	if s.Engine.Binary == "" {
 		s.Engine.Binary = "tofu"
 	}
-	form := huh.NewForm(
-		huh.NewGroup(
+	form := newStepForm(
+		newStepGroup(
 			huh.NewSelect[string]().
 				Title("IaC engine").
 				Description("IAC_BINARY. The bundled image ships both engines.").
@@ -598,7 +724,7 @@ func (w *Wizard) engineStep(s *state.State) (*huh.Form, func()) {
 				).
 				Value(&s.Engine.Binary),
 		).Title("IaC engine"),
-		huh.NewGroup(
+		newStepGroup(
 			huh.NewConfirm().
 				Title("Acknowledge the Terraform license").
 				Description("Terraform is under BUSL-1.1. Confirm your use complies with its terms.").
@@ -615,9 +741,9 @@ func (w *Wizard) engineStep(s *state.State) (*huh.Form, func()) {
 // start without a webhook, so enabled and the URL must not disagree. The webhook
 // is its own group, hidden until the answer is Yes: huh hides groups, not
 // fields, and a visible empty URL reads as a second question to answer.
-func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
-	form := huh.NewForm(
-		huh.NewGroup(
+func (w *Wizard) notificationsStep(s *state.State) (*stepForm, func()) {
+	form := newStepForm(
+		newStepGroup(
 			huh.NewConfirm().
 				Title("Send Slack notifications?").
 				Description("services.notifications.enabled. Off leaves the notifications service idle; the core answers 503 on its endpoint.").
@@ -625,7 +751,7 @@ func (w *Wizard) notificationsStep(s *state.State) (*huh.Form, func()) {
 				Negative("No").
 				Value(&s.Notifications.Enabled),
 		).Title("Notifications"),
-		huh.NewGroup(
+		newStepGroup(
 			huh.NewInput().
 				Title(titled("Slack webhook URL", false)).
 				Description("SLACK_WEBHOOK_URL. Anyone holding it can post to the channel.").
@@ -656,8 +782,8 @@ func cloudOptions() []huh.Option[string] {
 }
 
 // cloudGroup builds the credential group for one cloud, hidden unless picked.
-func cloudGroup(s *state.State, c cloud, picked *[]string) *huh.Group {
-	var g *huh.Group
+func cloudGroup(s *state.State, c cloud, picked *[]string) *stepGroup {
+	var g *stepGroup
 	switch c.Key {
 	case "aws":
 		g = awsGroup(s)
@@ -673,9 +799,9 @@ func cloudGroup(s *state.State, c cloud, picked *[]string) *huh.Group {
 	return g.WithHideFunc(func() bool { return !selected(*picked, c.Key) })
 }
 
-func awsGroup(s *state.State) *huh.Group {
+func awsGroup(s *state.State) *stepGroup {
 	a := ensureCloud(s, "aws").(*state.AWSAuth)
-	return huh.NewGroup(
+	return newStepGroup(
 		huh.NewSelect[string]().
 			Title("AWS authentication").
 			Options(
@@ -704,9 +830,9 @@ func awsGroup(s *state.State) *huh.Group {
 	).Title("AWS")
 }
 
-func azureGroup(s *state.State) *huh.Group {
+func azureGroup(s *state.State) *stepGroup {
 	a := ensureCloud(s, "azure").(*state.AzureAuth)
-	return huh.NewGroup(
+	return newStepGroup(
 		huh.NewInput().Title(titled("Tenant id", false)).Description("ARM_TENANT_ID").Value(&a.TenantID),
 		huh.NewInput().Title(titled("Client id", false)).Description("ARM_CLIENT_ID").Value(&a.ClientID),
 		huh.NewInput().Title(titled("Client secret", false)).Description("ARM_CLIENT_SECRET").
@@ -714,12 +840,12 @@ func azureGroup(s *state.State) *huh.Group {
 	).Title("Azure")
 }
 
-func gcpGroup(s *state.State) *huh.Group {
+func gcpGroup(s *state.State) *stepGroup {
 	a := ensureCloud(s, "gcp").(*state.GCPAuth)
 	if a.Method == "" {
 		a.Method = "json"
 	}
-	return huh.NewGroup(
+	return newStepGroup(
 		huh.NewSelect[string]().
 			Title("Google Cloud credentials").
 			Description("Inline JSON needs no file mount; a key file is mounted read-only into the iac container.").
@@ -751,9 +877,9 @@ func gcpGroup(s *state.State) *huh.Group {
 	).Title("Google Cloud")
 }
 
-func ociGroup(s *state.State) *huh.Group {
+func ociGroup(s *state.State) *stepGroup {
 	a := ensureCloud(s, "oci").(*state.OCIAuth)
-	return huh.NewGroup(
+	return newStepGroup(
 		huh.NewInput().
 			Title(titled("OCI config file path", false)).
 			Description("OCI_CONFIG_FILE. Host path, mounted read-only into the iac container.").
@@ -761,9 +887,9 @@ func ociGroup(s *state.State) *huh.Group {
 	).Title("Oracle Cloud")
 }
 
-func kubernetesGroup(s *state.State) *huh.Group {
+func kubernetesGroup(s *state.State) *stepGroup {
 	a := ensureCloud(s, "kubernetes").(*state.KubernetesAuth)
-	return huh.NewGroup(
+	return newStepGroup(
 		huh.NewInput().
 			Title(titled("Kubeconfig path", false)).
 			Description("KUBE_CONFIG_PATH. Host path, mounted read-only into the iac container.").
