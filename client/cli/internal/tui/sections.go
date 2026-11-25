@@ -46,12 +46,27 @@ func (w *Wizard) notifySteps() []step {
 }
 
 // stateSteps splits the model from its settings: the fields below depend on
-// which model was picked, and huh cannot add fields to a running form.
+// which model was picked, and huh cannot add fields to a running form. The
+// last two apply only to the bundled store, which is the only one with a
+// console to turn on.
 func (w *Wizard) stateSteps() []step {
 	return []step{
 		w.storageModelStep,
 		func(s *state.State) error { return w.formStep(w.storageStep, s) },
+		w.storageConsoleStep,
+		func(s *state.State) error {
+			if !bundledConsole(s) {
+				return errSkip
+			}
+			return w.formStep(w.storageConsoleKeysStep, s)
+		},
 	}
+}
+
+// bundledConsole reports whether the console keys are worth asking for: only
+// the bundled store has a console, and only when it is switched on.
+func bundledConsole(s *state.State) bool {
+	return s.Storage.Model == bundledStorageModel && s.Storage.ConsoleEnabled
 }
 
 // formStep runs one form and its commit, the shape every section shares.

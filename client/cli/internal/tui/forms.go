@@ -966,3 +966,81 @@ func parseKnobInt(s string) *int {
 	}
 	return &n
 }
+
+// bundledStorageModel is the discriminator for the RustFS container Kumoss
+// ships. It is the only storage model with a console to offer.
+const bundledStorageModel = "bundled"
+
+// rustfsDefaultKey is what RustFS uses when the variables are absent. Seeded
+// rather than left blank: the container falls back to it either way, so a
+// blank answer would make the core and the container disagree silently.
+const rustfsDefaultKey = "rustfsadmin"
+
+// storageConsoleStep offers the bundled store's web console. Default on: it is
+// the only way to browse the buckets Kumoss writes, and the override publishes
+// it on loopback only.
+func (w *Wizard) storageConsoleStep(s *state.State) error {
+	if s.Storage.Model != bundledStorageModel {
+		return errSkip
+	}
+	// A fresh install has no answer stored, and the default is yes.
+	enabled := true
+	if s.Storage.ConsoleEnabled || s.Secrets.RustFSAccessKey != "" {
+		enabled = s.Storage.ConsoleEnabled
+	}
+	form := newStepForm(
+		newStepGroup(
+			huh.NewConfirm().
+				Title("Enable the RustFS web console?").
+				Description("Browse the artifact bucket at http://localhost:9001/rustfs/console/. Published on loopback only; the core itself uses the S3 API on 9000.").
+				Affirmative("Enable").
+				Negative("Leave it off").
+				Value(&enabled),
+		).Title("Storage console"),
+	)
+	err := w.execStep(form)
+	if err == nil || errors.Is(err, errBack) {
+		s.Storage.ConsoleEnabled = enabled
+	}
+	return err
+}
+
+// consoleKeyValidators enforce the lengths RustFS needs. Below them the S3 API
+// still accepts the credential, so the core works and only the console breaks:
+// its sign-in goes through STS AssumeRole, which RustFS refuses with
+// "action not allowed" rather than an authentication error. Measured against
+// rustfs 1.0.6 — a 2-character access key or a 7-character secret key fails,
+// 3 and 8 pass.
+func consoleKeyValidators() (access, secret func(string) error) {
+	return minLen(3, "RustFS refuses the console sign-in below this, while the S3 API still works"),
+		minLen(8, "RustFS refuses the console sign-in below this, while the S3 API still works")
+}
+
+// storageConsoleKeysStep asks the credentials the console signs in with. The
+// same pair must reach the container and the core, or the core's presigned
+// URLs are signed with keys RustFS does not accept.
+func (w *Wizard) storageConsoleKeysStep(s *state.State) (*stepForm, func()) {
+	access := firstNonEmpty(s.Secrets.RustFSAccessKey, rustfsDefaultKey)
+	secret := firstNonEmpty(s.Secrets.RustFSSecretKey, rustfsDefaultKey)
+	validateAccess, validateSecret := consoleKeyValidators()
+	form := newStepForm(
+		newStepGroup(
+			huh.NewInput().
+				Title(titled("Console access key", false)).
+				Description("RUSTFS_ACCESS_KEY, 3 characters or more. Written to the container and mirrored into core/.env.").
+				Value(&access).
+				Validate(validateAccess),
+			huh.NewInput().
+				Title(titled("Console secret key", false)).
+				Description("RUSTFS_SECRET_KEY, 8 characters or more. Change both before anyone else can reach the console.").
+				EchoMode(huh.EchoModePassword).
+				Value(&secret).
+				Validate(validateSecret),
+		).Title("Storage console credentials"),
+	)
+	commit := func() {
+		s.Secrets.RustFSAccessKey = access
+		s.Secrets.RustFSSecretKey = secret
+	}
+	return form, commit
+}

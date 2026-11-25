@@ -82,8 +82,9 @@ func TestFormStepCommitsOnSuccess(t *testing.T) {
 func TestStateStepsOrder(t *testing.T) {
 	w, _ := stubWizard()
 	steps := w.stateSteps()
-	if len(steps) != 2 {
-		t.Fatalf("stateSteps = %d steps, want 2", len(steps))
+	// model, fields, console question, console keys.
+	if len(steps) != 4 {
+		t.Fatalf("stateSteps = %d steps, want 4", len(steps))
 	}
 
 	s := &state.State{}
@@ -122,11 +123,11 @@ func TestSingleFormSectionsHaveOneStep(t *testing.T) {
 
 func TestAllStepsConcatenatesSectionsInOrder(t *testing.T) {
 	w, _ := stubWizard()
-	// LLM 7, Git 1, State 2, Cloud 1, Engine 1, Notifications 1: the order
+	// LLM 7, Git 1, State 4, Cloud 1, Engine 1, Notifications 1: the order
 	// Configure has always asked them in, now as one flat list so that going
 	// back at the top of a section reaches the last form of the one before.
-	if got := len(w.allSteps()); got != 13 {
-		t.Errorf("allSteps = %d steps, want 13", got)
+	if got := len(w.allSteps()); got != 15 {
+		t.Errorf("allSteps = %d steps, want 15", got)
 	}
 }
 
@@ -137,5 +138,71 @@ func TestConfigureModeKeepRunsNothing(t *testing.T) {
 	}
 	if *runs != 0 {
 		t.Errorf("ModeKeep ran %d forms, want 0", *runs)
+	}
+}
+
+func TestStateStepsAskTheConsoleOnlyForTheBundledStore(t *testing.T) {
+	cases := []struct {
+		model string
+		want  bool
+	}{
+		{"bundled", true},
+		{"external_s3", false},
+		{"external_azure", false},
+		{"repository", false},
+	}
+	for _, c := range cases {
+		w, _ := stubWizard()
+		s := &state.State{Storage: state.Storage{Model: c.model, Credentials: map[string]string{}}}
+		steps := w.stateSteps()
+
+		err := steps[2](s) // the console question
+		ran := !errors.Is(err, errSkip)
+		if err != nil && !errors.Is(err, errSkip) {
+			t.Fatalf("%s: console step returned %v", c.model, err)
+		}
+		if ran != c.want {
+			t.Errorf("%s: console step ran = %v, want %v", c.model, ran, c.want)
+		}
+	}
+}
+
+func TestConsoleDefaultsToEnabled(t *testing.T) {
+	w, _ := stubWizard()
+	s := &state.State{Storage: state.Storage{Model: "bundled", Credentials: map[string]string{}}}
+
+	if err := w.stateSteps()[2](s); err != nil {
+		t.Fatalf("console step returned %v", err)
+	}
+	if !s.Storage.ConsoleEnabled {
+		t.Error("the console question did not default to enabled")
+	}
+}
+
+func TestConsoleKeysAskedOnlyWhenEnabled(t *testing.T) {
+	w, _ := stubWizard()
+	s := &state.State{Storage: state.Storage{Model: "bundled", ConsoleEnabled: false}}
+	if err := w.stateSteps()[3](s); !errors.Is(err, errSkip) {
+		t.Errorf("key step returned %v with the console off, want errSkip", err)
+	}
+
+	s.Storage.ConsoleEnabled = true
+	if err := w.stateSteps()[3](s); err != nil {
+		t.Errorf("key step returned %v with the console on, want it to run", err)
+	}
+}
+
+func TestConsoleKeysSeedTheContainerDefaults(t *testing.T) {
+	w, _ := stubWizard()
+	s := &state.State{Storage: state.Storage{Model: "bundled", ConsoleEnabled: true}}
+
+	if err := w.stateSteps()[3](s); err != nil {
+		t.Fatalf("key step returned %v", err)
+	}
+	// RustFS falls back to rustfsadmin when the variables are absent, so an
+	// unanswered form must not leave them blank and silently disagree.
+	if s.Secrets.RustFSAccessKey == "" || s.Secrets.RustFSSecretKey == "" {
+		t.Errorf("keys = %q/%q, want the container's defaults seeded",
+			s.Secrets.RustFSAccessKey, s.Secrets.RustFSSecretKey)
 	}
 }

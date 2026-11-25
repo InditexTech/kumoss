@@ -121,3 +121,41 @@ func TestJSONKeyAcceptsPrettyJSON(t *testing.T) {
 		}
 	}
 }
+
+func TestMinLen(t *testing.T) {
+	v := minLen(8, "RustFS rejects a shorter secret key")
+	for _, bad := range []string{"", "pepe", "1234567"} {
+		if err := v(bad); err == nil {
+			t.Errorf("minLen(8) accepted %q", bad)
+		}
+	}
+	for _, ok := range []string{"12345678", "SuperSecret12345"} {
+		if err := v(ok); err != nil {
+			t.Errorf("minLen(8) rejected %q: %v", ok, err)
+		}
+	}
+	// Surrounding blanks are not length: the entrypoint trims before use.
+	if err := v("  12345  "); err == nil {
+		t.Error("minLen(8) counted surrounding blanks toward the length")
+	}
+}
+
+// The console signs in through STS AssumeRole, which RustFS refuses outright
+// when the root credential is shorter than the S3 minimums — while the S3 API
+// still accepts it, so the failure is silent. Measured against rustfs 1.0.6:
+// access key < 3 or secret key < 8 both yield "action not allowed".
+func TestConsoleKeyValidatorsMatchRustFSMinimums(t *testing.T) {
+	access, secret := consoleKeyValidators()
+	if err := access("ab"); err == nil {
+		t.Error("a 2-character access key was accepted; RustFS needs 3")
+	}
+	if err := access("abc"); err != nil {
+		t.Errorf("a 3-character access key was rejected: %v", err)
+	}
+	if err := secret("pepe"); err == nil {
+		t.Error("a 4-character secret key was accepted; RustFS needs 8")
+	}
+	if err := secret("12345678"); err != nil {
+		t.Errorf("an 8-character secret key was rejected: %v", err)
+	}
+}

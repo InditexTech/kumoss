@@ -8,6 +8,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 )
@@ -104,4 +105,15 @@ func acknowledgeTerraform(ok bool) error {
 		return errors.New("Terraform is licensed under BUSL-1.1; acknowledge to continue, or go back and choose OpenTofu")
 	}
 	return nil
+}
+
+// minLen rejects a value shorter than n characters, after trimming: the
+// RustFS entrypoint trims before the binary sees it, so padding is not length.
+func minLen(n int, why string) func(string) error {
+	return func(v string) error {
+		if len([]rune(strings.TrimSpace(v))) < n {
+			return fmt.Errorf("at least %d characters: %s", n, why)
+		}
+		return nil
+	}
 }
