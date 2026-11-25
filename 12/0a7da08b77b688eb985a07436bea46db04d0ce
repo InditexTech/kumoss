@@ -1,0 +1,21 @@
+docs/src/modules/main/pages/reference/compliance-policy.adoc
+  s_ad638db013a85c::t_cea0c481db3e30 108-109
+docs/src/modules/main/pages/reference/root-module-manifest.adoc
+  s_ad638db013a85c::t_115d0998d203dc 306-308
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "120a7da08b77b688eb985a07436bea46db04d0ce",
+  "prompts": {},
+  "sessions": {
+    "s_ad638db013a85c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57599cb7-4d09-45f1-8e43-30af586f4da0",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
