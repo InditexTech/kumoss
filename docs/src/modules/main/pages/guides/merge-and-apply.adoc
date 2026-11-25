@@ -15,21 +15,76 @@ and apply the reviewed plan.
 [#session-locked]
 == If the session is locked
 
-A session is locked automatically when the compliance audit fails or,
-where your deployment enables it, when the impact is *High*. You are
-notified ("Session blocked") and, when you try to continue with a pull
-request, you see the *High Impact Deployment* screen: the changes have
-been blocked, the support team has been notified, and a specialist will
-review your request. Two buttons: *Back to Report* and *Contact Team*.
+At the end of every generate round Kumoss decides whether the plan may be
+merged and applied. Three independent checks can lock the session:
 
-While locked you can still read everything, continue the conversation, and
-create the pull request so reviewers can read the diff. You cannot merge
-it or apply: the server answers that the session is blocked. A reviewer
-with the appropriate panel role unlocks the
-xref:main:guides/administer-users-and-locks.adoc#session-locks[session
-lock], or you send a new request whose result passes cleanly, which
-clears the lock. Your own sessions list shows the lock state in the
-*Apply* column.
+[cols="1,3,2",options="header"]
+|===
+|Cause |What triggers it |Switch
+
+|*Compliance policy* (deterministic)
+|The Rego policy, evaluated by Open Policy Agent on the plan JSON,
+returns a `deny` finding. The shipped rule, `critical_deletion`, denies
+any resource that is destroyed without being recreated, *even when you
+asked for the deletion*. A policy that cannot be evaluated also locks
+the session (`policy_unavailable`). These findings carry a *policy*
+badge.
+|`orchestration.enable_compliance_checker`
+
+|*Compliance audit* (LLM)
+|A language-model agent compares the plan with your requests and your
+organization's conventions. `scope_exceeded`: the plan changes something
+you did not ask for, for example it removes a block or sets an attribute
+to null. `scope_incomplete`: part of your request has no matching change
+in the plan. Any other `error` or `critical` finding comes from the
+conventions. Findings of severity `warning` are reported and never lock.
+|`orchestration.enable_compliance_checker`
+
+|*High impact*
+|The report's impact assessment rates the change `high`: destructive
+actions, restarts, service downtime, or critical networking changes. The
+impact banner is shown either way; the switch only decides whether it
+locks.
+|`orchestration.block_on_high_impact`
+|===
+
+Both switches default to `false` in code, and the shipped `config.yaml`
+turns both on; see
+xref:main:reference/configuration.adoc[Configuration]. Drift and import
+rounds are never checked and never lock a session.
+
+*What you see.* When you continue to the pull request, the *Deployment
+Blocked* screen opens. Expand *Why* to see which cause applies: *High
+impact* with the impact summary, *Compliance* with each blocking finding
+(severity, rule id, and resource), or both. *Check again* reads the lock
+again, for example after a reviewer unlocked it; *Back to Report*
+returns to the report; *Contact Team* sends a support request.
+
+*Who is notified.* When the notifications sidecar is enabled, Kumoss
+sends a "Compliance check failed" notification, a "High impact changes
+detected" notification, or both, to you and to every user with the panel
+role `editor` or higher. If your browser tab is hidden when the round
+finishes, you also get a "Session blocked" browser notification.
+
+*While locked* you can still read everything, continue the conversation,
+and create the pull request so reviewers can read the diff. You cannot
+merge it or apply: the server answers `409` because the session is
+blocked. Your own sessions list shows the lock state in the *Apply*
+column.
+
+*Getting unlocked.* Either:
+
+* send a follow-up request whose round passes all three checks, which
+  clears the lock; or
+* ask a reviewer with the panel role `editor` or `admin` to review the
+  session in the admin panel and unlock it; see
+  xref:main:guides/administer-users-and-locks.adoc#unlock-a-session[Locking
+  or unlocking the apply of a session].
+
+A manual unlock lasts only until your next generate round on the
+session, which runs the checks again and sets the lock afresh. To write
+your own policy rules, see
+xref:main:reference/compliance-policy.adoc[Compliance policy].
 
 == Steps
 
