@@ -1,0 +1,19 @@
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_ad638db013a85c::t_1b7dc6821b28c9 117-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "097f555a20d620d947c77182dac8f9692ca002d7",
+  "prompts": {},
+  "sessions": {
+    "s_ad638db013a85c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57599cb7-4d09-45f1-8e43-30af586f4da0",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
