@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -828,8 +855,9 @@ and <a href="../../guides/import-infrastructure/" class="xref page">Import infra
 <i class="fa icon-note" title="Note"></i>
 </td>
 <td class="content">
-The import modes are supported on Azure, GCP and AWS only. On
-OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+The import modes list the scopes of the <code>azurerm</code>, <code>google</code> and
+<code>aws</code> providers only. A root module that uses none of them (only <code>oci</code>,
+<code>kubernetes</code>, <code>vsphere</code>&#8230;&#8203;) has no scope that can be listed, so an
 import round ends with a report that says so and imports nothing.
 </td>
 </tr>
@@ -842,19 +870,20 @@ import round ends with a report that says so and imports nothing.
 <div class="sectionbody">
 <div class="paragraph">
 <p>The first request of a session provides the repository URL (<code>https://</code>
-only; it may carry a userinfo username but no password or token), the target cloud (<code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>,
-<code>kubernetes</code>, or <code>vmware</code>), a scope identifier (for example a subscription,
-project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository
-(see <a href="../repository-layout/#terraform-roots" class="xref page">Repository
-layout</a>), and the request text. The scope is stored with the session, sent
-to the iac sidecar on every <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code>, hashed
-together with the repository URL and the IaC path into the state project
-id when Kumoss manages state, and shown in the session detail view. Later
-requests in the same session send only the session id and the new text.
-When the mapping sidecar is enabled and its catalogue knows the
-repository, it may also answer the provider and the scope; the wizard
-then skips those two questions, so a mapper must answer <code>null</code> for
-anything it is not sure of.</p>
+only; it may carry a userinfo username but no password or token), an
+optional path to the Terraform root inside the repository (see
+<a href="../repository-layout/#terraform-roots" class="xref page">Repository
+layout</a>), the request text and, when the root module needs them, the
+answers to its inputs. There is no provider question: the session&#8217;s
+providers are the ones the module&#8217;s <code>required_providers</code> declares, and
+the scope of each <code>azurerm</code>, <code>google</code>, <code>aws</code> or <code>oci</code> provider
+(subscription, project, account or compartment) is asked once and kept
+in the module&#8217;s <code>kumoss.yaml</code> manifest with its variable values; see
+<a href="../root-module-manifest/" class="xref page">Root module manifest</a>.
+The providers and scopes are recorded on the session, sent to the iac
+sidecar on every <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code>, and shown in
+the session detail view. Later requests in the same session send only
+the session id and the new text.</p>
 </div>
 </div>
 </div>
@@ -862,13 +891,14 @@ anything it is not sure of.</p>
 <h2 id="how-a-session-runs"><a class="anchor" href="#how-a-session-runs"></a>How a session runs</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>Authorization preflight.</strong> Before the first request is sent, the wizard
-calls <code>POST /api/v1/auth/authorize</code>. With the shipped configuration
-(<code>services.authz.enabled: false</code>) no external check runs at all: the core
-answers "authorized" without contacting anything. When the sidecar is
-enabled, the core sends the cloud, the <strong>repository URL</strong> as the project
-name, and the <strong>IaC path</strong> as the environment — the scope id is never part
-of that check.</p>
+<p><strong>Authorization.</strong> The core checks authorization on every IaC and PR write
+route via the AuthZEN PDP (<code>POST /access/v1/evaluation</code>). With the
+shipped configuration (<code>services.authz.enabled: false</code>) no external check
+runs at all: the core treats every operation as authorized. When the
+sidecar is enabled, the core sends the caller&#8217;s identity, the action,
+and each provider scope of the root module to the PDP before
+proceeding — on a first call inside the session, before the manifest
+setup saves anything — and never fails open.</p>
 </div>
 <div class="paragraph">
 <p><strong>Asynchronous execution.</strong> Every IaC route answers <code>202 Accepted</code> with a

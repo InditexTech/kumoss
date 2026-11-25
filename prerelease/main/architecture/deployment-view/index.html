@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -1174,12 +1201,14 @@ on purpose.</p>
 </script>
 <div class="paragraph">
 <p>Named volumes are written into each container&#8217;s subtitle instead of
-being drawn as separate nodes (<code>core_db_data</code>, <code>phoenix_db_data</code>,
-<code>object_storage_data</code>, and <code>workspaces</code>), and <code>phoenix-db</code> is folded
-into the phoenix node, so the ninth container of the stack is not a
-box of its own. Two edges are left out because the
-<a href="../" class="xref page">system architecture diagram</a> already
-carries them — the core&#8217;s OTLP traces and prompt calls to Phoenix, and
+being drawn as separate nodes (<code>core_db_data</code>, <code>object_storage_data</code>,
+<code>workspaces</code>, and the <code>langfuse_*</code> volumes), and Langfuse&#8217;s six
+containers — <code>langfuse-web</code>, <code>langfuse-worker</code>, <code>langfuse-db</code>,
+<code>langfuse-clickhouse</code>, <code>langfuse-redis</code>, and the one-shot
+<code>langfuse-bucket</code> — are folded into one langfuse node. Two edges are
+left out because the <a href="../" class="xref page">system architecture
+diagram</a> already carries them — the core&#8217;s OTLP traces and prompt calls
+to Langfuse, and
 the proxy&#8217;s port 9000 path to object storage — and the connections that
 leave the stack (LLM and git provider APIs from the core, the Slack
 webhook from notifications) appear in the notes beside the diagram
@@ -1215,23 +1244,30 @@ chart in <code>charts/kumoss</code> maps the same topology onto Kubernetes; see
 <div class="ulist">
 <ul>
 <li>
-<p>All nine containers share one Docker bridge network. Only <code>proxy</code>
-publishes host ports: 80 (SPA, API, SSE, monitoring) and 9000
-(presigned object-storage access); every other service is
-internal-only via <code>expose</code>.</p>
+<p>All the containers share one Docker bridge network. Only <code>proxy</code>
+publishes host ports: 80 (SPA, API, SSE), 9000 (presigned
+object-storage access) and 3000 (the Langfuse UI, on a port of its
+own because the stock Langfuse image cannot be served under a path);
+every other service is internal-only via <code>expose</code>.</p>
 </li>
 <li>
-<p>Compose <code>depends_on</code> orders start-up (it does not health-check): core
-waits for core-db, notifications, mapping, iac, authz, Redis, and
-object storage; the proxy waits for core, Phoenix, and object storage.
-SearXNG has no dependency ordering — the core calls it per request, so
-a missing or slow engine surfaces only as the <code>web_search</code> tool&#8217;s
-"unavailable" result. The core has no Compose dependency on Phoenix,
-which is why its prompt seeder retries.</p>
+<p>Compose <code>depends_on</code> orders start-up: core waits for core-db,
+notifications, mapping, iac, Redis, and object storage to start, and
+for <code>langfuse-web</code> to be <strong>healthy</strong> (a cold Langfuse migrates its
+databases first); the proxy waits for core, <code>langfuse-web</code>, and
+object storage. Langfuse&#8217;s web and worker wait for healthy
+langfuse-db, ClickHouse and Redis and for <code>langfuse-bucket</code> to have
+created their bucket, and the worker also for a healthy web. SearXNG
+has no dependency ordering — the core calls it per request, so a
+missing or slow engine surfaces only as the <code>web_search</code> tool&#8217;s
+"unavailable" result. The prompt seeder still retries, for platforms
+without that ordering.</p>
 </li>
 <li>
-<p>Four named volumes persist state: <code>core_db_data</code>, <code>phoenix_db_data</code>,
-<code>object_storage_data</code>, and <code>workspaces</code>.</p>
+<p>Named volumes persist state: <code>core_db_data</code>, <code>object_storage_data</code>,
+<code>workspaces</code>, and Langfuse&#8217;s <code>langfuse_db_data</code>,
+<code>langfuse_clickhouse_data</code>, <code>langfuse_clickhouse_logs</code> and
+<code>langfuse_redis_data</code>.</p>
 </li>
 </ul>
 </div>
@@ -1242,7 +1278,7 @@ which is why its prompt seeder retries.</p>
 <ul>
 <li>
 <p>The FastAPI lifespan enforces a strict order: database, then Redis,
-then object-storage bucket creation, then Phoenix prompt seeding.
+then object-storage bucket creation, then Langfuse prompt seeding.
 Failure of any step aborts boot. Git credential configuration follows
 and is best-effort.</p>
 </li>
@@ -1344,10 +1380,11 @@ alone.</p>
 <li>
 <p><strong>Contract-first sidecars.</strong> OpenAPI specifications are the
 authoritative boundary, with generated clients on one side and, on
-the other, intentionally minimal bundled implementations for IaC and
-notifications, inviting substitution in enterprise deployments; the
-mapping and authorization contracts ship without an implementation,
-as optional extension points you implement yourself.</p>
+the other, intentionally minimal bundled implementations for IaC,
+notifications and mapping, inviting substitution in enterprise
+deployments; the authorization contract ships without an
+implementation, as an optional extension point you implement
+yourself.</p>
 </li>
 <li>
 <p><strong>Deliberately direct execution.</strong> Pipelines run as in-process
@@ -1358,7 +1395,7 @@ status polling. These are visible trade-offs, not accidents.</p>
 </li>
 <li>
 <p><strong>Deep, centralized telemetry.</strong> Model calls, tool executions, and
-engine runs are traced to Phoenix, which doubles as the runtime
+engine runs are traced to Langfuse, which doubles as the runtime
 prompt registry, making prompt management an operational concern
 rather than a code change. No tracing decorator exports anything when
 the wrapped call raises: most of them build the span only <strong>after</strong> the
@@ -1374,7 +1411,9 @@ agent loop with no repository access at all — its only tool is the
 sentinel <code>report_compliance_findings</code>; the
 pass/fail verdict is computed deterministically from the structured
 violations it reports, and the resulting database lock is what
-actually stops a non-compliant plan from being applied.</p>
+actually stops a non-compliant plan from being applied. The compliance
+policy, evaluated by OPA before the auditor, adds findings that do not
+depend on a model at all.</p>
 </li>
 <li>
 <p><strong>Stateless, local identity.</strong> The core trusts only a signed JWT from

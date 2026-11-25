@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -836,7 +863,7 @@ for LLM providers and credentials.</p>
 <p><a href="../enable-authentication/" class="xref page">Enable authentication</a> for authentication.</p>
 </li>
 <li>
-<p><a href="../monitor-with-phoenix/" class="xref page">Monitor with Phoenix</a> for tracing.</p>
+<p><a href="../monitor-with-langfuse/" class="xref page">Monitor with Langfuse</a> for tracing.</p>
 </li>
 <li>
 <p><a href="../customize-prompts/" class="xref page">Customize prompts</a> for the prompt registry.</p>
@@ -913,16 +940,16 @@ inventory</a></p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">5</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Use managed PostgreSQL, Redis, object storage (S3, Azure, or
-S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is
-required at boot</p></td>
+S3-compatible), and a persistent, access-controlled Langfuse; Langfuse
+is required at boot</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../production/operations/#data-and-persistence" class="xref page">Data
 services and persistence</a></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">6</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Reproduce the ingress rules: SSE path unbuffered, <code>/monitoring/</code>
-restricted, public object-storage endpoint, CORS origin, IdP redirect
-URIs</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Reproduce the ingress rules: SSE path unbuffered, the Langfuse UI on
+its own protected host or port, public object-storage endpoint, CORS
+origin, IdP redirect URIs</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../production/networking-and-tls/" class="xref page">Networking and TLS</a></p></td>
 </tr>
 <tr>
@@ -943,8 +970,8 @@ checklist</a></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">9</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Plan upgrades by hand: no database migrations, seeds never overwrite
-curated prompts, <code>environment</code> is a prompt tag</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Back up before upgrading: the core migrates the database at startup,
+seeds never overwrite curated prompts, <code>environment</code> is a prompt tag</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="../production/operations/#backups-and-upgrades" class="xref page">Backups
 and upgrades</a></p></td>
 </tr>
@@ -970,8 +997,8 @@ where its data lives, and how it is operated.</p>
 </div>
 <div class="paragraph">
 <p>Production is <strong>not</strong> the local Compose stack with <code>environment:
-production</code>. That field only selects the Phoenix project prefix and the
-prompt tag. It enables no authentication, no authorization, and no
+production</code>. That field only selects the Langfuse environment traces
+are recorded under and the prompt label. It enables no authentication, no authorization, and no
 stricter default.</p>
 </div>
 <div class="paragraph">
@@ -1018,7 +1045,7 @@ environment variables</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Data services</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bundled PostgreSQL, Redis, RustFS, Langfuse on local volumes, with the
 well-known default credentials the samples ship</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Managed or operated services with persistence, backups, access
 control, and credentials from your secret store</p></td>
@@ -1036,7 +1063,7 @@ file mounted into the sidecar (<a href="../configure-state-backends/" class="xre
 <td class="tableblock halign-left valign-top"><p class="tableblock">Networking</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Plain HTTP on <code>localhost</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">TLS, a real origin, an ingress that handles server-sent events, a
-protected Phoenix, a public object-storage endpoint</p></td>
+protected Langfuse, a public object-storage endpoint</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1046,7 +1073,7 @@ the reference topology, a Helm chart for Kubernetes
 (<a href="../deploy-with-helm/" class="xref page">Deploy with Helm</a>), and the
 OpenAPI contracts and conformance suites for the sidecars. It does not
 provide Kustomize overlays, Terraform modules for the platform itself,
-database migrations, or a multi-replica execution model. The chart wires
+or a multi-replica execution model. The chart wires
 the stack together, but the production decisions on this page (managed
 data services, identity, TLS, hardening) remain yours to make through
 its values.</p>
@@ -1097,7 +1124,8 @@ it at <code>KUMOSS_CONFIG</code>.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Web application and edge</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>nginx/Dockerfile</code> builds the React app and serves it; forwards
-<code>/api</code>, the SSE path, <code>/monitoring/</code>, and port 9000</p></td>
+<code>/api</code> and the SSE path on port 80, object storage on port 9000, and
+the Langfuse UI on port 3000</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Users</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Keep it, or serve the built bundle from your own ingress. Reproduce its
@@ -1127,20 +1155,47 @@ and TLS</a>).</p></td>
 RustFS or another S3-compatible store is also supported.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>arizephoenix/phoenix:20.12.0</code> behind <code>PHOENIX_HOST_ROOT_PATH=/monitoring</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Core (traces and prompt API), operators (UI)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong> (through its PostgreSQL)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Operate it with persistence and access control. It is required at core
-start-up.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse/langfuse</code> and <code>langfuse/langfuse-worker</code> 4.83.0, UI on port
+3000 (the stock image cannot be served under a path)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core (OTLP traces and prompt API, with the project&#8217;s API key pair),
+operators (UI, behind Langfuse&#8217;s own login)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong> (through its PostgreSQL, ClickHouse, Redis, and a bucket)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Operate it with persistence and access control, or use a Langfuse you
+already run and point <code>telemetry.langfuse_url</code> at it. It is required at
+core start-up.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">PostgreSQL (Phoenix)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PostgreSQL (Langfuse)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>postgres:17</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Managed PostgreSQL recommended; set <code>PHOENIX_SQL_DATABASE_URL</code> on
-Phoenix.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Managed PostgreSQL recommended; set Langfuse&#8217;s <code>DATABASE_URL</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">ClickHouse (Langfuse)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>clickhouse/clickhouse-server:26.3.66.4</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong> (holds the traces)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Single node is enough to evaluate; managed ClickHouse or an operator in
+production.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Redis (Langfuse)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>redis:8.8</code> with <code>--maxmemory-policy noeviction</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse (job queue)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Separate from the core&#8217;s Redis: a queue must never evict, while the
+core&#8217;s Redis is a cache.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bucket (Langfuse)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>langfuse</code> bucket on the object-storage service</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse (raw events, media)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Required</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse does not create it: Compose&#8217;s one-shot <code>langfuse-bucket</code>
+service and the chart&#8217;s init container do. Any S3-compatible bucket
+works.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC sidecar</p></td>
@@ -1153,10 +1208,12 @@ or implement the contract yourself to your organization&#8217;s requirements.</p
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mapping sidecar</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">None bundled; your implementation of the mapping contract</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bundled prefix mapper (<code>services/mapping</code>), or your implementation of
+the mapping contract</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core only</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Up to your implementation</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Implement it against your catalogue, or leave it disabled.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None: it holds no data and calls nothing</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Set <code>MAPPING_PREFIX_IDENTIFIER</code>, or replace it with an implementation
+backed by your catalogue.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Notifications sidecar</p></td>
@@ -1203,9 +1260,10 @@ every session lives there between a generate round and its apply, so
 the volume must survive pod restarts.</p>
 </li>
 <li>
-<p><strong>Phoenix&#8217;s database</strong>, which holds your curated prompts as well as
-traces. Losing it means re-seeding from the repository defaults and
-losing every prompt edit.</p>
+<p><strong>Langfuse&#8217;s PostgreSQL database</strong>, which holds your curated prompts
+(and Langfuse&#8217;s users and API keys); its ClickHouse holds the traces.
+Losing the PostgreSQL database means re-seeding from the repository
+defaults and losing every prompt edit.</p>
 </li>
 </ul>
 </div>
@@ -1243,9 +1301,9 @@ a private network segment reachable only by the core, and never expose
 one through the ingress.</p>
 </li>
 <li>
-<p>The <code>services.&lt;name&gt;.timeout</code> field is honoured by the IaC and
-notifications clients; the mapping and authorization clients use fixed
-budgets of 10 and 15 seconds.</p>
+<p>The <code>services.&lt;name&gt;.timeout</code> field is honoured by the IaC,
+notifications, and authorization clients; the mapping client uses a
+fixed budget of 10 seconds.</p>
 </li>
 <li>
 <p>Every sidecar exposes <code>GET /healthz</code> for liveness probes.</p>
@@ -1345,7 +1403,7 @@ every other variable in the IaC sidecar&#8217;s environment are reachable by
 the provider plugins the generated HCL invokes, and by any
 <code>local-exec</code> provisioner in that HCL — generated code runs with the
 same privileges as the sidecar process. The seeded
-<code>general-guidelines-terraform</code> prompt tells the generator never to
+<code>general/guidelines/terraform</code> prompt tells the generator never to
 emit <code>null_resource</code>, <code>provisioner</code> blocks, or <code>data "external"</code>, and
 the compliance auditor receives the same rule, but this is a prompt
 instruction: neither the core nor the sidecar inspects the generated
@@ -1359,24 +1417,25 @@ the cloud identity it needs.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="mapping-optional"><a class="anchor" href="#mapping-optional"></a>Mapping (optional)</h3>
+<h3 id="mapping-on-by-default"><a class="anchor" href="#mapping-on-by-default"></a>Mapping (on by default)</h3>
 <div class="paragraph">
-<p>Kumoss ships no mapping implementation. While the integration is
-disabled, the core echoes every identifier: the value the user types is
-used as the repository URL. Enable it only with
-an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue)
-against the canonical IaC repository. Once enabled, a slow or
-unreachable sidecar makes the wizard&#8217;s resolve step fail with
-<code>504</code>/<code>502</code>.</p>
+<p>The wizard&#8217;s repository step goes through the mapping sidecar, so users
+can type a repository name instead of a clone URL. The bundled service
+appends a bare name to <code>MAPPING_PREFIX_IDENTIFIER</code> with a <code>.git</code> suffix
+(<code>foo</code> → <code>https://github.com/MySuperOrg/foo.git</code>) and passes full
+<code>https://</code> URLs through; set the prefix to your organization&#8217;s base
+URL, or leave it empty to accept full URLs only. See
+<a href="../../reference/api/mapping/#bundled" class="xref page">The bundled implementation</a>.</p>
 </div>
 <div class="paragraph">
-<p>Your implementation may also answer <code>terraform_provider</code> and <code>scope_id</code>
-(the cloud subscription, project, account, compartment, or cluster).
-Both are optional and both are a promise: the wizard stops asking the
-user for any field your service fills in, so a value it cannot stand
-behind is a wrong answer nobody gets the chance to correct. Return
-<code>null</code> — meaning "I do not know" — whenever the catalogue is silent, and
-never infer a provider from the shape of the repository URL.</p>
+<p>To resolve business identifiers against a catalogue (CMDB, Backstage)
+instead, point <code>services.mapping.endpoint</code> at your own implementation
+of the contract and drop the bundled container. Once enabled, a slow or
+unreachable mapper makes the repository scan fail with <code>504</code>/<code>502</code>; set
+<code>services.mapping.enabled: false</code> to use what users type as the URL
+without any call. A session&#8217;s providers and scopes come from the root
+module and its <a href="../../reference/root-module-manifest/" class="xref page">manifest</a>,
+not from the mapper.</p>
 </div>
 </div>
 <div class="sect2">
@@ -1398,9 +1457,9 @@ failure is logged and never fails a session.</p>
 <div class="sect2">
 <h3 id="authorization-optional"><a class="anchor" href="#authorization-optional"></a>Authorization (optional, bring your own)</h3>
 <div class="paragraph">
-<p>Kumoss ships no authorization implementation: the contract is an
-extension point for your own cloud-project policy. Leave it disabled
-until you provide your own implementation.</p>
+<p>Kumoss ships no PDP (policy decision point): the contract is an
+extension point for your organization&#8217;s access policy. Leave it disabled
+until you deploy your own AuthZEN-compliant PDP.</p>
 </div>
 <div class="paragraph">
 <p>Understand what this integration is and is not:</p>
@@ -1408,11 +1467,13 @@ until you provide your own implementation.</p>
 <div class="ulist">
 <ul>
 <li>
-<p>It is consulted only by the wizard&#8217;s preflight <code>POST
-/api/v1/auth/authorize</code>, which sends the cloud, project name,
-environment, and the caller&#8217;s e-mail (or OIDC subject) to <code>POST
-/v1/check</code>. It answers whether that user may work on that cloud
-project.</p>
+<p>It is consulted on <strong>every write route</strong> — IaC generation, drift,
+import, apply, PR creation, and PR merge. The core sends an AuthZEN
+Access Evaluation request (<code>POST /access/v1/evaluation</code>) with the
+caller&#8217;s identity, the action, and one provider scope of the
+session&#8217;s root module — one request per scope, all of which must
+allow. On a first call it runs inside the session, after the <code>202</code>
+and before the manifest setup saves anything.</p>
 </li>
 <li>
 <p>It is <strong>not</strong> Kumoss&#8217;s own access control. Who can log in, which
@@ -1421,15 +1482,15 @@ decided by OIDC plus the operation and panel roles stored in the core
 database (<a href="../administer-users-and-locks/" class="xref page">Administer users and locks</a>).</p>
 </li>
 <li>
-<p>While disabled, the core answers "authorized" without calling
-anything. Once enabled, an unreachable sidecar produces a <code>502</code>/<code>504</code>
-error in the wizard, not an allow.</p>
+<p>While disabled, the core treats every operation as authorized without
+calling anything. Once enabled, an unreachable PDP produces a
+<code>502</code>/<code>504</code> error, not an allow — the core never fails open.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Implement the contract in
-<a href="../../reference/api/authz/" class="xref page"><code>contracts/openapi/authz.v1.yaml</code></a>
+<p>Implement the
+<a href="../../reference/api/authz/" class="xref page">AuthZEN contract</a>
 against your entitlement source, point <code>services.authz.endpoint</code> at it,
 and enable it.</p>
 </div>
@@ -1463,8 +1524,9 @@ example</a>.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>environment</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>production</code> (or <code>staging</code>). Decide before the first boot: it is the
-tag every prompt fetch uses, and changing it later requires re-tagging
-every prompt in Phoenix.</p></td>
+label every prompt fetch uses, and changing it later means the label of
+every prompt you edited has to be moved in Langfuse (seeded prompts carry
+all three labels).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>oidc</code></p></td>
@@ -1511,9 +1573,13 @@ the Compose service name, so set <code>KUMOSS_REDIS_URL</code> when Redis lives
 elsewhere.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.collector_url</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Your Phoenix base URL, ending in <code>/</code>. It is used both for OTLP export
-and for the prompt API.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse_url</code>: the Langfuse base URL the core calls, used both for
+OTLP export and for the prompt API.
+The project&#8217;s key pair goes in the env vars named by <code>public_key_env</code>
+and <code>secret_key_env</code> (<code>LANGFUSE_PUBLIC_KEY</code>, <code>LANGFUSE_SECRET_KEY</code>);
+unset, the core falls back to the bundled stack&#8217;s development keys,
+which any other Langfuse refuses at boot.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>http.cors_origins</code></p></td>

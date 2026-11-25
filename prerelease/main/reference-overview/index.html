@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference-overview/">
     <link rel="prev" href="../guides/development/">
     <link rel="next" href="../reference/operating-modes/">
-    <meta name="description" content="Lookup material for Kumoss: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.">
+    <meta name="description" content="Lookup material for Kumoss: operating modes, every config.yaml field, the compliance policy contract, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -790,7 +817,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Overview</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Reference</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Lookup material for Kumoss: operating modes, every config.yaml field, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Lookup material for Kumoss: operating modes, every config.yaml field, the compliance policy contract, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -819,14 +846,16 @@ HTTP APIs, described exhaustively.</p>
 </div>
 <div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/operating-modes/" class="xref page">Operating modes</a></div><p>What each operating mode does today, the inputs every session takes, and
 how a session runs.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/configuration/" class="xref page">Configuration</a></div><p>Every <code>config.yaml</code> section and field: type, default, validation rule,
-and effect.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/database-schema/" class="xref page">Database schema</a></div><p>The thirteen tables of core-db, what each records, the enumerated columns,
+and effect.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/compliance-policy/" class="xref page">Compliance policy</a></div><p>The Rego policy OPA evaluates on every generate round&#8217;s plan: input,
+decision contract, failure semantics, and how to test it.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/database-schema/" class="xref page">Database schema</a></div><p>The thirteen tables of core-db, what each records, the enumerated columns,
 and how rows are deleted.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/environment-variables/" class="xref page">Environment variables and secrets</a></div><p>Every variable in <code>core/env.sample</code> and the IaC and notifications
 sidecar <code>env.sample</code> files, plus the IaC engine and LLM provider
 variables.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/llm-providers/" class="xref page">LLM providers and models</a></div><p>How Kumoss selects LiteLLM models, provider credential tables, and the
 <code>llm.model_list</code> router escape hatch.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/roles-and-permissions/" class="xref page">Roles and permissions</a></div><p>The two independent role groups, the complete permission matrix, and
 who gets which role by default.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/repository-layout/" class="xref page">Repository layout</a></div><p>How Kumoss finds Terraform roots in a repository: the detection rules
 and the wizard&#8217;s zero/one/many behavior.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/terraform-providers/" class="xref page">Terraform providers</a></div><p>Minimum environment variables per cloud and state backend, plus the
-exhaustive variable reference.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/api/" class="xref page">HTTP APIs</a></div><p>Every route the core exposes under <code>/api/v1</code>, and the sidecar
+exhaustive variable reference.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/root-module-manifest/" class="xref page">Root module manifest</a></div><p>How Kumoss reads a root module&#8217;s providers and inputs, asks for its
+scopes and variable values once, and keeps them in <code>kumoss.yaml</code>.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../reference/api/" class="xref page">HTTP APIs</a></div><p>Every route the core exposes under <code>/api/v1</code>, and the sidecar
 OpenAPI contracts it consumes as a client (IaC, searxng as search enginge, notifications,
 repository mapping, authorization).</p></div></div></div></div>
 </div>
@@ -851,8 +880,8 @@ repository mapping, authorization).</p></div></div></div></div>
 <td class="tableblock halign-left valign-top"><p class="tableblock">500 characters</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud scope</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">64 characters, letters, digits, and hyphens</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Provider scope (subscription, project, account, compartment)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">1024 characters</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Support message</p></td>

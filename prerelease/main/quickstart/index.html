@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -854,7 +881,8 @@ with Helm</a>.
 <span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cd</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> kumoss</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cp</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core/env.sample</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core/.env</span></span>
-<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cp</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/iac/env.sample</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/iac/.env</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cp</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/iac/env.sample</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/iac/.env</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cp</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/mapping/env.sample</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> services/mapping/.env</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1203,8 +1231,8 @@ optional sidecar is unconfigured.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>By default, Kumoss keeps Terraform state in the bundled RustFS object
-storage, in the <code>kumoss-terraform-state</code> bucket. Each project (repository,
-cloud scope, and root-module path) gets its own state file, which starts
+storage, in the <code>kumoss-terraform-state</code> bucket. Each project (repository
+and root-module path) gets its own state file, which starts
 <strong>empty</strong> the first time Kumoss works on it. Any <code>backend</code> block in the
 repository is ignored.</p>
 </div>
@@ -1235,15 +1263,15 @@ S3, Azure Storage, or Google Cloud Storage, see
 <td class="tableblock halign-left valign-top"><p class="tableblock">Kumoss web application and the API under <code>/api/v1/&#8230;&#8203;</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost/monitoring/</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix: traces of every run and the prompt registry</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://localhost:3000</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse: traces of every run and the prompt registry</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Port 80 serves the unauthenticated Kumoss application by default, while
-port 9000 exposes presigned artifact downloads, on every interface of the
-host. Keep the stack on a machine only you can reach. The RustFS web
+<p>Port 80 serves the unauthenticated Kumoss application by default, port
+9000 exposes presigned artifact downloads, and port 3000 serves Langfuse,
+on every interface of the host. Keep the stack on a machine only you can reach. The RustFS web
 console is disabled; to enable it, see
 <a href="../guides/production/operations/#rustfs-console" class="xref page">RustFS
 console</a>.</p>
@@ -1266,19 +1294,22 @@ exists gets a plan that creates it all again.
 <div class="paragraph">
 <p>Open <code>http://localhost</code>. With authentication disabled you land directly in
 the wizard as the local developer. Enter a repository your Git token can
-push to, choose the cloud and scope, describe the infrastructure you need,
-and follow the session. What each mode does is explained in
+push to, pick the root module, describe the infrastructure you need,
+answer the module&#8217;s scopes and variables if Kumoss asks for them, and
+follow the session. What each mode does is explained in
 <a href="../guides-overview/" class="xref page">Guides</a>; your sessions and the admin panel
 are described in
 <a href="../guides/administer-users-and-locks/" class="xref page">Administer users and
 locks</a>.</p>
 </div>
 <div class="paragraph">
-<p>Open <code>http://localhost/monitoring/</code> to see the traces of the run and the
-seeded prompts under <strong>Prompts</strong>. Phoenix receives prompts, plans, and
-generated code in clear text and has no authentication of its own in this
-stack; see <a href="../guides/monitor-with-phoenix/" class="xref page">Monitor with
-Phoenix</a>.</p>
+<p>Open <code>http://localhost:3000</code> and sign in as <code>admin@example.com</code> with
+the password <code>kumoss-admin-1</code> (the development defaults the stack
+provisions) to see the run under <strong>Sessions</strong> and <strong>Tracing</strong>, and the
+seeded prompts under <strong>Prompts</strong>. Langfuse receives prompts, plans, and
+generated code in clear text; change those defaults before anyone else
+can reach the machine. See <a href="../guides/monitor-with-langfuse/" class="xref page">Monitor
+with Langfuse</a>.</p>
 </div>
 </div>
 </div>
@@ -1296,7 +1327,7 @@ Phoenix</a>.</p>
 prompts survive a restart.</p>
 </div>
 <div class="paragraph">
-<p><strong><code>down -v</code> deletes the session database, the artifacts, the Phoenix traces
+<p><strong><code>down -v</code> deletes the session database, the artifacts, the Langfuse traces
 and prompts, any in-progress workspaces, and the Terraform state</strong> kept in
 RustFS.</p>
 </div>
@@ -1329,9 +1360,10 @@ anything real:
 <a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a>.</p>
 </li>
 <li>
-<p>Turn on the optional sidecars — Slack notifications, resource mapping,
-external authorization (the last two need an implementation you
-provide) — from
+<p>Set <code>MAPPING_PREFIX_IDENTIFIER</code> in <code>services/mapping/.env</code> so users
+can type a repository name instead of its URL, and turn on the
+optional sidecars — Slack notifications, external authorization (it
+needs an implementation you provide) — from
 <a href="../reference/configuration/#config-services" class="xref page"><code>services</code></a> and
 <a href="../reference/environment-variables/" class="xref page">Environment variables and
 secrets</a>.</p>
@@ -1354,9 +1386,11 @@ production</a>. On Kubernetes, the Helm chart does most of the work:
 <li>
 <p><strong>The core exits during boot.</strong> Boot is strict and the reason is in
 <code>docker compose logs core</code> — most often missing LLM credentials, an
-empty <code>KUMOSS_IAC_TOKEN</code> or database URL in <code>core/.env</code>, or Phoenix not
-yet reachable. The stack has no healthchecks, so a dependency that was
-simply slower to start leaves the core stopped rather than retrying: run
+empty <code>KUMOSS_IAC_TOKEN</code> or database URL in <code>core/.env</code>, or a Langfuse
+key pair (<code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code>) that does not
+match the one the stack provisions. Apart from the Langfuse services the
+stack has no healthchecks, so a dependency that was simply slower to
+start leaves the core stopped rather than retrying: run
 <code>docker compose up -d core</code> again.</p>
 </li>
 <li>
@@ -1390,7 +1424,7 @@ permissions.</p>
 </li>
 <li>
 <p><strong>A session aborts because a prompt is missing.</strong> The prompt is absent from
-Phoenix or has no version tagged with the <code>environment</code> value. See
+Langfuse or has no version labelled with the <code>environment</code> value. See
 <a href="../guides/customize-prompts/" class="xref page">Customize prompts</a>.</p>
 </li>
 <li>

@@ -73,9 +73,9 @@
 <title>Customize prompts | Kumoss</title>
 
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/customize-prompts/">
-    <link rel="prev" href="../monitor-with-phoenix/">
+    <link rel="prev" href="../monitor-with-langfuse/">
     <link rel="next" href="../configure-state-backends/">
-    <meta name="description" content="Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.">
+    <meta name="description" content="Manage Kumoss's runtime prompt registry in Langfuse: seed files, naming, labels, composition, and how to add or change prompts safely.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -790,7 +817,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Customize prompts</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Customize prompts</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Manage Kumoss's runtime prompt registry in Phoenix: seed files, naming, composition, and how to add or change prompts safely.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Manage Kumoss's runtime prompt registry in Langfuse: seed files, naming, labels, composition, and how to add or change prompts safely.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -814,18 +841,19 @@
 <div class="paragraph">
 <p>Kumoss does not hard-code cloud knowledge. The instructions that tell
 its agents how to name, configure, and secure resources are <strong>prompts</strong>
-stored in the prompt registry of <a href="https://arize.com/docs/phoenix">Arize
-Phoenix</a>, fetched by the core at request time. This guide explains the
+stored in the prompt management of <a href="https://langfuse.com/docs/prompt-management">Langfuse</a>,
+fetched by the core at request time. This guide explains the
 three layers involved, the naming conventions, how seeding and runtime
 lookup work, how the prompts are composed into a system prompt, and how
 to add or change prompts safely.</p>
 </div>
 <div class="paragraph">
-<p>Phoenix also collects Kumoss&#8217;s traces. That is a separate function,
-documented in <a href="../monitor-with-phoenix/" class="xref page">Monitoring with
-Phoenix</a>. Where Phoenix runs and how it is protected in each deployment
-model is covered by <a href="../../quickstart/" class="xref page">Quickstart</a> and
-<a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
+<p>Langfuse also collects Kumoss&#8217;s traces. That is a separate function,
+documented in <a href="../monitor-with-langfuse/" class="xref page">Monitor with
+Langfuse</a>, which also covers where Langfuse runs and how to log in.
+Prompts curated in Phoenix, which Kumoss used before, are moved with
+the script described in <a href="../upgrade-notes/" class="xref page">Upgrade
+notes</a>.</p>
 </div>
 </div>
 </div>
@@ -850,17 +878,19 @@ model is covered by <a href="../../quickstart/" class="xref page">Quickstart</a>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Runtime prompts</strong></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix prompt registry (UI at <code>/monitoring/</code> in the default stack,
-persisted in <code>phoenix-db</code>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt maintainers, in the Phoenix UI or API</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse prompt management (<strong>Prompts</strong> in the Langfuse UI, on port 3000
+in the default stack; persisted in <code>langfuse-db</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt maintainers, in the Langfuse UI or API</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Immediately on the next request; the core caches nothing</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Seed YAML files</strong></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/prompts/seed/&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;.yaml</code> in the repository</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/prompts/seed/&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;.yaml</code> (<code>.rego</code> for policies)
+in the repository</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Contributors and operators preparing a new deployment</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Only at core startup, and only for prompt names that do not yet exist
-in Phoenix</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At core startup: missing prompts are created, and a changed seed is
+published to the environments still on the previous seed (see
+<a href="#how-seeding-works">How seeding works</a>)</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Local Jinja layouts</strong></p></td>
@@ -876,7 +906,7 @@ in Phoenix</p></td>
 The Jinja layouts are the fixed skeletons of each agent&#8217;s system prompt:
 they define the agent&#8217;s role, its tools and its output rules, and they
 contain placeholders that the core fills with prompts fetched from
-Phoenix. Operators customise the runtime prompts; the layouts are code.</p>
+Langfuse. Operators customise the runtime prompts; the layouts are code.</p>
 </div>
 </div>
 </div>
@@ -887,17 +917,24 @@ Phoenix. Operators customise the runtime prompts; the layouts are code.</p>
 <h3 id="path"><a class="anchor" href="#path"></a>Path</h3>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>core/prompts/seed/&#x3C;scope>/&#x3C;type>/&#x3C;name>.yaml</span></span></span></code></pre>
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>core/prompts/seed/&#x3C;scope>/&#x3C;type>/&#x3C;name>.yaml</span></span>
+<span class="line"><span>core/prompts/seed/&#x3C;scope>/policies/&#x3C;name>.rego</span></span></span></code></pre>
 </div>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><code>&lt;scope&gt;</code> is one of <code>general</code>, <code>aws</code>, <code>azure</code>, <code>gcp</code>, <code>oci</code>,
-<code>kubernetes</code>, <code>vmware</code>.</p>
+<p><code>&lt;scope&gt;</code> is <code>general</code> or a Terraform provider type name — the last
+segment of the provider&#8217;s source address, such as <code>azurerm</code> for
+<code>hashicorp/azurerm</code> — matching <code>^[a-z0-9][a-z0-9_-]{0,63}$</code>. The
+shipped seeds use <code>general</code>, <code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>oci</code>,
+<code>kubernetes</code> and <code>vsphere</code>; any other provider (<code>helm</code>, <code>datadog</code>&#8230;&#8203;)
+can be given prompts by adding a folder with its type name.</p>
 </li>
 <li>
-<p><code>&lt;type&gt;</code> is one of <code>guidelines</code>, <code>resources</code>, <code>compliance</code>.</p>
+<p><code>&lt;type&gt;</code> is one of <code>guidelines</code>, <code>resources</code>, <code>compliance</code>, <code>policies</code>.
+Seeds of type <code>policies</code> are <code>.rego</code> files; every other type is a
+<code>.yaml</code> file.</p>
 </li>
 <li>
 <p><code>&lt;name&gt;</code> must match <code>^[a-z0-9_]+$</code> (lowercase letters, digits,
@@ -909,22 +946,29 @@ underscores).</p>
 <p>The loader rejects any other depth, scope, type, or name at startup
 with a <code>PromptSeedLoadError</code>, for example <code>Invalid prompt name
 'Bad-Name' in &#8230;&#8203;; must match ^[a-z0-9_]+$</code>. That check only applies to
-files it actually loads: the loader globs <code>*.yaml</code> only, so a <code>.yml</code>
-file, or any other extension, is silently skipped rather than rejected
-— a typo in the extension produces no error at all, just a missing
-prompt.</p>
+files it actually loads: the loader globs <code><strong>.yaml</code> and <code></strong>.rego</code> only,
+so a <code>.yml</code> file, or any other extension, is silently skipped rather
+than rejected — a typo in the extension produces no error at all, just
+a missing prompt. A <code>.rego</code> file under a type other than <code>policies</code>, or
+a <code>.yaml</code> file under <code>policies</code>, is rejected.</p>
 </div>
 </div>
 <div class="sect2">
 <h3 id="qualified-name"><a class="anchor" href="#qualified-name"></a>Qualified name</h3>
 <div class="paragraph">
-<p>The Phoenix prompt name is derived from the path, never declared inside
+<p>The Langfuse prompt name is derived from the path, never declared inside
 the file, so a misfiled prompt cannot misreport its identity:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>&#x3C;scope>-&#x3C;type>-&#x3C;name></span></span></span></code></pre>
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>&#x3C;scope>/&#x3C;type>/&#x3C;name></span></span></span></code></pre>
 </div>
+</div>
+<div class="paragraph">
+<p>Langfuse shows each <code>/</code> as a folder, so its <strong>Prompts</strong> view is laid out
+like <code>core/prompts/seed/</code>: a folder per scope, and in it one per type.
+A prompt you create by hand must carry the full name, slashes included,
+to be found.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -934,53 +978,57 @@ the file, so a misfiled prompt cannot misreport its identity:</p>
 <thead>
 <tr>
 <th class="tableblock halign-left valign-top">File</th>
-<th class="tableblock halign-left valign-top">Phoenix prompt name</th>
+<th class="tableblock halign-left valign-top">Langfuse prompt name</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/networking.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-guidelines-networking</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/networking</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/abbreviations.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-guidelines-abbreviations</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/abbreviations</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/resources_list.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-guidelines-resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/resources_list</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/resources/s3_bucket.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws-resources-s3_bucket</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/resources/s3_bucket</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure/resources/storage_account.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure-resources-storage_account</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm/resources/storage_account.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm/resources/storage_account</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes/resources/deployment.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes-resources-deployment</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes/resources/deployment</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware/resources/virtual_machine.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware-resources-virtual_machine</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere/resources/virtual_machine.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere/resources/virtual_machine</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-terraform</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/requests.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-requests</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/requests</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-report</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/impact.yaml</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-impact</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/impact</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance.rego</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1011,14 +1059,14 @@ with <code>Duplicate qualified name &#8230;&#8203;</code>.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>body</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">yes</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">non-empty string</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The prompt text, usually Markdown. Stored as a single user message in
-Phoenix.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The prompt text, usually Markdown. Stored as a Langfuse <strong>text</strong> prompt.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>description</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">no</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Shown in the Phoenix UI next to the prompt.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The commit message of each version the seeder creates, shown in the
+Langfuse version history.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1028,12 +1076,25 @@ SPDX comment header. The loader reads <code>body</code> and <code>description</c
 ignores everything else in the mapping — an extra key is neither
 rejected nor surfaced anywhere; it is dead weight in the file.</p>
 </div>
+<div class="paragraph">
+<p>A <code>.rego</code> seed has no keys: the whole file, comments included, is the
+body, so <code>opa fmt</code> and <code>opa test</code> run on the very file that is seeded.
+It must not be empty. The commit message of its versions is generated
+(<code>Rego policy evaluated by OPA (&lt;name&gt;).</code>).</p>
+</div>
 </div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="how-seeding-works"><a class="anchor" href="#how-seeding-works"></a>How seeding works</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>A Langfuse prompt has numbered versions, and <strong>labels</strong> that each point
+at one version at a time: setting a label on a version takes it off any
+other. Langfuse keeps the <code>latest</code> label on the newest version itself.
+Kumoss uses one label per <code>environment</code> value and one of its own,
+<code>seed</code>.</p>
+</div>
 <div class="paragraph">
 <p>At every core startup, after the database, Redis, and object storage
 have been initialised, the seeder:</p>
@@ -1044,30 +1105,32 @@ have been initialised, the seeder:</p>
 <p>Loads every seed file (sorted, validated as above).</p>
 </li>
 <li>
-<p>Probes Phoenix at <code>telemetry.collector_url</code>, retrying connection
-errors for about 27 seconds. If Phoenix stays unreachable the boot
-fails with <code>Phoenix unreachable after 8 attempts</code>. Phoenix must
-therefore be available whenever the core starts.</p>
+<p>Makes an authenticated read against Langfuse at
+<code>telemetry.langfuse_url</code>, retrying for about 90 seconds while Langfuse
+does not answer. If it stays unreachable the boot fails with <code>Langfuse
+unreachable after 15 attempts</code>; if it rejects the key pair, with
+<code>Langfuse refused the API key pair (401)</code>. Langfuse must therefore be
+available whenever the core starts.</p>
 </li>
 <li>
-<p>For each seed, reads the prompt&#8217;s version tagged <code>seed</code>, the one the
-seeder last pushed. A prompt without that tag gets it on its latest
-version first; prompts seeded before the tag existed get it this way
-on the first boot that runs this seeder.</p>
+<p>For each seed, reads the prompt&#8217;s version labelled <code>seed</code>, the one the
+seeder last pushed. A prompt without that label gets it on its latest
+version first; prompts migrated from Phoenix without it get it this
+way on the first boot.</p>
 </li>
 <li>
-<p>If the prompt does not exist, the seeder creates it with one version
-whose displayed model name is <code>kumoss-seed</code> (Phoenix requires a model
-name; Kumoss ignores it) and tags that version with every
-<code>environment</code> value, <code>development</code>, <code>staging</code> and <code>production</code>, then
-with <code>seed</code>.</p>
+<p>If the prompt does not exist, the seeder creates it as a text prompt
+whose first version carries every <code>environment</code> value as a label,
+<code>development</code>, <code>staging</code> and <code>production</code>, plus <code>seed</code>.</p>
 </li>
 <li>
 <p>If the text of the <code>seed</code> version differs from the seed file, the
-seeder pushes the seed as a new version, moves to it every
-environment tag that still points at the <code>seed</code> version, and moves
-<code>seed</code> last. A tag on any other version, or a tag you removed, is
-left alone.</p>
+seeder creates a new version with the seed&#8217;s text and moves to it,
+in one request, every environment label that is still on the <code>seed</code>
+version, together with <code>seed</code>. A label on any other version, or a
+label you removed, is left alone. If the latest version already holds
+the seed&#8217;s text (you saved it by hand), the labels move to it instead
+of to a copy.</p>
 </li>
 <li>
 <p>Logs <code>Prompt seeding complete: N created, M updated, K unchanged</code>.</p>
@@ -1076,8 +1139,7 @@ left alone.</p>
 </div>
 <div class="paragraph">
 <p>Only the text counts: the seeder compares the <code>seed</code> version&#8217;s text
-with the seed file, and ignores its model, invocation parameters and
-description.</p>
+with the seed file, and ignores its config and commit message.</p>
 </div>
 <div class="paragraph">
 <p>Consequences to plan for:</p>
@@ -1085,10 +1147,10 @@ description.</p>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Seeding never moves a tag off your versions.</strong> A seed changed by a
-release reaches every environment tag that still points at the <code>seed</code>
-version. Once you point a tag at your own version, that tag keeps it
-on every later boot, and seed changes for it are yours to merge by
+<p><strong>Seeding never moves a label off your versions.</strong> A seed changed by a
+release reaches every environment label that is still on the <code>seed</code>
+version. Once you move a label to your own version, that label keeps
+it on every later boot, and seed changes for it are yours to merge by
 hand. Do not move <code>seed</code> onto your own version, and do not remove it:
 without it the seeder takes the latest version as its own, which may
 be yours.</p>
@@ -1098,30 +1160,26 @@ be yours.</p>
 core creates the new prompt, even on an existing deployment.</p>
 </li>
 <li>
-<p><strong>A failed tag is not always retried.</strong> If Phoenix rejects one of the
-tag writes, boot fails. The error names the prompt, its version, and
-the tags still missing; add them to that version in Phoenix. On an
-update the next boot retries the tags that still point at the <code>seed</code>
-version, which moves only once they all have, but on a new prompt the
-untagged environments look removed and are never tagged.</p>
+<p><strong>A write fails whole.</strong> A version is created together with its labels,
+and labels move in one request, so a failed write leaves the prompt as
+it was; boot fails with an error naming the prompt (and, for a label
+move, the version and labels), and the next boot tries again.</p>
 </li>
 <li>
-<p><strong>The environment tag matters.</strong> The core fetches prompts by name and
-tag, and the tag is <code>environment</code>. Seeded versions carry all three
-tags, so changing <code>environment</code> keeps working for them. It does not
-for versions you create by hand, nor for prompts seeded by a release
-that applied only the <code>environment</code> tag: the seeder sees the names
-already exist, skips them, and never adds the missing tags. The next
-session then fails because, say, <code>general-guidelines-terraform</code> has
-no version tagged <code>production</code>. Tag a version of every such prompt
-with the new value in Phoenix before switching, or start from an
-empty Phoenix database.</p>
+<p><strong>The environment label matters.</strong> The core fetches prompts by name and
+label, and the label is <code>environment</code>. Seeded versions carry all three
+labels, so changing <code>environment</code> keeps working for them. It does not
+for prompts you created by hand, nor for labels you removed: the
+seeder never adds a label it did not find on its <code>seed</code> version. The
+next session then fails because, say, <code>general/guidelines/terraform</code>
+has no version labelled <code>production</code>. Set the new label on a version
+of every such prompt in Langfuse before switching.</p>
 </li>
 <li>
 <p><strong>Prompt versions are yours to manage.</strong> Kumoss always fetches the
-version currently carrying the environment tag. Publishing a new
-version and moving the tag is how you roll a change out; moving the
-tag back is how you roll it back.</p>
+version currently carrying the environment label. Publishing a new
+version and moving the label is how you roll a change out; moving the
+label back is how you roll it back.</p>
 </li>
 </ul>
 </div>
@@ -1132,16 +1190,31 @@ tag back is how you roll it back.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Each time an agent chain is rendered, the core fetches the prompts its
-layout needs from Phoenix with the <code>&lt;scope&gt;-&lt;type&gt;-&lt;name&gt;</code> name and the
-<code>environment</code> tag, and reads the text of the first message of that
-version. There is no cache: every session sees the current tagged
-version, so editing a prompt in Phoenix takes effect on the next run
-without rebuilding or restarting the core.</p>
+layout needs from Langfuse with the <code>&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;</code> name and the
+<code>environment</code> label, and reads the version&#8217;s text: the text of a text
+prompt, or the content of a chat prompt holding a single message (any
+other shape is an error). The text is used as it is: Langfuse&#8217;s
+<code>{{variable}}</code> placeholders are not filled in. There is no cache: every
+session sees the version the label is on now, so editing a prompt in
+Langfuse takes effect on the next run without rebuilding or restarting
+the core.</p>
 </div>
 <div class="paragraph">
-<p>If a requested prompt (or a version with the right tag) does not exist,
-the Phoenix client raises <code>Prompt not found: &lt;name&gt;</code> and the background
-run stops. This error is not one the runner converts into a failed
+<p>Which provider prompts a session uses depends on its root module: the
+core asks for the <code>&lt;provider&gt;/<strong></code> prompts of every provider the module&#8217;s
+<code>required_providers</code> declares. A provider prompt that does not exist is
+simply left out, so a provider without prompts — <code>random</code>, <code>helm</code>, or a
+module that declares no provider yet — gets the <code>general/</strong></code> prompts
+only. When a module uses several providers that have the same
+guideline (for example <code>azurerm</code> and <code>kubernetes</code> both have
+<code>permissions</code>), the agent receives all of them, each as a
+section headed by its provider name. A resource template the
+compositor picks is taken from the first provider that has it.</p>
+</div>
+<div class="paragraph">
+<p>If a requested <code>general/*</code> prompt (or a version with the right label)
+does not exist, the fetch fails with <code>prompt_name=&lt;name&gt;. No version
+labelled '&lt;environment&gt;'</code> and the background run stops. This error is not one the runner converts into a failed
 round: the session keeps its last status (for example <code>filtering</code>), no
 failure message or notification is produced, and the browser&#8217;s event
 stream stays open until its timeout. The workspace is cleaned up and the
@@ -1154,9 +1227,10 @@ the prompt exists. There is no fallback to seed files at runtime.</p>
 <h2 id="prompt-categories"><a class="anchor" href="#prompt-categories"></a>Prompt categories</h2>
 <div class="sectionbody">
 <div class="sect2">
-<h3 id="provider-wide-guidelines-cloud-guidelines"><a class="anchor" href="#provider-wide-guidelines-cloud-guidelines"></a>Provider-wide guidelines (<code>&lt;cloud&gt;-guidelines-*</code>)</h3>
+<h3 id="provider-wide-guidelines-providerguidelines"><a class="anchor" href="#provider-wide-guidelines-providerguidelines"></a>Provider-wide guidelines (<code>&lt;provider&gt;/guidelines/*</code>)</h3>
 <div class="paragraph">
-<p>One set per cloud scope, applied across all resources of that cloud:</p>
+<p>One set per Terraform provider type, applied across all resources of
+that provider in every session whose root module uses it:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1190,15 +1264,9 @@ drift pre-check</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Resource IDs an import round must never bring under Terraform, one
 Markdown bullet per ID. Parsed by the core, not read by a model; see
 <a href="#import-exception-list">Import exception list</a>. Ships as a placeholder with no exceptions,
-for every cloud except <code>kubernetes</code> and <code>vmware</code>.</p></td>
+for <code>aws</code>, <code>azurerm</code>, <code>google</code> and <code>oci</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Import scope diff, in every import round that finds unmanaged
 resources</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>forbidden_actions</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Actions the agents must refuse or avoid (for example destructive
-operations).</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Request filter; IaC generator and compliance checker in generate rounds</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>networking</code></p></td>
@@ -1219,7 +1287,7 @@ patterns).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>resources_list</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Catalogue of the <code>&lt;cloud&gt;-resources-*</code> prompts the compositor may
+<td class="tableblock halign-left valign-top"><p class="tableblock">Catalogue of the <code>&lt;provider&gt;/resources/*</code> prompts the compositor may
 select. Source of truth for discovery.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Prompt compositor</p></td>
 </tr>
@@ -1227,7 +1295,7 @@ select. Source of truth for discovery.</p></td>
 </table></div></div>
 </div>
 <div class="sect2">
-<h3 id="general-cross-provider-prompts-general-guidelines"><a class="anchor" href="#general-cross-provider-prompts-general-guidelines"></a>General cross-provider prompts (<code>general-guidelines-*</code>)</h3>
+<h3 id="general-cross-provider-prompts-generalguidelines"><a class="anchor" href="#general-cross-provider-prompts-generalguidelines"></a>General cross-provider prompts (<code>general/guidelines/*</code>)</h3>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 16.6666%;">
@@ -1243,18 +1311,18 @@ select. Source of truth for discovery.</p></td>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-terraform</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Organisation-wide Terraform standards (structure, providers, state,
 style).</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator, compliance checker</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-requests</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/requests</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Rules for classifying and accepting user requests.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Request filter</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-guidelines-targeting_policies</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/targeting_policies</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Exclusions and policies for choosing drift remediation targets. Ships
 as a placeholder with no exclusions.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Target generator, drift mode only</p></td>
@@ -1263,7 +1331,7 @@ as a placeholder with no exclusions.</p></td>
 </table></div></div>
 </div>
 <div class="sect2">
-<h3 id="compliance-prompts-general-compliance"><a class="anchor" href="#compliance-prompts-general-compliance"></a>Compliance prompts (<code>general-compliance-*</code>)</h3>
+<h3 id="compliance-prompts-generalcompliance"><a class="anchor" href="#compliance-prompts-generalcompliance"></a>Compliance prompts (<code>general/compliance/*</code>)</h3>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 16.6666%;">
@@ -1279,16 +1347,16 @@ as a placeholder with no exclusions.</p></td>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-report</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Business rules with rule ids and severities that the compliance
 auditor checks a plan against. The shipped seed defines
-<code>scope_exceeded</code>, <code>scope_incomplete</code>, and <code>critical_deletion</code>. A failed
-check locks the session.</p></td>
+<code>scope_exceeded</code> and <code>scope_incomplete</code>. A failed check locks the
+session.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Compliance checker (when <code>orchestration.enable_compliance_checker</code> is
 <code>true</code>)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general-compliance-impact</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/impact</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Criteria for labelling each change group <code>low</code>, <code>medium</code>, or <code>high</code>. A
 <code>high</code> banner locks the session when
 <code>orchestration.block_on_high_impact</code> is <code>true</code>.</p></td>
@@ -1298,13 +1366,40 @@ check locks the session.</p></td>
 </table></div></div>
 </div>
 <div class="sect2">
-<h3 id="component-and-resource-prompts-cloud-resources-name"><a class="anchor" href="#component-and-resource-prompts-cloud-resources-name"></a>Component and resource prompts (<code>&lt;cloud&gt;-resources-&lt;name&gt;</code>)</h3>
+<h3 id="compliance-policy-generalpoliciescompliance"><a class="anchor" href="#compliance-policy-generalpoliciescompliance"></a>Compliance policy (<code>general/policies/compliance</code>)</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Name</th>
+<th class="tableblock halign-left valign-top">Purpose</th>
+<th class="tableblock halign-left valign-top">Used by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rego v1 policy that OPA evaluates against the final plan of every
+generate round. The shipped seed defines <code>critical_deletion</code>. A deny
+locks the session. See <a href="#compliance-policy">Compliance policy</a>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance check (when <code>orchestration.enable_compliance_checker</code> is
+<code>true</code>), not a model</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect2">
+<h3 id="component-and-resource-prompts-providerresourcesname"><a class="anchor" href="#component-and-resource-prompts-providerresourcesname"></a>Component and resource prompts (<code>&lt;provider&gt;/resources/&lt;name&gt;</code>)</h3>
 <div class="paragraph">
 <p>One prompt per resource type, holding the default configuration the
 model should produce unless the user asks otherwise. Examples that ship
-today: <code>aws-resources-s3_bucket</code>, <code>azure-resources-storage_account</code>,
-<code>gcp-resources-cloud_run</code>, <code>oci-resources-compute_instance</code>,
-<code>kubernetes-resources-deployment</code>, <code>vmware-resources-virtual_machine</code>.</p>
+today: <code>aws/resources/s3_bucket</code>, <code>azurerm/resources/storage_account</code>,
+<code>google/resources/cloud_run</code>, <code>oci/resources/compute_instance</code>,
+<code>kubernetes/resources/deployment</code>, <code>vsphere/resources/virtual_machine</code>.</p>
 </div>
 </div>
 </div>
@@ -1313,10 +1408,10 @@ today: <code>aws-resources-s3_bucket</code>, <code>azure-resources-storage_accou
 <h2 id="shipped-seed-inventory"><a class="anchor" href="#shipped-seed-inventory"></a>Shipped seed inventory</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The <code>aws</code>, <code>azure</code>, <code>gcp</code> and <code>oci</code> scopes ship the same eight guideline
-prompts; <code>kubernetes</code> and <code>vmware</code> ship seven, without
-<code>import_exceptions</code>. The
-resource prompts differ per cloud.</p>
+<p>The <code>aws</code>, <code>azurerm</code>, <code>google</code> and <code>oci</code> scopes ship the same seven
+guideline prompts; <code>kubernetes</code> and <code>vsphere</code> ship six, without
+<code>import_exceptions</code>. The resource prompts differ per provider. The
+<code>general</code> scope also ships the one policy, <code>policies/compliance.rego</code>.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1342,9 +1437,8 @@ resource prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
-<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
-<code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aurora</code>, <code>auto_scaling_group</code>, <code>bedrock</code>, <code>cloudwatch</code>, <code>dynamodb</code>,
 <code>ebs_volume</code>, <code>ec2</code>, <code>ecr_repository</code>, <code>ecs_fargate_service</code>, <code>efs</code>,
 <code>eks_cluster</code>, <code>elasticache_redis</code>, <code>iam_role</code>, <code>internet_gateway</code>,
@@ -1356,10 +1450,9 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
-<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
-<code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aks_cluster</code>, <code>application_gateway</code>, <code>application_insights</code>,
 <code>azure_openai</code>, <code>bastion</code>, <code>container_app</code>, <code>container_registry</code>,
 <code>cosmosdb</code>, <code>diagnostic_setting</code>, <code>function</code>, <code>key_vault</code>,
@@ -1372,10 +1465,9 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
-<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
-<code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>artifact_registry</code>, <code>bigquery</code>, <code>cloud_armor</code>, <code>cloud_dns</code>,
 <code>cloud_functions</code>, <code>cloud_kms</code>, <code>cloud_nat</code>, <code>cloud_router</code>,
 <code>cloud_run</code>, <code>cloud_sql_postgres</code>, <code>compute_instance</code>, <code>firewall</code>,
@@ -1388,9 +1480,8 @@ resource prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>,
-<code>import_exceptions</code>, <code>networking</code>, <code>permissions</code>, <code>resource_creation</code>,
-<code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>autonomous_database</code>, <code>bastion</code>, <code>block_volume</code>, <code>certificate</code>,
 <code>compartment</code>, <code>compute_instance</code>, <code>container_repository</code>, <code>dns_zone</code>,
 <code>drg</code>, <code>dynamic_group</code>, <code>file_storage</code>, <code>functions</code>, <code>iam_policy</code>,
@@ -1403,8 +1494,8 @@ resource prompts differ per cloud.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
-<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>networking</code>, <code>permissions</code>,
+<code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>cluster_role</code>, <code>cluster_role_binding</code>, <code>config_map</code>, <code>cron_job</code>,
 <code>daemon_set</code>, <code>deployment</code>, <code>horizontal_pod_autoscaler</code>, <code>ingress</code>,
 <code>job</code>, <code>limit_range</code>, <code>namespace</code>, <code>network_policy</code>,
@@ -1414,9 +1505,9 @@ resource prompts differ per cloud.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>forbidden_actions</code>, <code>networking</code>,
-<code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>networking</code>, <code>permissions</code>,
+<code>resource_creation</code>, <code>resources_list</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>compute_cluster</code>, <code>compute_cluster_host_group</code>,
 <code>compute_cluster_vm_affinity_rule</code>,
 <code>compute_cluster_vm_anti_affinity_rule</code>, <code>compute_cluster_vm_group</code>,
@@ -1430,11 +1521,11 @@ resource prompts differ per cloud.</p>
 </tbody>
 </table></div></div>
 <div class="sect2">
-<h3 id="guideline-prompts"><a class="anchor" href="#guideline-prompts"></a>Guideline prompts every cloud scope must provide</h3>
+<h3 id="guideline-prompts"><a class="anchor" href="#guideline-prompts"></a>Which guideline prompts are read, and when</h3>
 <div class="paragraph">
-<p>The core requests these guideline prompts unconditionally for the
-session&#8217;s cloud, so every scope must have all of them in Phoenix or its
-sessions abort with <code>Prompt not found</code>:</p>
+<p>For each provider of the session&#8217;s root module the core reads these
+guideline prompts when it has them; a missing one is skipped, not an
+error:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1450,46 +1541,59 @@ sessions abort with <code>Prompt not found</code>:</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Prompt compositor (every generate and drift round)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-abbreviations</code>, <code>&lt;cloud&gt;-guidelines-resources_list</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Request filter (every generate round and every partial drift round)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-forbidden_actions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/guidelines/abbreviations</code>,
+<code>&lt;provider&gt;/guidelines/resources_list</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator and compliance checker</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-resource_creation</code>, <code>&lt;cloud&gt;-guidelines-networking</code>,
-<code>&lt;cloud&gt;-guidelines-permissions</code>; plus
-<code>&lt;cloud&gt;-guidelines-forbidden_actions</code> in generate rounds</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/guidelines/resource_creation</code>,
+<code>&lt;provider&gt;/guidelines/networking</code>, <code>&lt;provider&gt;/guidelines/permissions</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Drift exception filter (every drift round and every generate round&#8217;s
 drift pre-check)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-drift_exceptions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/guidelines/drift_exceptions</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Import scope diff (every import round that finds unmanaged resources)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;cloud&gt;-guidelines-import_exceptions</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/guidelines/import_exceptions</code></p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
+<p>Because a missing provider prompt is skipped, deleting one in Langfuse
+does not break sessions — it silently removes that provider&#8217;s
+conventions from them. The <code>general/*</code> prompts are the opposite: they
+are read for every session and a missing one aborts the run with
+<code>No version labelled &#8230;&#8203;</code>.</p>
+</div>
+<div class="paragraph">
 <p>The import exception list is only read once the scope listing has
-returned resources that the state does not track. Only Azure, GCP and
-AWS have a scope listing, so an <code>oci</code>, <code>kubernetes</code>, or <code>vmware</code> import
-round stops before it would ask for the prompt, and <code>kubernetes</code> and
-<code>vmware</code> ship without one.</p>
+returned resources that the state does not track. Only <code>azurerm</code>,
+<code>google</code> and <code>aws</code> scopes can be listed, so <code>kubernetes</code> and <code>vsphere</code>
+ship without one.</p>
 </div>
 <div class="paragraph">
-<p>Keep this in mind when you delete a prompt in Phoenix or trim the seed
-set for a deployment. (The GCP <code>abbreviations</code>, <code>forbidden_actions</code>, and
-<code>networking</code> seeds were missing before 2026-09-11 and have been added;
-an already seeded Phoenix database does not receive them until the core
-restarts, because only new names are pushed.)</p>
+<p>Keep this in mind when you delete a prompt in Langfuse or trim the seed
+set for a deployment.</p>
 </div>
-<div class="paragraph">
-<p>Also note that the loader&#8217;s name pattern permits a leading underscore
-while Phoenix rejects names starting with <code>_</code>; avoid them.</p>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+Prompt scopes were renamed from the core&#8217;s former provider names
+to Terraform provider type names: <code>azure-<strong></code> is now <code>azurerm-</strong></code>, <code>gcp-<strong></code>
+is <code>google-</strong></code> and <code>vmware-<strong></code> is <code>vsphere-</strong></code>. The seeder creates the new
+names on the next boot from the seed files, but versions you curated
+under the old names stay where they are and are no longer read; copy
+them to the new names. See <a href="../upgrade-notes/" class="xref page">Upgrade
+notes</a>.
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
@@ -1498,7 +1602,7 @@ while Phoenix rejects names starting with <code>_</code>; avoid them.</p>
 <h2 id="drift-exception-rules"><a class="anchor" href="#drift-exception-rules"></a>Drift exception rules</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>&lt;cloud&gt;-guidelines-drift_exceptions</code> is the list of things drift
+<p><code>&lt;provider&gt;/guidelines/drift_exceptions</code> is the list of things drift
 remediation must never touch. It is read by a dedicated <strong>drift exception
 filter</strong>: after the task splitter turns a drift report into operations,
 and after the reconciliation filter has removed the session&#8217;s own
@@ -1514,12 +1618,11 @@ change alone is the intended result.</p>
 <div class="paragraph">
 <p>The filter runs on <strong>every</strong> drift round, full or partial, and on the
 drift pre-check inside every generate round, so a generate round cannot
-silently "fix" an excluded resource either. That also makes the prompt
-mandatory for every cloud scope: a missing one aborts the round with
-<code>Prompt not found</code>.</p>
+silently "fix" an excluded resource either. With several providers in
+the root module, the filter receives the rules of each of them.</p>
 </div>
 <div class="paragraph">
-<p>This is not the same brake as <code>general-guidelines-targeting_policies</code>.
+<p>This is not the same brake as <code>general/guidelines/targeting_policies</code>.
 Targeting policies decide which resources a <strong>partial</strong> drift round plans
 at all; they never reach a full drift round and they never see the
 operations. Exception rules apply to the operations of every drift
@@ -1595,7 +1698,7 @@ involuntarily.</p>
 <h2 id="import-exception-list"><a class="anchor" href="#import-exception-list"></a>Import exception list</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>&lt;cloud&gt;-guidelines-import_exceptions</code> names the resources an import
+<p><code>&lt;provider&gt;/guidelines/import_exceptions</code> names the resources an import
 round must never bring under Terraform, even when they exist in the
 cloud scope and the state does not track them. Unlike every other
 prompt, it is not written for a model. The core parses the body itself
@@ -1646,7 +1749,7 @@ project IAM, the space-separated <code>&lt;project-id&gt; &lt;role&gt; &lt;membe
 and the ARN for AWS. See
 <a href="../../reference/api/iac/" class="xref page">IaC sidecar API</a> for the exact shapes.
 Backticks around the ID are optional. Every line that is not a bullet
-is ignored, so headings and explanations stay readable in Phoenix, but
+is ignored, so headings and explanations stay readable in Langfuse, but
 keep them in plain paragraphs: a bullet of prose would be read as an ID.</p>
 </div>
 <div class="listingblock">
@@ -1686,6 +1789,82 @@ bullets.
 </div>
 </div>
 <div class="sect1">
+<h2 id="compliance-policy"><a class="anchor" href="#compliance-policy"></a>Compliance policy</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p><code>general/policies/compliance</code> is a Rego v1 module, <code>package
+kumoss.compliance</code>, seeded from
+<code>core/prompts/seed/general/policies/compliance.rego</code>. It is not read by
+a model: when <code>orchestration.enable_compliance_checker</code> is <code>true</code>, the
+core runs it with the <code>opa</code> binary against the final plan of every
+generate round, before the LLM compliance audit, and merges both
+results into one compliance report. A deny, or a policy that cannot be
+evaluated, locks the session. The input, the decision the policy must
+return and the failure semantics are in
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
+</div>
+<div class="paragraph">
+<p>Like every other prompt, it is a Langfuse text prompt, fetched on each
+evaluation from the version carrying the <code>environment</code> label, and
+seeded the same way: a release that changes the seed moves only the
+labels still on the <code>seed</code> version, and a policy you customized is
+kept. The core reads the raw text of the version: Langfuse&#8217;s
+<code>{{variable}}</code> templating is not applied, so the braces of Rego are
+safe.</p>
+</div>
+<div class="sect2">
+<h3 id="changing-the-policy"><a class="anchor" href="#changing-the-policy"></a>Changing the policy</h3>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>In Langfuse, open <code>general/policies/compliance</code> under <strong>Prompts</strong> and
+create a new version with the edited Rego. Do not set the environment
+label on it yet.</p>
+</li>
+<li>
+<p>Test that version first (below).</p>
+</li>
+<li>
+<p>Set the environment label on it. The next generate round of that
+environment runs it; moving the label back to the previous version is
+the rollback.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>One version serves <strong>every</strong> generate session of the environment. A
+syntax error, a wrong type in the decision or a rule that errors does
+not skip the policy: it blocks every round with <code>policy_unavailable</code>
+until the label is on a working version. The startup check catches a
+broken policy only when the core restarts.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="testing-a-version-before-labelling-it"><a class="anchor" href="#testing-a-version-before-labelling-it"></a>Testing a version before labelling it</h3>
+<div class="paragraph">
+<p>Copy the version&#8217;s text from Langfuse into a file named
+<code>compliance.rego</code> and run OPA 1.22.4, the version in the core image,
+on it:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">opa</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> check</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">opa</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> my_tests/</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">opa</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> eval</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --stdin-input</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --strict-builtin-errors</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  data.kumoss.compliance</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C; </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p><code>input.json</code> is a document as described in
+<a href="../../reference/compliance-policy/#input" class="xref page">the input reference</a>,
+for example a plan&#8217;s <code>terraform show -json</code> wrapped in <code>{"plan": &#8230;&#8203;,
+"kumoss": &#8230;&#8203;}</code>. The tests in <code>core/tests/policies</code> show how to write
+<code>opa test</code> cases against the shipped rule.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="how-prompts-are-composed-into-a-system-prompt"><a class="anchor" href="#how-prompts-are-composed-into-a-system-prompt"></a>How prompts are composed into a system prompt</h2>
 <div class="sectionbody">
 <div class="paragraph">
@@ -1696,9 +1875,9 @@ model passes and then renders the layouts:</p>
 <ol class="arabic">
 <li>
 <p><strong>First compositor pass.</strong> The <code>prompt_compositor</code> layout is rendered
-with the cloud&#8217;s <code>resources_list</code> (as the list of available
-templates) and <code>abbreviations</code> (as the list of available
-abbreviations). The small model reads the user&#8217;s request and calls
+with the <code>resources_list</code> (as the list of available templates) and
+<code>abbreviations</code> (as the list of available abbreviations) of every
+provider of the root module that has them. The small model reads the user&#8217;s request and calls
 the <code>construct_information</code> tool with the resource template names and
 abbreviations it considers relevant. Names must match the
 <code>resources_list</code> entries exactly.</p>
@@ -1713,43 +1892,43 @@ the round&#8217;s conventions.</p>
 </li>
 <li>
 <p><strong>Rendering the agent layouts.</strong> The IaC generator layout (and the
-compliance checker layout) receives <code>general-guidelines-terraform</code>,
-the cloud&#8217;s <code>resource_creation</code>, <code>networking</code>, and <code>permissions</code>
-guidelines, <code>forbidden_actions</code> in generate rounds (drift rounds omit
-it), and a concrete-implementation section built from the selected
-<code>&lt;cloud&gt;-resources-*</code> prompts and abbreviations. The compliance
-checker additionally receives <code>general-compliance-report</code>; the
-report generator receives <code>general-compliance-impact</code> for generate
+compliance checker layout) receives <code>general/guidelines/terraform</code>,
+each provider&#8217;s <code>resource_creation</code>, <code>networking</code>, and <code>permissions</code>
+guidelines, and a concrete-implementation section built from the selected
+<code>&lt;provider&gt;/resources/*</code> prompts and abbreviations. The compliance
+checker additionally receives <code>general/compliance/report</code>; the
+report generator receives <code>general/compliance/impact</code> for generate
 reports; the drift target generator receives
-<code>general-guidelines-targeting_policies</code>; the drift exception filter
-receives the cloud&#8217;s <code>drift_exceptions</code>; the request filter receives
-<code>general-guidelines-requests</code> and the cloud&#8217;s <code>forbidden_actions</code>.</p>
+<code>general/guidelines/targeting_policies</code>; the drift exception filter
+receives each provider&#8217;s <code>drift_exceptions</code>; the request filter
+receives <code>general/guidelines/requests</code>.</p>
 </li>
 </ol>
 </div>
 <div class="paragraph">
-<p>The layouts also carry fixed content that is not in Phoenix: the
+<p>The layouts also carry fixed content that is not in Langfuse: the
 agent&#8217;s role, the tools it may call, output format rules, and the
 working directory. Those change only with a core rebuild.</p>
 </div>
 <div class="paragraph">
-<p><code>&lt;cloud&gt;-guidelines-import_exceptions</code> is the one prompt that is never
+<p><code>&lt;provider&gt;/guidelines/import_exceptions</code> is the one prompt that is never
 rendered into a layout: the core reads the IDs out of it, and the
 <code>import_filter</code> layout only receives what is left after they are
 removed.</p>
 </div>
 <div class="paragraph">
 <p><strong>Discovery depends on <code>resources_list</code>.</strong> Nothing enumerates the
-<code>&lt;cloud&gt;-resources-*</code> prompts that exist in Phoenix. The compositor can
-only pick names that appear in <code>resources_list</code>, and every name it
-picks is then fetched, so a name listed there without a matching
-resource prompt aborts the run. The reverse is just as important: a
-resource prompt that exists but is not named in the cloud&#8217;s
-<code>resources_list</code> is never selected — the compositor has no other way to
+<code>&lt;provider&gt;/resources/*</code> prompts that exist in Langfuse. The compositor
+can only pick names that appear in <code>resources_list</code>, and every name it
+picks is then fetched from the module&#8217;s providers in order; a name
+listed there without a matching resource prompt is logged as a warning
+and its conventions are missing from the round. The reverse is just as
+important: a resource prompt that exists but is not named in its
+provider&#8217;s <code>resources_list</code> is never selected — the compositor has no other way to
 discover it, and the loader does no cross-check between the seed files
 on disk and the <code>resources_list</code> catalogue at startup. Whenever you add
 a resource seed, add its name to <code>resources_list</code> in the same change,
-for every cloud you edit. The Azure <code>resources_list</code> now names all 16
+for every provider you edit. The Azure <code>resources_list</code> now names all 16
 shipped Azure resource seeds; keep it that way as you add more.</p>
 </div>
 </div>
@@ -1765,7 +1944,7 @@ shipped Azure resource seeds; keep it that way as you add more.</p>
 <div class="paragraph">
 <p>File <code>core/prompts/seed/aws/guidelines/networking.yaml</code> (shipped; body
 shortened here for space — see the file for the full text), producing the
-Phoenix prompt <code>aws-guidelines-networking</code>:</p>
+Langfuse prompt <code>aws/guidelines/networking</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1797,7 +1976,7 @@ Phoenix prompt <code>aws-guidelines-networking</code>:</p>
 <div class="paragraph">
 <p>File <code>core/prompts/seed/aws/resources/s3_bucket.yaml</code> (shipped; body
 shortened here for space — see the file for the full text), producing
-<code>aws-resources-s3_bucket</code>:</p>
+<code>aws/resources/s3_bucket</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1826,14 +2005,14 @@ shortened here for space — see the file for the full text), producing
 <div class="paragraph">
 <p>The compositor can only select <code>s3_bucket</code> because it appears in
 <code>core/prompts/seed/aws/guidelines/resources_list.yaml</code>
-(<code>aws-guidelines-resources_list</code>). The shipped file is a bulleted
+(<code>aws/guidelines/resources_list</code>). The shipped file is a bulleted
 catalogue; a new resource prompt needs one more line in the same style,
 for example a hypothetical <code>sqs_queue</code> resource that does not ship
 today:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">Names of aws-resources-* prompts the compositor may select from.</span></span>
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">Names of aws/resources/* prompts the compositor may select from.</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # Available AWS Resource Templates</span></span>
 <span class="line"></span>
@@ -1847,11 +2026,11 @@ today:</p>
 <p>The name in backticks must equal the <code>&lt;name&gt;</code> part of the resource
 prompt exactly, and it must exist on both sides: a resource prompt with
 no <code>resources_list</code> entry is never selected, and a <code>resources_list</code>
-entry with no matching resource prompt aborts the run when picked.</p>
+entry with no matching resource prompt contributes nothing when picked.</p>
 </div>
 <div class="paragraph">
-<p><strong>List style is not uniform across clouds.</strong> AWS, Azure, GCP, OCI, and
-VMware name entries in backticks with a trailing description, as above;
+<p><strong>List style is not uniform across providers.</strong> AWS, Azure, GCP, OCI, and
+vSphere name entries in backticks with a trailing description, as above;
 the Kubernetes <code>resources_list</code> uses plain bullets with no backticks at all
 (<code>- namespace</code>, <code>- deployment</code>, and so on). There is no enforced format
 — the compositor only needs the bare name to appear somewhere in the
@@ -1864,18 +2043,18 @@ in that specific file rather than copying another cloud&#8217;s convention.</p>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Create <code>core/prompts/seed/&lt;cloud&gt;/resources/&lt;name&gt;.yaml</code> with
+<p>Create <code>core/prompts/seed/&lt;provider&gt;/resources/&lt;name&gt;.yaml</code> with
 <code>description</code> and <code>body</code>.</p>
 </li>
 <li>
 <p>Add the <code>&lt;name&gt;</code> entry to
-<code>core/prompts/seed/&lt;cloud&gt;/guidelines/resources_list.yaml</code>.</p>
+<code>core/prompts/seed/&lt;provider&gt;/guidelines/resources_list.yaml</code>.</p>
 </li>
 <li>
 <p>Rebuild the core image (<code>docker compose build core</code>) so the new seed
 files are inside it, and start the stack. The seeder creates
-<code>&lt;cloud&gt;-resources-&lt;name&gt;</code> and, because <code>resources_list</code> does not
-exist yet either, the updated catalogue.</p>
+<code>&lt;provider&gt;/resources/&lt;name&gt;</code> and the catalogue from the updated
+<code>resources_list</code>.</p>
 </li>
 </ol>
 </div>
@@ -1883,26 +2062,25 @@ exist yet either, the updated catalogue.</p>
 <div class="sect2">
 <h3 id="adding-or-changing-a-prompt-on-an-already-running-deployment"><a class="anchor" href="#adding-or-changing-a-prompt-on-an-already-running-deployment"></a>Adding or changing a prompt on an already running deployment</h3>
 <div class="paragraph">
-<p>The seeder will not touch <code>&lt;cloud&gt;-guidelines-resources_list</code> once it
-exists, so the catalogue must be edited in Phoenix:</p>
+<p>Without a core rebuild, edit the prompts in Langfuse:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>Open Phoenix (<code>/monitoring/</code> in the default stack) and go to
-<strong>Prompts</strong>.</p>
+<p>Open Langfuse (<code>http://localhost:3000</code> in the default stack) and go
+to <strong>Prompts</strong>.</p>
 </li>
 <li>
-<p>For a new component: either add the seed file and restart the core
-(new names are created), or create the prompt
-<code>&lt;cloud&gt;-resources-&lt;name&gt;</code> directly in Phoenix. In both cases the
-new version must carry the deployment&#8217;s <code>environment</code> tag
-(<code>development</code> by default); the seeder tags what it creates with all
-three environments, a manual creation must be tagged by hand.</p>
+<p>For a new component: either add the seed file, rebuild and restart the
+core (new names are created), or create the <strong>text</strong> prompt
+<code>&lt;provider&gt;/resources/&lt;name&gt;</code> directly in Langfuse. In both cases the
+new version must carry the deployment&#8217;s <code>environment</code> label
+(<code>development</code> by default); the seeder labels what it creates with all
+three environments, a manual creation must be labelled by hand.</p>
 </li>
 <li>
-<p>Open <code>&lt;cloud&gt;-guidelines-resources_list</code>, create a new version with
-the extra line, and move the environment tag to it.</p>
+<p>Open <code>&lt;provider&gt;/guidelines/resources_list</code>, create a new version with
+the extra line, and set the environment label on it.</p>
 </li>
 <li>
 <p>Run a session that mentions the new resource. No core rebuild or
@@ -1912,8 +2090,12 @@ restart is needed for step 3 to take effect.</p>
 </div>
 <div class="paragraph">
 <p>To <strong>change</strong> an existing prompt (a naming rule, a security default, a
-compliance rule), create a new version in Phoenix and move the tag.
-Keep the previous version; moving the tag back is the rollback.</p>
+compliance rule), create a new version in Langfuse and set the
+environment label on it. Keep the previous version; moving the label
+back is the rollback. When the Langfuse UI offers to set the
+<code>production</code> label on a new version, that is the label a <code>production</code>
+deployment reads: leave it unticked to try the version out under
+<code>development</code> or <code>staging</code> first.</p>
 </div>
 </div>
 </div>
@@ -1925,33 +2107,38 @@ Keep the previous version; moving the tag back is the rollback.</p>
 <ul>
 <li>
 <p>Review every shipped prompt before relying on a deployment: naming
-conventions, security defaults, forbidden actions, and compliance
-rules encode a policy, not yours.</p>
+conventions, security defaults, and compliance rules encode a policy,
+not yours.</p>
 </li>
 <li>
-<p>Keep Phoenix reachable during core startups; seeding is part of the
+<p>Write the prohibitions your organization needs as Rego rules in
+<code>general/policies/compliance</code>. No prompt lists forbidden actions any
+more, and the shipped policy only denies standalone deletions.</p>
+</li>
+<li>
+<p>Keep Langfuse reachable during core startups; seeding is part of the
 boot.</p>
 </li>
 <li>
 <p>Keep the "No arbitrary command execution" section when you replace
-the body of <code>general-guidelines-terraform</code>. It is the only instruction
+the body of <code>general/guidelines/terraform</code>. It is the only instruction
 that keeps <code>null_resource</code>, <code>provisioner</code> blocks, and
 <code>data "external"</code> out of generated code, and nothing enforces it
 outside the prompt, see
 <a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
 </li>
 <li>
-<p>Decide who may edit prompts. Anyone with access to the Phoenix UI can
-change what the agents generate. Phoenix has no authentication in the
-default stack.</p>
+<p>Decide who may edit prompts. Anyone with a role that can edit prompts
+in the Langfuse project can change what the agents generate; give
+others a viewer role.</p>
 </li>
 <li>
 <p>Treat the <code>environment</code> value as part of the prompt data model: it is
-the tag every fetch uses.</p>
+the label every fetch uses.</p>
 </li>
 <li>
-<p>Back up <code>phoenix-db</code>; it holds your curated prompts as well as the
-traces.</p>
+<p>Back up <code>langfuse-db</code>; it holds your curated prompts. Traces are in
+ClickHouse.</p>
 </li>
 </ul>
 </div>
@@ -1969,10 +2156,10 @@ traces.</p>
 <div class="dt-grid-layout dt-grid-layout--with-margin pagination">
   <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
     <div class="pagination__buttons">
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../monitor-with-phoenix/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../monitor-with-langfuse/">
       <span class="dt-button__content">
         <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
-        <span class="pagination__label-full">Monitor with Phoenix</span>
+        <span class="pagination__label-full">Monitor with Langfuse</span>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>

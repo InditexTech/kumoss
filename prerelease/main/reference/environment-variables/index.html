@@ -73,7 +73,7 @@
 <title>Environment variables and secrets | Kumoss</title>
 
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/environment-variables/">
-    <link rel="prev" href="../configuration/">
+    <link rel="prev" href="../compliance-policy/">
     <link rel="next" href="../llm-providers/">
     <meta name="description" content="Every environment variable Kumoss reads: the core, the bundled IaC and notifications sidecars, the IaC engine, and the LLM providers.">
     <meta name="generator" content="Antora 3.2.3">
@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -903,11 +930,13 @@ call</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">commented out in the sample</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for your own mapping implementation, sent when
-<code>services.mapping.enabled</code> is true. Must equal the token that
-implementation expects. Needed only when you enable it.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Conditional (needed with the shipped <code>config.yaml</code>, which enables
+mapping)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">sample value <code>dev-mapping-token</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Bearer token for the mapping sidecar, sent when
+<code>services.mapping.enabled</code> is true. Must equal <code>KUMOSS_MAPPING_TOKEN</code>
+in <code>services/mapping/.env</code> (or the token your own implementation
+expects).</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot when enabled</p></td>
 </tr>
 <tr>
@@ -992,6 +1021,19 @@ The account name is derived from <code>storage.endpoint_url</code>.</p></td>
 credentials of the <code>core-db</code> service in <code>docker-compose.yml</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">At boot: configuration validation fails if empty, and database
 initialisation fails if unreachable</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional (names from <code>telemetry.public_key_env</code> / <code>secret_key_env</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pk-lf-kumoss-dev</code> / <code>sk-lf-kumoss-dev</code>, the key pair the bundled
+<code>langfuse-web</code> provisions</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">API key pair of the Langfuse project, for both trace export and
+prompts. Must match the keys Langfuse holds: in Compose, the
+<code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code> it was first started with
+(see below); with Helm, the chart wires them from its own Secret; with
+your own Langfuse, a key pair created in the project settings.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At boot: prompt seeding fails with <code>Langfuse refused the API key pair
+(401)</code> when Langfuse rejects them</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_REDIS_URL</code></p></td>
@@ -1081,51 +1123,6 @@ core validates tokens with the issuer&#8217;s public keys. All OIDC
 settings live in <code>config.yaml</code>.</p>
 </li>
 </ul>
-</div>
-<div class="sect2">
-<h3 id="read-by-libraries-not-by-kumoss"><a class="anchor" href="#read-by-libraries-not-by-kumoss"></a>Read by libraries, not by Kumoss</h3>
-<div class="paragraph">
-<p>Two more variables can matter to the core even though no Kumoss code
-reads them. Neither is in <code>core/env.sample</code>, and neither is needed for
-the bundled Phoenix.</p>
-</div>
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 22.2222%;">
-<col style="width: 22.2222%;">
-<col style="width: 55.5556%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Variable</th>
-<th class="tableblock halign-left valign-top">Read by</th>
-<th class="tableblock halign-left valign-top">Meaning</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>OTEL_EXPORTER_OTLP_HEADERS</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">the OpenTelemetry SDK</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Comma-separated <code>key=value</code> headers added to OTLP exports — the usual
-way to authenticate against a hosted collector. The core builds its
-<code>OTLPSpanExporter</code> with the endpoint only and passes no headers of its own.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>PHOENIX_API_KEY</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">the <code>phoenix.client</code> library</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">API key for an authenticated Phoenix instance, used when fetching and
-seeding prompt templates. The core constructs <code>AsyncClient(base_url=&#8230;&#8203;)</code>
-and supplies no credential.</p></td>
-</tr>
-</tbody>
-</table></div></div>
-<div class="paragraph">
-<p>Because the core passes the endpoint and base URL programmatically,
-whether each library still picks these variables up from the
-environment in that configuration is <strong>not verified in this
-repository</strong> — consult the OpenTelemetry Python and Phoenix client
-documentation for the version you run before relying on them.</p>
-</div>
 </div>
 </div>
 </div>
@@ -1223,7 +1220,8 @@ for the account (<code>AWS_REGION</code> or <code>AWS_DEFAULT_REGION</code> is r
 AWS anyway, by the account check before every engine command); on GCP
 the
 <code>cloudasset.googleapis.com</code> and <code>cloudresourcemanager.googleapis.com</code>
-APIs must be enabled. The core does not call this endpoint today. See
+APIs must be enabled. The core calls it in import rounds, once per
+<code>azurerm</code>, <code>google</code> or <code>aws</code> scope of the root module. See
 <a href="../api/iac/#import-discovery" class="xref page">Import discovery</a> in
 the IaC sidecar reference.</p>
 </div>
@@ -1253,23 +1251,22 @@ provider supports.</p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Azure (<code>azurerm</code>, <code>azuread</code>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_CLIENT_ID</code>, <code>ARM_CLIENT_SECRET</code>, <code>ARM_TENANT_ID</code>,
-<code>ARM_SUBSCRIPTION_ID</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_CLIENT_ID</code>, <code>ARM_CLIENT_SECRET</code>, <code>ARM_TENANT_ID</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Service principal with client secret. Certificate, OIDC federation,
 and managed identity are other documented provider options.
-<strong><code>ARM_SUBSCRIPTION_ID</code> set here is overwritten</strong> on every <code>init</code>,
-<code>plan</code>, <code>apply</code>, and <code>import</code> with the request&#8217;s scope id, so it only
-takes effect for <code>validate</code>, <code>show</code>, and <code>state pull</code>.</p></td>
+<strong>Leave <code>ARM_SUBSCRIPTION_ID</code> unset</strong>: each request carries the root
+module&#8217;s <code>azurerm</code> scope under that name in its <code>env</code>, which cannot
+replace a variable set here, so setting it gets every request that
+carries the scope refused with <code>422</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Google Cloud (<code>google</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>GOOGLE_APPLICATION_CREDENTIALS</code> or <code>GOOGLE_CREDENTIALS</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>GOOGLE_CREDENTIALS</code> holds the service-account key as JSON content;
 <code>GOOGLE_APPLICATION_CREDENTIALS</code> holds a path to a key file readable
-inside the container. Set one of them. <strong><code>GOOGLE_PROJECT</code> set here is
-overwritten</strong> on every <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code> with the
-request&#8217;s scope id, so it only takes effect for <code>validate</code>, <code>show</code>,
-and <code>state pull</code>.</p></td>
+inside the container. Set one of them. <strong>Leave <code>GOOGLE_PROJECT</code> unset</strong>,
+for the same reason: each request carries the root module&#8217;s <code>google</code>
+scope under that name.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">AWS (<code>aws</code>)</p></td>
@@ -1298,9 +1295,9 @@ file mounted into the container, or instance principals.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A dedicated, least-privilege vCenter service account; never
 <code>administrator@vsphere.local</code>. <code>VSPHERE_SERVER</code> is the vCenter FQDN.
 Leave <code>VSPHERE_ALLOW_UNVERIFIED_SSL</code> unset outside a lab with a
-self-signed certificate. Nothing is overwritten per request: the
-request&#8217;s scope id is the datacenter name, which the code reads, not
-the provider. See
+self-signed certificate. Nothing is overwritten per request: <code>vsphere</code>
+has no scope, and the datacenter is named by the code, not the
+provider. See
 <a href="../terraform-providers/" class="xref page">Terraform providers</a>.</p></td>
 </tr>
 </tbody>
@@ -1442,35 +1439,85 @@ would rather not see it.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="mapping-and-authorization-no-bundled-sidecar"><a class="anchor" href="#mapping-and-authorization-no-bundled-sidecar"></a>Mapping and authorization (no bundled sidecar)</h2>
+<h2 id="mapping-sidecar"><a class="anchor" href="#mapping-sidecar"></a>Mapping sidecar (<code>services/mapping/env.sample</code>)</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 15.3846%;">
+<col style="width: 38.4615%;">
+<col style="width: 15.3847%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Variable</th>
+<th class="tableblock halign-left valign-top">Requirement</th>
+<th class="tableblock halign-left valign-top">Default</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Checked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>MAPPING_PREFIX_IDENTIFIER</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (full <code>https://</code> URLs only)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL a bare repository name typed in the wizard is appended to,
+with a <code>.git</code> suffix: with <code>https://github.com/MySuperOrg/</code>, <code>foo</code>
+resolves to <code>https://github.com/MySuperOrg/foo.git</code>. A trailing <code>/</code> is
+added if missing. Must be <code>https://</code> with a host and no password,
+query or fragment. While empty, a bare name answers <code>404</code> and the
+wizard asks for a full URL. See
+<a href="../api/mapping/#bundled" class="xref page">The bundled
+implementation</a>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At startup: an invalid value stops the container</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>KUMOSS_MAPPING_TOKEN</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Recommended</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">empty (accepts any bearer)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Token required on <code>POST /v1/resolve</code>. Must equal the core&#8217;s
+<code>KUMOSS_MAPPING_TOKEN</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Per request</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LOG_LEVEL</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>INFO</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Root log level.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At startup</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>While <code>services.mapping.enabled</code> is <code>false</code>, the core never calls a
+mapper and uses what the user typed as the repository URL. Once
+enabled, a mapper that times out or is unreachable fails the wizard&#8217;s
+repository scan with <code>504</code> or <code>502</code>, and so does a response the core
+cannot parse; there is no silent fallback. A <code>404</code> reaches the user
+with the mapper&#8217;s explanation.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="authorization-no-bundled-sidecar"><a class="anchor" href="#authorization-no-bundled-sidecar"></a>Authorization (no bundled sidecar)</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Kumoss bundles no mapping or authorization service, so there is no
-<code>env.sample</code> for either. The core reads only <code>KUMOSS_MAPPING_TOKEN</code> and
-<code>KUMOSS_AUTHZ_TOKEN</code> (see the core table above), and only when the
-matching <code>services.&lt;name&gt;.enabled</code> is <code>true</code>. Any other variables are
-whatever your own implementation needs.</p>
+<p>Kumoss bundles no authorization service, so there is no <code>env.sample</code>
+for it. The core reads only <code>KUMOSS_AUTHZ_TOKEN</code> (see the core table
+above), and only when <code>services.authz.enabled</code> is <code>true</code>. Any other
+variables are whatever your own implementation needs.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Mapping.</strong> While <code>services.mapping.enabled</code> is <code>false</code> (the default)
-the core never calls a service and performs an identity passthrough
-itself: it returns the identifier as both <code>repo_url</code> and
-<code>identifier</code>, echoes back any <code>terraform_provider</code> it was sent, and
-answers <code>null</code> for <code>scope_id</code> — it knows nothing it was not told, and
-<code>null</code> means "ask the user". Once enabled, a service that times out
-or is unreachable makes the wizard&#8217;s resolve step fail with <code>504</code> or
-<code>502</code>, and so does a response the core cannot parse or one naming a
-provider outside the contract&#8217;s enum; there is no silent fallback.</p>
-</li>
-<li>
-<p><strong>Authorization.</strong> The core consults the service only from <code>POST
-/v1/auth/authorize</code> (a cloud-project access check) and only when
-<code>services.authz.enabled</code> is <code>true</code>. While disabled, the core answers
-"authorized" without any call; once enabled, an unreachable or slow
-service makes the preflight fail with <code>502</code> or <code>504</code> rather than
-allowing the request. Kumoss&#8217;s own operation roles (<code>developer</code>,
+<p><strong>Authorization.</strong> The core consults the service from the IaC routes,
+once per provider scope of the session&#8217;s root module, and only when
+<code>services.authz.enabled</code> is <code>true</code>. While disabled, the core treats
+every check as allowed without any call; once enabled, an unreachable
+or slow service fails the call with <code>502</code> or <code>504</code> rather than
+allowing it. Kumoss&#8217;s own operation roles (<code>developer</code>,
 <code>devops</code>) and admin-panel roles (<code>viewer</code>, <code>editor</code>, <code>admin</code>) live in
 the core database, not in this service, and are documented in the
 <a href="../../guides/administer-users-and-locks/" class="xref page">Admin portal</a> guide.</p>
@@ -1478,7 +1525,7 @@ the core database, not in this service, and are documented in the
 </ul>
 </div>
 <div class="paragraph">
-<p>To enable either, set <code>enabled: true</code>, point <code>endpoint</code> at your
+<p>To enable it, set <code>enabled: true</code>, point <code>endpoint</code> at your
 implementation, and set the token variable in <code>core/.env</code>. The core
 refuses to boot when an enabled service has an empty <code>endpoint</code> or an
 empty token.</p>
@@ -1730,9 +1777,26 @@ stack beyond a workstation. <code>docker-compose.yml</code> sets no RustFS keys,
 so RustFS uses its built-in <code>rustfsadmin</code> / <code>rustfsadmin</code>. Set
 <code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> on <code>object-storage</code> and the
 same values in <code>core/.env</code>. The compose file also hard-codes the
-<code>postgres</code> database password. The same file hard-codes
-<code>PHOENIX_SQL_DATABASE_URL</code> with the <code>phoenix-db</code> password in it —
-change it outside a workstation. The RustFS web console is disabled
+<code>postgres</code> database password.</p>
+</li>
+<li>
+<p><strong>Replace the Langfuse development secrets</strong> before exposing the stack
+beyond a workstation, and before its first start: Langfuse provisions
+the project keys and the admin from them once. <code>docker-compose.yml</code>
+reads them from the shell or a <code>.env</code> file next to it:
+<code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code> (project key pair,
+<code>pk-lf-</code> / <code>sk-lf-</code> prefixes; put the same values in <code>core/.env</code>),
+<code>LANGFUSE_ADMIN_EMAIL</code> / <code>LANGFUSE_ADMIN_PASSWORD</code> (the UI login),
+<code>LANGFUSE_PUBLIC_URL</code> (the URL browsers use, for login redirects),
+<code>LANGFUSE_NEXTAUTH_SECRET</code>, <code>LANGFUSE_SALT</code>, <code>LANGFUSE_ENCRYPTION_KEY</code>
+(64 hex characters, <code>openssl rand -hex 32</code>), <code>LANGFUSE_DB_PASSWORD</code>
+(Compose builds Langfuse&#8217;s database URL from it; for a password with
+URL-reserved characters such as <code>#</code> or <code>/</code>, also set
+<code>LANGFUSE_DATABASE_URL</code> to the full URL with the password
+percent-encoded),
+<code>LANGFUSE_CLICKHOUSE_PASSWORD</code> and <code>LANGFUSE_REDIS_PASSWORD</code>. Do not
+change <code>LANGFUSE_SALT</code> or <code>LANGFUSE_ENCRYPTION_KEY</code> once Langfuse has
+stored data with them. The RustFS web console is disabled
 (<code>RUSTFS_CONSOLE_ENABLE=false</code>); enabling it is up to you, see
 <a href="../../guides/production/operations/#rustfs-console" class="xref page">RustFS
 console</a>.</p>
@@ -1779,9 +1843,12 @@ The Vertex AI set is shown in the next example.</p>
 <pre class="shiki highlight"><code data-lang="dotenv"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span># LLM provider</span></span>
 <span class="line"><span>ANTHROPIC_API_KEY=sk-example-not-a-real-key</span></span>
 <span class="line"><span></span></span>
-<span class="line"><span># Sidecar bearer tokens (only iac is enabled in the shipped config.yaml)</span></span>
+<span class="line"><span># Sidecar bearer tokens. The shipped config.yaml also enables</span></span>
+<span class="line"><span># notifications and mapping: keep their tokens, or set</span></span>
+<span class="line"><span># services.&#x3C;name>.enabled: false.</span></span>
 <span class="line"><span>KUMOSS_IAC_TOKEN=0000000000000000000000000000000000000000000000000000000000000001</span></span>
 <span class="line"><span>KUMOSS_NOTIFICATIONS_TOKEN=unused-while-disabled</span></span>
+<span class="line"><span>KUMOSS_MAPPING_TOKEN=unused-while-disabled</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># Git push credentials</span></span>
 <span class="line"><span>GIT_USER=kumoss-bot</span></span>
@@ -1832,7 +1899,8 @@ The Vertex AI set is shown in the next example.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  mapping</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
-<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Your own implementation of contracts/openapi/mapping.v1.yaml.</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # Your own catalogue-backed implementation of</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">    # contracts/openapi/mapping.v1.yaml instead of the bundled one.</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://mapping.kumoss.example.invalid"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  authz</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    enabled</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span></span>
@@ -1901,7 +1969,7 @@ fails with a JSON-parsing error rather than a missing-file error.
 <span class="line"><span>ARM_CLIENT_ID=00000000-0000-0000-0000-000000000000</span></span>
 <span class="line"><span>ARM_CLIENT_SECRET=example-not-a-real-client-secret</span></span>
 <span class="line"><span>ARM_TENANT_ID=00000000-0000-0000-0000-000000000001</span></span>
-<span class="line"><span>ARM_SUBSCRIPTION_ID=00000000-0000-0000-0000-000000000002</span></span>
+<span class="line"><span># No ARM_SUBSCRIPTION_ID: each request carries the root module's scope.</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span># State-backend grant: the storage account the target repository's own</span></span>
 <span class="line"><span># azurerm backend block names. Backend-only, and enough on its own.</span></span>
@@ -1982,10 +2050,10 @@ own backend; vSphere has none.</p>
 <div class="dt-grid-layout dt-grid-layout--with-margin pagination">
   <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
     <div class="pagination__buttons">
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../configuration/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../compliance-policy/">
       <span class="dt-button__content">
         <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
-        <span class="pagination__label-full">Configuration</span>
+        <span class="pagination__label-full">Compliance policy</span>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>

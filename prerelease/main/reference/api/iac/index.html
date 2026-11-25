@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/iac/">
     <link rel="prev" href="../core/">
     <link rel="next" href="../notifications/">
-    <meta name="description" content="The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.">
+    <meta name="description" content="The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, import discovery, state backends, and engine selection in the bundled implementation.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -791,7 +818,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">IaC sidecar API</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">IaC sidecar API</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus scope injection, import discovery, state backends, and engine selection in the bundled implementation.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, import discovery, state backends, and engine selection in the bundled implementation.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -818,7 +845,7 @@ interface. It is the one mandatory sidecar: without it the core cannot
 validate or apply anything, so <code>services.iac</code> has no <code>enabled</code> flag.</p>
 </div>
 <div class="paragraph">
-<p>Contract: <code>contracts/openapi/iac.v1.yaml</code>. Default endpoint:
+<p>Contract: <code>contracts/openapi/iac.v1.yaml</code>, version 2.0.0. Default endpoint:
 <code>http://iac:8082</code>. Bearer token: the value of the variable named by
 <code>services.iac.token_env</code>, <code>KUMOSS_IAC_TOKEN</code> by default, which the
 bundled implementation reads from the variable of the same name.</p>
@@ -851,8 +878,8 @@ queues.</p>
 </td>
 <td class="content">
 <div class="paragraph">
-<p>The contract is written in terms of <code>terraform</code>, and the field name
-<code>terraform_provider</code> reflects that. The bundled implementation
+<p>The contract is written in terms of <code>terraform</code>, and providers are
+named by their Terraform provider type. The bundled implementation
 defaults to <strong>OpenTofu</strong> and selects the engine at runtime with
 <code>IAC_BINARY</code>, so the command it actually runs is <code>tofu init</code> unless
 that variable says otherwise. The flags of the subcommands the service
@@ -957,17 +984,37 @@ deployment this is a path on the volume mounted into both the core and
 this service, for example <code>/workspaces/my-iac_a1b2c3</code>.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>scope_id</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud scope the operation targets, 1 to 1024 characters — Azure
-subscription id, GCP project id, AWS account id, OCI compartment
-OCID, or vSphere datacenter name. Required on the five endpoints that
-reach a cloud API. See <a href="#scope-injection">Scope injection</a>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every endpoint that runs an engine command (<code>init</code>, <code>validate</code>,
+<code>plan</code>, <code>show</code>, <code>apply</code>, <code>import</code>), optional. Up to 256 environment
+variables added to the command&#8217;s environment, names matching
+<code>^[A-Za-z_][A-Za-z0-9_]{0,127}$</code>, string values. A name the service&#8217;s
+own environment already sets, or a reserved name (<code>TF_*</code> but
+<code>TF_VAR_*</code>, <code>TOFU_*</code>, <code>LD_*</code>, proxies, &#8230;&#8203;), or a value containing a NUL
+character, is <code>422</code>. May hold secrets. See
+<a href="#environment-and-input-variables">Environment and input variables</a>.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_provider</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Which cloud that is: one of <code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>,
-<code>kubernetes</code>, <code>vmware</code>. These are the core&#8217;s provider names, not Terraform
-registry provider names such as <code>azurerm</code> or <code>google</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>provider</code> + <code>scope_id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>scope-resource-ids</code> only, both required. The one scope to list:
+<code>provider</code> is <code>azurerm</code>, <code>google</code> or <code>aws</code>, any other value is <code>422</code>.
+See <a href="#import-discovery">Import discovery</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>var_files</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>plan</code> and <code>import</code> only, optional. Up to 64 variable-definition files
+of the workspace, passed as <code>-var-file</code> in the order given, so a later
+one wins. Each is a path relative to <code>workspace_path</code>, 1 to 1024
+characters, of any shape (spaces included); an absolute path, a <code>..</code>
+segment or a NUL character is <code>422</code>. See
+<a href="#environment-and-input-variables">Environment and input variables</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vars</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>plan</code> and <code>import</code> only, optional. Up to 1024 input variable values
+by name, of any JSON type, passed as the last <code>-var-file</code>, after
+<code>var_files</code>, so they win over every other source. May hold secrets. See
+<a href="#environment-and-input-variables">Environment and input variables</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>plan_file</code></p></td>
@@ -997,28 +1044,31 @@ resource, for example an Azure resource ID or an AWS ARN.</p></td>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
-<col style="width: 37.5%;">
-<col style="width: 12.5%;">
-<col style="width: 12.5%;">
-<col style="width: 12.5%;">
-<col style="width: 12.5%;">
-<col style="width: 12.5%;">
+<col style="width: 33.3333%;">
+<col style="width: 11.1111%;">
+<col style="width: 11.1111%;">
+<col style="width: 11.1111%;">
+<col style="width: 11.1111%;">
+<col style="width: 11.1111%;">
+<col style="width: 11.1112%;">
 </colgroup>
 <thead>
 <tr>
 <th class="tableblock halign-left valign-top">Endpoint</th>
 <th class="tableblock halign-left valign-top"><code>workspace_path</code></th>
-<th class="tableblock halign-left valign-top"><code>scope_id</code> + <code>terraform_provider</code></th>
+<th class="tableblock halign-left valign-top"><code>env</code></th>
 <th class="tableblock halign-left valign-top"><code>plan_file</code></th>
 <th class="tableblock halign-left valign-top"><code>targets</code></th>
 <th class="tableblock halign-left valign-top"><code>address</code> + <code>resource_id</code></th>
+<th class="tableblock halign-left valign-top"><code>var_files</code> + <code>vars</code></th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/init</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
@@ -1026,7 +1076,8 @@ resource, for example an Azure resource ID or an AWS ARN.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/validate</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
@@ -1034,34 +1085,38 @@ resource, for example an Azure resource ID or an AWS ARN.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/plan</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/show</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/apply</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/state-resource-ids</code></p></td>
@@ -1070,11 +1125,13 @@ resource, for example an Azure resource ID or an AWS ARN.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/scope-resource-ids</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted; <code>provider</code> + <code>scope_id</code> required</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
@@ -1279,177 +1336,195 @@ sidecar until it exits on its own.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="scope-injection"><a class="anchor" href="#scope-injection"></a>Scope injection</h2>
+<h2 id="environment-and-input-variables"><a class="anchor" href="#environment-and-input-variables"></a>Environment and input variables</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Only the commands that reach a cloud API need to know which scope they
-run against, and only those carry <code>scope_id</code> and
-<code>terraform_provider</code>:</p>
+<p>The request mirrors what the Terraform CLI itself takes: the workspace
+it runs in, environment variables, variable files and input variable
+values. The service attaches no meaning to them. Deciding which scope a
+command runs against (a subscription, a project, an account, a
+compartment) is the caller&#8217;s job, done through <code>env</code> and <code>vars</code>.</p>
 </div>
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 42.8571%;">
-<col style="width: 14.2857%;">
-<col style="width: 42.8572%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Endpoint</th>
-<th class="tableblock halign-left valign-top">Scope</th>
-<th class="tableblock halign-left valign-top">Why</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/init</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">May access external services during initialization.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/plan</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Refreshes state against the API.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/apply</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Creates and changes resources.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Reads the live resource.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/scope-resource-ids</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Enumerates a scope.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/validate</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Local configuration check.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/show</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Reads the local plan file.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/import/state-resource-ids</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">not accepted</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Reads Terraform state.</p></td>
-</tr>
-</tbody>
-</table></div></div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>env</code> — every engine command. Environment variables added to the
+command&#8217;s environment, for example <code>ARM_SUBSCRIPTION_ID</code> or
+<code>GOOGLE_PROJECT</code>. A request may add variables but never replace one:
+a name the implementation&#8217;s own environment already sets (its
+provider credentials, <code>PATH</code>, &#8230;&#8203;) is rejected with <code>422</code>, and so are
+names that would change the command or the process rather than add to
+its environment: every <code>TF_*</code> and <code>TOFU_*</code> except <code>TF_VAR_*</code>,
+<code>TERRAFORM_CONFIG</code>, <code>LD_*</code>, <code>DYLD_*</code>, <code>BASH_ENV</code>, <code>ENV</code>, <code>GODEBUG</code>,
+<code>SSL_CERT_FILE</code>, <code>SSL_CERT_DIR</code>, and <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>,
+<code>ALL_PROXY</code>, <code>NO_PROXY</code> in any case. A value containing a NUL
+character is <code>422</code> too. Deployments therefore leave scope variables
+such as <code>ARM_SUBSCRIPTION_ID</code> and <code>GOOGLE_PROJECT</code> unset on the
+service and let each request carry them.</p>
+</li>
+<li>
+<p><code>var_files</code> — <code>plan</code> and <code>import</code>, the commands that evaluate the
+configuration. Variable-definition files of the workspace, passed as
+<code>-var-file</code> in the order given, so a later one wins; Terraform reads
+them itself on every command. Each is a path relative to
+<code>workspace_path</code>: an absolute path, a <code>..</code> segment or a NUL character
+is rejected with <code>422</code>, and a path that resolves outside the
+workspace (through a symlink) ends the job with exit code 1 without
+running the engine.</p>
+</li>
+<li>
+<p><code>vars</code> — <code>plan</code> and <code>import</code>. Input variable values by name, of any
+JSON type. The implementation writes them to one variables file
+passed as the last <code>-var-file</code>, after <code>var_files</code>, so they win over
+every other source; the files Terraform loads on its own
+(<code>terraform.tfvars</code>, <code>*.auto.tfvars</code>) still apply underneath. Since
+they arrive as a file, a value for a variable the configuration does
+not declare is only a warning.</p>
+</li>
+</ul>
+</div>
 <div class="paragraph">
-<p>Generated provider blocks do not name a scope. So where a cloud
-has an environment variable that names one, the
-implementation injects <code>scope_id</code> into the engine&#8217;s environment for
-that command only, picking the variable from <code>terraform_provider</code>:</p>
+<p><code>env</code> and <code>vars</code> may hold secrets. An implementation must not log or
+persist their values, nor write them inside <code>workspace_path</code>, which may
+be committed or shared. The bundled implementation logs only the names
+in <code>env</code>, and writes <code>vars</code> to an owner-only temporary file outside the
+workspace for the duration of the command.</p>
+</div>
+<div class="sect2">
+<h3 id="how-the-core-fills-them"><a class="anchor" href="#how-the-core-fills-them"></a>How the core fills them</h3>
+<div class="paragraph">
+<p>Generated provider blocks do not name a scope, so the core points every
+command at the session&#8217;s scopes itself. Each scoped provider of the
+root module becomes either an environment variable the provider reads
+as a setting, or an input variable the code passes on:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
-<col style="width: 20%;">
-<col style="width: 40%;">
-<col style="width: 40%;">
+<col style="width: 16.6666%;">
+<col style="width: 16.6666%;">
+<col style="width: 33.3333%;">
+<col style="width: 33.3335%;">
 </colgroup>
 <thead>
 <tr>
-<th class="tableblock halign-left valign-top"><code>terraform_provider</code></th>
-<th class="tableblock halign-left valign-top">Environment variable</th>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Name</th>
 <th class="tableblock halign-left valign-top">Scope it sets</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>env</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>ARM_SUBSCRIPTION_ID</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">subscription</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>env</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>GOOGLE_PROJECT</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">project</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>TF_VAR_compartment_ocid</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">compartment</p></td>
-</tr>
-<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>TF_VAR_aws_account_id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vars</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_account_id</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">account</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vars</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>compartment_ocid</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">compartment</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Azure and GCP read theirs as provider settings. The OCI and AWS
-variables are Terraform input variables instead, which the engine
-ignores when the generated code declares none. An OCI compartment is a
-resource argument: the variable fills the <code>compartment_ocid</code> variable
-the generated code passes to its resources. An AWS account is implicit
-in the credentials the provider resolves, so nothing redirects a
-command to one: the variable fills the <code>aws_account_id</code> variable the
-generated code passes to the provider&#8217;s <code>allowed_account_ids</code>, which
-makes the provider refuse to run in any other account.</p>
+<p>The <code>env</code> entries go with every engine command except the import
+discovery ones. <code>plan</code> and <code>import</code> also get the optional var files
+picked in the root module&#8217;s
+<a href="../../root-module-manifest/" class="xref page">manifest</a> as <code>var_files</code>,
+in the order picked, and its answers as <code>vars</code>, with the scope
+variables last, so no configured value can retarget the scope.</p>
 </div>
 <div class="paragraph">
-<p>The bundled implementation also checks AWS before the engine starts:
-before <code>init</code>, <code>plan</code>, <code>apply</code>, and <code>import</code> it asks STS which account
-its own credentials belong to and, when that is not <code>scope_id</code>, ends
-the command with exit code 1 and the reason on stderr. That check needs
-<code>AWS_REGION</code> (or <code>AWS_DEFAULT_REGION</code>) and a 12-digit <code>scope_id</code>, so a
-LocalStack deployment uses its account id <code>000000000000</code>. It compares
-the service&#8217;s own credentials, not a role the generated code might
-assume, so one deployment serves exactly the AWS account its
-credentials belong to; generated provider blocks never assume a role.</p>
+<p>An OCI compartment is a resource argument: the variable fills the
+<code>compartment_ocid</code> variable the code passes to its resources. An AWS
+account is implicit in the credentials the provider resolves, so
+nothing redirects a command to one: the variable fills the
+<code>aws_account_id</code> variable the code passes to the provider&#8217;s
+<code>allowed_account_ids</code>, which makes the provider refuse to run in any
+other account. Generated code declares that variable and passes it on;
+code that does not is not protected. An existing module with a bare
+<code>provider "aws" {}</code> gets only an "undeclared variable" warning and runs
+in whatever account the service&#8217;s credentials belong to, so such a
+module must declare <code>aws_account_id</code> and set
+<code>allowed_account_ids = [var.aws_account_id]</code>, or the deployment must
+run one IaC service per AWS account. Generated provider blocks never
+assume a role.</p>
 </div>
 <div class="paragraph">
-<p>A Kubernetes namespace or a vSphere datacenter is a resource or
-data-source argument the generated code names itself, so for those two
-the bundled implementation injects nothing. Their commands run against
-whatever scope the deployment&#8217;s ambient credentials and configuration
-select, and making those agree with <code>scope_id</code> is the deployment&#8217;s
-responsibility. The pair stays required on the wire so the intended
-scope is always stated, and so an implementation that can enforce it
-has what it needs.</p>
+<p>Any other provider (<code>kubernetes</code>, <code>vsphere</code>, <code>random</code>, &#8230;&#8203;) gets
+nothing: a Kubernetes namespace or a vSphere datacenter is a resource
+or data-source argument the code names itself, and the provider runs
+against whatever the deployment&#8217;s ambient credentials and
+configuration select. Making those agree with the intended target is
+the deployment&#8217;s responsibility.</p>
 </div>
 <div class="paragraph">
-<p>An implementation may scope a command by another mechanism instead —
-an AWS AssumeRole into the account, a provider alias, a credential
-broker — as long as the command runs against <code>scope_id</code>. Callers need
-to know nothing about which mechanism was used.</p>
-</div>
-<div class="paragraph">
-<p>Where the overlay is applied it sits on top of the service&#8217;s own
-environment, so it wins over an <code>ARM_SUBSCRIPTION_ID</code> set on the
-container. Ambient provider credentials are otherwise untouched.</p>
-</div>
-<div class="paragraph">
-<p>On Azure that variable is also the <code>azurerm</code> backend&#8217;s, so <code>init</code>
-resolves the state storage account in <code>scope_id&#8217;s subscription. A
-deployment keeping state outside that subscription has to name
-`subscription_id</code> in its backend configuration; see
+<p><code>ARM_SUBSCRIPTION_ID</code> is also the <code>azurerm</code> backend&#8217;s, so <code>init</code>
+resolves the state storage account in the <code>azurerm</code> scope&#8217;s
+subscription. A deployment keeping state outside that subscription has
+to name <code>subscription_id</code> in its backend configuration; see
 <a href="../../terraform-providers/#backend-minimums" class="xref page">Backend
 minimums</a>.</p>
 </div>
 <div class="paragraph">
-<p><code>POST /v1/import/scope-resource-ids</code> is the exception: it launches no
-subprocess, so there is no environment to overlay. Its <code>scope_id</code> is
-the argument of the inventory query itself — the subscription,
-project, or account whose contents are listed.</p>
+<p><code>POST /v1/import/scope-resource-ids</code> takes no <code>env</code>: it launches no
+subprocess. Its <code>scope_id</code> is the argument of the inventory query
+itself — the subscription, project, or account whose contents are
+listed.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="versioning"><a class="anchor" href="#versioning"></a>Versioning</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Contract 2.0.0 is a breaking change from 1.x:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>The request is a plain description of a CLI invocation. The single
+required <code>scope_id</code> + <code>terraform_provider</code> pair on <code>init</code>, <code>plan</code>,
+<code>apply</code> and <code>import</code>, and the <code>variables</code> field of <code>plan</code> and
+<code>import</code>, are gone. Every engine command takes an optional <code>env</code>,
+and <code>plan</code> and <code>import</code> take an optional <code>vars</code>; <code>var_files</code> stays,
+now with any path shape inside the workspace. The service no longer
+knows any provider: the core maps each scope to <code>env</code> or <code>vars</code>
+itself.</p>
+</li>
+<li>
+<p>The bundled implementation no longer checks the AWS account with STS
+before <code>init</code>, <code>plan</code>, <code>apply</code> and <code>import</code>. The provider&#8217;s
+<code>allowed_account_ids</code> refuses any other account only in code that
+passes <code>var.aws_account_id</code> to it, as generated code does; existing
+modules need that line, or one IaC deployment per AWS account.</p>
+</li>
+<li>
+<p><code>/v1/import/scope-resource-ids</code> takes <code>provider</code> (one of <code>azurerm</code>,
+<code>google</code>, <code>aws</code>) instead of <code>terraform_provider</code>, and rejects any
+other provider with <code>422</code> instead of ending the job with exit code
+<code>2</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A custom IaC implementation must be updated together with the core;
+see <a href="../../../guides/upgrade-notes/" class="xref page">Upgrade notes</a>.</p>
 </div>
 </div>
 </div>
@@ -1493,19 +1568,19 @@ can run <code>plan</code> can run discovery unchanged.</p>
 </colgroup>
 <thead>
 <tr>
-<th class="tableblock halign-left valign-top"><code>terraform_provider</code></th>
+<th class="tableblock halign-left valign-top"><code>provider</code></th>
 <th class="tableblock halign-left valign-top">Source</th>
 <th class="tableblock halign-left valign-top">Scope is</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Azure Resource Graph</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">subscription ID</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Cloud Asset Inventory <code>searchAllResources</code>, plus Resource Manager
 <code>projects.get</code> and <code>getIamPolicy</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">project ID</p></td>
@@ -1515,34 +1590,17 @@ can run <code>plan</code> can run discovery unchanged.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Resource Explorer <code>ListIndexes</code>, <code>GetDefaultView</code>, <code>ListResources</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">account ID</p></td>
 </tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code>, <code>kubernetes</code>, <code>vmware</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">—</p></td>
-</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><code>oci</code>, <code>kubernetes</code>, and <code>vmware</code> are answered with exit code 2 and
-<code>no scope discovery for provider '&lt;provider&gt;'</code> in <code>stderr</code>, with the
-provider name quoted. That is a deliberate outcome, not a crash: the
-job still ends <code>succeeded</code>, and the exit code tells the caller the
-provider is unsupported rather than that a cloud call failed.</p>
+<p>Any other <code>provider</code> — <code>oci</code>, <code>kubernetes</code>, <code>vsphere</code> or anything
+else — is rejected at submission with <code>422</code>: those providers have no
+inventory query.</p>
 </div>
 <div class="paragraph">
-<p>The contract&#8217;s own description of this endpoint&#8217;s <code>scope_id</code> field
-enumerates only Azure, GCP, and AWS, omitting <code>oci</code>, <code>kubernetes</code>,
-and <code>vmware</code> even though the schema&#8217;s provider enum accepts them.
-The omission is consequential here, unlike in the generic <code>scope_id</code>
-description: these are exactly the three providers that produce the exit
-code 2 above, so the field description reads as though they cannot be
-sent at all, when in fact they are accepted and answered with a
-negative result.</p>
-</div>
-<div class="paragraph">
-<p><strong>The core does not call this endpoint today.</strong> The generated client
-contains both operations, and the core defines the <code>import</code> operation
-type, but the mode is not wired into a session pipeline. See
+<p>The core calls this endpoint once per scope of the session&#8217;s root
+module whose provider is one of the three above, and merges the
+results; a module with none of them has nothing to list. See
 <a href="../../../guides/import-infrastructure/" class="xref page">Import infrastructure</a>.</p>
 </div>
 <div class="sect2">
@@ -1625,7 +1683,7 @@ are skipped without comment.</p>
 <p><strong>AWS</strong> emits ARNs. <code>POST /v1/import/state-resource-ids</code> prefers a
 resource&#8217;s <code>arn</code> attribute over its <code>id</code> for exactly this reason, so
 the two lists line up. That preference is not AWS-specific — the
-endpoint takes no <code>terraform_provider</code>, so it applies to every state
+endpoint takes no provider, so it applies to every state
 document, a no-op for <code>azurerm</code> and <code>google</code> resources, which expose
 no <code>arn</code>.</p>
 </li>
@@ -1960,8 +2018,10 @@ from the workspace itself.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Provider credentials, read directly by the engine&#8217;s providers and
 identical for OpenTofu and Terraform. Provide whichever your modules
 need; without them <code>plan</code> and <code>apply</code> fail with the engine&#8217;s own
-authentication errors in the result&#8217;s <code>stderr</code>. The per-request scope
-variable is layered on top of these.</p></td>
+authentication errors in the result&#8217;s <code>stderr</code>. Leave scope variables
+such as <code>ARM_SUBSCRIPTION_ID</code> and <code>GOOGLE_PROJECT</code> unset: each request
+carries them in <code>env</code>, which may add variables but never replace one
+the service already has.</p></td>
 </tr>
 </tbody>
 </table></div></div>

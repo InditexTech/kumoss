@@ -1,0 +1,1424 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Upgrade notes | Kumoss</title>
+
+    <link rel="prev" href="../deploy-with-helm/">
+    <link rel="next" href="../development/">
+    <meta name="description" content="Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.">
+    <meta name="generator" content="Antora 3.2.3">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../../stable/">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--prerelease version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">prerelease</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </span>
+    <a class="version is-missing" href="../../../../stable/">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </a>
+  </div>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../../stable/">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../see-it-in-action/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">See it in action</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../deploy-with-helm/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../roadmap/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--prerelease version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">prerelease</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </span>
+    <a class="version is-missing" href="../../../../stable/">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </a>
+  </div>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
+  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Upgrade notes</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Upgrade notes</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>This page lists the changes that need action from an operator, an
+integrator or a custom sidecar implementation when upgrading. Read it
+before rolling out a new core image.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="compliance-policy-with-opa-forbidden_actions-removed"><a class="anchor" href="#compliance-policy-with-opa-forbidden_actions-removed"></a>Compliance policy with OPA; <code>forbidden_actions</code> removed</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>With <code>orchestration.enable_compliance_checker</code> on, generate rounds now
+also evaluate a Rego policy with OPA against the final plan, before the
+LLM audit, and both results go into one compliance report. The policy
+is the Langfuse text prompt <code>general/policies/compliance</code>, seeded on the
+next boot. See <a href="../../reference/compliance-policy/" class="xref page">Compliance
+policy</a>.</p>
+</div>
+<div class="paragraph">
+<p>What that changes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong><code>forbidden_actions</code> is gone.</strong> The six
+<code>&lt;provider&gt;/guidelines/forbidden_actions</code> seeds are deleted and no
+agent reads that prompt any more: not the request filter, not the IaC
+generator, not the compliance checker. The request filter no longer
+declines requests as prohibited. Versions already in Langfuse
+(including those the Phoenix migration script imported) stay there,
+unused; the seeder never deletes. <strong>This removes guardrails</strong>: an
+install that relied on those lists and writes no policy has no
+replacement for them. Write the prohibitions you need as Rego rules in
+<code>general/policies/compliance</code>; the shipped policy only denies
+standalone deletions.</p>
+</li>
+<li>
+<p><strong><code>critical_deletion</code> moved to the policy.</strong> The seed of
+<code>general/compliance/report</code> no longer defines it; the policy does,
+deterministically. If you customized that prompt, your version keeps
+its <code>critical_deletion</code> section and standalone deletions are reported
+twice, once by each source. Delete the section from your version.</p>
+</li>
+<li>
+<p><strong>The core image ships <code>opa</code></strong> (OPA 1.22.4). A custom core image must
+provide it on the <code>PATH</code>.</p>
+</li>
+<li>
+<p><strong>Startup check.</strong> With the checker on, the core evaluates the policy
+against an empty plan after seeding and refuses to start if that
+fails: no <code>opa</code> binary, a broken policy, or Langfuse unreachable.</p>
+</li>
+<li>
+<p><strong>Fail closed.</strong> A policy that cannot be evaluated during a round adds
+a blocking <code>policy_unavailable</code> finding, so the session is locked and
+the compliance failure notification is sent.</p>
+</li>
+<li>
+<p><strong>Compliance reports.</strong> Each violation has <code>source</code> (<code>llm</code> or <code>opa</code>;
+absent on older reports, meaning <code>llm</code>) and the report has
+<code>policy_revision</code>, the Langfuse prompt version of the policy that ran
+as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, for example
+<code>general/policies/compliance@4</code> (null when no policy ran).</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="phoenix-to-langfuse"><a class="anchor" href="#phoenix-to-langfuse"></a>Langfuse replaces Phoenix</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Traces and prompts moved from Arize Phoenix to a self-hosted Langfuse
+v4. See <a href="../monitor-with-langfuse/" class="xref page">Monitor with
+Langfuse</a> and <a href="../customize-prompts/" class="xref page">Customize
+prompts</a>.</p>
+</div>
+<div class="paragraph">
+<p>What changes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Stack.</strong> <code>phoenix</code> and <code>phoenix-db</code> are gone. Langfuse brings
+<code>langfuse-web</code>, <code>langfuse-worker</code>, <code>langfuse-db</code> (PostgreSQL),
+<code>langfuse-clickhouse</code>, <code>langfuse-redis</code> and a <code>langfuse</code> bucket on the
+object storage. Plan for the extra memory, mostly ClickHouse&#8217;s.</p>
+</li>
+<li>
+<p><strong>UI address.</strong> Langfuse is served on its own port, <code>3000</code>
+(<code>http://localhost:3000</code> in Compose), not under <code>/monitoring/</code>: the
+stock image cannot be served under a path. It has a login: the stack
+provisions <code>admin@example.com</code> / <code>kumoss-admin-1</code> (Compose) or a
+generated password (Helm, see
+<a href="../deploy-with-helm/" class="xref page">Deploy with Helm</a>). The admin
+panel&#8217;s link now reads <strong>Langfuse</strong>; it goes to <code>/langfuse</code> on the
+proxy, which redirects to the UI.</p>
+</li>
+<li>
+<p><strong>Configuration.</strong> <code>telemetry.collector_url</code> is replaced by
+<code>telemetry.langfuse_url</code>, and the core
+authenticates with a project key pair from <code>LANGFUSE_PUBLIC_KEY</code> /
+<code>LANGFUSE_SECRET_KEY</code>. A <code>config.yaml</code> still carrying <code>collector_url</code>
+is refused at boot. See
+<a href="../../reference/configuration/#telemetry" class="xref page">the <code>telemetry</code>
+section</a>.</p>
+</li>
+<li>
+<p><strong>Projects.</strong> The nine Phoenix projects (<code>dev-terraform-day2</code>,
+<code>pro-terraform-drift</code>, &#8230;&#8203;) become one Langfuse project. The
+environment is Langfuse&#8217;s environment field, and the operation and
+providers are trace tags.</p>
+</li>
+<li>
+<p><strong>Prompt tags are labels.</strong> The seeder labels versions instead of
+tagging them, with the same names (<code>development</code>, <code>staging</code>,
+<code>production</code>, <code>seed</code>).</p>
+</li>
+<li>
+<p><strong>Prompt names are folders.</strong> <code>aws-guidelines-networking</code> is now
+<code>aws/guidelines/networking</code>, which Langfuse shows as an <code>aws</code> folder
+holding a <code>guidelines</code> one. The migration script below renames your
+prompts accordingly.</p>
+</li>
+<li>
+<p><strong>Helm.</strong> <code>phoenix.<strong></code> and <code>postgres.phoenix</code> are replaced by <code>langfuse.</strong></code>
+and <code>postgres.langfuse</code>; <code>secrets.phoenixDbPassword</code> by the
+<code>secrets.langfuse*</code> values. A Secret given as <code>secrets.existingSecret</code>
+must hold the new keys (see the Helm guide). The proxy gets a
+<code>langfuse</code> port (3000) and the Ingress an optional
+<code>ingress.langfuseHost</code>. <code>charts/kind-up.sh</code> maps Langfuse to host
+port 3000; delete and recreate an existing kind cluster to get the
+mapping.</p>
+</li>
+<li>
+<p><strong>Local Compose overrides.</strong> A <code>docker-compose.override.yml</code> that still
+configures <code>phoenix</code> or <code>phoenix-db</code> makes Compose refuse the
+project; remove those entries.</p>
+</li>
+</ul>
+</div>
+<div class="sect2">
+<h3 id="moving-your-prompts"><a class="anchor" href="#moving-your-prompts"></a>Moving your prompts</h3>
+<div class="paragraph">
+<p>Traces are not migrated: Phoenix keeps them until you delete its volume.
+Prompts are moved with <code>core/scripts/migrate_phoenix_prompts.py</code>, which
+needs only Python 3.10 or later and runs in two steps, so the two
+stacks never have to run together:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>Before upgrading</strong>, with Phoenix still running, export every prompt
+version and its tags:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">python3</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> core/scripts/migrate_phoenix_prompts.py</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> export</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    --phoenix-url</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://localhost/monitoring/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --out</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> phoenix-prompts.json</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>Upgrade, and start Langfuse alone (in Compose, <code>docker compose up -d
+langfuse-web langfuse-worker</code>; starting the whole stack is fine too).</p>
+</li>
+<li>
+<p>Import the file. The key pair is the one the core uses
+(<code>pk-lf-kumoss-dev</code> / <code>sk-lf-kumoss-dev</code> in the Compose stack):</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">LANGFUSE_PUBLIC_KEY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">pk-lf-kumoss-dev</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE"> LANGFUSE_SECRET_KEY</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">sk-lf-kumoss-dev</span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA"> \</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">python3 </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">core/scripts/migrate_phoenix_prompts.py</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> import</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    --langfuse-url</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> http://localhost:3000/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --in</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> phoenix-prompts.json</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Each Phoenix version becomes a Langfuse version, oldest first, carrying
+its tags as labels, so every label ends up on the version its tag was
+on. A prompt with no <code>seed</code> tag (Phoenix installs older than that tag)
+gets <code>seed</code> on its oldest version, the one the seeder created, so the
+next core start never moves labels off your own versions. Versions that
+are not a single text are listed and skipped: the core cannot read them. <code>--dry-run</code> shows what would be created; running
+the import again skips what it already imported.</p>
+</div>
+</li>
+<li>
+<p>Start (or restart) the core. The seeder finds the <code>seed</code> label where
+Phoenix had the <code>seed</code> tag and carries on as before: a seed changed
+since reaches only the environments still on the seed.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>If the core started before the import, it seeded the shipped prompts
+first; the import then adds your versions on top and moves the labels
+to them, and the next core start brings the seeds up to date as above.</p>
+</div>
+<div class="paragraph">
+<p>When the prompts are in Langfuse, remove the old Phoenix volume
+(<code>docker volume rm kumoss_phoenix_db_data</code> for a Compose project named
+<code>kumoss</code>; with Helm, the PersistentVolumeClaim
+<code>data-&lt;fullname&gt;-phoenix-db-0</code>, <code>data-kumoss-phoenix-db-0</code> for a release
+named <code>kumoss</code>).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="database-migrations-with-alembic"><a class="anchor" href="#database-migrations-with-alembic"></a>Database migrations with Alembic</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The core no longer builds its tables with <code>create_all</code>. It runs Alembic
+migrations at startup instead, in one transaction and under a
+PostgreSQL advisory lock.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Existing databases.</strong> The first start adopts them: it applies the
+provider rename below if still pending, records the baseline revision
+in a new <code>alembic_version</code> table, and runs the later revisions. The
+first of those adds <code>histories.user_queries</code>. Nothing to do by hand,
+but back the database up first.</p>
+</li>
+<li>
+<p><strong>Pre-authentication volumes.</strong> A database with sessions but no <code>users</code>
+table is refused at startup; migrate it by hand or recreate it.</p>
+</li>
+<li>
+<p><strong>Schema changes in forks.</strong> Change the models and add a revision; see
+<a href="../../reference/database-schema/#changing-the-schema" class="xref page">Changing
+the schema</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="providers-come-from-the-root-module"><a class="anchor" href="#providers-come-from-the-root-module"></a>Providers come from the root module</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Sessions no longer take a provider and a scope from the user. The core
+reads the providers from the root module&#8217;s <code>required_providers</code> and
+keeps the scopes, variable answers and picked var files in a
+<code>kumoss.yaml</code> manifest committed in the module. See
+<a href="../../reference/root-module-manifest/" class="xref page">Root module manifest</a>.</p>
+</div>
+<div class="paragraph">
+<p>What that changes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Web application.</strong> The wizard asks for the request, the repository
+URL and the root module, then shows an inputs form only when the
+module needs something. The provider and scope questions, the
+permissions step and the call to the mapping service are gone.</p>
+</li>
+<li>
+<p><strong>First session on each module.</strong> The first session after the upgrade
+sets the module&#8217;s manifest up: the user answers its scopes (and any
+required variable without a value) once, and the session commits
+<code>kumoss.yaml</code> to its branch. Merge that pull request so later
+sessions find the manifest on the default branch.</p>
+</li>
+<li>
+<p><strong>Core API.</strong> <code>generate</code>, <code>drift</code> and <code>import</code> no longer take
+<code>terraform_providers</code> or <code>scope_id</code>. Unknown fields are ignored, so an
+old client is not rejected, but what it sends has no effect. Probe the
+module with <code>POST /api/v1/manifest/probe</code> and send the answers in
+<code>manifest</code> on the first call. See
+<a href="../../reference/api/core/" class="xref page">Core API</a>.</p>
+</li>
+<li>
+<p><strong>Session read models.</strong> Session summaries and details expose
+<code>providers: [{name, scope_id}]</code> instead of <code>provider</code> and <code>scope_id</code>.</p>
+</li>
+<li>
+<p><strong>Tracing.</strong> The span <code>metadata</code> carries <code>providers</code> (a list of
+provider type names) instead of <code>cloud</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="provider-names-are-terraform-provider-types"><a class="anchor" href="#provider-names-are-terraform-provider-types"></a>Provider names are Terraform provider types</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Providers are named everywhere by their Terraform provider type, the
+last segment of the source address:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 50%;">
+<col style="width: 50%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Before</th>
+<th class="tableblock halign-left valign-top">Now</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>gcp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vmware</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Any other provider a module uses (<code>random</code>, <code>helm</code>&#8230;&#8203;) is a session
+provider too, under its own type name.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Database.</strong> The <code>terraform_providers</code> table is migrated at startup:
+the <code>provider</code> column becomes <code>varchar(64)</code> with the new names,
+<code>scope_id</code> becomes nullable, and the old enum type is dropped.
+Nothing to do by hand. See
+<a href="../../reference/database-schema/" class="xref page">Database schema</a>.</p>
+</li>
+<li>
+<p><strong>Prompts.</strong> Phoenix prompt names follow the provider type:
+<code>azure-guidelines-<strong></code> is now <code>azurerm-guidelines-</strong></code>, <code>gcp-<strong></code> is
+<code>google-</strong></code> and <code>vmware-<strong></code> is <code>vsphere-</strong></code>, and the seed folders under
+<code>core/prompts/seed/</code> were renamed to match. The seeder creates the new
+names on the next boot, with the shipped content. Versions you
+curated under the old names are not moved and no longer read: copy
+them to the new names in Phoenix and move the environment tag. See
+<a href="../customize-prompts/" class="xref page">Customize prompts</a>.</p>
+</li>
+<li>
+<p><strong>Prompt selection.</strong> A session uses the prompts of every provider of
+its module that has them. A provider without prompts no longer
+aborts a session with <code>Prompt not found</code>; it gets the <code>general-*</code>
+prompts only.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="sidecar-contracts-2-0-0"><a class="anchor" href="#sidecar-contracts-2-0-0"></a>Sidecar contracts 2.0.0</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The IaC, authorization and mapping contracts moved to 2.0.0 together.
+A custom implementation of any of them must be upgraded with the core.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 80%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Contract</th>
+<th class="tableblock halign-left valign-top">Breaking change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC (<code>iac.v1.yaml</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The request is a plain CLI invocation. <code>init</code>, <code>plan</code>, <code>apply</code> and
+<code>import</code> drop the required <code>scope_id</code> + <code>terraform_provider</code> pair, and
+<code>plan</code> and <code>import</code> drop <code>variables</code>. Every engine command takes an
+optional <code>env</code> (environment variables it may add but never replace),
+and <code>plan</code> and <code>import</code> an optional <code>vars</code> (input variable values,
+passed as the last <code>-var-file</code>); <code>var_files</code> stays, with any path shape
+inside the workspace. The service knows no provider: the core sends
+each scope as <code>env</code> or <code>vars</code>, so a deployment must leave
+<code>ARM_SUBSCRIPTION_ID</code> and <code>GOOGLE_PROJECT</code> unset on the service. The
+bundled service no longer checks the AWS account with STS before each
+command: existing AWS modules that do not pass <code>var.aws_account_id</code> to
+the provider&#8217;s <code>allowed_account_ids</code> run in whatever account the
+service&#8217;s credentials belong to.
+<code>/v1/import/scope-resource-ids</code> takes <code>provider</code> (<code>azurerm</code>, <code>google</code>
+or <code>aws</code>) instead of <code>terraform_provider</code>, and rejects any other
+provider with <code>422</code> instead of answering exit code <code>2</code>. See
+<a href="../../reference/api/iac/#versioning" class="xref page">IaC sidecar API</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Authorization (<code>authz.v1.yaml</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>resource.properties.provider</code> is any Terraform provider type name
+instead of an enum of the former names. The core sends one evaluation
+per provider scope of the session&#8217;s root module, or one module-level
+evaluation with an empty <code>resource.id</code> and no provider when the module
+has no scoped provider. First calls are evaluated inside the session,
+after the <code>202</code>. Update PDP policies that match <code>azure</code>, <code>gcp</code> or
+<code>vmware</code>. See <a href="../../reference/api/authz/" class="xref page">Authorization sidecar
+API</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Mapping (<code>mapping.v1.yaml</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The request takes <code>identifier</code> only and the response answers
+<code>repo_url</code> and <code>identifier</code> only: <code>terraform_provider</code>, <code>scope_id</code> and
+the <code>TerraformProvider</code> enum are gone, and a request that still sends
+<code>terraform_provider</code> is <code>422</code>. The core&#8217;s <code>POST /api/v1/mapping/resolve</code>
+passthrough was removed; the core now calls the service from
+<code>POST /api/v1/repository/parse</code> instead (see below). A <code>404&#8217;s
+`detail</code> is shown to the user. See
+<a href="../../reference/api/mapping/" class="xref page">Mapping sidecar API</a>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="the-mapping-sidecar-is-bundled-and-on-by-default"><a class="anchor" href="#the-mapping-sidecar-is-bundled-and-on-by-default"></a>The mapping sidecar is bundled and on by default</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The wizard&#8217;s repository step now resolves what the user types through
+the mapping sidecar, so a bare repository name works as well as a URL.
+Kumoss bundles a mapping service (<code>services/mapping</code>, image
+<code>kumoss-mapping</code>) that appends a name to <code>MAPPING_PREFIX_IDENTIFIER</code>
+with a <code>.git</code> suffix, and the shipped <code>config.yaml</code> enables it
+(<code>services.mapping.enabled: true</code>, <code>endpoint: "http://mapping:8081"</code>).</p>
+</div>
+<div class="paragraph">
+<p>What that changes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Core boot.</strong> With mapping enabled, the core refuses to boot without
+<code>KUMOSS_MAPPING_TOKEN</code>. Add it to <code>core/.env</code> (and the same value to
+<code>services/mapping/.env</code>), or set <code>services.mapping.enabled: false</code>.
+The Helm chart generates the token itself; a <code>secrets.existingSecret</code>
+must now also hold <code>KUMOSS_MAPPING_TOKEN</code>.</p>
+</li>
+<li>
+<p><strong>Compose.</strong> Copy <code>services/mapping/env.sample</code> to
+<code>services/mapping/.env</code> and set <code>MAPPING_PREFIX_IDENTIFIER</code> to your
+organization&#8217;s base URL (e.g. <code>https://github.com/my-org/</code>). Left
+empty, only full <code>https://</code> URLs resolve, as before.</p>
+</li>
+<li>
+<p><strong>Your own mapping implementation.</strong> Keep your <code>services.mapping.endpoint</code>
+and remove the bundled <code>mapping</code> service from your deployment (Helm:
+<code>mapping.enabled: false</code> disables both; set
+<code>config.services.mapping</code> back on with your endpoint).</p>
+</li>
+<li>
+<p><strong>Core API.</strong> <code>POST /api/v1/repository/parse</code> accepts a repository name
+as <code>repo_uri</code> and answers <code>repo_url</code> next to <code>roots</code>; send that
+<code>repo_url</code> on later calls. It can now also answer <code>404</code> (name not
+resolvable) and <code>504</code> (mapper timeout). See
+<a href="../../reference/api/core/" class="xref page">Core API</a>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="kumoss-managed-state-keys-changed"><a class="anchor" href="#kumoss-managed-state-keys-changed"></a>Kumoss-managed state keys changed</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>With <a href="../state-backends/kumoss-managed/" class="xref page">Kumoss-managed
+state</a> the state key is now the SHA-256 of the repository and the root
+module path only; earlier releases also hashed the cloud scope. <strong>State
+written under the old keys is not migrated.</strong> Left as is, the first
+session on each project plans against empty state and proposes
+creating resources that already exist.</p>
+</div>
+<div class="paragraph">
+<p>Before running sessions on an existing project, copy its state object
+in the state bucket from <code>&lt;old_project_id&gt;/terraform.tfstate</code> to
+<code>&lt;project_id&gt;/terraform.tfstate</code>. The old key appears in the
+<code>Terraform state: &#8230;&#8203; key=</code> log lines of the previous release; the new
+one in the same line the upgraded core logs on the project&#8217;s first
+<code>init</code>. Do not apply a plan made before the copy. See
+<a href="../state-backends/kumoss-managed/#state-keys" class="xref page">State
+keys</a>.</p>
+</div>
+<div class="paragraph">
+<p>Projects whose repository declares its own backend, or whose backend
+comes from the IaC sidecar, are not affected.</p>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../deploy-with-helm/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Deploy with Helm</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../development/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Development</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/guides/upgrade-notes.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../../stable/">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

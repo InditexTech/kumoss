@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -857,20 +884,21 @@ admin panel after a rolling restart.</p>
 <p><strong>Start-up is strict</strong> and ordered: database, Redis, the object-storage
 artifacts bucket, the Terraform state bucket (created by default,
 since <code>storage.terraform_state_bucket</code> ships non-blank; skipped only
-if you blank it explicitly to <code>""</code>), Phoenix prompt seeding, then git
+if you blank it explicitly to <code>""</code>), Langfuse prompt seeding, then git
 credentials — the last only logs a warning on failure; every other
 step exits the process. Readiness should be derived from the API answering <code>GET
 /api/v1/auth/config</code>; the core has no dedicated health route.</p>
 </li>
 <li>
 <p><strong>The checked-in compose has no healthchecks and no restart policies</strong>
-for <code>core</code>, its dependencies, or the sidecars (only <code>proxy</code> sets
-<code>restart: on-failure</code>); the core&#8217;s own DB connection has no retry,
-Redis retry is under a second, and Phoenix-seeding retry is only about
-27.5 seconds. A core that loses a start-up race exits and <strong>stays
+for <code>core</code>, its own dependencies, or the sidecars (only <code>proxy</code> and
+the Langfuse services set <code>restart: on-failure</code>, and only the Langfuse
+services have healthchecks: the core waits for <code>langfuse-web</code> to be
+healthy); the core&#8217;s own DB connection has no retry, Redis retry is
+under a second, and Langfuse-seeding retry is about 90 seconds. A core that loses a start-up race exits and <strong>stays
 down</strong> under Compose. On your platform, give the core: a restart
 policy, a startup probe with a generous failure threshold (allow for
-the ~30-second Phoenix wait), and a liveness probe on <code>GET
+the ~90-second Langfuse wait), and a liveness probe on <code>GET
 /api/v1/auth/config</code> — otherwise a transient dependency race at boot
 becomes a permanent outage.</p>
 </li>
@@ -925,8 +953,9 @@ and drops privileges only for its workers — give it a non-root image or a Kube
 <code>runAsNonRoot</code> treatment if your policy requires it.</p>
 </li>
 <li>
-<p>Phoenix behind authentication or network isolation; retention policy
-for traces.</p>
+<p>Langfuse UI behind TLS and network isolation (it has its own login;
+sign-up is off in the bundled stack); rotated admin password and API
+keys; retention policy for traces.</p>
 </li>
 <li>
 <p>TLS everywhere users and browsers connect; managed database and
@@ -946,8 +975,15 @@ under acceptable data-handling terms.</p>
 </li>
 <li>
 <p>Seeded prompts reviewed and adapted before the first user session;
-they encode a generic policy, including the compliance rules and
-forbidden actions (<a href="../../customize-prompts/" class="xref page">Customize prompts</a>).</p>
+they encode a generic policy, including the compliance rules. No
+prompt lists forbidden actions: write your prohibitions as rules in
+the compliance policy (<a href="../../customize-prompts/" class="xref page">Customize prompts</a>,
+<a href="../../../reference/compliance-policy/" class="xref page">Compliance policy</a>).</p>
+</li>
+<li>
+<p>With <code>orchestration.enable_compliance_checker</code> on, the core starts
+only if the compliance policy evaluates; keep Langfuse reachable and the
+policy valid.</p>
 </li>
 </ul>
 </div>

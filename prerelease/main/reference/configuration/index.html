@@ -74,7 +74,7 @@
 
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/configuration/">
     <link rel="prev" href="../operating-modes/">
-    <link rel="next" href="../environment-variables/">
+    <link rel="next" href="../compliance-policy/">
     <meta name="description" content="Every `config.yaml` field: type, default, validation rule, and effect.">
     <meta name="generator" content="Antora 3.2.3">
 
@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="./" aria-current="page">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -827,8 +854,8 @@ the code disagree, the code wins and this page has a bug.</p>
 <p>Related guides: <a href="../environment-variables/" class="xref page">Environment
 variables and secrets</a>, <a href="../llm-providers/" class="xref page">LiteLLM
 providers and models</a>, <a href="../../guides/enable-authentication/" class="xref page">OIDC
-setup</a>, <a href="../../guides/monitor-with-phoenix/" class="xref page">Monitoring with
-Phoenix</a>, <a href="../../guides/customize-prompts/" class="xref page">Phoenix prompt
+setup</a>, <a href="../../guides/monitor-with-langfuse/" class="xref page">Monitor with
+Langfuse</a>, <a href="../../guides/customize-prompts/" class="xref page">Langfuse prompt
 templates</a>, <a href="../../guides-overview/" class="xref page">Guides</a>, and
 <a href="../../guides/administer-users-and-locks/" class="xref page">Administer users and locks</a> — and the
 sidecar READMEs under <code>services/</code>.</p>
@@ -967,17 +994,17 @@ shipped value enables Kumoss-managed state by default;
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Operational effect: it selects the Phoenix tracing project prefix
-(<code>dev-</code>, <code>pre-</code>, <code>pro-</code>; see <a href="../../guides/monitor-with-phoenix/" class="xref page">Monitoring
-with Phoenix</a>) and it is the <strong>tag</strong> used when fetching prompts from
-Phoenix at runtime (see
+<p>Operational effect: it is the Langfuse <strong>environment</strong> every trace is
+recorded under (see <a href="../../guides/monitor-with-langfuse/" class="xref page">Monitor
+with Langfuse</a>) and the <strong>label</strong> used when fetching prompts from
+Langfuse at runtime (see
 <a href="../../guides/customize-prompts/" class="xref page">Customize prompts</a>). The
-seeder tags every prompt it creates with all three values, so switching
-between them finds the seeded prompts without re-tagging. It
+seeder labels every prompt it creates with all three values, so switching
+between them finds the seeded prompts without relabelling. It
 does <strong>not</strong> enable any security control: setting <code>production</code> does not
 turn on authentication, authorization, or stricter defaults. A prompt
-created or re-versioned by hand in Phoenix is found only if its version
-carries the tag for the current value.</p>
+created or re-versioned by hand in Langfuse is found only if one of its
+versions carries the label for the current value.</p>
 </div>
 <div class="paragraph">
 <p>Requires restart: yes.</p>
@@ -1057,6 +1084,20 @@ the default and the issuer host is <code>login.microsoftonline.com</code>,
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Leeway applied to <code>exp</code>, <code>iat</code>, and <code>nbf</code> validation.</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oidc.claims</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">map (string → string)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>{}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Extra JWT claims to extract and forward to the authorization PDP as
+<code>subject.properties</code>. Keys are the property names sent to the PDP;
+values are the JWT claim names to read from the token. These merge with
+the universal defaults (<code>issuer</code> ← <code>iss</code>, <code>email</code> ← <code>email</code>); extras
+override a default on collision. Example for Azure Entra ID:
+<code>{ groups: "groups", identifier: "oid", tenant_id: "tid" }</code>.
+Entra ID caveat: group claims are object IDs; users with &gt;200 groups
+receive an overage indicator instead of the list.</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
@@ -1121,10 +1162,10 @@ admin</a>. Ignored while authentication is disabled.</p></td>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Wiring for the four sidecars. Each sidecar implements an OpenAPI
-contract in <code>contracts/openapi/</code>. Kumoss bundles services for IaC and
-notifications, and any implementation of their contract can replace
-the bundled one by changing <code>endpoint</code>; mapping and authorization are
-optional extension points you implement yourself and point <code>endpoint</code>
+contract in <code>contracts/openapi/</code>. Kumoss bundles services for IaC,
+notifications and mapping, and any implementation of their contract
+can replace the bundled one by changing <code>endpoint</code>; authorization is an
+optional extension point you implement yourself and point <code>endpoint</code>
 at.</p>
 </div>
 <div class="paragraph">
@@ -1157,21 +1198,21 @@ none because the core cannot run without it.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>services.&lt;name&gt;.enabled</code> (not for <code>iac</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">boolean</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code> for <code>notifications</code>, <code>mapping</code>, <code>authz</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code> for <code>notifications</code> and <code>mapping</code>; <code>false</code> for <code>authz</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Whether the core calls the sidecar. A disabled sidecar is never
-contacted: mapping is done locally, notifications are dropped, and
-authorization answers "authorized". Compose still starts the
-bundled notifications container; mapping and authorization have no
-bundled container. An <code>enabled</code> key under <code>services.iac</code> is ignored.</p></td>
+contacted: mapping is done locally (what the user typed is the
+repository URL), notifications are dropped, and authorization answers
+"authorized". Compose still starts the bundled notifications and
+mapping containers; authorization has no bundled container. An <code>enabled</code> key under <code>services.iac</code> is ignored.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>services.&lt;name&gt;.endpoint</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">string (base URL)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>""</code> for <code>notifications</code>, <code>mapping</code>, <code>authz</code>; <strong><code>http://iac:8082</code></strong> for
 <code>iac</code> (its own code default, not just the shipped value)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://notifications:8080</code>, <code>http://iac:8082</code>; <code>""</code> for
-<code>mapping</code> and <code>authz</code> (no bundled implementation)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://notifications:8080</code>, <code>http://mapping:8081</code>,
+<code>http://iac:8082</code>; <code>""</code> for <code>authz</code> (no bundled implementation)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Conditional (needed when enabled; always for <code>iac</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Base URL the core calls, resolvable from inside the core container.
 <strong>An empty <code>services.iac.endpoint</code> aborts the boot</strong> with
@@ -1204,9 +1245,8 @@ enabled: false (services.iac cannot — it is mandatory).</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Per-request HTTP budget. Every sidecar call returns promptly (long
 work runs as jobs the core polls), so this covers one round trip only.
-Honoured by the IaC and notifications clients; the mapping and
-authorization clients currently use fixed budgets of 10 and 15 seconds
-and ignore this field.</p></td>
+Honoured by the IaC, notifications, and authorization clients; the
+mapping client uses a fixed budget of 10 seconds.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1302,17 +1342,25 @@ Raise the limits carefully: they bound the cost of a runaway session.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>true</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Runs the compliance auditor once a generate round has been validated
-and its report written: a second, independent small-model agent reads
-the session&#8217;s first request and the raw plan, and checks them against
-the rules in the <code>general-compliance-report</code> prompt. The session is
-<strong>locked</strong> if any finding comes back with severity <code>error</code> or <code>critical</code>;
+<td class="tableblock halign-left valign-top"><p class="tableblock">Runs the compliance check once a generate round has been validated
+and its report written, in two parts merged into one report. First the
+core evaluates the Rego policy <code>general/policies/compliance</code> with OPA
+against the final plan&#8217;s <code>show -json</code>; a policy that cannot be
+evaluated adds a blocking <code>policy_unavailable</code> finding, see
+<a href="../compliance-policy/" class="xref page">Compliance policy</a>. Then a
+second, independent small-model agent reads the session&#8217;s first
+request and the raw plan, and checks them against the rules in the
+<code>general/compliance/report</code> prompt. The session is
+<strong>locked</strong> if any finding of either part has severity <code>error</code> or <code>critical</code>;
 <code>warning</code> findings are recorded in the report but do not lock. The
 report is stored as a round artifact and shown in the portal. A lock
 also sends an <code>iac.compliance.failed</code> notification. When <code>false</code> the
 audit is skipped entirely and reported as an empty passing result, so
 it can never lock and nothing is stored. Generate rounds only — drift
-rounds do not audit, and apply does not re-audit.</p></td>
+rounds do not audit, and apply does not re-audit. When <code>true</code>, the core
+evaluates the policy at startup against an empty plan and refuses to
+start if that fails (no <code>opa</code> binary, a broken policy, Langfuse
+unreachable).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.block_on_high_impact</code></p></td>
@@ -1323,7 +1371,7 @@ rounds do not audit, and apply does not re-audit.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Locks</strong> the session when the generate report&#8217;s impact banner comes
 back <code>high</code>, and sends an <code>iac.impact.high</code> notification. The banner
 itself — <code>low</code>, <code>medium</code>, or <code>high</code>, judged against the
-<code>general-compliance-impact</code> prompt criteria — is part of every report
+<code>general/compliance/impact</code> prompt criteria — is part of every report
 either way; this flag decides only whether it gates. It is evaluated
 independently of the auditor above: the round ends locked if <strong>either</strong>
 condition fires.</p></td>
@@ -1637,13 +1685,11 @@ loses detail the agent cannot get back.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p>Each search starts the same way: the engine returns ranked hits, and
-every hit&#8217;s page is rendered in headless Chromium through Playwright and
-reduced to markdown with <a href="https://trafilatura.readthedocs.io/">trafilatura</a>,
-so the agent works from the pages themselves — including
-JavaScript-rendered ones — rather than the engine&#8217;s snippets. The pages
-are read concurrently from one shared browser, and Chromium presents the
-fingerprint bot protection expects, so blogs and forums answer <code>200</code>
-where a bare HTTP client would get <code>403</code>. A page that will not render
+every hit&#8217;s page is fetched over HTTP and reduced to markdown with
+<a href="https://trafilatura.readthedocs.io/">trafilatura</a>, so the agent works from
+the pages themselves rather than the engine&#8217;s snippets. The pages are
+read concurrently over one shared client. A page that will not fetch or
+extract — a <code>403</code> from bot protection, a PDF, a JavaScript-only page —
 falls back to its snippet, so a partial failure costs detail rather than
 the whole search.</p>
 </div>
@@ -1756,6 +1802,18 @@ and the gitignore rules the core injects only cover that suffix. The
 file holds the state store credentials, so the agent&#8217;s file tools can
 neither see nor touch it.</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>paths.manifest_filename</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string matching <code>^[A-Za-z0-9._-]{1,128}\.ya?ml$</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Name of the root module manifest the core reads from, and commits to,
+each root module directory: the module&#8217;s providers, scopes, picked var
+files and plain variable values (sensitive ones by name only). Changing
+it makes every existing manifest invisible, so each module is set up
+again on its next session. See
+<a href="../root-module-manifest/" class="xref page">Root module manifest</a>.</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
@@ -1800,9 +1858,9 @@ fails when it is unreachable. A <code>postgresql://</code> scheme is rewritten t
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Schema note: there are no migrations; tables are created with
-<code>create_all</code>. A database volume created by an older schema must be
-migrated by hand or dropped.</p>
+<p>Schema note: the core migrates the schema with Alembic at startup, so
+a database from an older release is upgraded in place. See
+<a href="../database-schema/#changing-the-schema" class="xref page">Changing the schema</a>.</p>
 </div>
 <div class="paragraph">
 <p>Requires restart: yes for the field name; the URL value lives in
@@ -1891,9 +1949,9 @@ restart: yes.</p>
 <h2 id="telemetry"><a class="anchor" href="#telemetry"></a><code>telemetry</code></h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>OpenTelemetry export and, in the current implementation, also the
-address of the Phoenix prompt registry. See
-<a href="../../guides/monitor-with-phoenix/" class="xref page">Monitor with Phoenix</a> and
+<p>Langfuse: where traces are exported (OTLP/HTTP) and where prompts are
+read from. Both use the same base URL and the same project key pair. See
+<a href="../../guides/monitor-with-langfuse/" class="xref page">Monitor with Langfuse</a> and
 <a href="../../guides/customize-prompts/" class="xref page">Customize prompts</a>.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -1917,19 +1975,37 @@ address of the Phoenix prompt registry. See
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.collector_url</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">string (base URL <strong>ending in <code>/</code></strong>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.langfuse_url</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string (base URL)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://langfuse-web:3000/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://langfuse-web:3000/</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of the trace collector. The core appends <code>v1/traces</code> by plain
-string concatenation, so the value must end with a slash:
-<code>http://phoenix:6006/</code> becomes <code>http://phoenix:6006/v1/traces</code>. The
-<strong>same URL</strong> is used as the Phoenix client base URL for prompt seeding
-and fetching, so today it must point at a Phoenix server even if you
-export traces elsewhere. The default is the Phoenix service of the
-bundled stack; running the core outside docker needs an explicit
-<code>http://localhost:6006/</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of Langfuse as the core reaches it; a missing trailing slash
+is added. Traces go to <code>&lt;langfuse_url&gt;api/public/otel/v1/traces</code> and
+prompts are read from <code>&lt;langfuse_url&gt;api/public/v2/prompts</code>. The default
+is the <code>langfuse-web</code> service of the bundled stack; running the core
+outside docker needs an explicit <code>http://localhost:3000/</code>. Any
+Langfuse v4 works, self-hosted or Cloud.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.public_key_env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string (env var name)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LANGFUSE_PUBLIC_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LANGFUSE_PUBLIC_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Variable holding the public key (<code>pk-lf-&#8230;&#8203;</code>) of the Langfuse project.
+Unset, the core uses <code>pk-lf-kumoss-dev</code>, the key the bundled stack
+provisions.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.secret_key_env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">string (env var name)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LANGFUSE_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LANGFUSE_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Variable holding the secret key (<code>sk-lf-&#8230;&#8203;</code>). Unset, the core uses
+<code>sk-lf-kumoss-dev</code>. A key pair Langfuse rejects fails the boot (prompt
+seeding) with <code>Langfuse refused the API key pair (401)</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_attribute_count_limit</code></p></td>
@@ -1938,8 +2014,8 @@ bundled stack; running the core outside docker needs an explicit
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>1024</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Optional</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Maximum number of attributes per span (attribute <em>count</em>, not length).
-When exceeded the SDK drops the oldest attributes first, which on LLM
-spans are the session and user identifiers and the span kind.</p></td>
+Spans carry a few dozen; the conversation of an LLM span is a single
+attribute.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_console_exporter</code></p></td>
@@ -1953,8 +2029,9 @@ prompts and plans; do not enable this where logs are shared.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The code default only works when the core runs outside Docker on the
-same host as Phoenix. Requires restart: yes.</p>
+<p>The removed Phoenix key <code>telemetry.collector_url</code> fails validation, so
+an old file is not silently sent to the default URL. Requires restart:
+yes.</p>
 </div>
 </div>
 </div>
@@ -2309,7 +2386,7 @@ everyone reaching port 80 is the local developer with full roles.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  endpoint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://searxng:8888"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">telemetry</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  collector_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://phoenix:6006/"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  langfuse_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"http://langfuse-web:3000/"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">storage</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  provider</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"RUSTFS"</span></span>
@@ -2346,6 +2423,8 @@ control below must be set explicitly.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  issuer_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://login.example.invalid/realms/platform"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  client_id</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss-web"</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  clock_skew_seconds</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">60</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  claims</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">    groups</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"groups"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">admin</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  default_root_email</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"platform-admin@example.invalid"</span></span>
@@ -2385,7 +2464,7 @@ control below must be set explicitly.</p>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  max_output_tokens</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8">32000</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">telemetry</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  collector_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://phoenix.kumoss.example.invalid/"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  langfuse_url</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://langfuse.kumoss.example.invalid/"</span></span>
 <span class="line"></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">http</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  cors_origins</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
@@ -2413,11 +2492,13 @@ control below must be set explicitly.</p>
 </div>
 <div class="paragraph">
 <p>Points that this example relies on but that the file cannot express:
-the mapping and authz endpoints must be your own implementations of
-their contracts (Kumoss bundles neither);
-Phoenix must be reachable at <code>collector_url</code> for prompt seeding; the
-Phoenix UI must be protected separately because it receives prompts and
-plans; and every <code><strong><em>TOKEN</code>, <code>STORAGE_ACCOUNT_KEY</code>,
+the authz endpoint must be your own implementation of its contract
+(Kumoss bundles none), and the mapping endpoint either the bundled
+service or your own catalogue-backed one;
+Langfuse must be reachable at <code>langfuse_url</code> for prompt seeding, with
+its project key pair in <code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code>;
+access to the Langfuse UI must be restricted because it holds prompts
+and plans; and every <code><strong><em>TOKEN</code>, <code>STORAGE_ACCOUNT_KEY</code>,
 <code>KUMOSS_SQL_DATABASE_URL</code>, <code>GIT_TOKEN</code>, and the <code>AZURE_API</em></strong></code>
 credentials must come from a secret store. See
 <a href="../environment-variables/" class="xref page">Environment variables and
@@ -2444,9 +2525,9 @@ secrets</a>.</p>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../environment-variables/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../compliance-policy/">
       <span class="dt-button__content">
-        <span class="pagination__label-full">Environment variables</span>
+        <span class="pagination__label-full">Compliance policy</span>
         <span class="pagination__label-short">Next</span>
         <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
       </span>

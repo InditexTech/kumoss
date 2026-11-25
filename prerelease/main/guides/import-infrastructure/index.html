@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -814,7 +841,7 @@
 <div class="paragraph">
 <p>The Kumoss web application offers two import modes: Partial Import, for
 the unmanaged resources your request names, and Full Import, for every
-unmanaged resource in the session&#8217;s scope. Both find the resources the
+unmanaged resource in the session&#8217;s scopes. Both find the resources the
 cloud holds but the Terraform state does not, write a resource block for
 each, run <code>terraform import</code> on them, and reconcile the imported
 configuration with the real resources. They differ only in how the
@@ -837,11 +864,14 @@ when it continues an existing session. See
 for the complete role matrix.</p>
 </li>
 <li>
-<p>A repository URL, the target cloud, and a scope id, as covered in
-<a href="../make-a-request/" class="xref page">Make a request</a>. The scope is what
-discovery lists: an Azure subscription, a GCP project, or an AWS
-account. OCI, Kubernetes, and VMware vSphere have no scope listing, so
-an import round on them finds nothing to import (see <a href="#limitations">Limitations</a>).</p>
+<p>A repository URL and, the first time, the root module&#8217;s scopes, as
+covered in <a href="../make-a-request/" class="xref page">Make a request</a>. The
+scopes are what discovery lists: the subscription of an <code>azurerm</code>
+provider, the project of a <code>google</code> provider and the account of an
+<code>aws</code> provider, all of them when the module uses several. <code>oci</code>,
+<code>kubernetes</code> and <code>vsphere</code> have no scope listing, so an import round on
+a module that uses none of the three finds nothing to import (see
+<a href="#limitations">Limitations</a>).</p>
 </li>
 <li>
 <p>The IaC sidecar&#8217;s credentials must be able to read the cloud inventory
@@ -862,7 +892,7 @@ you want only some of them managed from the repository: "import the key
 vault and its private endpoint".</p>
 </div>
 <div class="paragraph">
-<p><strong>Required inputs.</strong> Repository URL, cloud, scope id, and a <strong>non-empty</strong>
+<p><strong>Required inputs.</strong> Repository URL and a <strong>non-empty</strong>
 request naming what to import. The API rejects a partial import with an
 empty text.</p>
 </div>
@@ -881,16 +911,19 @@ round <code>uncompleted</code> with the filter&#8217;s rationale.</p>
 </li>
 <li>
 <p><strong>Discovery.</strong> The core lists what the Terraform state tracks
-(<code>/v1/import/state-resource-ids</code>) and what the cloud scope holds
-(<code>/v1/import/scope-resource-ids</code>), and keeps the resource IDs the state
-does not track. Azure IDs are compared case-insensitively; every other
+(<code>/v1/import/state-resource-ids</code>) and what each listable scope of the
+root module holds (<code>/v1/import/scope-resource-ids</code>, once per scope),
+and keeps the resource IDs the state does not track, merged across
+scopes. A scope that cannot be listed is reported without hiding the
+others. Azure IDs are compared case-insensitively; every other
 provider compares them exactly. The IaC sidecar already leaves out
 resources another control plane owns, such as AKS-managed resource
 groups or GKE nodes.</p>
 </li>
 <li>
-<p><strong>Import exception list.</strong> IDs on the cloud&#8217;s
-<code>&lt;cloud&gt;-guidelines-import_exceptions</code> list are withheld from the rest
+<p><strong>Import exception list.</strong> IDs on the
+<code>&lt;provider&gt;/guidelines/import_exceptions</code> lists of the module&#8217;s
+providers are withheld from the rest
 of the round, whatever the request says. See
 <a href="../customize-prompts/#import-exception-list" class="xref page">Import
 exception list</a>.</p>
@@ -919,7 +952,9 @@ Terraform address with its listed cloud resource ID, then build the
 import ID in the format the "Import" section of the provider&#8217;s
 documentation gives for that resource type and provider version
 (the full ID, a name, a short ID or a composite, depending on the
-type), looked up with <code>web_search</code> once per resource type;</p>
+type), read once per resource type from the Terraform Registry with
+<code>terraform_docs</code>, falling back to <code>web_search</code> when the registry
+cannot answer;</p>
 </li>
 <li>
 <p>runs <code>terraform import</code> for each pair, one address at a time, through
@@ -1019,7 +1054,7 @@ manage, for example when bringing an existing subscription into a
 repository.</p>
 </div>
 <div class="paragraph">
-<p><strong>Required inputs.</strong> Repository URL, cloud, and scope id. The web
+<p><strong>Required inputs.</strong> Repository URL. The web
 application asks for no request text and sends the fixed request "Import
 all the infrastructure".</p>
 </div>
@@ -1047,9 +1082,11 @@ reports <code>Succeeded</code>.</p>
 <div class="ulist">
 <ul>
 <li>
-<p>Scope discovery exists only for Azure, GCP and AWS. On OCI, Kubernetes,
-and VMware vSphere the scope cannot be listed, and the round ends with a
-report that says so and imports nothing.</p>
+<p>Scope discovery exists only for <code>azurerm</code>, <code>google</code> and <code>aws</code> scopes.
+A root module that uses none of them (only <code>oci</code>, <code>kubernetes</code>,
+<code>vsphere</code>&#8230;&#8203;) has nothing to list, and the round ends with a report
+that says so and imports nothing. In a module that mixes providers,
+only the resources of its listable scopes are found.</p>
 </li>
 <li>
 <p>The import exception list is matched against the exact IDs the scope

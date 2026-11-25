@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/authz/">
     <link rel="prev" href="../mapping/">
     <link rel="next" href="../../../additional-information/">
-    <meta name="description" content="The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.">
+    <meta name="description" content="OpenID AuthZEN 1.0 Access Evaluation for organizational access control. Kumoss consults the PDP on every IaC and PR write route.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -791,7 +818,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Authorization sidecar API</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Authorization sidecar API</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The per-resource cloud access decision contract. Kumoss consults exactly one of its endpoints, from exactly one core route, and ships with it disabled.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">OpenID AuthZEN 1.0 Access Evaluation for organizational access control. Kumoss consults the PDP on every IaC and PR write route.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -813,15 +840,16 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>The authorization service answers <strong>may this user operate on this
-cloud resource?</strong> — a question about a subscription, a project, or an
-account, asked before Kumoss runs anything against a live environment.</p>
+<p>The authorization service answers <strong>may this user perform this action on
+this scope?</strong> — asked before every IaC generation, drift detection,
+import, apply, PR creation, and PR merge.</p>
 </div>
 <div class="paragraph">
-<p>Contract: <code>contracts/openapi/authz.v1.yaml</code>. Kumoss bundles no
-implementation of it: authorization is an optional extension point you
-implement yourself and point <code>services.authz.endpoint</code> at. Bearer
-token: the value of the variable named by <code>services.authz.token_env</code>,
+<p>Contract: <code>contracts/openapi/authz.v1.yaml</code> (version 2.0.0), implementing the OpenID
+AuthZEN 1.0 Access Evaluation API (§5). Kumoss bundles no PDP
+implementation: authorization is an optional extension point you deploy
+yourself and point <code>services.authz.endpoint</code> at. Bearer token: the
+value of the variable named by <code>services.authz.token_env</code>,
 <code>KUMOSS_AUTHZ_TOKEN</code> by default. The service is <strong>optional</strong> and ships
 disabled (<code>services.authz.enabled: false</code>, <code>endpoint: ""</code>).</p>
 </div>
@@ -836,8 +864,9 @@ disabled (<code>services.authz.enabled: false</code>, <code>endpoint: ""</code>)
 <p><strong>Kumoss&#8217;s own roles do not live here.</strong> The operation roles (<code>developer</code>
 &lt; <code>devops</code>) and panel roles (<code>viewer</code> &lt; <code>editor</code> &lt; <code>admin</code>) that decide
 what a signed-in user can do are rows in the core database, managed
-from the admin panel. The contract&#8217;s user and role endpoints describe
-an implementation&#8217;s own store, which has no effect on any of that. See
+from the admin panel. The AuthZEN PDP is an <strong>organizational</strong> gate — it
+lets you enforce policies like "only the platform team may generate
+infrastructure in the production subscription." See
 <a href="../../roles-and-permissions/" class="xref page">Roles and permissions</a>.</p>
 </div>
 </td>
@@ -847,22 +876,140 @@ an implementation&#8217;s own store, which has no effect on any of that. See
 </div>
 </div>
 <div class="sect1">
-<h2 id="what-the-core-actually-calls"><a class="anchor" href="#what-the-core-actually-calls"></a>What the core actually calls</h2>
+<h2 id="endpoints"><a class="anchor" href="#endpoints"></a>Endpoints</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The contract describes seven paths. <strong>The core calls one of them.</strong></p>
+<p>The contract exposes two endpoints:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 42.8571%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Endpoint</th>
+<th class="tableblock halign-left valign-top">What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /access/v1/evaluation</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Evaluates whether a subject is permitted to perform an action on a
+resource, per AuthZEN §5. <strong>Called on every write route.</strong></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /healthz</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Liveness probe, answers <code>\{"status":"ok"}</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="enforcement"><a class="anchor" href="#enforcement"></a>Enforcement</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The core calls the PDP on every route that mutates infrastructure or
+repository state. The <code>action.name</code> value maps to the operation:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 33.3333%;">
+<col style="width: 22.2222%;">
+<col style="width: 44.4445%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Core route</th>
+<th class="tableblock halign-left valign-top">action.name</th>
+<th class="tableblock halign-left valign-top">When</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/iac/generate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>generate</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">First call and iterations</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/iac/drift</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>drift</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">First call and iterations</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/iac/import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">First call and iterations</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/iac/apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>apply</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Apply trigger</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="sect2">
+<h3 id="one-evaluation-per-provider-scope"><a class="anchor" href="#one-evaluation-per-provider-scope"></a>One evaluation per provider scope</h3>
+<div class="paragraph">
+<p>A session&#8217;s root module may use several providers, so the core asks
+the PDP once per provider <strong>scope</strong> of the module, and every evaluation
+must allow:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>For each provider with a scope — <code>azurerm</code> (subscription), <code>google</code>
+(project), <code>aws</code> (account), <code>oci</code> (compartment) — one request with
+<code>resource.id</code> set to that scope and <code>properties.provider</code> set to the
+provider&#8217;s Terraform type name.</p>
+</li>
+<li>
+<p>A module with no scoped provider (only <code>kubernetes</code>, <code>vsphere</code>,
+<code>random</code>&#8230;&#8203;) gets a single module-level request instead, with an
+empty <code>resource.id</code> and no <code>properties.provider</code>; <code>repo_uri</code> and
+<code>root_module_path</code> still identify the module.</p>
+</li>
+</ul>
 </div>
 <div class="paragraph">
-<p><code>POST /api/v1/auth/authorize</code> — and nothing else in the core — forwards
-to <code>POST /v1/check</code>. The other five <code>/v1</code> paths exist for callers of
-this service directly, or for an implementation that keeps a role
-store of its own, to administer that service&#8217;s own users and roles.
-The generated client contains methods for them; nothing in the core
-invokes them.</p>
+<p>The pairs come from the module&#8217;s
+<a href="../../root-module-manifest/" class="xref page">manifest</a>, so <strong>when</strong> the
+check runs differs by call:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>First call</strong> (<code>generate</code>, <code>drift</code>, <code>import</code> with <code>repo_uri</code>) — the
+route answers <code>202</code> first, and the session evaluates the pairs right
+after it has resolved the manifest and before it saves anything
+(manifest, secrets, commit). A denial ends the session <code>FAILED</code> with
+the PDP&#8217;s reason, rather than a synchronous <code>403</code>.</p>
+</li>
+<li>
+<p><strong>Iteration calls and <code>apply</code></strong> — evaluated synchronously on the
+route, from the pairs recorded on the session at its first call; a
+denial is a <code>403</code>.</p>
+</li>
+</ul>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+PR routes (<code>PUT /repository/pr</code> and <code>PUT /repository/pr/merge</code>) are
+governed by Kumoss&#8217;s own operation roles, not by the authz PDP. See
+<a href="../../roles-and-permissions/" class="xref page">Roles and permissions</a>.
+</td>
+</tr>
+</table>
 </div>
 <div class="paragraph">
-<p>When <code>services.authz.enabled</code> is <code>false</code>, the shipped default, the
-core does not call out at all and answers authorized. When it is
+<p>When <code>services.authz.enabled</code> is <code>false</code> (the default), the core does
+not call out at all and treats every operation as authorized. When
 enabled, the core <strong>never</strong> fails open:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -878,146 +1025,61 @@ enabled, the core <strong>never</strong> fails open:</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Sidecar unreachable, or the call times out</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>502</code> or <code>504</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PDP unreachable, or the call times out</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>504</code> (gateway timeout)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Sidecar returns a <code>4xx</code> or <code>5xx</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>502</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PDP returns a network-level error</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>502</code> (bad gateway)</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Sidecar returns <code>200</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The decision it computed, passed through</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PDP returns <code>decision: false</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>403</code> with the PDP&#8217;s <code>reason_user</code> context (on a first call, the
+session ends <code>FAILED</code> with it instead)</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">PDP returns <code>decision: true</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The request proceeds</p></td>
 </tr>
 </tbody>
 </table></div></div>
-<div class="paragraph">
-<p>A <code>422</code> from the sidecar is therefore visible at the browser as a
-<code>502</code>, which matters for one specific shape of request:</p>
-</div>
-<div class="admonitionblock warning">
-<table>
-<tr>
-<td class="icon">
-<i class="fa icon-warning" title="Warning"></i>
-</td>
-<td class="content">
-<div class="paragraph">
-<p><strong>A long IaC path produces a <code>502</code>.</strong> The web application sends the
-repository URL as <code>project</code> and the IaC path as <code>environment</code>. The
-contract caps <code>environment</code> at 32 characters, so a longer path fails
-schema validation with <code>422</code> — which the core, refusing to fail open,
-surfaces as <code>502</code>. This only bites when <code>services.authz.enabled</code> is
-<code>true</code>.</p>
-</div>
-</td>
-</tr>
-</table>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="endpoints"><a class="anchor" href="#endpoints"></a>Endpoints</h2>
+<h2 id="post-accessv1evaluation"><a class="anchor" href="#post-accessv1evaluation"></a>POST /access/v1/evaluation</h2>
 <div class="sectionbody">
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 42.8571%;">
-<col style="width: 57.1429%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Endpoint</th>
-<th class="tableblock halign-left valign-top">What it does</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/check</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Decides whether a user may operate on a named cloud resource. <strong>The
-only endpoint Kumoss uses.</strong></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /v1/users/me</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Returns the calling user&#8217;s record and roles, creating an empty record
-if none exists.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /v1/roles</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Lists the role names the service knows.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /v1/users</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Lists all known users. Caller must hold the <code>admin</code> role.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/users/{user_id}/roles</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Assigns a role. <code>204</code> on success, <code>404</code> if the role is not in the
-catalogue. Caller must hold <code>admin</code>.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>DELETE /v1/users/{user_id}/roles/{role}</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Revokes a role. <code>204</code> on success, and also <code>204</code> if the role was
-already absent. Caller must hold <code>admin</code>.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /healthz</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Liveness probe, answers <code>{"status":"ok"}</code>.</p></td>
-</tr>
-</tbody>
-</table></div></div>
 <div class="sect2">
-<h3 id="asserted-identity"><a class="anchor" href="#asserted-identity"></a>Asserted identity</h3>
-<div class="paragraph">
-<p>The administrative endpoints take identity from <strong>headers</strong>, not from a
-token this service validates. The two are declared unevenly:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>X-User-Id</code> — caller-asserted user identifier. Optional. Declared on
-four operations: <code>GET /v1/users/me</code>, <code>GET /v1/users</code>,
-<code>POST /v1/users/{user_id}/roles</code>, and
-<code>DELETE /v1/users/{user_id}/roles/{role}</code>. The contract advertises
-no maximum length, deliberately, so that a boundary caller does not
-get a hard <code>4xx</code>; an implementation may clamp it instead.</p>
-</li>
-<li>
-<p><code>X-User-Email</code> — caller-asserted email. Optional. Declared on
-<code>GET /v1/users/me</code> alone.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p><code>GET /v1/roles</code> declares no parameters at all and therefore takes
-neither header.</p>
-</div>
-<div class="paragraph">
-<p>OIDC token validation lives entirely in the core, so this service
-makes no assumption about the upstream identity provider and does not
-verify the assertion. That is only safe because the service is
-reachable from the core alone. <strong>The core sends neither header on any
-live path</strong> — they matter only if you call these endpoints yourself.</p>
-</div>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="post-v1check"><a class="anchor" href="#post-v1check"></a>POST /v1/check</h2>
-<div class="sectionbody">
+<h3 id="request"><a class="anchor" href="#request"></a>Request</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "user_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"someone@example.com"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "cloud"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "project"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-project"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "environment"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"dev"</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "subject"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "type"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"user"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://login.microsoftonline.com/.../v2.0"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "properties"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "issuer"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://login.microsoftonline.com/.../v2.0"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "email"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"someone@example.com"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "groups"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: [</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"platform-team"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"devops"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">]</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    }</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  },</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "action"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "name"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"generate"</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  },</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "resource"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "type"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"scope"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-subscription-id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "properties"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "provider"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "repo_uri"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://dev.azure.com/org/project/_git/infra"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "root_module_path"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"environments/dev"</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    }</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  }</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
 </div>
-<div class="paragraph">
-<p><code>cloud</code> and <code>project</code> are required; <code>user_id</code> and <code>environment</code> are
-nullable. <code>additionalProperties</code> is <code>false</code>.</p>
-</div>
+<div class="sect3">
+<h4 id="subject"><a class="anchor" href="#subject"></a>Subject</h4>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
 <col style="width: 28.5714%;">
@@ -1027,50 +1089,145 @@ nullable. <code>additionalProperties</code> is <code>false</code>.</p>
 <thead>
 <tr>
 <th class="tableblock halign-left valign-top">Field</th>
-<th class="tableblock halign-left valign-top">Limits</th>
-<th class="tableblock halign-left valign-top">Meaning</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Description</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>user_id</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1-1024 chars, nullable</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The user to check. Null for an anonymous flow. The core sends the
-caller&#8217;s email, falling back to the token subject when there is no
-email.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>type</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Always <code>user</code>.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cloud</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1-32 chars, required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azure</code>, <code>gcp</code>, and so on.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The OIDC <code>iss</code> (issuer) claim from the user&#8217;s token.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>project</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1-256 chars, required</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The resource being checked.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties.issuer</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The OIDC <code>iss</code> claim (universal default).</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>environment</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1-32 chars, nullable</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Deployment dimension — <code>dev</code>, <code>pro</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties.email</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Present only when the token&#8217;s <code>email_verified</code> is true (universal default).</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties.*</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Any additional claims configured via <code>oidc.claims</code> in <code>config.yaml</code>.
+For example, <code>groups</code>, <code>identifier</code>, <code>tenant_id</code>. See
+<a href="../../configuration/#config-oidc" class="xref page">OIDC configuration</a>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect3">
+<h4 id="action"><a class="anchor" href="#action"></a>Action</h4>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 14.2857%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>name</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One of: <code>generate</code>, <code>drift</code>, <code>import</code>, <code>apply</code>, <code>pr.create</code>,
+<code>pr.merge</code>. The core currently sends the first four; a PDP must still
+accept the <code>pr.*</code> names.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Free-form object; the core does not send it.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+</div>
+<div class="sect3">
+<h4 id="resource"><a class="anchor" href="#resource"></a>Resource</h4>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 14.2857%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>type</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Always <code>scope</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>id</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The scope identifier (subscription, project, account, compartment).
+Empty in the module-level evaluation of a module with no scoped
+provider.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties.provider</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Terraform provider type name the scope belongs to (<code>azurerm</code>,
+<code>google</code>, <code>aws</code>, <code>oci</code>); any string matching
+<code>^[a-z0-9][a-z0-9_-]{0,63}$</code> is valid on the contract. Omitted in the
+module-level evaluation. Contract 2.0.0 changed this from an enum of
+the core&#8217;s former names (<code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>, <code>kubernetes</code>,
+<code>vmware</code>), so a PDP policy matching those values must be updated.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties.repo_uri</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The git repository URL.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>properties.root_module_path</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The root module path within the repository. Omitted when empty.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The response:</p>
+<p><code>additionalProperties</code> is <code>false</code> on the request envelope, subject,
+action, and resource objects. It is <code>true</code> on all <code>properties</code> objects,
+so PDPs may read custom fields.</p>
 </div>
+</div>
+</div>
+<div class="sect2">
+<h3 id="response"><a class="anchor" href="#response"></a>Response</h3>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "authorized"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "portal_url"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">null</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "reason"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">null</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "decision"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">true</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "context"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "reason_user"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "en"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"Authorized by platform policy."</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    },</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "reason_admin"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "en"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"Policy platform-team-azure matched."</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    }</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  }</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
-</div>
-<div class="paragraph">
-<p>A policy-backed implementation puts its own explanation in <code>reason</code>
-and a console deep link in <code>portal_url</code>; both may be null.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1085,25 +1242,28 @@ and a console deep link in <code>portal_url</code>; both may be null.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>authorized</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Required boolean. The decision.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>decision</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Required boolean. <code>true</code> to allow, <code>false</code> to deny.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>portal_url</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Nullable, ≤2048 chars. A link to the cloud console for the resource.
-Null when the implementation has no portal-URL convention. The core
-passes it through as <code>portalUrl</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>context.reason_user</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional. Human-readable explanation shown to the end user on denial.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>reason</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Nullable, ≤1024 chars. Human-readable explanation, useful in the UI
-and in debugging.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>context.reason_admin</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional. Detailed explanation logged at WARNING for operators.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>A denial is still <code>200</code>: the decision was computed, and it was "no".
+<p>A denial is still <code>200</code>: the decision was computed, and it was "no."
 The error statuses are for cases where no decision could be reached.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="error-responses"><a class="anchor" href="#error-responses"></a>Error responses</h3>
+<div class="paragraph">
+<p>Error bodies use <code>application/problem+json</code> per RFC 9457.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1123,7 +1283,7 @@ The error statuses are for cases where no decision could be reached.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>400</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The body could not be parsed at the transport layer.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Malformed request (bad JSON, non-UTF-8).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>401</code></p></td>
@@ -1136,10 +1296,31 @@ challenge.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>502</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The downstream identity or cloud backend returned an error.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Downstream backend error inside the PDP.</p></td>
 </tr>
 </tbody>
 </table></div></div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="stub-pdp"><a class="anchor" href="#stub-pdp"></a>Stub PDP</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A minimal always-allow (or always-deny) stub is included for testing
+the conformance suite and local development:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">cd</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> contracts/conformance/authz</span></span>
+<span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> sync</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">STUB_DECISION</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">=</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">true</span><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA"> uv</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> uvicorn</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> stub:app</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --port</span><span style="--shiki-light:#B5CEA8;--shiki-dark:#B5CEA8"> 8083</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Set <code>STUB_TOKEN=mysecret</code> to require bearer auth on the stub. Set
+<code>STUB_DECISION=false</code> to make it deny everything.</p>
+</div>
 </div>
 </div>
 <div class="sect1">
@@ -1164,9 +1345,9 @@ contract:</p>
 authentication.</p>
 </div>
 <div class="paragraph">
-<p>The suite checks schema conformance of the responses and that invalid
-bodies do not produce undocumented <code>5xx</code> answers. It cannot check that
-the decisions are <strong>correct</strong> — a permissive implementation that grants
+<p>The suite checks schema conformance of the responses — that valid
+requests produce documented status codes with documented shapes. It
+cannot check that the decisions are <strong>correct</strong>: a PDP that grants
 everything passes it. Correctness of the policy is your own test
 suite&#8217;s job.</p>
 </div>
@@ -1179,15 +1360,12 @@ suite&#8217;s job.</p>
 <ul>
 <li>
 <p><a href="../../roles-and-permissions/" class="xref page">Roles and
-permissions</a> for the roles that actually gate Kumoss.</p>
-</li>
-<li>
-<p><a href="../core/" class="xref page">Core API</a> for the one core route
-that consults this service.</p>
+permissions</a> for the roles that gate Kumoss itself.</p>
 </li>
 <li>
 <p><a href="../../configuration/#config-services" class="xref page">the <code>services</code>
-section</a> of the configuration reference for enabling the sidecar.</p>
+section</a> of the configuration reference for enabling the sidecar and
+configuring <code>oidc.claims</code>.</p>
 </li>
 </ul>
 </div>

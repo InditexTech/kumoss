@@ -417,8 +417,8 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
+        href="../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
       </a>
     </div>
 
@@ -535,6 +535,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
@@ -571,6 +580,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
       </a>
     </div>
 
@@ -616,6 +634,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
     </div>
 
@@ -1171,14 +1198,15 @@ and state each component owns, and the deployment topology.</p>
 </div>
 <div class="paragraph">
 <p>The diagram condenses some detail. The sidecars share one node: the
-bundled <code>iac :8082</code> and <code>notifications :8080</code>,
-<code>searxng :8888</code>, plus the optional mapping
-and authz contracts, whose implementations you provide yourself; the
+bundled <code>iac :8082</code>, <code>notifications :8080</code> and <code>mapping :8081</code>,
+<code>searxng :8888</code>, plus the optional authz contract, whose
+implementation you provide yourself; the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the <code>workspaces</code> volume,
-<code>phoenix-db</code> and the notification and storage backends are carried in the
-notes beside it rather than drawn. Phoenix is reachable through the proxy at
-<code>/monitoring/</code>, artifacts land in the <code>kumoss-artifacts</code> bucket, and the
+Langfuse&#8217;s own stores and the notification and storage backends are carried
+in the notes beside it rather than drawn. The Langfuse UI is reachable
+through the proxy on port 3000, artifacts land in the <code>kumoss-artifacts</code>
+bucket, and the
 shipped configuration routes model calls through LiteLLM.</p>
 </div>
 </div>
@@ -1210,15 +1238,15 @@ identity provider directly for login</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Nginx (<code>proxy</code>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Sole public entry point, on ports 80 and 9000: serves the built SPA and
-proxies <code>/api</code>, the events stream, <code>/monitoring/</code> and object storage.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Browser → core, Phoenix, object storage</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Sole public entry point, on ports 80, 9000 and 3000: serves the built SPA
+and proxies <code>/api</code>, the events stream, object storage and the Langfuse UI.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Browser → core, object storage, Langfuse</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Core API layer (<code>core/src/api/v1</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Routes every request: IaC operations, the progress stream, session reads,
 repository and pull-request actions, identity and roles, the admin panel,
-and passthroughs to the mapping and notifications sidecars. One
+and a passthrough to the notifications sidecar. One
 authentication dependency guards all of them but the public OIDC
 configuration.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Delegates to application handlers</p></td>
@@ -1247,12 +1275,12 @@ layer — they live in <code>core/src/clients</code>, a sibling package.</p></td
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">authz service</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Cloud project access checks, disabled by default and not bundled: provide
-your own implementation of the contract. Disabled, the core answers
-"authorized" without calling it; enabled, an unreachable sidecar is an
-error, never an allow. The contract&#8217;s user and role endpoints are unused —
-Kumoss keeps those in core-db.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Called from the authorize route with the caller&#8217;s identity</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">AuthZEN policy decision point for organizational access control. Disabled
+by default and not bundled: deploy your own PDP implementing the 2-endpoint
+contract (evaluation + healthz). Disabled, the core treats every operation
+as authorized; enabled, the core consults the PDP on every write route and
+never fails open.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called from every write route via the PEP helper with the caller&#8217;s identity</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">iac service</p></td>
@@ -1264,12 +1292,13 @@ deployments are expected to supply their own.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">mapping service</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Resolves a business identifier to a repository URL, plus a best-effort
-terraform provider and cloud scope (<code>null</code> means unknown, ask the user).
-Disabled by default and not bundled: provide your own implementation;
-disabled, the core treats the identifier as the repository URL (identity
+<td class="tableblock halign-left valign-top"><p class="tableblock">Resolves what the user types in the wizard&#8217;s repository step (a
+repository name or URL) to the clone URL. Bundled and enabled by
+default: a bare name is appended to <code>MAPPING_PREFIX_IDENTIFIER</code>; replace
+it with your own catalogue-backed implementation if you have one.
+Disabled, the core treats the input as the repository URL (identity
 passthrough).</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Called through a core passthrough route</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Called by the core from <code>POST /api/v1/repository/parse</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">notifications service</p></td>
@@ -1326,10 +1355,13 @@ or the next generate round replaces it.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Mounted by core and iac</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Phoenix + phoenix-db</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">OpenTelemetry trace collector and UI, and the prompt registry seeded at
-core boot.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Core, over OTLP/HTTP and the Prompts API</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse (web, worker, langfuse-db, ClickHouse, its own Redis, a
+<code>langfuse</code> bucket)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Trace store and UI (OpenTelemetry), and the prompt registry seeded at
+core boot. One project; the deployment&#8217;s <code>environment</code> is Langfuse&#8217;s
+environment and the operation and providers are trace tags.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Core, over OTLP/HTTP and the public prompt API, with the project&#8217;s key
+pair</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">OIDC identity provider</p></td>
@@ -1368,7 +1400,7 @@ infrastructure, and the mechanisms behind them.</p>
 </li>
 <li>
 <p><a href="data-and-state/" class="xref page">Data and state</a> — what
-core-db, phoenix-db, Redis, object storage, and the <code>workspaces</code> volume
+core-db, Langfuse&#8217;s stores, Redis, object storage, and the <code>workspaces</code> volume
 each hold.</p>
 </li>
 <li>
