@@ -112,9 +112,12 @@ services:
 # orchestration block that omits them turns them off.
 #
 # enable_compliance_checker: When enabled, a validated generate round is
-# audited by a second small-model agent against the
+# audited twice: by the general/policies/compliance Rego policy (OPA, on
+# the plan's JSON) and by a second small-model agent against the
 # general/compliance/report rules. A finding of severity "error" or
-# "critical" locks the session; "warning" is only reported.
+# "critical" from either locks the session; "warning" is only reported.
+# A policy that cannot be evaluated locks the round too, and core refuses
+# to start when it cannot evaluate the policy at boot.
 #
 # block_on_high_impact: When enabled, a generate round whose report
 # comes back with a "high" impact banner locks the session too. The

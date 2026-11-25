@@ -67,6 +67,28 @@ jobs:
       - name: Tests
         run: uv run --no-sync pytest
 
+  policies:
+    name: Compliance policy
+    runs-on: ubuntu-latest
+    env:
+      # Same OPA as the core image (core/Dockerfile).
+      OPA_IMAGE: openpolicyagent/opa:1.22.4-static@sha256:12cecac5a174368f7d3f09d3a19d040ebe0c91d576e520335ae7a985a26e39d3
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Format
+        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" fmt --diff --fail prompts/seed/general/policies tests/policies
+
+      - name: Check
+        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" check prompts/seed/general/policies tests/policies
+
+      - name: Tests
+        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" test --verbose prompts/seed/general/policies tests/policies
+
   lockfiles:
     name: lockfile/${{ matrix.project }}
     runs-on: ubuntu-latest

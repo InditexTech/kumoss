@@ -2,12 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Discovers and validates seed YAML files used to bootstrap Langfuse.
+"""Discovers and validates seed files used to bootstrap Langfuse.
 
-Each YAML file lives at ``<seed_dir>/<scope>/<type>/<name>.yaml`` and carries
-just the prompt body plus an optional description. ``scope``, ``type``, and
-``name`` are derived from the file path, not declared in the YAML — that way
-a misfiled prompt can't lie about its identity.
+Each seed lives at ``<seed_dir>/<scope>/<type>/<name>.<ext>``. ``scope``,
+``type``, and ``name`` are derived from the file path, not declared in the
+file — that way a misfiled prompt can't lie about its identity.
+
+Prompts are YAML files carrying the prompt body plus an optional
+description. Policies (type ``policies``) are plain Rego files whose whole
+text is the body, so ``opa test`` and ``opa fmt`` run on the very file that
+is seeded.
 
 The Langfuse prompt name mirrors the path, ``<scope>/<type>/<name>``:
 Langfuse shows each ``/``-separated segment as a folder, so the prompt
@@ -29,10 +33,9 @@ from src.infrastructure.exceptions import PromptSeedLoadError
 # "general", or a Terraform provider type name (azurerm, google, aws...): the
 # provider whose sessions use the prompt. Any provider may have prompts.
 Scope = str
-PromptType = Literal["guidelines", "resources", "compliance"]
+PromptType = Literal["guidelines", "resources", "compliance", "policies"]
 
 _SCOPE_RE: re.Pattern[str] = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
-_VALID_TYPES: frozenset[str] = frozenset({"guidelines", "resources", "compliance"})
 # The name part of the prompt names the fetcher asks Langfuse for.
 _NAME_RE: re.Pattern[str] = re.compile(r"^[a-z0-9_]+$")
 
@@ -59,6 +62,14 @@ def prompt_name(scope: str, type: str, name: str) -> str:
 class SeedLoader:
     """Walks a seed directory and returns validated SeedEntry objects."""
 
+    # The file extension each type is seeded from.
+    _TYPE_SUFFIXES: dict[str, str] = {
+        "guidelines": ".yaml",
+        "resources": ".yaml",
+        "compliance": ".yaml",
+        "policies": ".rego",
+    }
+
     def __init__(self, seed_dir: Path):
         self._seed_dir = seed_dir
 
@@ -72,7 +83,12 @@ class SeedLoader:
         entries: list[SeedEntry] = []
         seen: dict[str, Path] = {}
 
-        for path in sorted(self._seed_dir.rglob("*.yaml")):
+        paths = (
+            p
+            for p in self._seed_dir.rglob("*")
+            if p.is_file() and p.suffix in set(self._TYPE_SUFFIXES.values())
+        )
+        for path in sorted(paths):
             entry = self._parse(path)
             if entry.qualified_name in seen:
                 raise PromptSeedLoadError(
@@ -99,7 +115,7 @@ class SeedLoader:
         if len(rel_parts) != 3:
             raise PromptSeedLoadError(
                 message=(
-                    f"Seed file path must be <scope>/<type>/<name>.yaml; got {path} "
+                    f"Seed file path must be <scope>/<type>/<name>.<ext>; got {path} "
                     f"(relative: {'/'.join(rel_parts)})"
                 ),
                 error_code=500,
@@ -112,13 +128,19 @@ class SeedLoader:
                 + "Terraform provider type name (e.g. azurerm)",
                 error_code=500,
             )
-        if type_ not in _VALID_TYPES:
+        if type_ not in self._TYPE_SUFFIXES:
             raise PromptSeedLoadError(
-                message=f"Invalid type '{type_}' in {path}; expected one of {sorted(_VALID_TYPES)}",
+                message=f"Invalid type '{type_}' in {path}; expected one of {sorted(self._TYPE_SUFFIXES)}",
+                error_code=500,
+            )
+        suffix = self._TYPE_SUFFIXES[type_]
+        if path.suffix != suffix:
+            raise PromptSeedLoadError(
+                message=f"Seed files of type '{type_}' must be {suffix} files; got {path}",
                 error_code=500,
             )
 
-        name = filename.removesuffix(".yaml")
+        name = filename.removesuffix(suffix)
         if not _NAME_RE.match(name):
             raise PromptSeedLoadError(
                 message=(
@@ -127,6 +149,9 @@ class SeedLoader:
                 ),
                 error_code=500,
             )
+
+        if suffix == ".rego":
+            return self._policy(path, scope, name)
 
         try:
             with open(path, encoding="utf-8") as f:
@@ -163,5 +188,21 @@ class SeedLoader:
             name=name,
             body=body,
             description=description,
+            source=path,
+        )
+
+    def _policy(self, path: Path, scope: Scope, name: str) -> SeedEntry:
+        body = path.read_text(encoding="utf-8")
+        if not body.strip():
+            raise PromptSeedLoadError(
+                message=f"Policy {path} is empty",
+                error_code=500,
+            )
+        return SeedEntry(
+            scope=scope,
+            type="policies",
+            name=name,
+            body=body,
+            description=f"Rego policy evaluated by OPA ({name}).",
             source=path,
         )

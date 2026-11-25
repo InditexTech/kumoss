@@ -155,9 +155,12 @@ change it.
 Locks are set in two ways:
 
 * *Automatically* at the end of a generate round, from two independent
-  triggers, each behind its own switch: the compliance check fails (only
-  when `orchestration.enable_compliance_checker` is `true`; a disabled
-  checker always passes), or the report's impact banner is `high` (only
+  triggers, each behind its own switch: the compliance check fails — the
+  compliance policy denies the plan or could not be evaluated
+  (`policy_unavailable`), or the LLM audit finds an `error` or
+  `critical` violation (only when
+  `orchestration.enable_compliance_checker` is `true`; a disabled
+  checker always passes) — or the report's impact banner is `high` (only
   when `orchestration.block_on_high_impact` is `true`). Both default to
   `false` in code and the shipped `config.yaml` turns both on, so a
   configuration that omits the `orchestration` block disables both

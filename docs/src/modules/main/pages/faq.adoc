@@ -56,9 +56,8 @@ made in the response.
 .My request was declined. Why?
 [%collapsible]
 ====
-The filter explains the reason in the chat. The four causes are: out
-of scope (not a Terraform-managed change), prohibited by your
-organization's forbidden-actions list, an ambiguous target (name the
+The filter explains the reason in the chat. The three causes are: out
+of scope (not a Terraform-managed change), an ambiguous target (name the
 resource), or a missing referent (the thing you refer to does not
 exist in that repository and path).
 ====
@@ -233,9 +232,10 @@ session branch in your repository.
 .Why is my session locked?
 [%collapsible]
 ====
-The compliance audit found an error-level or critical violation (with
+The compliance check found an error-level or critical violation (with
 the default rules: changes outside the scope of your request, parts of
-the request left undone, or a standalone deletion), or the impact was
+the request left undone, or a standalone deletion), the compliance
+policy could not be evaluated, or the impact was
 rated High in a deployment that locks on high impact.
 ====
 
@@ -258,10 +258,11 @@ result that passes cleanly.
 .Why is a deletion I explicitly asked for flagged?
 [%collapsible]
 ====
-The default compliance rule treats any standalone deletion as a
-critical violation regardless of the request; only a recreate of the
-same resource is allowed. A reviewer can unlock the session after
-looking at it, and your organization can adapt the rule.
+The compliance policy denies any standalone deletion as a critical
+violation regardless of the request; only a recreate of the same
+resource is allowed. The check is deterministic, so rephrasing does not
+help. A reviewer can unlock the session after looking at it, and your
+organization can adapt the policy.
 ====
 --
 

@@ -63,7 +63,7 @@ indicate priority.
 |label:grey[Planned]
 
 |<<opa,Policy as code with Open Policy Agent>>
-|label:grey[Planned]
+|label:blue[In progress]
 
 |<<governance-overview,Multicloud governance overview>>
 |label:grey[Planned]
@@ -202,11 +202,17 @@ models Kumoss supports today.
 [#opa]
 === Policy as code with Open Policy Agent
 
-Kumoss will evaluate every plan against deterministic policies written
-in Rego with https://www.openpolicyagent.org[Open Policy Agent],
-including policies an organization already maintains outside Kumoss.
-These checks will run alongside the existing language-model compliance
-audit, adding a rule-based layer that returns the same result every time.
+Kumoss evaluates the final plan of every generate round against a
+deterministic policy written in Rego with
+https://www.openpolicyagent.org[Open Policy Agent], alongside the
+language-model compliance audit. The first form is a single policy
+stored in Langfuse, which ships with one rule, `critical_deletion`; see
+xref:main:reference/compliance-policy.adoc[Compliance policy].
+
+Still to come: loading policy bundles an organization already maintains
+outside Kumoss, per-cloud policy packages, and feeding denies back into
+the generate-and-validate loop so the model can repair the code before
+the round is locked.
 
 [#governance-overview]
 === Multicloud governance overview

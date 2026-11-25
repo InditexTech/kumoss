@@ -27,14 +27,12 @@ class TestFetcher(unittest.IsolatedAsyncioTestCase):
 
     async def _fetch(self, scope: str = "azurerm") -> str:
         return await self.fetcher.fetch(
-            "forbidden_actions", scope, "guidelines", "development"
+            "networking", scope, "guidelines", "development"
         )
 
     async def test_the_version_the_environment_label_is_on_is_read(self):
-        self.langfuse.add(
-            "azurerm/guidelines/forbidden_actions", "v1", ("development",)
-        )
-        self.langfuse.add("azurerm/guidelines/forbidden_actions", "v2", ("production",))
+        self.langfuse.add("azurerm/guidelines/networking", "v1", ("development",))
+        self.langfuse.add("azurerm/guidelines/networking", "v2", ("production",))
 
         self.assertEqual(await self._fetch(), "v1")
 
@@ -45,22 +43,20 @@ class TestFetcher(unittest.IsolatedAsyncioTestCase):
             requested.append(request.url.raw_path.decode().split("?")[0])
 
         self.langfuse.fail = record
-        self.langfuse.add(
-            "azurerm/guidelines/forbidden_actions", "v1", ("development",)
-        )
+        self.langfuse.add("azurerm/guidelines/networking", "v1", ("development",))
 
         _ = await self._fetch()
 
         # One path segment: Langfuse wants a folder path URL-encoded.
         self.assertEqual(
             requested,
-            ["/api/public/v2/prompts/azurerm%2Fguidelines%2Fforbidden_actions"],
+            ["/api/public/v2/prompts/azurerm%2Fguidelines%2Fnetworking"],
         )
 
     async def test_a_chat_prompt_of_one_message_is_read_as_its_text(self):
         # An operator may save a prompt as chat in the Langfuse UI.
         self.langfuse.add(
-            "azurerm/guidelines/forbidden_actions",
+            "azurerm/guidelines/networking",
             [{"role": "system", "content": "no public IPs"}],
             ("development",),
             type="chat",
@@ -74,7 +70,7 @@ class TestFetcher(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(ctx.exception.error_code, 404)
 
     async def test_a_prompt_without_the_label_is_a_404(self):
-        self.langfuse.add("azurerm/guidelines/forbidden_actions", "v1", ("production",))
+        self.langfuse.add("azurerm/guidelines/networking", "v1", ("production",))
 
         with self.assertRaises(PromptFetchError) as ctx:
             _ = await self._fetch()
@@ -99,7 +95,7 @@ class TestFetcher(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_prompt_of_another_shape_is_an_error(self):
         self.langfuse.add(
-            "azurerm/guidelines/forbidden_actions",
+            "azurerm/guidelines/networking",
             [{"role": "system", "content": "a"}, {"role": "user", "content": "b"}],
             ("development",),
             type="chat",
@@ -111,7 +107,7 @@ class TestFetcher(unittest.IsolatedAsyncioTestCase):
 
     async def test_providers_without_prompts_are_skipped_end_to_end(self):
         self.langfuse.add(
-            "azurerm/guidelines/forbidden_actions", "no public IPs", ("development",)
+            "azurerm/guidelines/networking", "no public IPs", ("development",)
         )
 
         adapter = TemplateAdapter(providers=("azurerm", "random"), cwd="/w")
@@ -119,5 +115,17 @@ class TestFetcher(unittest.IsolatedAsyncioTestCase):
             "src.infrastructure.templates.template_adapter.remote_fetcher",
             self.fetcher,
         ):
-            text = await adapter._fetch_guidelines("forbidden_actions")  # pyright: ignore[reportPrivateUsage]
+            text = await adapter._fetch_guidelines("networking")  # pyright: ignore[reportPrivateUsage]
         self.assertEqual(text, "## azurerm\nno public IPs")
+
+    async def test_a_versioned_fetch_names_the_version_read(self):
+        self.langfuse.add("general/policies/compliance", "package a", ("production",))
+        self.langfuse.add("general/policies/compliance", "package b", ("development",))
+
+        text, revision = await self.fetcher.fetch_versioned(
+            "compliance", "general", "policies", "development"
+        )
+
+        self.assertEqual(
+            (text, revision), ("package b", "general/policies/compliance@2")
+        )

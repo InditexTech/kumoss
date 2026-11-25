@@ -31,7 +31,6 @@ SEEDED_PROVIDERS = ("aws", "azurerm", "google", "kubernetes", "oci", "vsphere")
 REQUIRED_GUIDELINES = {
     "abbreviations",
     "drift_exceptions",
-    "forbidden_actions",
     "networking",
     "permissions",
     "resource_creation",
@@ -80,20 +79,31 @@ class TestSeedCatalog(unittest.TestCase):
                 )
                 self.assertEqual(listed, _names(provider, "resources"))
 
-    def test_forbidden_actions_defer_deletions_to_the_compliance_check(self):
-        # critical_deletion rejects every standalone delete, even a requested
-        # one; no seed may suggest a request can authorize it.
-        for provider in SEEDED_PROVIDERS:
-            with self.subTest(provider=provider):
-                body = " ".join(
-                    _body(provider, "guidelines", "forbidden_actions").split()
-                )
-                self.assertIn(
-                    "Standalone deletions are always rejected by the compliance"
-                    " check, even when requested",
-                    body,
-                )
-                self.assertNotIn("override request", body)
+    def test_no_seed_refers_to_the_removed_forbidden_actions(self):
+        # Prohibitions are the compliance policy's job now; a prompt pointing
+        # at "the forbidden actions" would point at nothing.
+        for path in SEED_DIR.rglob("*.yaml"):
+            with self.subTest(seed=path.relative_to(SEED_DIR).as_posix()):
+                body = yaml.safe_load(path.read_text(encoding="utf-8"))["body"]
+                self.assertNotRegex(body, r"(?i)forbidden actions?\b")
+
+    def test_policy_and_llm_rules_do_not_overlap(self):
+        # A rule enforced by the policy and audited by the LLM would be
+        # reported twice, possibly with different verdicts.
+        policy = (SEED_DIR / "general" / "policies" / "compliance.rego").read_text(
+            encoding="utf-8"
+        )
+        policy_rules = set(re.findall(r'^rules contains "([a-z0-9_]+)"', policy, re.M))
+        llm_rules = set(
+            re.findall(
+                r"^## ([a-z0-9_]+) \(severity:",
+                _body("general", "compliance", "report"),
+                re.M,
+            )
+        )
+        self.assertIn("critical_deletion", policy_rules)
+        self.assertTrue(llm_rules)
+        self.assertEqual(policy_rules & llm_rules, set())
 
     def test_existing_provider_pins_are_kept(self):
         # The seeds pin newer majors than earlier releases did, and `init`
@@ -183,16 +193,6 @@ class TestVsphereSeeds(unittest.TestCase):
                 for banned in ("null_resource", "local-exec", "remote-exec"):
                     self.assertNotIn(banned, body)
 
-    def test_forbidden_actions_cover_host_and_identity_guardrails(self):
-        body = _body("vsphere", "guidelines", "forbidden_actions")
-        for rule in (
-            "allow_unverified_ssl = true",
-            "Administrator",
-            "promiscuous",
-            "vsphere_host",
-        ):
-            self.assertIn(rule, body)
-
 
 class TestGoogleSeeds(unittest.TestCase):
     def test_resource_creation_leaves_the_project_to_the_engine(self):
@@ -223,18 +223,6 @@ class TestGoogleSeeds(unittest.TestCase):
                     "default service account",
                 ):
                     self.assertIn(rule, body)
-
-    def test_forbidden_actions_cover_identity_and_data_guardrails(self):
-        body = " ".join(_body("google", "guidelines", "forbidden_actions").split())
-        for rule in (
-            "0.0.0.0/0",
-            "google_service_account_key",
-            "allUsers",
-            "_iam_policy",
-            "default service account",
-            "deletion_protection = false",
-        ):
-            self.assertIn(rule, body)
 
 
 class TestEngineInjectedVariables(unittest.TestCase):

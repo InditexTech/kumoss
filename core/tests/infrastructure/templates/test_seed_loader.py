@@ -83,7 +83,7 @@ class TestSeedLoader(unittest.TestCase):
         _write(self.root, "azurerm/foo.yaml", "body: x\n")
         with self.assertRaises(PromptSeedLoadError) as ctx:
             SeedLoader(self.root).load()
-        self.assertIn("<scope>/<type>/<name>.yaml", ctx.exception.message)
+        self.assertIn("<scope>/<type>/<name>.<ext>", ctx.exception.message)
 
     def test_rejects_invalid_name(self):
         _write(self.root, "azurerm/guidelines/Bad-Name.yaml", "body: x\n")
@@ -128,6 +128,38 @@ class TestSeedLoader(unittest.TestCase):
                 "general/guidelines/terraform",
             ],
         )
+
+    def test_loads_a_policy_whole_file_as_its_body(self):
+        rego = (
+            "# a comment\npackage kumoss.compliance\n\ndeny contains x if { false }\n"
+        )
+        _write(self.root, "general/policies/compliance.rego", rego)
+        [entry] = SeedLoader(self.root).load()
+        self.assertEqual(entry.qualified_name, "general/policies/compliance")
+        self.assertEqual(entry.body, rego)
+        self.assertIsNotNone(entry.description)
+
+    def test_ignores_files_that_are_neither_yaml_nor_rego(self):
+        _write(self.root, "general/policies/README.md", "notes")
+        self.assertEqual(SeedLoader(self.root).load(), [])
+
+    def test_rejects_a_policy_outside_policies(self):
+        _write(self.root, "general/compliance/rules.rego", "package x\n")
+        with self.assertRaises(PromptSeedLoadError) as ctx:
+            SeedLoader(self.root).load()
+        self.assertIn("must be .yaml files", ctx.exception.message)
+
+    def test_rejects_yaml_under_policies(self):
+        _write(self.root, "general/policies/compliance.yaml", "body: x\n")
+        with self.assertRaises(PromptSeedLoadError) as ctx:
+            SeedLoader(self.root).load()
+        self.assertIn("must be .rego files", ctx.exception.message)
+
+    def test_rejects_an_empty_policy(self):
+        _write(self.root, "general/policies/compliance.rego", "  \n")
+        with self.assertRaises(PromptSeedLoadError) as ctx:
+            SeedLoader(self.root).load()
+        self.assertIn("is empty", ctx.exception.message)
 
 
 if __name__ == "__main__":

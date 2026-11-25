@@ -509,6 +509,9 @@ class TestTerraformDrift(_TerraformTestCase):
         self.assertEqual(drift.feedback, "")
         self.assertEqual(drift.stdout, "round plan")
         self.assertEqual(drift.plan, round_result.plan)
+        # The same show feeds the compliance policy: no second read.
+        self.assertEqual(drift.plan_json, json.loads(DRIFTED_PLAN_JSON))
+        self.assertNotIn("plan_json", repr(drift))
 
         show_body = submit_mocks["show"].await_args.kwargs["body"]
         self.assertEqual(show_body.workspace_path, "/workspaces/demo")
@@ -561,6 +564,7 @@ class TestTerraformDrift(_TerraformTestCase):
         self.assertEqual(result.drift, "")
         self.assertEqual(result.feedback, "")
         self.assertEqual(result.stdout, "plan output")
+        self.assertEqual(result.plan_json, json.loads(NO_CHANGES_PLAN_JSON))
 
     async def test_the_ref_decides_which_artifact_is_read(self):
         self._use_config()
@@ -637,6 +641,7 @@ class TestTerraformDrift(_TerraformTestCase):
         self.assertEqual(result.feedback, "Error: stale plan file")
         self.assertEqual(result.stdout, "plan output")
         self.assertIsNone(result.plan)
+        self.assertIsNone(result.plan_json)
 
     async def test_init_failure_is_reported_as_feedback(self):
         self._use_config()

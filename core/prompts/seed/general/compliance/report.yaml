@@ -38,10 +38,3 @@ body: |
   separates two parts); each part with no matching change is a violation.
   A part is not addressed by a change on a different resource of the same
   kind, nor by a change that merely mentions the same value.
-
-  ## critical_deletion (severity: critical)
-  A resource may only be destroyed as part of a recreate — the same resource
-  address destroyed and created again ("+/-" in Terraform). A standalone
-  delete — a resource destroyed without being recreated — is always a
-  violation, even when the user explicitly requested the deletion; user
-  intent does NOT authorize deletions.

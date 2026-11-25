@@ -25,6 +25,7 @@ from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.storage import default_object_storage, terraform_state_storage
 from src.infrastructure.telemetry._initializer import shutdown_tracer_provider
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
+from src.infrastructure.policy import OpaPolicyEngine
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
 
@@ -64,6 +65,16 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logging.error(f"Failed to seed prompts into Langfuse: {e}")
         raise
+
+    if system_config.orchestration.enable_compliance_checker:
+        # Every generate round evaluates the policy: refuse to start rather
+        # than block each round on a missing binary or a broken policy.
+        try:
+            await OpaPolicyEngine().verify()
+            logging.info("Compliance policy verified")
+        except Exception as e:
+            logging.error(f"Compliance policy check failed: {e}")
+            raise
 
     try:
         _ = configure_git_credentials()

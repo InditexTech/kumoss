@@ -91,7 +91,6 @@ class TerraformValidationService:
         *,
         validator: Callable[[History], Awaitable[T]],
         conventions: Conventions,
-        include_forbidden_actions: bool,
         operation_type: OperationType,
         max_iterations: int,
         refine_feedback: Callable[[str], Awaitable[str]] | None = None,
@@ -138,7 +137,6 @@ class TerraformValidationService:
                     operation_type=operation_type,
                     resources=conventions.templates,
                     abbreviations=conventions.abbreviations,
-                    include_forbidden_actions=include_forbidden_actions,
                 ),
                 history=local_history,
             )

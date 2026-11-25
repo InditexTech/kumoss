@@ -313,6 +313,7 @@ class Terraform(ITerraform):
             feedback="",
             stdout=plan.stdout,
             plan=plan,
+            plan_json=plan_json,
         )
 
     @trace_terraform

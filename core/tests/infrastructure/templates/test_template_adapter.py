@@ -169,13 +169,13 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsInstance(prompt, str)
         self.assertIn("mocked_requests_response", prompt)
-        self.assertIn("mocked_forbidden_actions_response", prompt)
+        self.assertNotIn("prohibited_actions", prompt)
         self.assertIn("/test/project", prompt)
         self.assertIn("Missing parameters NEVER block a creation request", prompt)
         self.assertIn("When in doubt about parameters, accept", prompt)
         self.assertNotIn("DRIFT REQUEST", prompt)
         self.assertIn("requests_filter", prompt)
-        self.assertEqual(mock_fetch.await_count, 2)
+        self.assertEqual(mock_fetch.await_count, 1)
         self.assertNotIn("{{", prompt)
 
     @patch.object(remote_fetcher, "fetch", new_callable=AsyncMock)
@@ -192,7 +192,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
         self.assertIsInstance(prompt, str)
         self.assertIn("mocked_requests_response", prompt)
         self.assertIn("requests_filter", prompt)
-        self.assertIn("mocked_forbidden_actions_response", prompt)
+        self.assertNotIn("prohibited_actions", prompt)
         self.assertIn("/test/project", prompt)
         self.assertIn("DRIFT REQUEST", prompt)
         self.assertIn("resolve the drift", prompt)
@@ -201,7 +201,7 @@ class TestTemplateAdapter(unittest.IsolatedAsyncioTestCase):
             prompt,
         )
         self.assertNotIn("Missing parameters NEVER block a creation request", prompt)
-        self.assertEqual(mock_fetch.await_count, 2)
+        self.assertEqual(mock_fetch.await_count, 1)
         self.assertNotIn("{{", prompt)
 
     PR_GENERATOR_MARKERS = {

@@ -38,9 +38,8 @@ body: |
   - Configure liveness and readiness probes as for Deployments.
   - Apply the same security context guidelines as Deployments,
     including `seccomp_profile { type = "RuntimeDefault" }`.
-  - Host access (`hostPath` volumes, `host_network = true`) follows
-    the node-agent exception in Forbidden Actions: only for an
-    explicitly requested node agent, in a dedicated namespace
+  - Host access (`hostPath` volumes, `host_network = true`) only for
+    an explicitly requested node agent, in a dedicated namespace
     labeled with PSA `enforce = "privileged"` (an application
     namespace's `restricted` level rejects these pods), with
     `hostPath` mounts `read_only = true` wherever possible.
