@@ -1157,12 +1157,19 @@ session with the corrected request.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="locking-or-unlocking-the-apply-of-a-session-panel-editor-or-higher"><a class="anchor" href="#locking-or-unlocking-the-apply-of-a-session-panel-editor-or-higher"></a>Locking or unlocking the apply of a session (panel <code>editor</code> or higher)</h3>
+<h3 id="unlock-a-session"><a class="anchor" href="#unlock-a-session"></a>Locking or unlocking the apply of a session (panel <code>editor</code> or higher)</h3>
 <div class="paragraph">
 <p>Use a lock when a report looks risky but the automatic lock did not
 trigger, or when a change must wait for an out-of-band approval. Use an
 unlock after the automatic lock (failed compliance or <code>high</code> impact) has
-been reviewed and accepted.</p>
+been reviewed and accepted. Editors receive the "Compliance check
+failed" and "High impact changes detected" notifications for every
+session when the notifications sidecar is enabled. Before unlocking,
+read the round&#8217;s compliance report: findings from the compliance policy
+carry a <strong>policy</strong> badge, the others come from the LLM audit. For what each
+cause means, see
+<a href="../merge-and-apply/#session-locked" class="xref page">If the session is
+locked</a>.</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">

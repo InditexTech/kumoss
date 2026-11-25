@@ -866,22 +866,103 @@ sessions end at the merge and never apply.</p>
 <h2 id="session-locked"><a class="anchor" href="#session-locked"></a>If the session is locked</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A session is locked automatically when the compliance audit fails or,
-where your deployment enables it, when the impact is <strong>High</strong>. You are
-notified ("Session blocked") and, when you try to continue with a pull
-request, you see the <strong>High Impact Deployment</strong> screen: the changes have
-been blocked, the support team has been notified, and a specialist will
-review your request. Two buttons: <strong>Back to Report</strong> and <strong>Contact Team</strong>.</p>
+<p>At the end of every generate round Kumoss decides whether the plan may be
+merged and applied. Three independent checks can lock the session:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 50%;">
+<col style="width: 33.3334%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Cause</th>
+<th class="tableblock halign-left valign-top">What triggers it</th>
+<th class="tableblock halign-left valign-top">Switch</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Compliance policy</strong> (deterministic)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The Rego policy, evaluated by Open Policy Agent on the plan JSON,
+returns a <code>deny</code> finding. The shipped rule, <code>critical_deletion</code>, denies
+any resource that is destroyed without being recreated, <strong>even when you
+asked for the deletion</strong>. A policy that cannot be evaluated also locks
+the session (<code>policy_unavailable</code>). These findings carry a <strong>policy</strong>
+badge.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.enable_compliance_checker</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Compliance audit</strong> (LLM)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A language-model agent compares the plan with your requests and your
+organization&#8217;s conventions. <code>scope_exceeded</code>: the plan changes something
+you did not ask for, for example it removes a block or sets an attribute
+to null. <code>scope_incomplete</code>: part of your request has no matching change
+in the plan. Any other <code>error</code> or <code>critical</code> finding comes from the
+conventions. Findings of severity <code>warning</code> are reported and never lock.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.enable_compliance_checker</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>High impact</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The report&#8217;s impact assessment rates the change <code>high</code>: destructive
+actions, restarts, service downtime, or critical networking changes. The
+impact banner is shown either way; the switch only decides whether it
+locks.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.block_on_high_impact</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Both switches default to <code>false</code> in code, and the shipped <code>config.yaml</code>
+turns both on; see
+<a href="../../reference/configuration/" class="xref page">Configuration</a>. Drift and import
+rounds are never checked and never lock a session.</p>
 </div>
 <div class="paragraph">
-<p>While locked you can still read everything, continue the conversation, and
-create the pull request so reviewers can read the diff. You cannot merge
-it or apply: the server answers that the session is blocked. A reviewer
-with the appropriate panel role unlocks the
-<a href="../administer-users-and-locks/#session-locks" class="xref page">session
-lock</a>, or you send a new request whose result passes cleanly, which
-clears the lock. Your own sessions list shows the lock state in the
-<strong>Apply</strong> column.</p>
+<p><strong>What you see.</strong> When you continue to the pull request, the <strong>Deployment
+Blocked</strong> screen opens. Expand <strong>Why</strong> to see which cause applies: <strong>High
+impact</strong> with the impact summary, <strong>Compliance</strong> with each blocking finding
+(severity, rule id, and resource), or both. <strong>Check again</strong> reads the lock
+again, for example after a reviewer unlocked it; <strong>Back to Report</strong>
+returns to the report; <strong>Contact Team</strong> sends a support request.</p>
+</div>
+<div class="paragraph">
+<p><strong>Who is notified.</strong> When the notifications sidecar is enabled, Kumoss
+sends a "Compliance check failed" notification, a "High impact changes
+detected" notification, or both, to you and to every user with the panel
+role <code>editor</code> or higher. If your browser tab is hidden when the round
+finishes, you also get a "Session blocked" browser notification.</p>
+</div>
+<div class="paragraph">
+<p><strong>While locked</strong> you can still read everything, continue the conversation,
+and create the pull request so reviewers can read the diff. You cannot
+merge it or apply: the server answers <code>409</code> because the session is
+blocked. Your own sessions list shows the lock state in the <strong>Apply</strong>
+column.</p>
+</div>
+<div class="paragraph">
+<p><strong>Getting unlocked.</strong> Either:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>send a follow-up request whose round passes all three checks, which
+clears the lock; or</p>
+</li>
+<li>
+<p>ask a reviewer with the panel role <code>editor</code> or <code>admin</code> to review the
+session in the admin panel and unlock it; see
+<a href="../administer-users-and-locks/#unlock-a-session" class="xref page">Locking
+or unlocking the apply of a session</a>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>A manual unlock lasts only until your next generate round on the
+session, which runs the checks again and sets the lock afresh. To write
+your own policy rules, see
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
 </div>
 </div>
 </div>

@@ -1163,7 +1163,7 @@ See [Follow a session](../guides/follow-a-session/).
 
 ## Session lock
 
-A flag on the session that blocks apply and pull-request merge. It is set automatically when the compliance audit fails or, where the deployment enables it, when the impact is High, and cleared either by an admin-panel editor or by a later generate round whose audit passes without a high-impact verdict. Some internal material calls this a plan lock.
+A flag on the session that blocks apply and pull-request merge. It is set automatically at the end of a generate round when the compliance policy denies the plan (or cannot be evaluated), when the LLM compliance audit finds an `error` or `critical` violation such as `scope_exceeded`, or, where the deployment enables it, when the impact is High, and cleared either by an admin-panel editor or by a later generate round whose audit passes without a high-impact verdict. Some internal material calls this a plan lock.
 
 See [Session locks](../guides/administer-users-and-locks/#session-locks).
 
@@ -1595,8 +1595,9 @@ This page describes the direction of Kumoss. It groups the planned work into the
 
 ## How to read the roadmap
 
-The initiatives are grouped into seven themes. Each initiative carries one of two statuses:
+The initiatives are grouped into seven themes. Each initiative carries one of three statuses:
 
+- Done: the initiative has shipped and is documented; the section links to its documentation.
 - In progress: active development is under way.
 - Planned: the initiative is accepted into the roadmap, and work has not started.
 
@@ -1614,14 +1615,15 @@ The order of the themes and of the initiatives within them does not indicate pri
 | [Multiproject requests](#multiproject) | Planned |   |
 | [Quality and governance](#quality-and-governance) | [Evaluation harness and automated testing](#evaluation-harness) | Planned |
 | [Model benchmarking](#model-benchmarking) | Planned |   |
-| [Policy as code with Open Policy Agent](#opa) | In progress |   |
+| [Policy as code with Open Policy Agent](#opa) | Done |   |
+| [Policy bundles and self-repair](#policy-bundles) | Planned |   |
 | [Multicloud governance overview](#governance-overview) | Planned |   |
 | [Cost management (FinOps)](#cost-management) | [Accurate cost estimates and cost guardrails](#cost-estimates) | Planned |
 | [Cost overview by resource and project](#cost-overview) | Planned |   |
 | [Integration with FinOps tools and assistants](#finops-integrations) | Planned |   |
 | [Agent interoperability](#agent-interoperability) | [Model Context Protocol (MCP) support](#mcp) | Planned |
 | [Agent2Agent (A2A) protocol support](#a2a) | Planned |   |
-| [Deployment and adoption](#deployment-and-adoption) | [Helm chart for Kubernetes](#helm-chart) | In progress |
+| [Deployment and adoption](#deployment-and-adoption) | [Helm chart for Kubernetes](#helm-chart) | Done |
 | [Installation wizard](#installation-wizard) | In progress |   |
 
 ## Continuous operations
@@ -1678,9 +1680,11 @@ Kumoss will publish benchmark results showing how supported language models perf
 
 ### Policy as code with Open Policy Agent
 
-Kumoss evaluates the final plan of every generate round against a deterministic policy written in Rego with [Open Policy Agent](https://www.openpolicyagent.org), alongside the language-model compliance audit. The first form is a single policy stored in Langfuse, which ships with one rule, `critical_deletion`; see [Compliance policy](../reference/compliance-policy/).
+Kumoss evaluates the final plan of every generate round against a deterministic policy written in Rego with [Open Policy Agent](https://www.openpolicyagent.org), alongside the language-model compliance audit. The policy is stored in Langfuse, ships with one rule, `critical_deletion`, and locks the session whenever it denies the plan or cannot be evaluated; see [Compliance policy](../reference/compliance-policy/) and [If the session is locked](../guides/merge-and-apply/#session-locked).
 
-Still to come: loading policy bundles an organization already maintains outside Kumoss, per-cloud policy packages, and feeding denies back into the generate-and-validate loop so the model can repair the code before the round is locked.
+### Policy bundles and self-repair
+
+Kumoss will load the policy bundles an organization already maintains outside Kumoss, ship per-cloud policy packages, and feed policy denies back into the generate-and-validate loop, so the model can repair the code before the round is locked.
 
 ### Multicloud governance overview
 
@@ -4330,7 +4334,7 @@ The lock is recomputed at the end of **every** generate round from that round’
 
 ### Locking or unlocking the apply of a session (panel `editor` or higher)
 
-Use a lock when a report looks risky but the automatic lock did not trigger, or when a change must wait for an out-of-band approval. Use an unlock after the automatic lock (failed compliance or `high` impact) has been reviewed and accepted.
+Use a lock when a report looks risky but the automatic lock did not trigger, or when a change must wait for an out-of-band approval. Use an unlock after the automatic lock (failed compliance or `high` impact) has been reviewed and accepted. Editors receive the "Compliance check failed" and "High impact changes detected" notifications for every session when the notifications sidecar is enabled. Before unlocking, read the round’s compliance report: findings from the compliance policy carry a **policy** badge, the others come from the LLM audit. For what each cause means, see [If the session is locked](../merge-and-apply/#session-locked).
 
 1. Admin panel, Sessions tab. Find the session (search by user e-mail, project, or session id).
 2. Press **Lock apply** or **Unlock apply** in the Apply column, or open the detail panel and toggle **Apply Open** / **Apply Locked**.
@@ -5926,9 +5930,28 @@ Once you have reviewed a session’s results, this guide covers what a session l
 
 ## If the session is locked
 
-A session is locked automatically when the compliance audit fails or, where your deployment enables it, when the impact is **High**. You are notified ("Session blocked") and, when you try to continue with a pull request, you see the **High Impact Deployment** screen: the changes have been blocked, the support team has been notified, and a specialist will review your request. Two buttons: **Back to Report** and **Contact Team**.
+At the end of every generate round Kumoss decides whether the plan may be merged and applied. Three independent checks can lock the session:
 
-While locked you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. You cannot merge it or apply: the server answers that the session is blocked. A reviewer with the appropriate panel role unlocks the [session lock](../administer-users-and-locks/#session-locks), or you send a new request whose result passes cleanly, which clears the lock. Your own sessions list shows the lock state in the **Apply** column.
+| Cause | What triggers it | Switch |
+| --- | --- | --- |
+| **Compliance policy** (deterministic) | The Rego policy, evaluated by Open Policy Agent on the plan JSON, returns a `deny` finding. The shipped rule, `critical_deletion`, denies any resource that is destroyed without being recreated, **even when you asked for the deletion**. A policy that cannot be evaluated also locks the session (`policy_unavailable`). These findings carry a **policy** badge. | `orchestration.enable_compliance_checker` |
+| **Compliance audit** (LLM) | A language-model agent compares the plan with your requests and your organization’s conventions. `scope_exceeded`: the plan changes something you did not ask for, for example it removes a block or sets an attribute to null. `scope_incomplete`: part of your request has no matching change in the plan. Any other `error` or `critical` finding comes from the conventions. Findings of severity `warning` are reported and never lock. | `orchestration.enable_compliance_checker` |
+| **High impact** | The report’s impact assessment rates the change `high`: destructive actions, restarts, service downtime, or critical networking changes. The impact banner is shown either way; the switch only decides whether it locks. | `orchestration.block_on_high_impact` |
+
+Both switches default to `false` in code, and the shipped `config.yaml` turns both on; see [Configuration](../../reference/configuration/). Drift and import rounds are never checked and never lock a session.
+
+**What you see.** When you continue to the pull request, the **Deployment Blocked** screen opens. Expand **Why** to see which cause applies: **High impact** with the impact summary, **Compliance** with each blocking finding (severity, rule id, and resource), or both. **Check again** reads the lock again, for example after a reviewer unlocked it; **Back to Report** returns to the report; **Contact Team** sends a support request.
+
+**Who is notified.** When the notifications sidecar is enabled, Kumoss sends a "Compliance check failed" notification, a "High impact changes detected" notification, or both, to you and to every user with the panel role `editor` or higher. If your browser tab is hidden when the round finishes, you also get a "Session blocked" browser notification.
+
+**While locked** you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. You cannot merge it or apply: the server answers `409` because the session is blocked. Your own sessions list shows the lock state in the **Apply** column.
+
+**Getting unlocked.** Either:
+
+- send a follow-up request whose round passes all three checks, which clears the lock; or
+- ask a reviewer with the panel role `editor` or `admin` to review the session in the admin panel and unlock it; see [Locking or unlocking the apply of a session](../administer-users-and-locks/#unlock-a-session).
+
+A manual unlock lasts only until your next generate round on the session, which runs the checks again and sets the lock afresh. To write your own policy rules, see [Compliance policy](../../reference/compliance-policy/).
 
 ## Steps
 
@@ -8269,6 +8292,7 @@ A module that has no manifest and needs nothing (no required variable, no scoped
 - [Core API](../api/core/#manifest) for the probe route and the `manifest` request field.
 - [Terraform providers](../terraform-providers/) for the credentials each provider needs in the IaC sidecar.
 - [Customize prompts](../../guides/customize-prompts/) for how the module’s providers select the prompts a session uses.
+- [Compliance policy](../compliance-policy/#input) for how the module’s provider type names reach the Rego policy as `input.kumoss.providers`.
 - [Upgrade notes](../../guides/upgrade-notes/) for what changed when providers moved to the module.
 
 ---
@@ -15322,6 +15346,59 @@ Everyone else is then managed from the admin panel’s Users tab.
 
 ---
 
+# Generate infrastructure
+
+Source: https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/
+
+Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
+
+## Prerequisites
+
+- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
+
+## Use case
+
+Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
+
+## Workflow
+
+1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
+2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
+3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
+4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
+5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
+6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
+7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
+8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
+
+## What generate produces
+
+- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
+- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
+- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
+- **Plan pinned.** Yes.
+
+## Apply, pull requests, and locks
+
+After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
+
+## Example
+
+Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
+
+## Limitations
+
+- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
+- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
+- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
+
+---
+
 # Follow a session
 
 Source: https://inditextech.github.io/kumoss/stable/main/guides/follow-a-session/
@@ -15390,59 +15467,6 @@ Only you and reviewers with a panel role can see your sessions. Nobody else can 
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) once you are ready to act on the results.
-
----
-
-# Generate infrastructure
-
-Source: https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/
-
-Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
-
-## Prerequisites
-
-- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
-
-## Use case
-
-Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
-
-## Workflow
-
-1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
-2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
-3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
-4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
-5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
-6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
-7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
-8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
-
-## What generate produces
-
-- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
-- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
-- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
-- **Plan pinned.** Yes.
-
-## Apply, pull requests, and locks
-
-After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
-
-## Example
-
-Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
-
-## Limitations
-
-- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
-- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
-- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
 
 ---
 

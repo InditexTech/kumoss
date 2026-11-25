@@ -77,8 +77,8 @@
 - [Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/): Install Kumoss on one machine with Docker Compose, from cloning the repository to opening the running web application.
 - [End-to-end flow](https://inditextech.github.io/kumoss/stable/main/architecture/end-to-end-flow/): The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.
 - [Enable authentication](https://inditextech.github.io/kumoss/stable/main/guides/enable-authentication/): Connect an OIDC identity provider, register the app for each supported provider, and grant the first administrator access.
-- [Follow a session](https://inditextech.github.io/kumoss/stable/main/guides/follow-a-session/): Track a Kumoss session's progress and read the results it produces.
 - [Generate infrastructure](https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/): Turn a natural-language request into validated Terraform code, reviewed as a plan and report before you apply it.
+- [Follow a session](https://inditextech.github.io/kumoss/stable/main/guides/follow-a-session/): Track a Kumoss session's progress and read the results it produces.
 - [Import infrastructure](https://inditextech.github.io/kumoss/stable/main/guides/import-infrastructure/): Bring existing, unmanaged cloud resources under Terraform management, for a specific set of resources or across a whole scope.
 - [Terraform providers](https://inditextech.github.io/kumoss/stable/main/reference/terraform-providers/): Minimum environment variables per cloud and state backend for the Terraform and OpenTofu providers the IaC sidecar executes, plus the exhaustive variable reference.
 - [Configure state backends](https://inditextech.github.io/kumoss/stable/main/guides/configure-state-backends/): Choose which party owns Terraform and OpenTofu state — the repository, Kumoss, or the deployment — and understand which value wins when more than one is set.

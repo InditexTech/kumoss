@@ -870,10 +870,14 @@ Kumoss does today.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>The initiatives are grouped into seven themes. Each initiative carries
-one of two statuses:</p>
+one of three statuses:</p>
 </div>
 <div class="ulist">
 <ul>
+<li>
+<p><span class="dt-label dt-label--green"><span class="dt-label__content">Done</span></span>: the initiative has shipped and is documented; the
+section links to its documentation.</p>
+</li>
 <li>
 <p><span class="dt-label dt-label--blue"><span class="dt-label__content">In progress</span></span>: active development is under way.</p>
 </li>
@@ -934,7 +938,7 @@ indicate priority.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--grey"><span class="dt-label__content">Planned</span></span></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top" rowspan="4"><p class="tableblock"><a href="#quality-and-governance">Quality and governance</a></p></td>
+<td class="tableblock halign-left valign-top" rowspan="5"><p class="tableblock"><a href="#quality-and-governance">Quality and governance</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#evaluation-harness">Evaluation harness and automated testing</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--grey"><span class="dt-label__content">Planned</span></span></p></td>
 </tr>
@@ -944,7 +948,11 @@ indicate priority.</p>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#opa">Policy as code with Open Policy Agent</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--blue"><span class="dt-label__content">In progress</span></span></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--green"><span class="dt-label__content">Done</span></span></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#policy-bundles">Policy bundles and self-repair</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--grey"><span class="dt-label__content">Planned</span></span></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#governance-overview">Multicloud governance overview</a></p></td>
@@ -975,7 +983,7 @@ indicate priority.</p>
 <tr>
 <td class="tableblock halign-left valign-top" rowspan="2"><p class="tableblock"><a href="#deployment-and-adoption">Deployment and adoption</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#helm-chart">Helm chart for Kubernetes</a></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--blue"><span class="dt-label__content">In progress</span></span></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><span class="dt-label dt-label--green"><span class="dt-label__content">Done</span></span></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#installation-wizard">Installation wizard</a></p></td>
@@ -1117,15 +1125,21 @@ models Kumoss supports today.</p>
 <p>Kumoss evaluates the final plan of every generate round against a
 deterministic policy written in Rego with
 <a href="https://www.openpolicyagent.org">Open Policy Agent</a>, alongside the
-language-model compliance audit. The first form is a single policy
-stored in Langfuse, which ships with one rule, <code>critical_deletion</code>; see
-<a href="../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
+language-model compliance audit. The policy is stored in Langfuse, ships
+with one rule, <code>critical_deletion</code>, and locks the session whenever it
+denies the plan or cannot be evaluated; see
+<a href="../reference/compliance-policy/" class="xref page">Compliance policy</a> and
+<a href="../guides/merge-and-apply/#session-locked" class="xref page">If the session is
+locked</a>.</p>
 </div>
+</div>
+<div class="sect2">
+<h3 id="policy-bundles"><a class="anchor" href="#policy-bundles"></a>Policy bundles and self-repair</h3>
 <div class="paragraph">
-<p>Still to come: loading policy bundles an organization already maintains
-outside Kumoss, per-cloud policy packages, and feeding denies back into
-the generate-and-validate loop so the model can repair the code before
-the round is locked.</p>
+<p>Kumoss will load the policy bundles an organization already maintains
+outside Kumoss, ship per-cloud policy packages, and feed policy denies
+back into the generate-and-validate loop, so the model can repair the
+code before the round is locked.</p>
 </div>
 </div>
 <div class="sect2">

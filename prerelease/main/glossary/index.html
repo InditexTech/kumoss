@@ -1072,8 +1072,10 @@ volume, and each user request within it opens a round.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>A flag on the session that blocks apply and pull-request merge. It is set
-automatically when the compliance audit fails or, where the deployment
-enables it, when the impact is High, and cleared either by an admin-panel
+automatically at the end of a generate round when the compliance policy
+denies the plan (or cannot be evaluated), when the LLM compliance audit
+finds an <code>error</code> or <code>critical</code> violation such as <code>scope_exceeded</code>, or,
+where the deployment enables it, when the impact is High, and cleared either by an admin-panel
 editor or by a later generate round whose audit passes without a
 high-impact verdict. Some internal material calls this a plan lock.</p>
 </div>
