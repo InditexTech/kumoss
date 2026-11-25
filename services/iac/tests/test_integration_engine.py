@@ -23,7 +23,7 @@ from typing import Any
 
 import pytest
 
-from .test_api import SCOPE, client_with, poll_until_terminal
+from .test_api import ENV, client_with, poll_until_terminal
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "engine_smoke" / "main.tf"
 _DEADLINE = 120.0  # real engine commands, generous but bounded
@@ -47,7 +47,7 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
 
     with client_with(iac_binary=binary) as client:
 
-        def run(endpoint: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
+        def run(endpoint: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
             response = client.post(
                 endpoint,
                 json={"workspace_path": str(workspace), **(extra or {})},
@@ -60,9 +60,9 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
             assert result["exit_code"] == 0, result["stderr"]
             return result
 
-        _ = run("/v1/init", SCOPE)
+        _ = run("/v1/init", ENV)
         _ = run("/v1/validate")
-        _ = run("/v1/plan", {"plan_file": "smoke.plan", **SCOPE})
+        _ = run("/v1/plan", {"plan_file": "smoke.plan", **ENV})
 
         show = run("/v1/show", {"plan_file": "smoke.plan"})
         stdout: str = show["stdout"]
@@ -79,7 +79,7 @@ def test_full_pipeline_with_real_engine(binary: str, tmp_path: Path) -> None:
         ]
         assert actions == [["create"]]
 
-        _ = run("/v1/apply", {"plan_file": "smoke.plan", **SCOPE})
+        _ = run("/v1/apply", {"plan_file": "smoke.plan", **ENV})
 
 
 _IMPORTED_ID = "kumoss-import-probe-1"
@@ -98,7 +98,7 @@ def test_import_then_state_resource_ids_with_real_engine(
 
     with client_with(iac_binary=binary) as client:
 
-        def run(endpoint: str, extra: dict[str, str] | None = None) -> dict[str, Any]:
+        def run(endpoint: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
             response = client.post(
                 endpoint,
                 json={"workspace_path": str(workspace), **(extra or {})},
@@ -111,13 +111,13 @@ def test_import_then_state_resource_ids_with_real_engine(
             assert result["exit_code"] == 0, result["stderr"]
             return result
 
-        _ = run("/v1/init", SCOPE)
+        _ = run("/v1/init", ENV)
         imported = run(
             "/v1/import",
             {
                 "address": "terraform_data.probe",
                 "resource_id": _IMPORTED_ID,
-                **SCOPE,
+                **ENV,
             },
         )
         assert "Import successful" in imported["stdout"]

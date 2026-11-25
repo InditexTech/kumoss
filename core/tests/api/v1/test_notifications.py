@@ -102,7 +102,7 @@ class TestSubmitNotification(unittest.TestCase):
         resp, notify, _ = self._post(
             severity="warning",
             links=[{"label": "Session", "url": "https://kumoss.example/s/1"}],
-            context={"cloud": "azure", "project": None},
+            context={"cloud": "azurerm, random", "project": None},
         )
         self.assertEqual(resp.status_code, 202, resp.text)
         kwargs = notify.await_args.kwargs
@@ -111,7 +111,9 @@ class TestSubmitNotification(unittest.TestCase):
         self.assertEqual(kwargs["subject"], "Support request from someone@example.com")
         self.assertEqual(kwargs["body"], "How do I import an existing resource group?")
         self.assertEqual(kwargs["links"], [("Session", "https://kumoss.example/s/1")])
-        self.assertEqual(kwargs["context"], {"cloud": "azure", "project": None})
+        self.assertEqual(
+            kwargs["context"], {"cloud": "azurerm, random", "project": None}
+        )
 
     def test_omitted_optionals_are_passed_as_none(self):
         _, notify, _ = self._post()

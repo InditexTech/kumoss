@@ -112,9 +112,9 @@ An admin panel shows users, sessions, and roles, all stored in a
 database.
 
 [card]
-.xref:main:guides/monitor-with-phoenix.adoc[Observe every agent]
+.xref:main:guides/monitor-with-langfuse.adoc[Observe every agent]
 Every agent run and every system prompt read at runtime is traced with
-OpenTelemetry and Arize Phoenix.
+OpenTelemetry and Langfuse.
 ====
 
 === Bring your own

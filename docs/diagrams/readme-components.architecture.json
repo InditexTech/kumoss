@@ -32,11 +32,11 @@
   },
   "components": [
     {
-      "id": "phoenix",
+      "id": "langfuse",
       "type": "backend",
-      "label": "phoenix",
+      "label": "langfuse",
       "sublabel": "observability + prompts",
-      "tag": "with phoenix-db",
+      "tag": "with its own stores",
       "row": 0,
       "col": 1,
       "size": [
@@ -96,7 +96,7 @@
       "id": "proxy",
       "type": "cloud",
       "label": "proxy",
-      "sublabel": "web app, API, monitoring",
+      "sublabel": "web app, API, Langfuse UI",
       "row": 1,
       "col": 1,
       "size": [
@@ -156,7 +156,7 @@
       "id": "mapping",
       "type": "backend",
       "label": "mapping",
-      "sublabel": "contract only · repository routing",
+      "sublabel": "enabled · repo name → URL",
       "row": 2,
       "col": 2,
       "size": [
@@ -218,7 +218,7 @@
       "kind": "region",
       "label": "Core platform components — run as shipped",
       "wraps": [
-        "phoenix",
+        "langfuse",
         "redis",
         "objstore",
         "proxy",
@@ -231,14 +231,14 @@
       "label": "Bundled sidecars — OpenAPI contracts, replaceable",
       "wraps": [
         "iac",
-        "notifications"
+        "notifications",
+        "mapping"
       ]
     },
     {
       "kind": "region",
       "label": "Bring your own — disabled by default",
       "wraps": [
-        "mapping",
         "authz"
       ]
     }
@@ -260,13 +260,13 @@
     {
       "id": "monitoring",
       "from": "proxy",
-      "to": "phoenix",
-      "label": "/monitoring/"
+      "to": "langfuse",
+      "label": ":3000"
     },
     {
       "id": "traces",
       "from": "core",
-      "to": "phoenix",
+      "to": "langfuse",
       "label": "OTLP + prompts"
     },
     {
@@ -315,8 +315,7 @@
       "id": "map-repo",
       "from": "core",
       "to": "mapping",
-      "label": "repository lookup",
-      "variant": "dashed"
+      "label": "resolve repo name"
     },
     {
       "id": "check-access",

@@ -7,9 +7,9 @@ from pathlib import Path
 
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
+from src.domains.value_objects import ProviderScope, TerraformInputs
 from src.infrastructure.terraform import Terraform
 from src.infrastructure.terraform.backend import TerraformBackend
-from src.shared.constants import TerraformProvider
 
 
 class TerraformFactory:
@@ -29,21 +29,21 @@ class TerraformFactory:
         self,
         project_root: Path,
         git: IGit,
-        scope_id: str,
-        terraform_provider: TerraformProvider,
+        scopes: tuple[ProviderScope, ...],
         project_id: str,
+        inputs: TerraformInputs | None = None,
     ):
         self.__project_root = project_root
+        self.__inputs = inputs
         self.__git = git
-        self.__scope_id = scope_id
-        self.__terraform_provider = terraform_provider
+        self.__scopes = scopes
         self.__project_id = project_id
 
     def get(self) -> ITerraform:
         return Terraform(
             workspace_path=self.__project_root,
             git=self.__git,
-            scope_id=self.__scope_id,
-            terraform_provider=self.__terraform_provider,
+            scopes=self.__scopes,
             backend=TerraformBackend(project_id=self.__project_id),
+            inputs=self.__inputs,
         )

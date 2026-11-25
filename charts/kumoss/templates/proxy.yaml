@@ -38,6 +38,8 @@ spec:
               containerPort: 80
             - name: storage
               containerPort: 9000
+            - name: langfuse
+              containerPort: 3000
           {{- include "kumoss.envFrom" (list . "proxy" $c) | nindent 10 }}
           {{- with (include "kumoss.extraEnv" $c) }}
           env:
@@ -97,5 +99,13 @@ spec:
       targetPort: storage
       {{- if and (eq $c.service.type "NodePort") $c.service.nodePorts.storage }}
       nodePort: {{ $c.service.nodePorts.storage }}
+      {{- end }}
+    {{- end }}
+    {{- if .Values.langfuse.enabled }}
+    - name: langfuse
+      port: {{ $c.service.langfusePort }}
+      targetPort: langfuse
+      {{- if and (eq $c.service.type "NodePort") $c.service.nodePorts.langfuse }}
+      nodePort: {{ $c.service.nodePorts.langfuse }}
       {{- end }}
     {{- end }}

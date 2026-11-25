@@ -55,8 +55,8 @@ Review any user's sessions, and manage session locks and roles from the
 admin panel.
 
 [card]
-.xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix]
-Read Kumoss's traces in Arize Phoenix, and know what a trace contains and
+.xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse]
+Read Kumoss's traces in Langfuse, and know what a trace contains and
 omits.
 
 [card]
@@ -84,6 +84,12 @@ xref:main:guides/production/operations.adoc[operations].
 .xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]
 Install Kumoss on Kubernetes with the bundled chart, try it on a local
 kind cluster, and bind cloud credentials through workload identity.
+
+[card]
+.xref:main:guides/upgrade-notes.adoc[Upgrade notes]
+Breaking changes to act on when upgrading: providers read from the root
+module, renamed provider names, sidecar contracts 2.0.0, and the new
+managed state key.
 ====
 
 == Develop Kumoss

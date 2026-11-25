@@ -9,7 +9,7 @@
     "column_fit": "spread",
     "viewBox": [
       1700,
-      812
+      858
     ]
   },
   "participants": [
@@ -152,7 +152,7 @@
       "from": "ct",
       "to": "ag",
       "y": 726,
-      "label": "12b · [acceptable] Prompt Compositor — pick relevant templates, conventions, guidelines (Phoenix)",
+      "label": "12b · [acceptable] Prompt Compositor — pick relevant templates, conventions, guidelines (Langfuse)",
       "variant": "default"
     }
   ],

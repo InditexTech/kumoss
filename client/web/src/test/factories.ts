@@ -53,7 +53,10 @@ export function makeSessionDetail(
     uuid: "sess-1",
     username: "user@test.com",
     operation: "generate",
-    provider: "azure",
+    providers: [
+      { name: "azurerm", scope_id: "sub-123" },
+      { name: "random", scope_id: null },
+    ],
     first_query: "deploy a VM",
     workspace: {
       uri: "https://dev.azure.com/org/project/_git/repo",
@@ -65,7 +68,6 @@ export function makeSessionDetail(
     is_blocked: false,
     created_at: NOW,
     updated_at: NOW,
-    scope_id: "sub-123",
     rounds: [makeRound()],
     chat_history: [
       {

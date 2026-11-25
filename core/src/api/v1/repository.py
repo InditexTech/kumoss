@@ -13,12 +13,17 @@ from src.api.deps import (
     require_operation_role,
 )
 from src.application.factory import ApplicationFactory
-from src.application.iac_requests import RepoUri
+from src.application.iac_requests import (
+    EMBEDDED_PASSWORD_MESSAGE,
+    embeds_password,
+    validate_repo_uri,
+)
 from src.domains.dto import PullRequestDTO
 from src.domains.entities import SessionContext, User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
-from src.infrastructure.telemetry.phoenix.phoenix_tracer import PhoenixTracer
+from src.infrastructure.external.mapping_service import MappingServiceClient
+from src.infrastructure.telemetry.langfuse_tracer import LangfuseTracer
 from src.shared.constants import OperationRole
 from src.shared.exceptions import ExceptionHandler
 
@@ -86,13 +91,13 @@ async def create_pr(
 
     pr_svc = ApplicationFactory(ctx).get_pull_request_service()
     tracer_token = tracer.set_current_tracer(
-        tracer=PhoenixTracer(
+        tracer=LangfuseTracer(
             session_id=ctx.id,
             user_id=ctx.user_id,
             branch_name=ctx.branch_name,
-            cloud=ctx.terraform_prv,
+            providers=ctx.provider_types,
             repo_uri=ctx.repo_uri,
-            iac_path=ctx.iac_path,
+            root_module_path=ctx.root_module_path,
             operation=ctx.operation,
         )
     )
@@ -109,37 +114,70 @@ async def create_pr(
 @router.post(
     path="/parse",
     dependencies=[Depends(require_operation_role(OperationRole.DEVELOPER))],
-    summary="Parse a repository for Terraform root-module directories.",
+    summary="Resolve a repository and parse it for Terraform root-module directories.",
     description=(
-        "Clones the repository and returns the Terraform root-module "
-        "directories found, as POSIX paths relative to the repo root."
+        "Resolves `repo_uri` through the mapping service (a full HTTPS URL, "
+        "or whatever identifier the mapper accepts, such as a bare "
+        "repository name), clones the repository and returns the resolved "
+        "`repo_url` with the Terraform root-module directories found, as "
+        "POSIX paths relative to the repo root. Later calls must use the "
+        "returned `repo_url`."
     ),
     responses={
         400: {
             "description": "Repository URI was rejected (unreachable or not allowed)."
         },
-        502: {"description": "Cloning or scanning the repository failed."},
+        404: {"description": "The mapping service could not resolve the identifier."},
+        422: {
+            "description": (
+                "The input, or what it resolved to, is not an https:// URL "
+                "without embedded credentials."
+            )
+        },
+        502: {
+            "description": "The mapping service failed, or cloning or scanning failed."
+        },
+        504: {"description": "The mapping service timed out."},
     },
 )
 async def parse_repository(
     repo_uri: Annotated[
-        RepoUri,
+        str,
         Body(
             description=(
-                "HTTPS repository URI to parse for Terraform roots. "
-                "May carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
+                "Repository to parse: an HTTPS repository URI, or an "
+                "identifier the mapping service resolves (with the bundled "
+                "mapper, a bare repository name such as `my-iac`). A URI may "
+                "carry a userinfo username (e.g. `https://org@dev.azure.com/...`) "
                 "but must not embed a password or token."
             ),
             embed=True,
+            min_length=1,
+            max_length=1024,
         ),
     ],
 ) -> JSONResponse:
+    identifier = repo_uri.strip()
+    if not identifier:
+        raise HTTPException(status_code=422, detail="repo_uri must not be blank.")
+    # Rejected before the mapper sees it, so a pasted token never leaves
+    # the core.
+    if embeds_password(identifier):
+        raise HTTPException(status_code=422, detail=EMBEDDED_PASSWORD_MESSAGE)
     try:
-        service = ApplicationFactory.get_iac_root_detection_service()
-        roots = await service.detect_roots(repo_uri)
+        resolved = await MappingServiceClient().resolve(identifier)
+    except ExceptionHandler as e:
+        raise HTTPException(status_code=e.error_code, detail=e.message)
+    try:
+        repo_url = validate_repo_uri(resolved.repo_url)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    try:
+        service = ApplicationFactory.get_root_module_detection_service()
+        roots = await service.detect_roots(repo_url)
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(
-        content={"roots": roots},
+        content={"repo_url": repo_url, "roots": roots},
         status_code=200,
     )

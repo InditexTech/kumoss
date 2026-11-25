@@ -8,6 +8,7 @@ import type {
   AdminUserEntry,
   OperationType,
   PaginatedSessionSummary,
+  SessionSearchField,
   PaginatedUsers,
   SessionLockResponse,
   SessionStatus,
@@ -37,6 +38,7 @@ export interface ListAdminSessionsParams {
   page?: number;
   page_size?: number;
   search?: string;
+  search_in?: SessionSearchField;
   user_email?: string;
   status?: SessionStatus;
   operation?: OperationType;

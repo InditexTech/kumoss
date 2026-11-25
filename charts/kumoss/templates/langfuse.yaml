@@ -1,0 +1,314 @@
+{{- if .Values.langfuse.enabled }}
+{{- $l := .Values.langfuse }}
+{{- if and (not .Values.objectStorage.enabled) (not $l.s3.endpoint) }}
+{{- fail "langfuse.s3.endpoint is required when objectStorage.enabled is false" }}
+{{- end }}
+{{- /*
+Self-hosted Langfuse, like docker-compose: web (UI and API, runs the
+database migrations), worker, and their bundled single-instance backing
+services. Fine for evaluation; in production use managed ones (see
+values.yaml) or Langfuse's own chart, and disable this.
+*/}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.langfuseHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-web") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "langfuse-web") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "langfuse-web") | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: langfuse-web
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "langfuse") }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if or .Values.postgres.langfuse.enabled (include "kumoss.langfuseBundledBucket" .) }}
+      initContainers:
+        {{- if .Values.postgres.langfuse.enabled }}
+        {{- include "kumoss.waitForPostgres" (list . "langfuse-db") | nindent 8 }}
+        {{- end }}
+        {{- if include "kumoss.langfuseBundledBucket" . }}
+        # Langfuse does not create its bucket: an S3 PUT signed with
+        # SigV4 does, retried until the object storage answers. 200 is
+        # created, 409 already there.
+        - name: create-bucket
+          image: curlimages/curl:8.17.0
+          command:
+            - sh
+            - -c
+            - >-
+              until code=$(curl -s -o /dev/null -w '%{http_code}' -X PUT
+              --aws-sigv4 'aws:amz:{{ $l.s3.region }}:s3' --user "$S3_ACCESS_KEY:$S3_SECRET_KEY"
+              http://{{ include "kumoss.objectStorageHost" . }}:9000/{{ $l.s3.bucket }});
+              [ "$code" = 200 ] || [ "$code" = 409 ]; do echo "PUT bucket: $code"; sleep 3; done
+          env:
+            {{- include "kumoss.secretKeyRef" (list . "S3_ACCESS_KEY" "RUSTFS_ACCESS_KEY") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "S3_SECRET_KEY" "RUSTFS_SECRET_KEY") | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: langfuse-web
+          image: "{{ $l.web.image.repository }}:{{ $l.web.image.tag }}"
+          imagePullPolicy: {{ $l.web.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+          {{- include "kumoss.envFrom" (list . "langfuse" $l) | nindent 10 }}
+          env:
+            {{- include "kumoss.langfuseEnv" . | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "NEXTAUTH_SECRET" "LANGFUSE_NEXTAUTH_SECRET") | nindent 12 }}
+            # Only the provisioned admin logs in; add users from the UI.
+            - name: AUTH_DISABLE_SIGNUP
+              value: "true"
+            # Provisioned on the first start; the core uses this key pair.
+            - name: LANGFUSE_INIT_ORG_ID
+              value: kumoss
+            - name: LANGFUSE_INIT_ORG_NAME
+              value: Kumoss
+            - name: LANGFUSE_INIT_PROJECT_ID
+              value: kumoss
+            - name: LANGFUSE_INIT_PROJECT_NAME
+              value: Kumoss
+            {{- include "kumoss.secretKeyRef" (list . "LANGFUSE_INIT_PROJECT_PUBLIC_KEY" "LANGFUSE_PUBLIC_KEY") | nindent 12 }}
+            {{- include "kumoss.secretKeyRef" (list . "LANGFUSE_INIT_PROJECT_SECRET_KEY" "LANGFUSE_SECRET_KEY") | nindent 12 }}
+            - name: LANGFUSE_INIT_USER_EMAIL
+              value: {{ $l.adminEmail | quote }}
+            - name: LANGFUSE_INIT_USER_NAME
+              value: Kumoss admin
+            {{- include "kumoss.secretKeyRef" (list . "LANGFUSE_INIT_USER_PASSWORD" "LANGFUSE_ADMIN_PASSWORD") | nindent 12 }}
+            {{- include "kumoss.extraEnv" $l | nindent 12 }}
+          # Migrations run before the server listens.
+          startupProbe:
+            httpGet: { path: /api/public/health, port: http }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /api/public/health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /api/public/health, port: http }
+            periodSeconds: 20
+            timeoutSeconds: 5
+          {{- with $l.web.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.langfuseHost" . }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-web") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "langfuse-web") | nindent 4 }}
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "langfuse-worker") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-worker") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "langfuse-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "langfuse-worker") | nindent 8 }}
+      annotations:
+        kubectl.kubernetes.io/default-container: langfuse-worker
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "langfuse") }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        {{- include "kumoss.waitForLangfuse" . | nindent 8 }}
+      containers:
+        - name: langfuse-worker
+          image: "{{ $l.worker.image.repository }}:{{ $l.worker.image.tag }}"
+          imagePullPolicy: {{ $l.worker.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3030
+          {{- include "kumoss.envFrom" (list . "langfuse" $l) | nindent 10 }}
+          env:
+            {{- include "kumoss.langfuseEnv" . | nindent 12 }}
+            {{- include "kumoss.extraEnv" $l | nindent 12 }}
+          readinessProbe:
+            tcpSocket: { port: http }
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: http }
+            initialDelaySeconds: 30
+            periodSeconds: 20
+          {{- with $l.worker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- if $l.clickhouse.enabled }}
+{{- $ch := $l.clickhouse }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "kumoss.component" (list . "langfuse-clickhouse") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-clickhouse") | nindent 4 }}
+spec:
+  serviceName: {{ include "kumoss.component" (list . "langfuse-clickhouse") }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "langfuse-clickhouse") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "langfuse-clickhouse") | nindent 8 }}
+      annotations:
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "langfuse") }}
+    spec:
+      securityContext:
+        runAsUser: 101
+        runAsGroup: 101
+        fsGroup: 101
+      containers:
+        - name: clickhouse
+          image: "{{ $ch.image.repository }}:{{ $ch.image.tag }}"
+          imagePullPolicy: {{ $ch.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8123
+            - name: native
+              containerPort: 9000
+          env:
+            - name: CLICKHOUSE_DB
+              value: default
+            - name: CLICKHOUSE_USER
+              value: clickhouse
+            {{- include "kumoss.secretKeyRef" (list . "CLICKHOUSE_PASSWORD" "LANGFUSE_CLICKHOUSE_PASSWORD") | nindent 12 }}
+          readinessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /ping, port: http }
+            periodSeconds: 20
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/clickhouse
+          {{- with $ch.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        {{- with $ch.persistence.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $ch.persistence.size }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "langfuse-clickhouse") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-clickhouse") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "langfuse-clickhouse") | nindent 4 }}
+  ports:
+    - name: http
+      port: 8123
+      targetPort: http
+    - name: native
+      port: 9000
+      targetPort: native
+{{- end }}
+{{- if $l.redis.enabled }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "kumoss.component" (list . "langfuse-redis") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-redis") | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "kumoss.selectorLabels" (list . "langfuse-redis") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "kumoss.selectorLabels" (list . "langfuse-redis") | nindent 8 }}
+      annotations:
+        checksum/secrets: {{ include "kumoss.secretsChecksum" (list . "langfuse") }}
+    spec:
+      containers:
+        - name: redis
+          image: "{{ .Values.redis.image.repository }}:{{ .Values.redis.image.tag }}"
+          imagePullPolicy: {{ .Values.redis.image.pullPolicy }}
+          # A queue: never evict a key.
+          command: ["sh", "-c", 'exec redis-server --requirepass "$REDIS_PASSWORD" --maxmemory-policy noeviction']
+          env:
+            {{- include "kumoss.secretKeyRef" (list . "REDIS_PASSWORD" "LANGFUSE_REDIS_PASSWORD") | nindent 12 }}
+          ports:
+            - name: redis
+              containerPort: 6379
+          readinessProbe:
+            exec:
+              command: ["sh", "-c", 'redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping | grep -q PONG']
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket: { port: redis }
+            periodSeconds: 20
+          {{- with .Values.redis.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "kumoss.component" (list . "langfuse-redis") }}
+  labels:
+    {{- include "kumoss.componentLabels" (list . "langfuse-redis") | nindent 4 }}
+spec:
+  selector:
+    {{- include "kumoss.selectorLabels" (list . "langfuse-redis") | nindent 4 }}
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+{{- end }}
+{{- end }}

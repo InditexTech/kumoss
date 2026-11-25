@@ -18,10 +18,14 @@ from pathlib import Path
 import yaml
 
 from src.infrastructure.templates._seed_loader import SeedLoader
-from src.shared.constants import TerraformProvider
+from src.shared.constants import SCOPED_PROVIDERS
 
 
 SEED_DIR = Path(__file__).resolve().parents[3] / "prompts" / "seed"
+
+# Providers that ship prompts, by Terraform provider type name (the seed
+# directory, and the prefix of their Langfuse prompt names).
+SEEDED_PROVIDERS = ("aws", "azurerm", "google", "kubernetes", "oci", "vsphere")
 
 # Fetched by TemplateAdapter for every provider scope.
 REQUIRED_GUIDELINES = {
@@ -54,29 +58,35 @@ class TestSeedCatalog(unittest.TestCase):
         entries = SeedLoader(SEED_DIR).load()
         self.assertTrue(entries)
 
+    def test_seed_directories_are_terraform_provider_type_names(self):
+        dirs = {p.name for p in SEED_DIR.iterdir() if p.is_dir()}
+        self.assertEqual(dirs, {"general", *SEEDED_PROVIDERS})
+        # Every provider the platform scopes ships prompts.
+        self.assertLessEqual(SCOPED_PROVIDERS, set(SEEDED_PROVIDERS))
+
     def test_every_provider_has_required_guidelines(self):
-        for provider in TerraformProvider:
-            with self.subTest(provider=provider.value):
-                missing = REQUIRED_GUIDELINES - _names(provider.value, "guidelines")
+        for provider in SEEDED_PROVIDERS:
+            with self.subTest(provider=provider):
+                missing = REQUIRED_GUIDELINES - _names(provider, "guidelines")
                 self.assertEqual(missing, set())
 
     def test_resources_list_matches_resource_templates(self):
-        for provider in TerraformProvider:
-            with self.subTest(provider=provider.value):
+        for provider in SEEDED_PROVIDERS:
+            with self.subTest(provider=provider):
                 listed = set(
                     _LISTED_NAME_RE.findall(
-                        _body(provider.value, "guidelines", "resources_list")
+                        _body(provider, "guidelines", "resources_list")
                     )
                 )
-                self.assertEqual(listed, _names(provider.value, "resources"))
+                self.assertEqual(listed, _names(provider, "resources"))
 
     def test_forbidden_actions_defer_deletions_to_the_compliance_check(self):
         # critical_deletion rejects every standalone delete, even a requested
         # one; no seed may suggest a request can authorize it.
-        for provider in TerraformProvider:
-            with self.subTest(provider=provider.value):
+        for provider in SEEDED_PROVIDERS:
+            with self.subTest(provider=provider):
                 body = " ".join(
-                    _body(provider.value, "guidelines", "forbidden_actions").split()
+                    _body(provider, "guidelines", "forbidden_actions").split()
                 )
                 self.assertIn(
                     "Standalone deletions are always rejected by the compliance"
@@ -107,9 +117,9 @@ class TestSeedCatalog(unittest.TestCase):
     def test_resource_creation_forbids_backend_blocks(self):
         # State is configured outside the generated code (a Kumoss override
         # or the repository's own backend); a generated backend clashes.
-        for provider in TerraformProvider:
-            with self.subTest(provider=provider.value):
-                body = _body(provider.value, "guidelines", "resource_creation")
+        for provider in SEEDED_PROVIDERS:
+            with self.subTest(provider=provider):
+                body = _body(provider, "guidelines", "resource_creation")
                 self.assertIn("backend", body)
 
 
@@ -124,9 +134,9 @@ class TestStandardTags(unittest.TestCase):
             self.assertIn(key, body)
 
     def test_every_scope_attaches_the_standard_tags_local(self):
-        for provider in TerraformProvider:
-            with self.subTest(provider=provider.value):
-                body = _body(provider.value, "guidelines", "resource_creation")
+        for provider in SEEDED_PROVIDERS:
+            with self.subTest(provider=provider):
+                body = _body(provider, "guidelines", "resource_creation")
                 self.assertIn("local.standard_tags", body)
 
     def test_no_seed_uses_another_tags_source(self):
@@ -154,9 +164,9 @@ class TestStandardTags(unittest.TestCase):
         self.assertIn("merge(local.standard_tags,", body)
 
 
-class TestVmwareSeeds(unittest.TestCase):
+class TestVsphereSeeds(unittest.TestCase):
     def test_resource_creation_pins_the_vsphere_provider(self):
-        body = _body("vmware", "guidelines", "resource_creation")
+        body = _body("vsphere", "guidelines", "resource_creation")
         self.assertIn('source  = "vmware/vsphere"', body)
         self.assertIn('version = "~> 2.10"', body)
         # Credentials and TLS settings come from the engine's environment;
@@ -167,14 +177,14 @@ class TestVmwareSeeds(unittest.TestCase):
     def test_no_resource_template_suggests_command_execution(self):
         # The general Terraform guidelines forbid provisioners and
         # null_resource; guest setup goes through customization instead.
-        for name in _names("vmware", "resources"):
+        for name in _names("vsphere", "resources"):
             with self.subTest(template=name):
-                body = _body("vmware", "resources", name)
+                body = _body("vsphere", "resources", name)
                 for banned in ("null_resource", "local-exec", "remote-exec"):
                     self.assertNotIn(banned, body)
 
     def test_forbidden_actions_cover_host_and_identity_guardrails(self):
-        body = _body("vmware", "guidelines", "forbidden_actions")
+        body = _body("vsphere", "guidelines", "forbidden_actions")
         for rule in (
             "allow_unverified_ssl = true",
             "Administrator",
@@ -184,20 +194,20 @@ class TestVmwareSeeds(unittest.TestCase):
             self.assertIn(rule, body)
 
 
-class TestGcpSeeds(unittest.TestCase):
+class TestGoogleSeeds(unittest.TestCase):
     def test_resource_creation_leaves_the_project_to_the_engine(self):
         # The IaC sidecar injects the request's project as GOOGLE_PROJECT;
         # a provider-level project would override it.
-        body = _body("gcp", "guidelines", "resource_creation")
+        body = _body("google", "guidelines", "resource_creation")
         self.assertIn('source  = "hashicorp/google"', body)
         self.assertIn('version = "~> 8.0"', body)
         self.assertIn("GOOGLE_PROJECT", body)
         self.assertNotIn("project = var.", body)
 
     def test_no_resource_template_suggests_command_execution(self):
-        for name in _names("gcp", "resources"):
+        for name in _names("google", "resources"):
             with self.subTest(template=name):
-                body = _body("gcp", "resources", name)
+                body = _body("google", "resources", name)
                 for banned in ("null_resource", "local-exec", "remote-exec"):
                     self.assertNotIn(banned, body)
 
@@ -205,7 +215,7 @@ class TestGcpSeeds(unittest.TestCase):
         for name in ("compute_instance", "instance_template"):
             with self.subTest(template=name):
                 # Collapse the block scalar's line wrapping before matching prose.
-                body = " ".join(_body("gcp", "resources", name).split())
+                body = " ".join(_body("google", "resources", name).split())
                 for rule in (
                     "access_config",
                     "enable-oslogin",
@@ -215,7 +225,7 @@ class TestGcpSeeds(unittest.TestCase):
                     self.assertIn(rule, body)
 
     def test_forbidden_actions_cover_identity_and_data_guardrails(self):
-        body = " ".join(_body("gcp", "guidelines", "forbidden_actions").split())
+        body = " ".join(_body("google", "guidelines", "forbidden_actions").split())
         for rule in (
             "0.0.0.0/0",
             "google_service_account_key",
@@ -264,27 +274,28 @@ class TestSingleSourceConventions(unittest.TestCase):
         ("aws", "auto_scaling_group"),  # default_tags skip ASGs
         ("aws", "launch_template"),  # ...and the instances they launch
         ("oci", "compute_instance"),  # tags inside an HCL example
-        ("vmware", "tag"),  # creates the tags the rule looks up
+        ("vsphere", "tag"),  # creates the tags the rule looks up
     }
 
     def test_resource_templates_do_not_restate_the_tag_rule(self):
-        for provider in TerraformProvider:
-            for name in sorted(_names(provider.value, "resources")):
-                if (provider.value, name) in self._STANDARD_TAG_EXCEPTIONS:
+        for provider in SEEDED_PROVIDERS:
+            for name in sorted(_names(provider, "resources")):
+                if (provider, name) in self._STANDARD_TAG_EXCEPTIONS:
                     continue
-                with self.subTest(seed=f"{provider.value}/{name}"):
-                    body = _body(provider.value, "resources", name)
+                with self.subTest(seed=f"{provider}/{name}"):
+                    body = _body(provider, "resources", name)
                     self.assertNotIn("local.standard_tags", body)
 
     def test_replacement_arguments_live_in_the_resource_templates(self):
-        for provider in TerraformProvider:
-            with self.subTest(provider=provider.value):
+        for provider in SEEDED_PROVIDERS:
+            with self.subTest(provider=provider):
                 body = " ".join(
-                    _body(provider.value, "guidelines", "resource_creation").split()
+                    _body(provider, "guidelines", "resource_creation").split()
                 )
                 self.assertRegex(
-                    body, r"Each resource template lists the [\w ]+ that force"
-                    r" its replacement"
+                    body,
+                    r"Each resource template lists the [\w ]+ that force"
+                    r" its replacement",
                 )
                 self.assertNotRegex(body, r"arguments that force replacement:")
 

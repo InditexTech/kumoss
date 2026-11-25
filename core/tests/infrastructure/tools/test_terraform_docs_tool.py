@@ -25,7 +25,7 @@ from src.infrastructure.exceptions import (
 from src.infrastructure.external.terraform_registry_service import (
     TerraformRegistryClient,
 )
-from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
+from src.infrastructure.tools.tool_registry_workspace import ToolRegistryWorkspace
 from src.shared.constants import ToolContext
 
 _CONTENT = """# Resource: aws_s3_bucket
@@ -53,7 +53,9 @@ _DOC = TerraformDoc(
 class TestTerraformDocsTool(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.summarizer = MagicMock(condense=AsyncMock(return_value="condensed"))
-        self.registry = ToolRegistryStatic(summarizer=self.summarizer)
+        self.registry = ToolRegistryWorkspace(
+            filesystem=MagicMock(), git=MagicMock(), summarizer=self.summarizer
+        )
 
     async def _run(self, fetch: AsyncMock | None = None, **parameters):
         fetch = fetch or AsyncMock(return_value=_DOC)

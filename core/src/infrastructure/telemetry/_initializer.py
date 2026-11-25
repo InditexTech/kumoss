@@ -2,100 +2,69 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from opentelemetry.sdk.trace import TracerProvider, SpanLimits
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace.export import (
-    BatchSpanProcessor,
-    ConsoleSpanExporter,
-)
+"""The one OTel tracer provider of the core, exporting to Langfuse.
+
+Langfuse files every trace under the project its API key belongs to, so a
+single provider serves every operation and environment: the tracer tells
+them apart with Langfuse's own environment field and trace tags.
+
+The provider is the core's own and is never installed as the global OTel
+provider, so instrumentation of third-party libraries cannot leak spans
+into Langfuse.
+"""
+
+import base64
+
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from openinference.semconv.resource import ResourceAttributes
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.trace import SpanLimits, TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace import Tracer
 
 from src.shared.config import system_config
-from src.shared.constants import OperationType, TracerProject
 from src.shared.logger import logging
 
+_TRACER_NAME = "kumoss"
 
-def _route_tracer_project(operation: OperationType) -> TracerProject:
-    match operation:
-        case OperationType.GENERATE:
-            match system_config.environment:
-                case "production":
-                    return TracerProject.PRO_TERRAFORM_DAY2
-                case "development":
-                    return TracerProject.DEV_TERRAFORM_DAY2
-                case "staging":
-                    return TracerProject.PRE_TERRAFORM_DAY2
-        case OperationType.DRIFT:
-            match system_config.environment:
-                case "production":
-                    return TracerProject.PRO_TERRAFORM_DRIFT
-                case "development":
-                    return TracerProject.DEV_TERRAFORM_DRIFT
-                case "staging":
-                    return TracerProject.PRE_TERRAFORM_DRIFT
-        case OperationType.IMPORT:
-            match system_config.environment:
-                case "production":
-                    return TracerProject.PRO_TERRAFORM_IMPORT
-                case "development":
-                    return TracerProject.DEV_TERRAFORM_IMPORT
-                case "staging":
-                    return TracerProject.PRE_TERRAFORM_IMPORT
-    raise ValueError(
-        f"Unsupported tracer routing: operation={operation.value!r}, environment={system_config.environment!r}"
+
+def _otlp_headers() -> dict[str, str]:
+    telemetry = system_config.telemetry
+    credentials = f"{telemetry.public_key}:{telemetry.secret_key}"
+    token = base64.b64encode(credentials.encode()).decode()
+    return {"Authorization": f"Basic {token}"}
+
+
+def _build_provider() -> TracerProvider:
+    telemetry = system_config.telemetry
+    provider = TracerProvider(
+        resource=Resource(attributes={SERVICE_NAME: "kumoss-core"}),
+        span_limits=SpanLimits(max_attributes=telemetry.otel_attribute_count_limit),
     )
-
-
-class ProvidersInitializer:
-    def __init__(self):
-        self.__providers: dict[TracerProject, TracerProvider] = {}
-        self.__init_providers()
-        logging.debug("Tracer providers initialized successfully")
-
-    @property
-    def providers(self) -> dict[TracerProject, TracerProvider]:
-        return self.__providers
-
-    def __init_providers(self) -> None:
-        for provider_name in TracerProject:
-            resource = Resource(
-                attributes={ResourceAttributes.PROJECT_NAME: provider_name.value}
+    if telemetry.otel_console_exporter:
+        provider.add_span_processor(BatchSpanProcessor(ConsoleSpanExporter()))
+    provider.add_span_processor(
+        BatchSpanProcessor(
+            span_exporter=OTLPSpanExporter(
+                endpoint=f"{telemetry.langfuse_url}api/public/otel/v1/traces",
+                headers=_otlp_headers(),
             )
-            tracer_provider = TracerProvider(
-                resource=resource,
-                span_limits=SpanLimits(
-                    max_attributes=system_config.telemetry.otel_attribute_count_limit
-                ),
-            )
-            if system_config.telemetry.otel_console_exporter:
-                tracer_provider.add_span_processor(
-                    BatchSpanProcessor(ConsoleSpanExporter())
-                )
-            tracer_provider.add_span_processor(
-                BatchSpanProcessor(
-                    span_exporter=OTLPSpanExporter(
-                        endpoint=f"{system_config.telemetry.collector_url}v1/traces",
-                    )
-                )
-            )
-            self.__providers[provider_name] = tracer_provider
+        )
+    )
+    logging.debug("Tracer provider initialized successfully")
+    return provider
 
 
-_PROVIDERS: dict[TracerProject, TracerProvider] = ProvidersInitializer().providers
+_PROVIDER: TracerProvider = _build_provider()
 
 
-def get_tracer(operation: OperationType) -> Tracer:
-    project: TracerProject = _route_tracer_project(operation)
-    return _PROVIDERS[project].get_tracer(project.value)
+def get_tracer() -> Tracer:
+    return _PROVIDER.get_tracer(_TRACER_NAME)
 
 
-def shutdown_tracer_providers() -> None:
+def shutdown_tracer_provider() -> None:
     """
-    Flushes pending spans and shuts down every tracer provider. Must be called
+    Flushes pending spans and shuts the tracer provider down. Must be called
     on application shutdown: BatchSpanProcessor exports asynchronously and
     unflushed spans would be lost.
     """
-    for provider in _PROVIDERS.values():
-        provider.shutdown()
+    _PROVIDER.shutdown()

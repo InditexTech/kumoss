@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy import select, func, desc, asc
 
+from src.infrastructure.database.migrator import migrate
 from src.infrastructure.database.session import SessionManager, session_manager
 from src.infrastructure.database.models import Base
 from src.shared.logger import logging
@@ -31,19 +32,16 @@ class DatabaseClient:
 
         await self.session_manager.initialize(echo=echo)
 
-        await self.__create_tables()
-
         self._initialized = True
         logging.info("Database client initialized")
 
-    async def __create_tables(self) -> None:
-        """Create all database tables if they don't exist."""
+    async def migrate(self) -> None:
+        """Bring the schema to the latest migration (see ``migrator``)."""
         try:
-            async with self.session_manager.engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
-            logging.info("Database tables created/verified successfully")
+            await migrate(self.session_manager.engine)
+            logging.info("Database schema is up to date")
         except Exception as e:
-            logging.error(f"Error creating database tables: {e}")
+            logging.error(f"Error migrating the database: {e}")
             raise
 
     async def close(self) -> None:

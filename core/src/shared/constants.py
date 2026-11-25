@@ -2,10 +2,12 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
+from dataclasses import dataclass
 from enum import Enum, unique
 from typing import Literal
 
-# Deployment tiers; also the Phoenix tags every seeded prompt version gets.
+# Deployment tiers; also the Langfuse environment traces are recorded under
+# and the Langfuse labels every seeded prompt version gets.
 Environment = Literal["development", "staging", "production"]
 
 
@@ -34,14 +36,41 @@ class PanelRole(Enum):
         return order.index(self) >= order.index(minimum)
 
 
-@unique
-class TerraformProvider(Enum):
-    AZURE = "azure"
-    GCP = "gcp"
-    AWS = "aws"
-    OCI = "oci"
-    K8S = "kubernetes"
-    VMWARE = "vmware"
+# Terraform providers are identified by their type name: the last segment
+# of their source address (``azurerm`` for ``hashicorp/azurerm``). Any name
+# is valid; these are the ones the platform knows more about.
+
+
+@dataclass(frozen=True)
+class ScopeBinding:
+    """How a Terraform run is pointed at a provider's scope.
+
+    ``env``: an environment variable the provider reads as a setting.
+    ``var``: an input variable the code passes on itself (an OCI
+    compartment is a resource argument; an AWS account goes to the
+    provider's ``allowed_account_ids``, which refuses any other account).
+    """
+
+    kind: Literal["env", "var"]
+    name: str
+
+
+# Providers whose scope (subscription, project, account, compartment) the
+# user is asked for once, and how each run is pointed at it. The IaC
+# service attaches no meaning to providers: the core turns each scope into
+# the ``env`` or ``vars`` of the request (contracts/openapi/iac.v1.yaml,
+# "Environment and input variables").
+SCOPE_BINDINGS: dict[str, ScopeBinding] = {
+    "azurerm": ScopeBinding("env", "ARM_SUBSCRIPTION_ID"),
+    "google": ScopeBinding("env", "GOOGLE_PROJECT"),
+    "aws": ScopeBinding("var", "aws_account_id"),
+    "oci": ScopeBinding("var", "compartment_ocid"),
+}
+SCOPED_PROVIDERS: frozenset[str] = frozenset(SCOPE_BINDINGS)
+
+# Providers whose scopes the IaC service can list resources of, for import
+# (``ScopeResourceIdsRequest.provider`` in the same contract).
+DISCOVERABLE_PROVIDERS: frozenset[str] = frozenset({"azurerm", "google", "aws"})
 
 
 @unique
@@ -61,6 +90,16 @@ class OperationType(Enum):
 
 
 @unique
+class SessionSearchField(Enum):
+    """Which session field a sessions-list ``search`` matches."""
+
+    ALL = "all"  # any of the fields below
+    QUERY = "query"  # the session's first query
+    REPOSITORY = "repository"  # the workspace (repository) URI
+    SESSION_ID = "session_id"
+
+
+@unique
 class SessionStatus(Enum):
     """All possible Session states"""
 
@@ -74,6 +113,15 @@ class SessionStatus(Enum):
     COMPLETED = "completed"
     UNCOMPLETED = "uncompleted"
     FAILED = "failed"
+
+
+@unique
+class ManifestStatus(Enum):
+    """Where a root module's manifest stands against its current configuration."""
+
+    NOT_FOUND = "not_found"  # never configured: no manifest file yet
+    UP_TO_DATE = "up_to_date"  # manifest matches the configuration it was built from
+    DRIFTED = "drifted"  # the configuration changed since the manifest was written
 
 
 @unique
@@ -142,23 +190,6 @@ class ContentType(Enum):
 
     TEXT = "text/plain"
     JSON = "application/json"
-
-
-@unique
-class TracerProject(Enum):
-    """Defines all possible tracer projects.
-    Note: a project in Phoenix is defined as a group of traces
-    """
-
-    DEV_TERRAFORM_DAY2 = "dev-terraform-day2"
-    DEV_TERRAFORM_DRIFT = "dev-terraform-drift"
-    DEV_TERRAFORM_IMPORT = "dev-terraform-import"
-    PRE_TERRAFORM_DAY2 = "pre-terraform-day2"
-    PRE_TERRAFORM_DRIFT = "pre-terraform-drift"
-    PRE_TERRAFORM_IMPORT = "pre-terraform-import"
-    PRO_TERRAFORM_DAY2 = "pro-terraform-day2"
-    PRO_TERRAFORM_DRIFT = "pro-terraform-drift"
-    PRO_TERRAFORM_IMPORT = "pro-terraform-import"
 
 
 @unique

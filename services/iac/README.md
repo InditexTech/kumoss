@@ -29,7 +29,8 @@ subcommands against that binary instead (e.g. `terraform init`).
 - `POST /v1/init` — enqueues `tofu init`.
 - `POST /v1/validate` — enqueues `tofu validate`.
 - `POST /v1/plan` — enqueues `tofu plan -out <plan_file>` with
-  optional `-target=` filters.
+  optional `-target=` filters and `-var-file` arguments (see
+  "Environment and input variables").
 - `POST /v1/show` — enqueues `tofu show -json <plan_file>`; on
   exit code 0 the result's `stdout` is the plan JSON.
 - `POST /v1/apply` — enqueues `tofu apply <plan_file>`.
@@ -64,71 +65,82 @@ subcommands against that binary instead (e.g. `terraform init`).
 - Bearer-token auth on all `/v1/*` endpoints if `KUMOSS_IAC_TOKEN` is
   set.
 
-## Scope injection
+## Environment and input variables
 
-`init`, `plan`, `apply`, `import` and `import/scope-resource-ids`
-reach a cloud API, so they must carry `scope_id` (the cloud scope the
-command targets) and `terraform_provider` (which cloud that is); the
-contract requires both and a missing or empty value is a `422`.
-`validate`, `show` and `import/state-resource-ids` take no scope, so
-their bodies declare neither field — every request schema forbids
-unknown properties, so sending one is also a `422`.
+A request describes a CLI invocation and nothing more: the service
+attaches no meaning to providers or scopes. Three fields carry what a
+caller would otherwise put on the command line or in the shell:
 
-Generated provider blocks name no scope, so for `init`, `plan`,
-`apply` and `import` the service injects `scope_id` into the engine
-subprocess's environment for that command only — where the cloud has a
-variable that names a scope:
+- `env` (every command endpoint: `init`, `validate`, `plan`, `show`,
+  `apply`, `import`) — environment variables added to the engine
+  subprocess's environment for that one command, on top of the
+  service's own. A request may **add** variables but never **replace**
+  one: a name the service's environment already sets (its provider
+  credentials, `PATH`, ...) is a `422`, and so are names that would
+  change the command or the process rather than add to its environment:
+  every `TF_*` and `TOFU_*` except `TF_VAR_*`, `TERRAFORM_CONFIG`,
+  `LD_*`, `DYLD_*`, `BASH_ENV`, `ENV`, `GODEBUG`, `SSL_CERT_FILE`,
+  `SSL_CERT_DIR`, and the proxy variables (`HTTP_PROXY`, `HTTPS_PROXY`,
+  `ALL_PROXY`, `NO_PROXY`, any case). A value may not contain a NUL
+  character, which no process can receive. Both checks happen at
+  submission, so no job is created.
+- `var_files` (`plan` and `import`, the commands that evaluate the
+  configuration) — variable-definition files of the workspace, passed
+  as `-var-file` in the order given, so a later one wins. Any path
+  relative to `workspace_path` is accepted (spaces included: the path
+  is one argument, never seen by a shell); an absolute path, a `..`
+  segment or a NUL character is a `422`. A path that resolves outside
+  the workspace through a symlink ends the job with exit code 1 and
+  `var file <path> resolves outside the workspace` on `stderr`,
+  without starting the engine. The engine reads the files itself on
+  every command, so a file edited between commands is read afresh.
+- `vars` (`plan` and `import`) — input variable values by name, of any
+  JSON type. They are written to an owner-only temporary `.tfvars.json`
+  outside the workspace, passed as the last `-var-file`, after
+  `var_files` (so they win over every other source), and removed when
+  the command ends. Files the engine
+  loads on its own (`terraform.tfvars`, `*.auto.tfvars`) still apply
+  underneath. Because they arrive as a file, a value for a variable the
+  configuration does not declare is only a warning.
 
-| `terraform_provider` | Environment variable      | Scope it sets |
-|----------------------|---------------------------|---------------|
-| `azure`              | `ARM_SUBSCRIPTION_ID`     | subscription  |
-| `gcp`                | `GOOGLE_PROJECT`          | project       |
-| `oci`                | `TF_VAR_compartment_ocid` | compartment   |
-| `aws`                | `TF_VAR_aws_account_id`   | account       |
-| `kubernetes`         | none                      | —             |
-| `vmware`             | none                      | —             |
+Both may hold secrets: the engine log line for each command names the
+`env` keys it added, never their values, and `vars` are never logged.
+`import/state-resource-ids` and `import/scope-resource-ids` take none
+of the three.
 
-Azure and GCP read theirs as provider settings. The OCI and AWS
-variables are Terraform input variables instead, which the engine
-ignores when the generated code declares none. An OCI compartment is a
-resource argument: the variable fills the `compartment_ocid` variable
-the generated code passes to its resources. An AWS account is implicit
-in the credentials the provider resolves, so the variable fills the
-`aws_account_id` variable the generated code passes to the provider's
-`allowed_account_ids`, which refuses any other account.
+Scoping a command is the caller's job. The Kumoss core sends the
+subscription and project as `env` (`ARM_SUBSCRIPTION_ID` for
+`azurerm`, `GOOGLE_PROJECT` for `google`) and the AWS account and OCI
+compartment as `vars` (`aws_account_id`, `compartment_ocid`, which the
+generated code passes to the provider's `allowed_account_ids` and to
+its resources). Since a request cannot replace a variable the service
+already has, **leave those scope variables unset on the container**:
+an `ARM_SUBSCRIPTION_ID` set there makes every request that carries
+one fail with `422`. Provider credentials stay on the container.
 
-AWS is also checked before the engine starts: before `init`, `plan`,
-`apply` and `import` the service calls STS `GetCallerIdentity` and,
-when its own credentials belong to an account other than `scope_id`,
-ends the command with exit code 1 and the reason on stderr — the same
-check import discovery makes. It needs `AWS_REGION` (or
-`AWS_DEFAULT_REGION`) and a 12-digit `scope_id` (`000000000000` for
-LocalStack). One deployment therefore serves the one AWS account its
-credentials belong to; a hub deployment whose generated code assumes a
-role into each target account is refused by this check.
+On Azure, `ARM_SUBSCRIPTION_ID` is the azurerm backend's too, so
+`init` resolves the state storage account in the request's
+subscription; a deployment keeping state outside the managed
+subscription has to name `subscription_id` in its backend config. See
+"Backend minimums" in `PROVIDERS.md`.
 
-A Kubernetes namespace or a vSphere datacenter is a resource or
-data-source argument the generated code names itself, so for those two
-the service injects nothing. Their commands run against whatever scope
-the ambient credentials select, so a deployment that serves them is
-responsible for making those credentials agree with `scope_id`. The
-contract also allows a deployment to scope by another mechanism (a
-provider alias, a credential broker).
+There is no check of the AWS account before a command runs. The
+account is enforced only by code that declares `aws_account_id` and
+passes it to the provider's `allowed_account_ids`, as the generated
+code does; the provider then refuses any other account. An existing
+module with a bare `provider "aws" {}` ignores the `aws_account_id`
+it is sent (an undeclared variable is only a warning) and runs in
+whatever account the service's credentials belong to. Such modules
+must add `allowed_account_ids = [var.aws_account_id]` to their AWS
+provider blocks (and declare the variable), or run against an IaC
+deployment that serves exactly one AWS account.
 
-Where an overlay is applied it goes on top of the service's own
-environment, so it wins over an `ARM_SUBSCRIPTION_ID` (etc.) set on the
-container — ambient provider credentials are otherwise untouched.
-
-On Azure that variable is the azurerm backend's too, so `init` resolves
-the state storage account in `scope_id`'s subscription; a deployment
-keeping state outside the managed subscription has to name
-`subscription_id` in its backend config. See "Backend minimums" in
-`PROVIDERS.md`.
-
-`import/scope-resource-ids` is the exception: it launches no
-subprocess, so there is no environment to overlay. Its `scope_id` is
-the argument of the inventory query itself — the subscription,
-project or account whose contents are listed.
+`import/scope-resource-ids` is the exception to all of this: it takes
+one required `provider` (`azurerm`, `google` or `aws` — the providers
+with an inventory query; any other is a `422`) and `scope_id`, and
+launches no subprocess. Its `scope_id` is the argument of the
+inventory query itself — the subscription, project or account whose
+contents are listed.
 
 ## Import discovery
 
@@ -144,18 +156,13 @@ interactive `az login`, the CI runner's `ARM_OIDC_REQUEST_URL`
 exchange and the `ARM_CLIENT_ID_FILE_PATH`/`ARM_CLIENT_SECRET_FILE_PATH`
 forms have no discovery equivalent; see `PROVIDERS.md`.
 
-| `terraform_provider` | Source                                                     | Scope is             |
-|----------------------|------------------------------------------------------------|----------------------|
-| `azure`              | Resource Graph `providers/Microsoft.ResourceGraph/resources` | subscription ID    |
-| `gcp`                | Cloud Asset Inventory `searchAllResources` + Resource Manager `projects.get` and `getIamPolicy` | project ID |
-| `aws`                | Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources` | account ID   |
-| `oci`, `kubernetes`, `vmware` | none                                              | —                    |
+| `provider` | Source                                                     | Scope is             |
+|------------|------------------------------------------------------------|----------------------|
+| `azurerm`  | Resource Graph `providers/Microsoft.ResourceGraph/resources` | subscription ID    |
+| `google`   | Cloud Asset Inventory `searchAllResources` + Resource Manager `projects.get` and `getIamPolicy` | project ID |
+| `aws`      | Resource Explorer `ListIndexes`, `GetDefaultView`, `ListResources` | account ID   |
 
-`oci`, `kubernetes` and `vmware` are answered with exit code 2 and
-`no scope discovery for provider '<p>'` in `stderr`. That is a
-deliberate outcome, not a crash: the job still ends `succeeded`, and
-the exit code tells the caller the provider is unsupported rather than
-that a cloud call failed.
+Any other `provider` is rejected with a `422` at submission.
 
 ### What is left out
 
@@ -217,7 +224,7 @@ The service, not the caller, decides the ID shape.
 - **AWS** emits ARNs. `POST /v1/import/state-resource-ids` prefers a
   resource's `arn` attribute over its `id` for the same reason, so the
   two lists are directly comparable. That preference is not
-  AWS-specific: the endpoint takes no `terraform_provider`, so it
+  AWS-specific: the endpoint takes no `provider`, so it
   applies to every state document — a no-op for azurerm and google
   resources, which expose no `arn`.
 
@@ -359,7 +366,7 @@ manual `init -migrate-state`) if it matters.
 | `KUMOSS_IAC_TOKEN`                            | no       | Bearer token clients must present.                     |
 | `IAC_BINARY`                                  | no       | Name or absolute path of the IaC engine CLI. Default: `tofu` (OpenTofu); set `terraform` for the bundled Terraform. See "Choosing the IaC engine". |
 | `IAC_BACKEND_CONFIG`                          | no       | Path to a backend configuration file `init` passes to `-backend-config` — absolute (inside this container) or relative to the workspace. Not validated at startup. Unset, the backend comes from the workspace itself. See "State backend". |
-| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. The per-request scope variable (see "Scope injection") is layered on top of these. |
+| Provider creds: `ARM_*`, `GOOGLE_*`, `AWS_*`, `OCI_*` | no       | The engine's providers read these directly (identical for OpenTofu and Terraform). Provide whichever your modules need; without them, `plan`/`apply` fail with the engine's own auth errors in the result's `stderr`. Leave the scope variables (`ARM_SUBSCRIPTION_ID`, `GOOGLE_PROJECT`) unset: each request adds them through `env`, which may not replace a variable already set here (see "Environment and input variables"). |
 
 Everything else is a property of the service, not of a deployment, and
 lives in [`src/config.py`](src/config.py): `job_ttl` (how long a
@@ -450,8 +457,7 @@ uv run uvicorn src.main:app --host 0.0.0.0 --port 8082 --timeout-keep-alive 75
 job_id=$(curl -s -X POST http://localhost:8082/v1/init \
   -H 'Content-Type: application/json' \
   -d '{"workspace_path":"/path/to/your/iac/dir",
-       "scope_id":"00000000-0000-0000-0000-000000000000",
-       "terraform_provider":"azure"}' | jq -r .job_id)
+       "env":{"ARM_SUBSCRIPTION_ID":"00000000-0000-0000-0000-000000000000"}}' | jq -r .job_id)
 curl http://localhost:8082/v1/jobs/$job_id   # repeat until succeeded/failed
 ```
 

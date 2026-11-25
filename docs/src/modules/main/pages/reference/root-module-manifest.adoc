@@ -1,0 +1,307 @@
+= Root module manifest
+:description: How Kumoss learns what a Terraform root module needs — providers, scopes, variable values and var files — asks for it once, and keeps it in a kumoss.yaml committed next to the module.
+
+A Terraform root module rarely runs on its code alone: its providers
+need to know which subscription, project, account or compartment to
+work in, and its input variables without a default need values. Kumoss
+asks for these once per root module, keeps the answers in a *manifest*,
+`kumoss.yaml`, committed inside the module, and reuses them on every
+later session.
+
+== What Kumoss reads from the module
+
+Before a session runs, the core inspects the root module statically
+with HashiCorp's `terraform-config-inspect` (bundled in the core image;
+no `init`, no provider download) and scans its variable-definition
+files:
+
+* *Providers* — every entry of the module's `required_providers`,
+  identified by its Terraform provider *type*: the last segment of its
+  source address (`azurerm` for `hashicorp/azurerm`, `google`, `aws`,
+  `oci`, `kubernetes`, `vsphere`, `random`, `helm`...). A module may
+  use several, and every one of them is part of the session. Nobody
+  picks a provider in the wizard any more.
+* *Variables* — each `variable` block's name, type, description, and
+  whether it is required (no default) or `sensitive`.
+* *Var files* — `terraform.tfvars` and `*.auto.tfvars` at the module's
+  top level, which Terraform loads on its own, and any other `.tfvars`
+  or `.tfvars.json` file up to three directories below the module
+  (`envs/dev.tfvars`), which are *optional*: the user may pick them,
+  and each run passes them as `-var-file` in the order picked, so
+  Terraform reads them itself, fresh on every command. Kumoss only
+  reads which variables a file sets. Subdirectories that are modules
+  themselves, hidden directories and symlinks are skipped.
+
+A configuration with errors is reported as `422` rather than guessed
+at.
+
+[#scopes]
+== Scopes
+
+Four providers have a *scope*, the place their resources live in, and
+need one before a session can run:
+
+[cols="1,2,3",options="header"]
+|===
+|Provider |Scope |Sent to the IaC sidecar as
+
+|`azurerm`
+|subscription id
+|`ARM_SUBSCRIPTION_ID` in `env`
+
+|`google`
+|project id
+|`GOOGLE_PROJECT` in `env`
+
+|`aws`
+|account id
+|`aws_account_id` in `vars`
+
+|`oci`
+|compartment OCID
+|`compartment_ocid` in `vars`
+|===
+
+The user answers each scope once, in the inputs form; it is saved in
+the manifest. The core turns it into the environment variable of every
+command the session runs, or into an input variable of every `plan` and
+`import`, sent last so no configured value overrides it. Because the
+core fills `aws_account_id` and `compartment_ocid` from the scope, those
+two variables are never asked for. Every other provider has no scope
+and runs on whatever the IaC sidecar's ambient credentials and
+configuration select. See
+xref:main:reference/api/iac.adoc#environment-and-input-variables[Environment
+and input variables] and
+xref:main:reference/terraform-providers.adoc[Terraform providers].
+
+== The manifest file
+
+The manifest is a YAML file named `kumoss.yaml` (configurable with
+xref:main:reference/configuration.adoc#config-paths[`paths.manifest_filename`])
+in the root module's directory:
+
+[source,yaml]
+----
+# Managed by Kumoss: the inputs this Terraform root module is configured with.
+# Sensitive values are never stored here, only their names.
+version: "1"
+fingerprint: sha256:<hex>
+providers:
+  - name: azurerm
+    source: hashicorp/azurerm
+    version_constraints: ["~> 4.0"]
+var_files: [envs/dev.tfvars]
+variables:
+  - name: region
+    value: westeurope
+  - name: db_password
+    sensitive: true
+scopes:
+  - provider: azurerm
+    scope_id: 00000000-0000-0000-0000-000000000000
+----
+
+[cols="1,4",options="header"]
+|===
+|Key |Meaning
+
+|`fingerprint`
+|A digest of what the user answers for: the providers and their
+constraints, each variable's name, type, required and sensitive flags,
+which variables the auto-loaded files set, and which optional var
+files exist. Descriptions, defaults and the contents of optional var
+files are left out, so editing them never triggers a question.
+
+|`providers`
+|The module's `required_providers` when the manifest was written.
+
+|`var_files`
+|The optional var files picked, in the order they are passed.
+
+|`variables`
+|The user's answers. Plain values are stored as given, in any JSON
+type. Sensitive ones carry only `sensitive: true`; their value is kept
+elsewhere (see <<where-values-live>>).
+
+|`scopes`
+|One `{provider, scope_id}` entry per scoped provider of the module.
+|===
+
+The file is committed by a session on its branch, together with the
+session's other changes, and reaches the default branch when the
+session's pull request is merged. Reading is strict: the file may be
+edited by hand, so anything off the layout is reported (`422`) rather
+than guessed, and a sensitive variable written with a value is refused
+with an instruction to remove it and rotate the secret.
+
+[#where-values-live]
+== Where values and secrets live
+
+[cols="1,3",options="header"]
+|===
+|What |Where
+
+|Plain variable values, picked var files, scopes
+|`kumoss.yaml`, committed in the repository next to the module.
+
+|Sensitive variable values
+|One JSON object per root module in Kumoss's object storage (the
+artifacts bucket, `storage.bucket`), at
+`manifests/<sha256 of repository and module path>/secrets.json`. The
+key does not depend on the branch or the clone. Object storage is not a
+secret manager: confidentiality rests on the bucket's access policy and
+server-side encryption.
+
+|Values at run time
+|Sent to the IaC sidecar on `plan` and `import`: the picked var files
+as `var_files`, in the order picked, and the answers as `vars`, which
+win. The sidecar writes `vars` to an owner-only temporary file outside
+the workspace for the duration of the command. See
+xref:main:reference/api/iac.adoc#environment-and-input-variables[Environment
+and input variables].
+|===
+
+A variable declared `sensitive` in the code is always stored as a
+secret. Any other variable can be marked secret by the user in the
+inputs form (`sensitive: true` in the API). Probe responses and session
+read models never contain values.
+
+Provider *credentials* are not manifest inputs: they stay in the IaC
+sidecar's environment.
+
+== Before a session: the probe
+
+`POST /api/v1/manifest/probe` with `repo_uri` and `root_module_path`
+reads the module on the repository's *default branch* and reports what
+a session on it would need. It never writes anything.
+
+[cols="1,3",options="header"]
+|===
+|Field |Meaning
+
+|`status`
+|`not_found` (no manifest yet), `up_to_date`, or `drifted` (the module
+changed since the manifest was written, or something the manifest
+relies on is gone).
+
+|`needs_input`
+|Whether the first session call must carry answers. True when a value,
+a var file selection or a scope is missing, and on a first setup when
+the module has optional var files to choose from.
+
+|`missing_variables`
+|Required variables nothing covers — no default, no auto-loaded file,
+no picked var file, no saved answer — and sensitive variables whose
+stored value is gone. Each with its name, type, description, and
+`required`/`sensitive` flags.
+
+|`selectable_var_files`
+|The optional var files, each with `selected` and `sets` (the
+variables it sets; picking it answers those).
+
+|`missing_var_files`
+|Picked var files that no longer exist; a new selection is needed.
+
+|`missing_scopes`
+|Scoped providers with no scope yet, as `{provider, source}`.
+
+|`provider_changes`
+|Providers added, removed or re-constrained since the manifest was
+written.
+|===
+
+== The first session call
+
+The answers ride on the first `generate`, `drift` or `import` call, in
+`manifest`:
+
+[source,json]
+----
+{
+  "q": "Add a private storage account for application logs",
+  "repo_uri": "https://github.com/acme/infra.git",
+  "root_module_path": "environments/dev",
+  "manifest": {
+    "variables": [
+      {"name": "db_password", "value": "s3cr3t"},
+      {"name": "region", "value": "westeurope", "sensitive": false}
+    ],
+    "var_files": ["envs/dev.tfvars"],
+    "scopes": {"azurerm": "00000000-0000-0000-0000-000000000000"}
+  }
+}
+----
+
+When the probe says `needs_input: false`, `manifest` is omitted. Either
+way the session, right after cloning:
+
+. inspects the module again and reconciles it with the committed
+  manifest and the answers;
+. derives the session's provider/scope pairs and has the
+  xref:main:reference/api/authz.adoc[authorization sidecar] evaluate
+  each of them, *before anything is saved*;
+. stores the secret values, writes `kumoss.yaml` and commits it to the
+  session branch (nothing is committed when nothing changed);
+. records the providers and scopes on the session, where the session
+  read models show them as `providers: [{name, scope_id}]`.
+
+If something is still missing, or an answer is invalid (unknown
+variable or provider, a value of the wrong shape, a var file that
+cannot be selected), the session ends `FAILED` with the reason — for
+example `The root module needs values for db_password. Probe it with
+POST /v1/manifest/probe and send the answers in manifest.` — and
+nothing is saved. Iteration calls cannot carry `manifest`: they reuse
+the providers, scopes and inputs set up at the first call.
+
+== In the web application
+
+The wizard asks for the request, the repository URL and the root
+module, then probes the module ("Checking what the root module
+needs..."). When nothing is needed the session starts straight away.
+Otherwise it shows the inputs form, "This root module needs a few
+values", with up to three groups:
+
+* *Scopes* — one field per provider in `missing_scopes`, labelled in
+  the provider's terms (Subscription ID, Project ID, Account ID,
+  Compartment OCID).
+* *Values* — one field per missing variable, typed after the
+  declaration (JSON for lists, maps and objects), with a *Secret*
+  toggle; a variable declared sensitive is always a secret.
+* *Variable files* — the optional var files, picked in order. A
+  variable that a picked file sets can be left empty.
+
+The answers go with the session's first call. They are asked once: the
+next session on the same module finds them in the manifest — once the
+pull request carrying `kumoss.yaml` has been merged into the default
+branch, which is what the probe reads.
+
+== When the module changes
+
+The manifest is checked against the code at the start of every
+session (never on iteration calls):
+
+* *Nothing to ask* — a provider bump, a removed variable, a new
+  variable with a default, a variable newly declared `sensitive` (its
+  plain value moves to the secret store), a provider that no longer
+  needs a scope — the session updates the manifest by itself and
+  commits it with its changes. The probe reports `drifted` with
+  `needs_input: false`.
+* *Something to ask* — a new required variable, a new scoped provider,
+  a picked var file that was deleted, or a secret whose stored value is
+  gone (asked again rather than silently replaced by a default) — the
+  probe reports `needs_input: true` and the wizard asks only for that.
+
+A module that has no manifest and needs nothing (no required variable,
+no scoped provider, no optional var file) is set up silently on its
+first session.
+
+== Related pages
+
+* xref:main:reference/api/core.adoc#manifest[Core API] for the probe
+  route and the `manifest` request field.
+* xref:main:reference/terraform-providers.adoc[Terraform providers] for
+  the credentials each provider needs in the IaC sidecar.
+* xref:main:guides/customize-prompts.adoc[Customize prompts] for how the
+  module's providers select the prompts a session uses.
+* xref:main:guides/upgrade-notes.adoc[Upgrade notes] for what changed
+  when providers moved to the module.

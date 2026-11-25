@@ -26,39 +26,23 @@ class ScopeDiscovery:
     def __init__(self, environ: Mapping[str, str]) -> None:
         self._environ: Mapping[str, str] = environ
 
-    async def resource_ids(
-        self, terraform_provider: str, scope_id: str
-    ) -> list[str] | None:
+    async def resource_ids(self, provider: str, scope_id: str) -> list[str] | None:
         """The scope's resource identifiers, or None when no lister serves
-        the provider."""
+        ``provider`` (a Terraform provider type name)."""
         async with self._client() as client:
-            lister = self._lister(terraform_provider, client)
+            lister = self._lister(provider, client)
             if lister is None:
                 return None
             return unique(await lister.list_resource_ids(scope_id))
 
-    async def verify_scope(self, terraform_provider: str, scope_id: str) -> None:
-        """Raise DiscoveryError when the ambient credentials cannot serve
-        ``scope_id``.
-
-        Only AWS is checked: its account comes from the credentials, while
-        Azure, GCP and OCI commands are pointed at ``scope_id`` by the
-        variable the engine injects, and Kubernetes and vSphere name their
-        scope in the generated code.
-        """
-        if terraform_provider == "aws":
-            await AwsScopeLister(self._environ).verify_account(scope_id)
-
     def _client(self) -> httpx.AsyncClient:
         return httpx.AsyncClient(timeout=httpx.Timeout(self._TIMEOUT))
 
-    def _lister(
-        self, terraform_provider: str, client: httpx.AsyncClient
-    ) -> ScopeLister | None:
-        if terraform_provider == "azure":
+    def _lister(self, provider: str, client: httpx.AsyncClient) -> ScopeLister | None:
+        if provider == "azurerm":
             return AzurosCloudapi(self._environ, client)
-        if terraform_provider == "gcp":
+        if provider == "google":
             return GcpScopeLister(self._environ, client)
-        if terraform_provider == "aws":
+        if provider == "aws":
             return AwsScopeLister(self._environ)
         return None

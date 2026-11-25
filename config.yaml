@@ -16,15 +16,15 @@
 # Override only if you need a different env var name — see
 # core/src/shared/config/system_config.py for the `*_env` fields.
 #
-# To customize, edit this file (e.g., flip `services.mapping.enabled` to
-# true and point it at your own mapping service) or override
+# To customize, edit this file (e.g., point `services.mapping.endpoint`
+# at your own mapping service) or override
 # per-environment via a docker-compose.override.yml / your own
 # KUMOSS_CONFIG path.
 
-# development | staging | production. Selects the Phoenix tracing project
-# prefix (dev-/pre-/pro-) and is the tag used when seeding and fetching
-# Phoenix prompts:
-#   https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-phoenix/
+# development | staging | production. The Langfuse environment traces are
+# recorded under, and the label of the Langfuse prompt versions the core
+# reads (the seeder labels new prompts with all three):
+#   https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-langfuse/
 #   https://inditextech.github.io/kumoss/stable/main/guides/customize-prompts/
 # No security gates are keyed on it.
 environment: "development"
@@ -69,12 +69,19 @@ admin:
 # token_env resolves to an empty value will refuse the core's boot —
 # flip `enabled: false` to skip an optional service entirely.
 #
-# `mapping` and `authz` have no bundled service: they are contracts
-# (contracts/openapi/) for you to implement. While disabled, the core
-# answers locally (identity passthrough for mapping, "authorized" for
-# authz). To enable one, set `enabled: true`, point `endpoint` at your
-# implementation and set its token env var in core/.env; the core
-# refuses to boot when an enabled service has no endpoint.
+# `mapping` is bundled and on by default: the web wizard's repository
+# scan sends what the user typed to it, so a bare repository name such
+# as `foo` resolves to `<MAPPING_PREFIX_IDENTIFIER>foo.git` (set the
+# prefix in services/mapping/.env). Point `endpoint` at your own
+# implementation of contracts/openapi/mapping.v1.yaml to use a real
+# catalogue instead. While disabled, the core takes what the user typed
+# as the repository URL.
+#
+# `authz` has no bundled service: it is a contract for you to implement.
+# While disabled, the core treats every operation as authorized. To
+# enable it, set `enabled: true`, point `endpoint` at your PDP and set
+# its token env var in core/.env; the core refuses to boot when an
+# enabled service has no endpoint.
 services:
   notifications:
     enabled: true
@@ -82,8 +89,8 @@ services:
     token_env: "KUMOSS_NOTIFICATIONS_TOKEN"
     timeout: 30.0
   mapping:
-    enabled: false
-    endpoint: ""
+    enabled: true
+    endpoint: "http://mapping:8081"
     token_env: "KUMOSS_MAPPING_TOKEN"
     timeout: 30.0
   authz:
@@ -106,7 +113,7 @@ services:
 #
 # enable_compliance_checker: When enabled, a validated generate round is
 # audited by a second small-model agent against the
-# general-compliance-report rules. A finding of severity "error" or
+# general/compliance/report rules. A finding of severity "error" or
 # "critical" locks the session; "warning" is only reported.
 #
 # block_on_high_impact: When enabled, a generate round whose report
@@ -220,12 +227,17 @@ redis:
   socket_timeout: 2.0
   pool_timeout: 2.0
 
-# OTel telemetry. `collector_url` is a base URL; the OTLP endpoint is
-# computed at use time as `f"{collector_url}v1/traces"`. The value below
-# is also the in-code default: Phoenix as reachable on the docker
-# network. Running the core outside docker needs http://localhost:6006/.
+# Langfuse: traces are exported to it over OTLP and prompts are read from
+# it. `langfuse_url` is the base URL the core calls (the value below, also
+# the in-code default, is langfuse-web on the docker network; running the
+# core outside docker needs http://localhost:3000/). The project's API
+# key pair is read from the env vars named by
+# public_key_env / secret_key_env; unset, they fall back to the
+# development keys the bundled stack provisions.
 telemetry:
-  collector_url: "http://phoenix:6006/"
+  langfuse_url: "http://langfuse-web:3000/"
+  public_key_env: "LANGFUSE_PUBLIC_KEY"
+  secret_key_env: "LANGFUSE_SECRET_KEY"
   otel_attribute_count_limit: 1024
   otel_console_exporter: false
 

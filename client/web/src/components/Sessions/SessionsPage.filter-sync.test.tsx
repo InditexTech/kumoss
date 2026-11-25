@@ -82,9 +82,7 @@ describe("Filter sync between search inputs and dropdown filters", () => {
     const initialCallCount = capturedQueries.length;
 
     // Type search text but DON'T press Enter
-    const searchInput = screen.getByPlaceholderText(
-      "Search by project name, query or session id",
-    );
+    const searchInput = screen.getByRole("textbox", { name: "Search sessions" });
     await userEvent.type(searchInput, "Deploy");
 
     // Now select a dropdown filter
@@ -120,9 +118,7 @@ describe("Filter sync between search inputs and dropdown filters", () => {
     await screen.findByText("Deploy Azure VM");
     const initialCallCount = capturedQueries.length;
 
-    const searchInput = screen.getByPlaceholderText(
-      "Search by project name, query or session id",
-    );
+    const searchInput = screen.getByRole("textbox", { name: "Search sessions" });
     await userEvent.type(searchInput, "Deploy");
 
     // Click next-page without pressing Enter on search
@@ -155,9 +151,7 @@ describe("Filter sync between search inputs and dropdown filters", () => {
     await screen.findByText("Deploy Azure VM");
     const initialCallCount = capturedQueries.length;
 
-    const searchInput = screen.getByPlaceholderText(
-      "Search by project name, query or session id",
-    );
+    const searchInput = screen.getByRole("textbox", { name: "Search sessions" });
     await userEvent.type(searchInput, "Deploy");
 
     // Change page size without pressing Enter on search
@@ -207,5 +201,88 @@ describe("Filter sync between search inputs and dropdown filters", () => {
     const lastQuery = capturedQueries[capturedQueries.length - 1];
     expect(lastQuery).toContain("operation=generate");
     expect(lastQuery).toContain("user_email=alice");
+  });
+});
+
+describe("Session search and filter controls", () => {
+  let queries: URLSearchParams[];
+  const last = () => queries[queries.length - 1];
+
+  beforeEach(() => {
+    mockState.clear();
+    mockState.addSession(
+      makeSessionDetail({ uuid: "s1", current_status: "completed", first_query: "Deploy Azure VM" }),
+    );
+    queries = [];
+    server.use(
+      http.get("/api/v1/sessions/list", ({ request }) => {
+        queries.push(new URL(request.url).searchParams);
+        const query = readListQuery(request);
+        return HttpResponse.json(paginate(filterSessions(sortedSessions(), query), query));
+      }),
+    );
+    auth.panelRole = null;
+  });
+
+  it("searches once typing pauses, without Enter", async () => {
+    renderPage("user", "/user/sessions");
+    await screen.findByText("Deploy Azure VM");
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Search sessions" }), "Azure");
+
+    await waitFor(() => expect(last().get("search")).toBe("Azure"));
+  });
+
+  it("sends the picked search scope with the search", async () => {
+    renderPage("user", "/user/sessions");
+    await screen.findByText("Deploy Azure VM");
+
+    await userEvent.click(screen.getByRole("combobox", { name: "Search in" }));
+    await userEvent.click(await screen.findByRole("option", { name: "Repository" }));
+    const input = screen.getByRole("textbox", { name: "Search sessions" });
+    expect(input).toHaveAttribute("placeholder", "Search repository, e.g. kumossdemo");
+    await userEvent.type(input, "demo{Enter}");
+
+    await waitFor(() => expect(last().get("search")).toBe("demo"));
+    expect(last().get("search_in")).toBe("repository");
+  });
+
+  it("leaves the default scope out of the request", async () => {
+    renderPage("user", "/user/sessions");
+    await screen.findByText("Deploy Azure VM");
+
+    await userEvent.type(screen.getByRole("textbox", { name: "Search sessions" }), "VM{Enter}");
+
+    await waitFor(() => expect(last().get("search")).toBe("VM"));
+    expect(last().has("search_in")).toBe(false);
+  });
+
+  it("names an applied filter with its value and clears everything at once", async () => {
+    renderPage("user", "/user/sessions?search=VM&status=failed");
+
+    expect(await screen.findByText("STATUS: Failed")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search sessions" })).toHaveValue("VM");
+    // Nothing matches: the empty state offers the same reset.
+    expect(await screen.findByText("No sessions match your search and filters")).toBeInTheDocument();
+
+    await userEvent.click(screen.getAllByRole("button", { name: "Clear all" })[0]);
+
+    await screen.findByText("Deploy Azure VM");
+    expect(screen.getByText("STATUS")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Search sessions" })).toHaveValue("");
+    expect(last().has("status")).toBe(false);
+    expect(last().has("search")).toBe(false);
+    expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull();
+  });
+
+  it("clears the search box with its clear button", async () => {
+    renderPage("user", "/user/sessions?search=VM");
+    const input = await screen.findByRole("textbox", { name: "Search sessions" });
+    expect(input).toHaveValue("VM");
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear search sessions" }));
+
+    expect(input).toHaveValue("");
+    await waitFor(() => expect(last().has("search")).toBe(false));
   });
 });

@@ -2,12 +2,16 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Discovers and validates seed YAML files used to bootstrap Phoenix.
+"""Discovers and validates seed YAML files used to bootstrap Langfuse.
 
 Each YAML file lives at ``<seed_dir>/<scope>/<type>/<name>.yaml`` and carries
 just the prompt body plus an optional description. ``scope``, ``type``, and
 ``name`` are derived from the file path, not declared in the YAML — that way
 a misfiled prompt can't lie about its identity.
+
+The Langfuse prompt name mirrors the path, ``<scope>/<type>/<name>``:
+Langfuse shows each ``/``-separated segment as a folder, so the prompt
+list is browsed the way the seed directory is laid out.
 """
 
 from __future__ import annotations
@@ -22,14 +26,14 @@ import yaml
 from src.infrastructure.exceptions import PromptSeedLoadError
 
 
-Scope = Literal["general", "azure", "gcp", "aws", "oci", "kubernetes", "vmware"]
+# "general", or a Terraform provider type name (azurerm, google, aws...): the
+# provider whose sessions use the prompt. Any provider may have prompts.
+Scope = str
 PromptType = Literal["guidelines", "resources", "compliance"]
 
-_VALID_SCOPES: frozenset[str] = frozenset(
-    {"general", "azure", "gcp", "aws", "oci", "kubernetes", "vmware"}
-)
+_SCOPE_RE: re.Pattern[str] = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 _VALID_TYPES: frozenset[str] = frozenset({"guidelines", "resources", "compliance"})
-# Match the constraints the existing fetcher passes to Phoenix.
+# The name part of the prompt names the fetcher asks Langfuse for.
 _NAME_RE: re.Pattern[str] = re.compile(r"^[a-z0-9_]+$")
 
 
@@ -44,7 +48,12 @@ class SeedEntry:
 
     @property
     def qualified_name(self) -> str:
-        return f"{self.scope}-{self.type}-{self.name}"
+        return prompt_name(self.scope, self.type, self.name)
+
+
+def prompt_name(scope: str, type: str, name: str) -> str:
+    """The Langfuse name of a prompt: a folder per scope, then per type."""
+    return f"{scope}/{type}/{name}"
 
 
 class SeedLoader:
@@ -97,9 +106,10 @@ class SeedLoader:
             )
 
         scope, type_, filename = rel_parts
-        if scope not in _VALID_SCOPES:
+        if not _SCOPE_RE.match(scope):
             raise PromptSeedLoadError(
-                message=f"Invalid scope '{scope}' in {path}; expected one of {sorted(_VALID_SCOPES)}",
+                message=f"Invalid scope '{scope}' in {path}; expected 'general' or a "
+                + "Terraform provider type name (e.g. azurerm)",
                 error_code=500,
             )
         if type_ not in _VALID_TYPES:

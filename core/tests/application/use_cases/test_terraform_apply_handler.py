@@ -8,8 +8,9 @@ All collaborators are mocked: these cover the background task's
 sequencing (next_round → status update → apply → report), the pinned
 plan lifecycle (no pin → fail before any apply; the slot is always
 discarded when the round ends), the hard-fail path (apply-failure
-notification sent, TerraformValidationFailedError raised with the report
-summary, no regeneration collaborators exist to retry with), and that the
+notification sent with the report summary, which is also recorded in the
+history; the round ends normally and no regeneration collaborators exist
+to retry with), and that the
 session is saved either way.
 """
 
@@ -91,18 +92,20 @@ class TestTerraformApplyHandler(unittest.IsolatedAsyncioTestCase):
         self.workspace_svc.discard_pinned.assert_called_once_with(self.ctx.id)
         self.session_svc.save.assert_awaited_once()
 
-    async def test_failure_notifies_raises_with_summary_and_consumes_pin(self):
+    async def test_failure_notifies_records_summary_and_consumes_pin(self):
         self.terraform_svc.apply.return_value = _dto(False)
         self.report_svc.generate_report.return_value = MagicMock(
             execution_summary="apply failed: boom"
         )
 
         task = await self.handler.handle()
-        with self.assertRaises(TerraformValidationFailedError) as raised:
-            await task()
+        await task()
 
-        self.report_svc.generate_report.assert_awaited_once()
-        self.assertEqual(raised.exception.message, "apply failed: boom")
+        report_kwargs = self.report_svc.generate_report.await_args.kwargs
+        self.assertEqual(report_kwargs["content"], "apply outputboom")
+        self.ctx.history.append_turn.assert_called_once_with(
+            "Apply the IaC session changes", "apply failed: boom"
+        )
         self.notify.assert_awaited_once_with(
             self.ctx.id, self.ctx.user_id, "apply failed: boom"
         )

@@ -13,10 +13,11 @@ is disabled or unconfigured.
 
 Surface:
 
-- `MappingServiceClient.resolve(identifier, terraform_provider)` →
-  `ResolvedRef(repo_url, identifier, terraform_provider, scope_id)`.
-  Returns identity passthrough when mapping is disabled so existing
-  callers keep working.
+- `MappingServiceClient.resolve(identifier)` →
+  `ResolvedRef(repo_url, identifier)`. Returns identity passthrough
+  when mapping is disabled so existing callers keep working. An
+  identifier the mapper cannot resolve raises `ExceptionHandler` with
+  `404` and the mapper's own explanation.
 """
 
 from __future__ import annotations
@@ -27,67 +28,32 @@ import httpx
 
 from src.clients.mapping.api.resolve import resolve as resolve_op
 from src.clients.mapping.client import AuthenticatedClient
+from src.clients.mapping.models.problem import Problem
 from src.clients.mapping.models.resolve_request import ResolveRequest
 from src.clients.mapping.models.resolve_response import ResolveResponse
-from src.clients.mapping.models.terraform_provider import (
-    TerraformProvider as MappingTerraformProvider,
-)
-from src.clients.mapping.types import UNSET, Unset
 from src.shared.config import system_config
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 from src.shared.utils.urls import is_https_url
+
+_NOT_RESOLVED = "The mapping service could not resolve this identifier."
 
 
 @dataclass(frozen=True)
 class ResolvedRef:
     """Outcome of resolving an identifier.
 
-    `repo_url` is the https URL `git clone` should target and `identifier` echoes
-    what was asked for. `terraform_provider` and `scope_id` are the
-    mapper's best effort: `None` means "unknown, ask the user", never
-    "there is none". Callers skip the prompt for whatever is filled in,
-    so an unknown value must stay `None`.
+    `repo_url` is the https URL `git clone` should target and
+    `identifier` echoes what was asked for.
     """
 
     repo_url: str
     identifier: str
-    terraform_provider: TerraformProvider | None = None
-    scope_id: str | None = None
-
-
-def _unwrap(value: str | None | Unset) -> str | None:
-    return None if isinstance(value, Unset) else value
-
-
-def _core_provider(
-    value: MappingTerraformProvider | str | None | Unset,
-) -> TerraformProvider | None:
-    """Convert the client's enum to core's, rejecting anything else.
-
-    The contract's `anyOf: [$ref, null]` makes the generated parser
-    swallow the `ValueError` from an out-of-enum value and hand back the
-    raw string, so `"azurerm"` arrives here as a `str`. Passing it on
-    would blow up later as an unhandled 500.
-    """
-    if value is None or isinstance(value, Unset):
-        return None
-    if isinstance(value, MappingTerraformProvider):
-        return TerraformProvider(value.value)
-    raise ExceptionHandler(
-        f"mapping service returned an unknown terraform_provider: {value!r}", 502
-    )
 
 
 class MappingServiceClient:
     """Call the mapping microservice via the generated HTTP client."""
 
-    async def resolve(
-        self,
-        identifier: str,
-        *,
-        terraform_provider: TerraformProvider | None = None,
-    ) -> ResolvedRef:
+    async def resolve(self, identifier: str) -> ResolvedRef:
         """Resolve `identifier` via the mapping service, or identity-pass it.
 
         Raises `ExceptionHandler` if the mapping service is enabled but the
@@ -98,23 +64,10 @@ class MappingServiceClient:
         """
         cfg = system_config.services.mapping
         if not cfg.enabled or not cfg.endpoint:
-            # Identity passthrough: the identifier is taken as the repo
-            # URL, and nothing is guessed about provider or scope.
-            return ResolvedRef(
-                repo_url=identifier,
-                identifier=identifier,
-                terraform_provider=terraform_provider,
-                scope_id=None,
-            )
+            # Identity passthrough: the identifier is taken as the repo URL.
+            return ResolvedRef(repo_url=identifier, identifier=identifier)
 
-        body = ResolveRequest(
-            identifier=identifier,
-            terraform_provider=(
-                MappingTerraformProvider(terraform_provider.value)
-                if terraform_provider is not None
-                else UNSET
-            ),
-        )
+        body = ResolveRequest(identifier=identifier)
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
             token=cfg.token,
@@ -122,7 +75,7 @@ class MappingServiceClient:
         )
         try:
             async with client as c:
-                response = await resolve_op.asyncio(client=c, body=body)
+                detailed = await resolve_op.asyncio_detailed(client=c, body=body)
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"mapping service timed out: {e}", 504) from e
         except httpx.RequestError as e:
@@ -134,6 +87,14 @@ class MappingServiceClient:
             raise ExceptionHandler(
                 f"mapping service returned an unparseable response: {e!r}", 502
             ) from e
+        response = detailed.parsed
+        if detailed.status_code == 404:
+            # The contract's clean "not in our catalogue": the caller's
+            # input is wrong, not the sidecar, so say so with its reason.
+            reason = response.detail if isinstance(response, Problem) else None
+            raise ExceptionHandler(
+                reason if isinstance(reason, str) and reason else _NOT_RESOLVED, 404
+            )
         if not isinstance(response, ResolveResponse):
             raise ExceptionHandler(
                 f"mapping service returned an unexpected response: {response!r}", 502
@@ -142,9 +103,4 @@ class MappingServiceClient:
             raise ExceptionHandler(
                 "mapping service returned a repo_url that is not an https:// URL", 502
             )
-        return ResolvedRef(
-            repo_url=response.repo_url,
-            identifier=response.identifier,
-            terraform_provider=_core_provider(response.terraform_provider),
-            scope_id=_unwrap(response.scope_id),
-        )
+        return ResolvedRef(repo_url=response.repo_url, identifier=response.identifier)

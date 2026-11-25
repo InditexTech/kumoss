@@ -276,63 +276,14 @@ class TestPlanToDriftReplacements(unittest.TestCase):
                     )
 
 
-class TestOciCreationsOutside(unittest.TestCase):
-    SCOPE = "ocid1.compartment.oc1..scope"
-
-    def _created(self, address: str, compartment_id) -> dict:
-        return _make_resource(
-            address, ["create"], None, {"compartment_id": compartment_id}
-        )
-
-    def test_a_creation_in_another_compartment_is_named(self):
-        plan = _make_plan(
-            [self._created("oci_core_vcn.main", "ocid1.compartment.oc1..other")]
-        )
-        self.assertEqual(
-            TerraformUtils.oci_creations_outside(plan, self.SCOPE),
-            ["oci_core_vcn.main (ocid1.compartment.oc1..other)"],
-        )
-
-    def test_creations_inside_the_scope_pass(self):
-        plan = _make_plan(
-            [
-                self._created("oci_core_vcn.main", self.SCOPE),
-                # Root compartment: dynamic groups and tenancy policies.
-                self._created("oci_identity_dynamic_group.dg", "ocid1.tenancy.oc1..t"),
-                # Unknown at plan time: a compartment the same plan creates.
-                self._created("oci_core_subnet.app", None),
-                _make_resource("oci_core_vcn.legacy", ["create"], None, {}),
-            ]
-        )
-        self.assertEqual(TerraformUtils.oci_creations_outside(plan, self.SCOPE), [])
-
-    def test_existing_resources_elsewhere_are_left_alone(self):
-        other = {"compartment_id": "ocid1.compartment.oc1..other"}
-        plan = _make_plan(
-            [
-                _make_resource("oci_core_vcn.a", ["update"], other, other),
-                _make_resource("oci_core_vcn.b", ["delete", "create"], other, other),
-                _make_resource("data.oci_core_images.i", ["read"], None, other),
-            ]
-        )
-        self.assertEqual(TerraformUtils.oci_creations_outside(plan, self.SCOPE), [])
-
-    def test_a_plan_without_changes_has_none(self):
-        self.assertEqual(
-            TerraformUtils.oci_creations_outside({"format_version": "1.2"}, self.SCOPE),
-            [],
-        )
-
-
 class TestProjectId(unittest.TestCase):
     """Tests for the state-keying identifier sent to the IaC service."""
 
     REPO = "https://github.example.com/org/infra.git"
-    SCOPE = "11111111-2222-3333-4444-555555555555"
     PATH = "envs/prod"
 
-    def _id(self, repo=REPO, scope=SCOPE, path=PATH) -> str:
-        return TerraformUtils.project_id(repo_uri=repo, scope_id=scope, iac_path=path)
+    def _id(self, repo=REPO, path=PATH) -> str:
+        return TerraformUtils.project_id(repo_uri=repo, root_module_path=path)
 
     def test_is_a_sha256_hex_digest(self):
         """The IaC contract types project_id as 64 lowercase hex chars."""
@@ -345,22 +296,29 @@ class TestProjectId(unittest.TestCase):
         """Two runs of the same project must land on the same state."""
         self.assertEqual(self._id(), self._id())
 
-    def test_each_part_of_the_triple_changes_it(self):
-        """Repository, scope and root module each identify the project:
-        a different value in any of them is a different state."""
+    def test_each_part_of_the_pair_changes_it(self):
+        """Repository and root module each identify the project: a
+        different value in either is a different state."""
         baseline = self._id()
 
         self.assertNotEqual(
             baseline, self._id(repo="https://github.example.com/org/other.git")
         )
-        self.assertNotEqual(
-            baseline, self._id(scope="99999999-2222-3333-4444-555555555555")
-        )
         self.assertNotEqual(baseline, self._id(path="envs/dev"))
+
+    def test_scopes_are_not_part_of_the_project(self):
+        """A module may target several scopes, and they may change without
+        the state moving: one state per root module, as Terraform assumes."""
+        import inspect
+
+        self.assertEqual(
+            list(inspect.signature(TerraformUtils.project_id).parameters),
+            ["repo_uri", "root_module_path"],
+        )
 
     def test_same_path_in_different_repos_differs(self):
         """The repository is in the seed precisely for this: a shared
-        root module name in one cloud scope must not collide."""
+        root module name across repositories must not collide."""
         self.assertNotEqual(
             self._id(repo="https://github.example.com/org/a.git", path=""),
             self._id(repo="https://github.example.com/org/b.git", path=""),
@@ -382,7 +340,7 @@ class TestProjectId(unittest.TestCase):
             with self.subTest(variant=variant):
                 self.assertEqual(baseline, self._id(repo=variant))
 
-    def test_iac_path_spelling_does_not_split_a_project(self):
+    def test_root_module_path_spelling_does_not_split_a_project(self):
         baseline = self._id()
 
         for variant in ("/envs/prod", "envs/prod/", "  envs/prod  ", "envs//prod"):
@@ -390,7 +348,7 @@ class TestProjectId(unittest.TestCase):
                 self.assertEqual(baseline, self._id(path=variant))
 
     def test_repository_root_is_a_valid_project(self):
-        """An empty iac_path means the root module is the repository
+        """An empty root_module_path means the root module is the repository
         root — a project like any other, not a missing value."""
         for empty in ("", "/", "   "):
             with self.subTest(empty=empty):

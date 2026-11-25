@@ -12,7 +12,7 @@ from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
     ComplianceCheckService,
-    IacRootDetectionService,
+    RootModuleDetectionService,
     LLMOrchestrationService,
     SessionService,
     TemplateOrchestrationService,
@@ -22,10 +22,14 @@ from src.domains.services import (
     ToolOrchestrationService,
     TaskService,
     ArtifactStorageService,
+    ManifestService,
 )
 
 # Infrastructure layer imports
 from src.infrastructure.storage import default_object_storage
+from src.infrastructure.storage.manifest_secret_store import (
+    ObjectStorageManifestSecretStore,
+)
 from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
 )
@@ -33,7 +37,9 @@ from src.infrastructure.tools import ToolRegistryWorkspace, ToolRegistryStatic
 from src.infrastructure.filesystem import (
     FileSystemUtils,
     GitUtils,
-    IacRootDetector,
+    ManifestFile,
+    RootModuleDetector,
+    TerraformConfigInspector,
     WorkspaceService,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
@@ -43,6 +49,8 @@ from src.infrastructure.terraform.utils import TerraformUtils
 
 # Application layer imports
 from src.application.services import (
+    ManifestProbeService,
+    SessionInputsService,
     RequestsFilterService,
     TerraformDriftService,
     TerraformImportService,
@@ -130,7 +138,7 @@ class ApplicationFactory:
                 temperature=0.5,
             ),
             templates=TemplateAdapter(
-                template_provider=self.__ctx.terraform_prv,
+                providers=self.__ctx.provider_types,
                 cwd=self.__ctx.call_dir.as_posix(),
             ),
         )
@@ -167,7 +175,7 @@ class ApplicationFactory:
         tool_service: ToolOrchestrationService,
     ):
         template_adapter = TemplateAdapter(
-            template_provider=self.__ctx.terraform_prv,
+            providers=self.__ctx.provider_types,
             cwd=call_dir.as_posix(),
         )
         return TemplateOrchestrationService(
@@ -177,10 +185,35 @@ class ApplicationFactory:
         )
 
     @staticmethod
-    def get_iac_root_detection_service() -> IacRootDetectionService:
-        return IacRootDetectionService(
+    def get_root_module_detection_service() -> RootModuleDetectionService:
+        return RootModuleDetectionService(
             workspace=WorkspaceService(),
-            detector=IacRootDetector(),
+            detector=RootModuleDetector(),
+        )
+
+    @staticmethod
+    def get_manifest_service() -> ManifestService:
+        return ManifestService(
+            inspector=TerraformConfigInspector(),
+            manifests=ManifestFile(),
+            secrets=ObjectStorageManifestSecretStore(default_object_storage()),
+        )
+
+    @staticmethod
+    def get_manifest_probe_service() -> ManifestProbeService:
+        return ManifestProbeService(
+            workspace=WorkspaceService(),
+            manifests=ApplicationFactory.get_manifest_service(),
+        )
+
+    @staticmethod
+    def get_session_inputs_service(
+        repo_uri: str, clone_dir: Path
+    ) -> SessionInputsService:
+        """``clone_dir`` is the call's clone: what commits ``kumoss.yaml``."""
+        return SessionInputsService(
+            manifests=ApplicationFactory.get_manifest_service(),
+            git=ApplicationFactory.get_git_utils(repo_uri, clone_dir),
         )
 
     def _get_artifact_storage_service(self) -> ArtifactStorageService:
@@ -238,13 +271,12 @@ class ApplicationFactory:
         return TerraformFactory(
             project_root=project_root,
             git=self.get_git_utils(self.__ctx.repo_uri, project_root),
-            scope_id=self.__ctx.scope_id,
-            terraform_provider=self.__ctx.terraform_prv,
+            scopes=self.__ctx.providers,
             project_id=TerraformUtils.project_id(
                 repo_uri=self.__ctx.repo_uri,
-                scope_id=self.__ctx.scope_id,
-                iac_path=self.__ctx.iac_path,
+                root_module_path=self.__ctx.root_module_path,
             ),
+            inputs=self.__ctx.terraform_inputs,
         ).get()
 
     def _get_terraform_validation_service(

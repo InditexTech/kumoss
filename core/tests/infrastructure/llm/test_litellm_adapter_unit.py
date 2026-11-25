@@ -320,7 +320,7 @@ class TestInferenceThinking(unittest.IsolatedAsyncioTestCase):
         await adapter.inference(msg="think hard", thinking=True)
 
         call_kwargs = router.acompletion.call_args[1]
-        self.assertEqual(call_kwargs["reasoning_effort"], "medium")
+        self.assertEqual(call_kwargs["reasoning_effort"], "low")
         self.assertEqual(call_kwargs["temperature"], 1.0)
 
     async def test_thinking_with_tools_raises(self):

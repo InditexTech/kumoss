@@ -165,3 +165,21 @@ class ValidationLoopExceededError(ExceptionHandler):
     ):
         super().__init__(message, error_code)
         self.result: ValidationResultDTO | None = result
+
+
+class ManifestReadError(ExceptionHandler):
+    """Raised when a root module's manifest exists but cannot be read or parsed."""
+
+    pass
+
+
+class ManifestInputError(ExceptionHandler):
+    """Raised when the answers given to configure a manifest are invalid or incomplete."""
+
+    pass
+
+
+class ManifestNotConfigured(ExceptionHandler):
+    """Raised when a root module's inputs are requested before its manifest is set up."""
+
+    pass

@@ -11,8 +11,7 @@ from src.domains.dto import (
     TerraformImportResourceDTO,
     TerraformPlanDTO,
 )
-from src.domains.value_objects import PlanRef
-from src.shared.constants import TerraformProvider
+from src.domains.value_objects import PlanRef, ProviderScope
 
 
 class ITerraform(ABC):
@@ -150,11 +149,7 @@ class ITerraform(ABC):
         pass
 
     @abstractmethod
-    async def scope_resource_ids(
-        self,
-        scope_id: str,
-        terraform_provider: TerraformProvider,
-    ) -> TerraformDiscoveryDTO:
+    async def scope_resource_ids(self, scope: ProviderScope) -> TerraformDiscoveryDTO:
         """
         Lists the resource IDs that exist in a cloud provider scope.
 
@@ -162,9 +157,9 @@ class ITerraform(ABC):
         This does **not** read Terraform state — it queries the cloud control
         plane directly using the provider's native listing API:
 
-        - ``azure``: Azure Resource Graph — resource and resource-container
+        - ``azurerm``: Azure Resource Graph — resource and resource-container
           IDs whose id contains ``scope_id``.
-        - ``gcp``: Cloud Asset Inventory — asset names of the project's
+        - ``google``: Cloud Asset Inventory — asset names of the project's
           resources plus the IAM role names bound in the project.
         - ``aws``: Resource Groups Tagging API — resource ARNs across the
           account's enabled regions (Resource Explorer must be enabled).
@@ -177,10 +172,9 @@ class ITerraform(ABC):
         feedback instead of aborting the caller.
 
         Args:
-            scope_id (str): Cloud provider scope to list — Azure: subscription
-                id, GCP: project id, AWS: account id.
-            terraform_provider (TerraformProvider): Cloud provider to query. One of
-                ``TerraformProvider.AZURE``, ``TerraformProvider.GCP``, ``TerraformProvider.AWS``.
+            scope (ProviderScope): The provider and scope to list, for one of
+                ``DISCOVERABLE_PROVIDERS`` (azurerm: subscription id, google:
+                project id, aws: account id).
 
         Returns:
             TerraformDiscoveryDTO: ``resource_ids`` are the provider-native

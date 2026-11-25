@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, Literal, Protocol
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from src.domains.value_objects.plan_ref import PlanRef
 from src.shared.constants import (
@@ -15,7 +15,6 @@ from src.shared.constants import (
     PromptsLibrary,
     ReportType,
     SessionStatus,
-    TerraformProvider,
     ToolContext,
 )
 
@@ -744,13 +743,26 @@ class WorkspaceRef(BaseModel):
     root_path: str | None
 
 
+class ProviderRef(BaseModel):
+    """Read model: a Terraform provider of a session's root module, and its scope."""
+
+    name: str = Field(description="Terraform provider type name, e.g. `azurerm`.")
+    scope_id: str | None = Field(
+        description="Subscription, project, account or compartment; null when unscoped."
+    )
+
+
 class SessionSummary(BaseModel):
-    """Read model: a flattened summary of a session for listing endpoints."""
+    """Read model: a flattened summary of a session for listing endpoints.
+
+    ``providers`` come from the root module's manifest and are empty until
+    the session's first call has set it up.
+    """
 
     uuid: UUID
     username: str | None = None
     operation: OperationType
-    provider: TerraformProvider
+    providers: list[ProviderRef]
     first_query: str | None
     workspace: WorkspaceRef
     current_status: SessionStatus
@@ -778,7 +790,6 @@ class SessionDetail(SessionSummary):
     ``AdminSessionDetail`` exposes it.
     """
 
-    scope_id: str
     rounds: list[RoundDetail]
     chat_history: list[dict[str, str]] | None = None
 

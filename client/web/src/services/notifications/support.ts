@@ -37,7 +37,7 @@ export function buildSupportContext({
     user_email: user?.email ?? null,
     user_name: user?.displayName ?? null,
     session_id: session.uuid ?? null,
-    cloud: session.provider ?? null,
+    cloud: session.providers?.map((p) => p.name).join(", ") || null,
     project: session.workspace?.uri
       ? extractProjectName(session.workspace.uri)
       : null,

@@ -8,6 +8,7 @@ import { isGitDiff } from "@/utils/diffUtils";
 import type {
   OperationType,
   PaginatedSessionSummary,
+  SessionSearchField,
   PlanType,
   SessionDetail,
   SessionStatus,
@@ -19,6 +20,7 @@ export interface ListSessionsParams {
   page?: number;
   page_size?: number;
   search?: string;
+  search_in?: SessionSearchField;
   status?: SessionStatus;
   operation?: OperationType;
 }

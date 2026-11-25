@@ -34,20 +34,19 @@ def _plan(ok: bool, feedback: str = "") -> TerraformPlanDTO:
     )
 
 
-def _imports(failed: list[str], plan: TerraformPlanDTO) -> TerraformImportDTO:
+def _imports(failed: list[str]) -> TerraformImportDTO:
     return TerraformImportDTO(
-        imported=[
+        imported={
             TerraformImportAttempt(
                 address="a.ok", resource_id="id-ok", listed_id="id-ok"
             )
-        ],
-        failed=[
+        },
+        failed={
             TerraformImportAttempt(
                 address=a, resource_id=f"id-{a}", listed_id=f"id-{a}", error="boom"
             )
             for a in failed
-        ],
-        plan_result=plan,
+        },
     )
 
 
@@ -75,6 +74,9 @@ class TestGenerateAndValidate(unittest.IsolatedAsyncioTestCase):
         )
 
     async def __run(self, validator: AsyncMock, **kwargs):
+        kwargs.setdefault(
+            "max_iterations", system_config.orchestration.max_validation_iteration
+        )
         return await self.service.generate_and_validate(
             q="create it",
             ctx=self.ctx,
@@ -89,31 +91,22 @@ class TestGenerateAndValidate(unittest.IsolatedAsyncioTestCase):
         return [c.kwargs["query"] for c in self.llm_svc.generate.await_args_list]
 
     async def test_import_failures_become_the_next_query(self):
-        final = _imports([], _plan(True))
-        validator = AsyncMock(side_effect=[_imports(["a.bad"], _plan(True)), final])
+        final = _imports([])
+        validator = AsyncMock(side_effect=[_imports(["a.bad"]), final])
 
         result = await self.__run(validator)
 
         self.assertIs(result, final)
         queries = self.__queries()
         self.assertEqual(queries[0], "create it")
-        self.assertIn("`a.bad` (id-a.bad): boom", queries[1])
-        self.assertIn("`a.ok` (id-ok)", queries[1])
-
-    async def test_a_failed_plan_is_fed_back_before_any_import_error(self):
-        validator = AsyncMock(
-            side_effect=[
-                _imports(["a.bad"], _plan(False, "plan stderr")),
-                _imports([], _plan(True)),
-            ]
-        )
-
-        _ = await self.__run(validator)
-
-        self.assertEqual(self.__queries()[1], "plan stderr")
+        self.assertEqual(queries[1], _imports(["a.bad"]).feedback)
+        self.assertIn("a.bad", queries[1])
+        self.assertIn("boom", queries[1])
+        # Only the failures are fed back, not what already imported.
+        self.assertNotIn("a.ok", queries[1])
 
     async def test_the_budget_is_the_callers_and_the_last_result_rides_out(self):
-        last = _imports(["a.bad"], _plan(True))
+        last = _imports(["a.bad"])
         validator = AsyncMock(return_value=last)
 
         with self.assertRaises(ValidationLoopExceededError) as raised:
@@ -122,7 +115,7 @@ class TestGenerateAndValidate(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(validator.await_count, 2)
         self.assertIs(raised.exception.result, last)
 
-    async def test_the_budget_defaults_to_the_validation_iterations(self):
+    async def test_the_configured_validation_iterations_bound_the_loop(self):
         validator = AsyncMock(return_value=_plan(False, "nope"))
 
         with self.assertRaises(ValidationLoopExceededError):
@@ -142,31 +135,38 @@ class TestGenerateAndValidate(unittest.IsolatedAsyncioTestCase):
         refine.assert_awaited_once_with("raw error")
         self.assertEqual(self.__queries(), ["create it", "1. fix it"])
 
-    async def test_refine_feedback_is_skipped_after_the_last_attempt(self):
+    async def test_refine_feedback_runs_after_every_failed_attempt(self):
         validator = AsyncMock(return_value=_plan(False, "raw error"))
         refine = AsyncMock(return_value="1. fix it")
 
         with self.assertRaises(ValidationLoopExceededError):
             _ = await self.__run(validator, max_iterations=2, refine_feedback=refine)
 
-        self.assertEqual(refine.await_count, 1)
+        # Refinement is unconditional, including after the last attempt.
+        self.assertEqual(refine.await_count, 2)
 
 
 class TestTerraformImportDTOValidationResult(unittest.TestCase):
-    def test_ok_needs_a_passing_plan_and_no_failed_import(self):
-        self.assertTrue(_imports([], _plan(True)).ok)
-        self.assertFalse(_imports(["a.bad"], _plan(True)).ok)
-        self.assertFalse(_imports([], _plan(False, "x")).ok)
+    def test_ok_needs_no_failed_import(self):
+        self.assertTrue(_imports([]).ok)
+        self.assertFalse(_imports(["a.bad"]).ok)
+        self.assertTrue(TerraformImportDTO.empty().ok)
 
-    def test_stdout_and_targets_are_the_plans(self):
-        plan = TerraformPlanDTO(
-            ok=True, feedback="", stdout="plan text", targets=["x.y"], plan=None
-        )
-        result = _imports([], plan)
+    def test_feedback_lists_one_line_per_failure(self):
+        result = _imports(["a.bad", "a.worse"])
 
-        self.assertEqual(result.stdout, "plan text")
-        self.assertEqual(result.targets, ["x.y"])
-        self.assertEqual(result.feedback, "")
+        lines = result.feedback.splitlines()
+        self.assertEqual(len(lines), 2)
+        self.assertTrue(all(line.startswith("- ") for line in lines))
+        self.assertEqual(_imports([]).feedback, "")
+
+    def test_stdout_is_the_imported_set_and_targets_are_empty(self):
+        result = _imports([])
+
+        self.assertEqual(result.stdout, str(result.imported))
+        self.assertIn("a.ok", result.stdout)
+        self.assertEqual(TerraformImportDTO.empty().stdout, "")
+        self.assertEqual(result.targets, [])
 
 
 if __name__ == "__main__":

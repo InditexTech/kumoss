@@ -34,13 +34,14 @@ import {
 import type {
   AdminSessionDetail,
   OperationType,
+  SessionSearchField,
   SessionStatus,
   SessionSummary,
 } from "@/types/api";
 import { panelRoleAtLeast } from "@/types/api";
-import { providerLabel } from "@/constants/providers";
 import {
   StatusBadge,
+  ProviderList,
   SideSheet,
   SessionsTable,
   truncate,
@@ -52,15 +53,28 @@ import { extractProjectName } from "./types";
 import SessionData from "./SessionData/SessionData";
 import styles from "./SessionsPage.module.css";
 
-const SEARCH_PLACEHOLDER = "Search by project name, query or session id";
+/** The session search, narrowed by what it matches (`searchIn` in the URL). */
+const sessionSearch: SearchFieldConfig = {
+  key: "search",
+  label: "Search sessions",
+  placeholder: "Search query, repository or session ID",
+  scope: {
+    key: "searchIn",
+    label: "Search in",
+    options: [
+      { value: "all", label: "All fields", placeholder: "Search query, repository or session ID" },
+      { value: "query", label: "Query", placeholder: "Search query text, e.g. storage account" },
+      { value: "repository", label: "Repository", placeholder: "Search repository, e.g. kumossdemo" },
+      { value: "session_id", label: "Session ID", placeholder: "Search session ID, e.g. 57bacc95" },
+    ],
+  },
+};
 
-const userSearches: SearchFieldConfig[] = [
-  { key: "search", placeholder: SEARCH_PLACEHOLDER },
-];
+const userSearches: SearchFieldConfig[] = [sessionSearch];
 
 const adminSearches: SearchFieldConfig[] = [
-  { key: "userSearch", placeholder: "Search by user email" },
-  { key: "search", placeholder: SEARCH_PLACEHOLDER },
+  { key: "userSearch", label: "User email", placeholder: "Search by user email" },
+  sessionSearch,
 ];
 
 const baseColumns: ColumnDef<SessionSummary>[] = [
@@ -87,11 +101,18 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     render: (s) => s.operation || "-",
   },
   {
-    key: "cloud",
-    header: "Cloud",
+    key: "providers",
+    header: "Providers",
     width: "12%",
     className: styles.secondaryCell,
-    render: (s) => providerLabel(s.provider),
+    render: (s) => (
+      <ProviderList
+        providers={(s.providers ?? []).map((p) => p.name)}
+        variant="icons"
+        hideUtilities
+        className={styles.providerIcons}
+      />
+    ),
   },
   {
     key: "status",
@@ -160,11 +181,18 @@ function buildAdminColumns(
       render: (s) => s.operation,
     },
     {
-      key: "cloud",
-      header: "Cloud",
+      key: "providers",
+      header: "Providers",
       width: "12%",
       className: styles.secondaryCell,
-      render: (s) => providerLabel(s.provider),
+      render: (s) => (
+        <ProviderList
+          providers={(s.providers ?? []).map((p) => p.name)}
+          variant="icons"
+          hideUtilities
+          className={styles.providerIcons}
+        />
+      ),
     },
     {
       key: "status",
@@ -203,10 +231,16 @@ const filters: FilterConfig[] = [
     key: "status",
     placeholder: "STATUS",
     options: [
-      { value: "generating", label: "Generating" },
-      { value: "completed", label: "Completed" },
-      { value: "uncompleted", label: "Uncompleted" },
-      { value: "failed", label: "Failed" },
+      { value: "started", label: "Started", group: "In progress" },
+      { value: "filtering", label: "Filtering", group: "In progress" },
+      { value: "generating", label: "Generating", group: "In progress" },
+      { value: "validating", label: "Validating", group: "In progress" },
+      { value: "reconciling", label: "Reconciling", group: "In progress" },
+      { value: "report", label: "Report", group: "In progress" },
+      { value: "apply", label: "Apply", group: "In progress" },
+      { value: "completed", label: "Completed", group: "Finished" },
+      { value: "uncompleted", label: "Uncompleted", group: "Finished" },
+      { value: "failed", label: "Failed", group: "Finished" },
     ],
   },
 ];
@@ -292,11 +326,12 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
   const fetchSessions = useCallback(
     async (params: FetchParams) => {
-      const { page, page_size, search, userSearch, operation, status } = params;
+      const { page, page_size, search, searchIn, userSearch, operation, status } = params;
       const listParams = {
         page: page as number,
         page_size: page_size as number,
         search: search as string | undefined,
+        search_in: searchIn as SessionSearchField | undefined,
         status: status as SessionStatus | undefined,
         operation: operation as OperationType | undefined,
       };
@@ -441,13 +476,13 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         extraToolbarContent={
           isAdminView ? (
             <a
-              href="/monitoring/projects"
+              href="/langfuse"
               target="_blank"
               rel="noopener noreferrer"
-              className={styles.phoenixLink}
+              className={styles.monitoringLink}
             >
               <OpenInNewIcon style={{ fontSize: "14px" }} />
-              Phoenix
+              Langfuse
             </a>
           ) : undefined
         }

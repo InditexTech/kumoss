@@ -7,7 +7,7 @@ import { useSession } from "@/contexts/SessionContext";
 import { useCurrentView } from "@/hooks/useCurrentView";
 import { Slide, Tooltip } from "@mui/material";
 import Typography from "@mui/material/Typography";
-import { ProviderIcon } from "@/components/ui";
+import { ProviderList } from "@/components/ui";
 import { extractProjectName } from "@/utils/workspace";
 import UserSessionsHistory from "./UserSessionsHistory";
 import styles from "./Footer.module.css";
@@ -25,8 +25,10 @@ const Footer = () => {
   const repoUri = session.workspace?.uri;
   const rootPath = session.workspace?.root_path;
 
+  const providerNames = (session.providers ?? []).map((p) => p.name);
+
   const hasContent =
-    !!session.first_query || !!session.provider || !!repoUri || !!rootPath;
+    !!session.first_query || providerNames.length > 0 || !!repoUri || !!rootPath;
 
   if (isTimelineMode) {
     return (
@@ -72,7 +74,7 @@ const Footer = () => {
         )}
         {rootPath && (
           <div className={styles.containerUnitSmall}>
-            <Typography variant="h3">Path</Typography>
+            <Typography variant="h3">Root module</Typography>
             <span>/</span>
             <Tooltip title={rootPath} arrow>
               <Typography variant="h3" className={styles.mainMsg}>
@@ -81,15 +83,14 @@ const Footer = () => {
             </Tooltip>
           </div>
         )}
-        {session.provider && (
+        {providerNames.length > 0 && (
           <div className={styles.containerUnitIcon}>
-            <Tooltip title={session.provider} arrow>
-              <ProviderIcon
-                provider={session.provider}
-                className={styles.providerBadge}
-                aria-label={session.provider}
-              />
-            </Tooltip>
+            <ProviderList
+              providers={providerNames}
+              variant="icons"
+              empty={null}
+              className={styles.providerBadge}
+            />
           </div>
         )}
       </div>

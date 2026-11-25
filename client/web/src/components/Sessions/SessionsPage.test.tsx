@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
@@ -117,6 +117,72 @@ describe("SessionsPage session id column", () => {
     await screen.findByText("deploy a VM");
     expect(screen.queryByRole("columnheader", { name: "Session ID" })).toBeNull();
     expect(screen.queryByTitle(uuid)).toBeNull();
+  });
+});
+
+describe("SessionsPage Langfuse link", () => {
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("links the admin table to Langfuse through the proxy", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({}));
+    renderPage("admin", "/admin");
+
+    const link = await screen.findByRole("link", { name: /langfuse/i });
+    expect(link).toHaveAttribute("href", "/langfuse");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+});
+
+describe("SessionsPage providers", () => {
+  const providers = [
+    { name: "azurerm", scope_id: "sub-123" },
+    { name: "google", scope_id: "my-project" },
+    { name: "random", scope_id: null },
+  ];
+
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("shows each infrastructure provider of a session as an icon in the table", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ providers }));
+    renderPage("user", "/user/sessions");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.getByRole("columnheader", { name: "Providers" })).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Providers" });
+    // Icons only, named for assistive tech; the random helper is left out.
+    expect(
+      within(list).getAllByRole("listitem").map((li) => li.getAttribute("aria-label")),
+    ).toEqual(["azurerm", "google"]);
+    expect(list.textContent).toBe("");
+  });
+
+  it("shows a dash for a session whose setup has not run yet", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({ providers: [] }));
+    renderPage("admin", "/admin");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.queryByRole("list", { name: "Providers" })).toBeNull();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the providers and each scope in the detail panel", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ providers }));
+    renderPage("user", "/user/sessions?session=sess-1");
+
+    expect(await screen.findByText("sub-123")).toBeInTheDocument();
+    expect(screen.getByText("Subscription ID")).toBeInTheDocument();
+    expect(screen.getByText("my-project")).toBeInTheDocument();
+    expect(screen.getByText("Project ID")).toBeInTheDocument();
+    // `random` has no scope: no row for it.
+    expect(screen.queryAllByText("Scope", { exact: true })).toHaveLength(0);
   });
 });
 
@@ -271,9 +337,7 @@ describe("SessionsPage search prefill from URL", () => {
     mockState.addSession(makeSessionDetail());
     renderPage("user", "/user/sessions?search=VM");
 
-    const input = await screen.findByPlaceholderText(
-      "Search by project name, query or session id",
-    );
+    const input = await screen.findByRole("textbox", { name: "Search sessions" });
     expect(input).toHaveValue("VM");
   });
 });

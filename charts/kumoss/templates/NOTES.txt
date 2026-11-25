@@ -1,6 +1,6 @@
 Kumoss {{ .Chart.AppVersion }} is deploying as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
 
-Watch it come up (the core waits for its database, buckets and Phoenix):
+Watch it come up (the core waits for its database, buckets and Langfuse):
 
   kubectl -n {{ .Release.Namespace }} get pods -l app.kubernetes.io/instance={{ .Release.Name }} -w
 
@@ -14,11 +14,19 @@ Open {{ .Values.publicUrl }} (proxy NodePort).
 
 Reach it locally with:
 
-  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "kumoss.component" (list . "proxy") }} 8080:{{ .Values.proxy.service.httpPort }}{{ if .Values.objectStorage.enabled }} 9000:{{ .Values.proxy.service.storagePort }}{{ end }}
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "kumoss.component" (list . "proxy") }} 8080:{{ .Values.proxy.service.httpPort }}{{ if .Values.objectStorage.enabled }} 9000:{{ .Values.proxy.service.storagePort }}{{ end }}{{ if .Values.langfuse.enabled }} 3000:{{ .Values.proxy.service.langfusePort }}{{ end }}
 
 and set publicUrl=http://localhost:8080 so CORS accepts the browser.
 {{- end }}
 
 The browser must reach Kumoss at publicUrl ({{ .Values.publicUrl }}){{ if .Values.objectStorage.enabled }} and artifact downloads at storagePublicUrl ({{ .Values.storagePublicUrl }}){{ end }}.
+
+{{- if .Values.langfuse.enabled }}
+
+Langfuse (traces and prompts) is at langfuse.publicUrl ({{ .Values.langfuse.publicUrl }}).
+Log in as {{ .Values.langfuse.adminEmail }}; the password is in the internal Secret:
+
+  kubectl -n {{ .Release.Namespace }} get secret {{ include "kumoss.internalSecret" . }} -o jsonpath='{.data.LANGFUSE_ADMIN_PASSWORD}' | base64 -d
+{{- end }}
 
 Smoke test: helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

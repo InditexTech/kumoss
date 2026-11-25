@@ -1,6 +1,17 @@
-FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.9@sha256:d3b601f0c7b118bc1753febf7c41cc80981df678445e0254284eecf84db79a7d AS uv
 
-FROM python:3.14-bookworm@sha256:7ee7e4d4fb42c3ad45b8fdc473b64ec69c3cf6e80ae5d52f6fa55f77fac29027
+# terraform-config-inspect has no binary releases: build it from a pinned
+# commit. Static (CGO off) so it runs on the bookworm base below.
+FROM golang:1.27-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS config-inspect
+ARG TERRAFORM_CONFIG_INSPECT_VERSION=v0.0.0-20260904064934-75d64de68c31
+# Same extra CA roots as the runtime stage: the Go module proxy is fetched
+# over HTTPS too.
+COPY --from=host-certs / /usr/local/share/ca-certificates/
+RUN update-ca-certificates
+RUN CGO_ENABLED=0 GOBIN=/out go install \
+    "github.com/hashicorp/terraform-config-inspect@${TERRAFORM_CONFIG_INSPECT_VERSION}"
+
+FROM python:3.15-bookworm@sha256:6f060cab421d9509c6c6a6a7762c651baf03c3f1d0145befe16b688762b7fe81
 
 # Minimal apt deps the core actually uses at runtime: git for cloning user
 # repos, ripgrep for the workspace inspection tools, curl for general use.
@@ -31,6 +42,7 @@ RUN groupadd --gid "${KUMOSS_GID}" kumoss \
 COPY config.yaml /etc/kumoss/
 
 COPY --from=uv /uv /uvx /bin/
+COPY --from=config-inspect /out/terraform-config-inspect /usr/local/bin/
 
 WORKDIR /usr/src/app
 

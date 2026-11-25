@@ -39,7 +39,7 @@ jobs:
 
       - name: Upload SARIF
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           sarif_file: semgrep.sarif
 
@@ -52,7 +52,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [core, services/iac, services/notifications]
+        package: [core, services/iac, services/notifications, services/mapping]
     defaults:
       run:
         working-directory: ${{ matrix.package }}
@@ -63,7 +63,7 @@ jobs:
           persist-credentials: false
 
       - name: Install uv
-        uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
         with:
           enable-cache: false
 
@@ -88,6 +88,7 @@ jobs:
           - nginx/Dockerfile
           - services/iac/Dockerfile
           - services/notifications/Dockerfile
+          - services/mapping/Dockerfile
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -117,13 +118,14 @@ jobs:
           persist-credentials: false
 
       - name: Scan lockfiles
-        uses: google/osv-scanner-action/osv-scanner-action@b1d267aea5211fa648d9d442fa64b90dbdcbdd36 # v2.7.0
+        uses: google/osv-scanner-action/osv-scanner-action@32d3cd482bdadfb38b186c0ad1b031902d55d932 # v2.7.1
         with:
           scan-args: |-
             --format=table
             ./core/uv.lock
             ./services/iac/uv.lock
             ./services/notifications/uv.lock
+            ./services/mapping/uv.lock
             ./contracts/conformance/authz/uv.lock
             ./client/web/package-lock.json
             ./docs/package-lock.json

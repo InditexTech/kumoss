@@ -37,6 +37,12 @@ include::partial$glossary/iac-engine.adoc[]
 
 See xref:main:architecture/deployment-view.adoc[Deployment view].
 
+== Manifest
+
+include::partial$glossary/manifest.adoc[]
+
+See xref:main:reference/root-module-manifest.adoc[Root module manifest].
+
 == Mode
 
 include::partial$glossary/mode.adoc[]
@@ -84,6 +90,13 @@ See xref:main:guides/make-a-request.adoc[Make a request].
 include::partial$glossary/round.adoc[]
 
 See xref:main:guides/follow-a-session.adoc[Follow a session].
+
+== Scope
+
+include::partial$glossary/scope.adoc[]
+
+See xref:main:reference/root-module-manifest.adoc#scopes[Root module
+manifest].
 
 == Session
 

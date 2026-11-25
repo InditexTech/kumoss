@@ -10,9 +10,10 @@ SPDX-License-Identifier: Apache-2.0
 
 ### AI-powered Infrastructure as Code, governed by your rules
 
-Turn natural-language requests into validated Opentofu/Terraform pull requests.
-Kumoss generates infrastructure, corrects drift, enforces your policies and keeps
-humans in control of high-impact or not compliant changes.
+AI assistant that helps developers manage day-two infrastructure through plain-language requests.
+It creates Terraform/OpenTofu pull requests with validated plans and drift corrections, 
+enforces your policies, and keeps humans in control—all within your existing ecosystem.
+
 
 **[Quickstart](https://inditextech.github.io/kumoss/stable/main/quickstart/)** ·
 **[Documentation](https://inditextech.github.io/kumoss/stable/)** ·
@@ -24,7 +25,7 @@ humans in control of high-impact or not compliant changes.
 [![License](https://img.shields.io/github/license/InditexTech/kumoss)](LICENSE)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/InditexTech/kumoss/badge)](https://securityscorecards.dev/viewer/?uri=github.com/InditexTech/kumoss)
 [![Docs](https://img.shields.io/badge/docs-inditextech.github.io%2Fkumoss-blue)](https://inditextech.github.io/kumoss/stable/)
-
+![OpenTofu compatibility](https://img.shields.io/badge/OpenTofu-Compatible-FFDA18?logo=opentofu&logoColor=white)
 </div>
 
 https://github.com/user-attachments/assets/97be7ff9-5995-4907-8b47-db53cc3a5808
@@ -80,12 +81,12 @@ The result is **developer autonomy for infrastructure operations**: developers c
 ### 🏢 Designed to integrate with your existing infrastructure ecosystem
 
 - **Works with what you already have.** Use your existing IaC repositories, Terraform state, and Git provider (GitHub, Azure DevOps, or GitLab).
-- **Authorization is an extension point requiring an implementation. **
-- ** LLM Model and identity provider are configured externally. **
+- **Authorization is an extension point requiring an implementation.**
+- **LLM Model and identity provider are configured externally.**
 - **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure, Kubernetes, and VMware vSphere.
 - **Your rules, your definition of critical.** You decide what is allowed, what is high risk, and which compliance checks apply. Critical can mean special projects, every production environment, changes above a cost threshold, or any rule you write.
 - **Full traceability.** An admin panel shows users, sessions, and roles, all stored in a database.
-- **Observability built in.** Every agent and every system prompt read at runtime is traced with OpenTelemetry and Arize Phoenix.
+- **Observability built in.** Every agent and every system prompt read at runtime is traced with OpenTelemetry and Langfuse.
 
 ### 🔌 How to integrate it into your ecosystem
 
@@ -96,8 +97,9 @@ The result is **developer autonomy for infrastructure operations**: developers c
 | **Authorization**   | —                  | Your rules for who may request infrastructure, and where (authorization contract)                                |
 | **IaC executor**    | OpenTofu/Terraform | Your own runtime, version, and execution environment (IaC contract)                                              |
 | **Notifications**   | Slack webhook      | Any channel: Slack, Microsoft Teams, email, Discord, WhatsApp, … (notifications contract)                        |
+| **Repository mapping** | Name + URL prefix | Your catalogue (CMDB, Backstage, …) resolving what users type to a repository (mapping contract)               |
 
-Authorization, IaC, and notifications are sidecar services behind [OpenAPI contracts](contracts/openapi/); replace a bundled one or implement your own. Everything is exposed through a FastAPI API, with MCP and A2A support on the [roadmap](#roadmap) so other agents can use Kumoss directly.
+Authorization, IaC, notifications, and repository mapping are sidecar services behind [OpenAPI contracts](contracts/openapi/); replace a bundled one or implement your own. Everything is exposed through a FastAPI API, with MCP and A2A support on the [roadmap](#roadmap) so other agents can use Kumoss directly.
 
 ## How it works
 
@@ -154,7 +156,7 @@ The roadmap states intent, not commitment. See the full [roadmap](https://indite
 
 ## Built with
 
-[FastAPI](https://fastapi.tiangolo.com/) · [React](https://react.dev/) · [LiteLLM](https://docs.litellm.ai/) · [OpenTofu](https://opentofu.org/) · [Terraform](https://developer.hashicorp.com/terraform) · [Arize Phoenix](https://phoenix.arize.com/) · [OpenTelemetry](https://opentelemetry.io/) · [PostgreSQL](https://www.postgresql.org/) · [Redis](https://redis.io/) · [RustFS](https://rustfs.com/) · [SearXNG](https://docs.searxng.org/) · [nginx](https://nginx.org/)
+[FastAPI](https://fastapi.tiangolo.com/) · [React](https://react.dev/) · [LiteLLM](https://docs.litellm.ai/) · [OpenTofu](https://opentofu.org/) · [Terraform](https://developer.hashicorp.com/terraform) · [Langfuse](https://langfuse.com/) · [OpenTelemetry](https://opentelemetry.io/) · [PostgreSQL](https://www.postgresql.org/) · [Redis](https://redis.io/) · [RustFS](https://rustfs.com/) · [SearXNG](https://docs.searxng.org/) · [nginx](https://nginx.org/)
 
 ## Security
 

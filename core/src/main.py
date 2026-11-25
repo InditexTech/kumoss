@@ -15,15 +15,15 @@ from src.api.v1 import (
     auth,
     admin,
     session,
-    mapping,
     users,
     notifications,
+    manifest,
 )
 from src.infrastructure.database import db
 from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.storage import default_object_storage, terraform_state_storage
-from src.infrastructure.telemetry._initializer import shutdown_tracer_providers
+from src.infrastructure.telemetry._initializer import shutdown_tracer_provider
 from src.infrastructure.templates.prompt_seeder import build_default_seeder
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
@@ -36,6 +36,7 @@ async def lifespan(app: FastAPI):
     logging.info("Starting Kumoss application...")
     try:
         await db.initialize(echo=False)
+        await db.migrate()
         logging.info("Database initialized successfully")
     except Exception as e:
         logging.error(f"Failed to initialize database: {e}")
@@ -61,7 +62,7 @@ async def lifespan(app: FastAPI):
     try:
         await build_default_seeder().ensure_seeded()
     except Exception as e:
-        logging.error(f"Failed to seed prompts into Phoenix: {e}")
+        logging.error(f"Failed to seed prompts into Langfuse: {e}")
         raise
 
     try:
@@ -73,8 +74,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logging.info("Shutting down Kumoss application...")
-    shutdown_tracer_providers()
-    logging.info("Tracer providers flushed and shut down")
+    shutdown_tracer_provider()
+    logging.info("Tracer provider flushed and shut down")
     await redis_client.close()
     logging.info("Redis connection closed")
     await db.close()
@@ -99,10 +100,6 @@ tags_metadata: list[dict[str, str]] = [
         "description": "Session read models (list and detail).",
     },
     {
-        "name": "Mapping",
-        "description": "Passthrough to the mapping service.",
-    },
-    {
         "name": "Authentication",
         "description": "Public auth configuration for the SPA login flow and "
         "authorization decisions for cloud projects.",
@@ -125,7 +122,7 @@ app = FastAPI(
     title="Kumoss",
     summary="Browser-facing orchestration API of the Kumoss core engine.",
     description="Generate compliant Infrastructure as Code with a couple of clicks",
-    version=os.getenv("APP_VERSION", "1.0.8"),  # x-release-please-version
+    version=os.getenv("APP_VERSION", "1.0.9"),  # x-release-please-version
     contact={
         "name": "Kumoss maintainers",
         "url": "https://github.com/InditexTech/kumoss",
@@ -155,9 +152,9 @@ app.include_router(repository.router, prefix="/v1")
 app.include_router(auth.router, prefix="/v1")
 app.include_router(admin.router, prefix="/v1")
 app.include_router(session.router, prefix="/v1")
-app.include_router(mapping.router, prefix="/v1")
 app.include_router(users.router, prefix="/v1")
 app.include_router(notifications.router, prefix="/v1")
+app.include_router(manifest.router, prefix="/v1")
 
 
 @app.get("/healthz", tags=["ops"], include_in_schema=False)

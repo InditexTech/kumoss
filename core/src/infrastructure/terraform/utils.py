@@ -15,14 +15,15 @@ from src.shared.exceptions import ExceptionHandler
 
 class TerraformUtils:
     @staticmethod
-    def project_id(repo_uri: str, scope_id: str, iac_path: str) -> str:
+    def project_id(repo_uri: str, root_module_path: str) -> str:
         """Identify the Terraform project a session operates on.
 
-        Digest over the triple that decides which state a run belongs
-        to: the repository, the cloud scope it deploys into, and the
-        root module within the repository. Independent of where the
-        repository was cloned, so every call and every session on the
-        same project resolves to the same state — which the clone
+        Digest over what decides which state a run belongs to: the
+        repository and the root module within it, one state per module as
+        Terraform itself assumes. Scopes are left out: a module may target
+        several, and they may change without the state moving. Independent
+        of where the repository was cloned, so every call and every session
+        on the same project resolves to the same state — which the clone
         directory, recreated per call, cannot express.
 
         The repository URI is normalized first: it reaches here in
@@ -33,8 +34,7 @@ class TerraformUtils:
         seed = "\n".join(
             (
                 TerraformUtils.__normalize_repo_uri(repo_uri),
-                scope_id.strip().lower(),
-                TerraformUtils.__normalize_iac_path(iac_path or ""),
+                TerraformUtils.__normalize_root_module_path(root_module_path or ""),
             )
         )
         return hashlib.sha256(seed.encode("utf-8")).hexdigest()
@@ -47,8 +47,8 @@ class TerraformUtils:
         return f"{host}/{path}"
 
     @staticmethod
-    def __normalize_iac_path(iac_path: str) -> str:
-        path = iac_path.strip().strip("/")
+    def __normalize_root_module_path(root_module_path: str) -> str:
+        path = root_module_path.strip().strip("/")
         return PurePosixPath(path).as_posix() if path else ""
 
     @staticmethod
@@ -64,34 +64,6 @@ class TerraformUtils:
         if reversed:
             resources = TerraformUtils.__reverse_output(resources)
         return resources
-
-    @staticmethod
-    def oci_creations_outside(
-        plan_json: dict[str, Any], compartment_ocid: str
-    ) -> list[str]:
-        """The resources a plan creates in a compartment other than the
-        request's, each as ``address (compartment)``.
-
-        OCI has no provider setting that confines a command to a
-        compartment: ``compartment_id`` is a resource argument, so a
-        hardcoded one escapes the scope. Only plain creations count:
-        existing resources stay where they are, the tenancy (root
-        compartment) is where identity resources live, and a compartment
-        still unknown at plan time is one the same plan creates.
-        """
-        outside: list[str] = []
-        for resource in plan_json.get("resource_changes") or []:
-            change: dict[str, Any] = resource.get("change") or {}
-            if change.get("actions") != ["create"]:
-                continue
-            compartment = (change.get("after") or {}).get("compartment_id")
-            if (
-                isinstance(compartment, str)
-                and compartment.startswith("ocid1.compartment.")
-                and compartment != compartment_ocid
-            ):
-                outside.append(f"{resource['address']} ({compartment})")
-        return outside
 
     @staticmethod
     def __get_resource_changes(plan: dict[str, Any]) -> list[dict[str, Any]]:

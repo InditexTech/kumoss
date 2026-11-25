@@ -29,8 +29,8 @@ class InferenceCallAPIError(ExceptionHandler):
     pass
 
 
-class PhoenixPromptFetchError(ExceptionHandler):
-    """Raised if a prompt could not be fetched from Phoenix API"""
+class PromptFetchError(ExceptionHandler):
+    """Raised if a prompt could not be fetched from Langfuse"""
 
     pass
 
@@ -42,19 +42,13 @@ class PromptSeedLoadError(ExceptionHandler):
 
 
 class PromptSeedPushError(ExceptionHandler):
-    """Raised when seeding prompts into Phoenix fails (after connect retries)"""
+    """Raised when seeding prompts into Langfuse fails (after connect retries)"""
 
     pass
 
 
 class TracerProviderError(ExceptionHandler):
     """Raised if a tracer provider could not be initialized"""
-
-    pass
-
-
-class ProviderOpenInferenceNotFound(ExceptionHandler):
-    """Raised when an OpenInference provider couldn't be found"""
 
     pass
 
@@ -153,8 +147,8 @@ class RepositoryUnreachable(ExceptionHandler):
         )
 
 
-class InvalidIacPath(ExceptionHandler):
-    """Raised when the IaC root does not resolve to a directory inside the clone."""
+class InvalidRootModulePath(ExceptionHandler):
+    """Raised when the root module does not resolve to a directory inside the clone."""
 
     pass
 
@@ -173,3 +167,7 @@ class CustomFileNotFoundError(ExceptionHandler):
 
 class SearchReplaceBlockError(ExceptionHandler):
     """Raised when replace_in_file receives malformed or non-applicable SEARCH/REPLACE blocks"""
+
+
+class ConfigInspectionError(ExceptionHandler):
+    """Raised when terraform-config-inspect fails or reports configuration errors."""

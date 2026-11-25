@@ -1,7 +1,7 @@
 = Core API
 :description: Every route the Kumoss core exposes under /api/v1, grouped by router, with the authentication dependency and role each one requires and the response it returns.
 
-The core exposes 19 routes across nine routers in
+The core exposes 20 routes across ten routers in
 `core/src/api/v1/`. This page is derived from those routers, which are
 the only source of truth: the core has no hand-written specification.
 
@@ -56,10 +56,6 @@ router.
 |nothing (public)
 |`200` OIDC settings
 
-|`POST /api/v1/auth/authorize`
-|any signed-in user
-|`200` decision
-
 |`GET /api/v1/users/me`
 |any signed-in user
 |`200` identity and roles
@@ -72,9 +68,17 @@ router.
 |operation `devops`
 |`202` session id
 
+|`POST /api/v1/iac/import`
+|operation `developer`
+|`202` session id
+
 |`POST /api/v1/iac/apply`
 |operation `developer`
 |`202` session id
+
+|`POST /api/v1/manifest/probe`
+|operation `developer`
+|`200` what the root module needs
 
 |`GET /api/v1/events/subscribe/\{session_id}`
 |read access to the session
@@ -90,7 +94,7 @@ router.
 
 |`POST /api/v1/repository/parse`
 |operation `developer`
-|`200` Terraform roots
+|`200` resolved URL and Terraform roots
 
 |`GET /api/v1/sessions/list`
 |any signed-in user
@@ -120,10 +124,6 @@ router.
 |panel `admin`
 |`200` updated user
 
-|`POST /api/v1/mapping/resolve`
-|any signed-in user
-|`200` repository reference
-
 |`POST /api/v1/notifications`
 |any signed-in user
 |`202` delivery id
@@ -131,8 +131,8 @@ router.
 
 == Infrastructure as Code
 
-Prefix `/v1/iac`. Three routes, one per
-operation. All three are *asynchronous*: they validate the request,
+Prefix `/v1/iac`. Four routes, one per
+operation. All four are *asynchronous*: they validate the request,
 resolve or create the session, schedule the pipeline as a background
 task, and answer `202 Accepted` with nothing but the session id.
 Progress arrives over the event stream.
@@ -155,13 +155,19 @@ Progress arrives over the event stream.
 |Detects and remediates drift. `is_partial: true` scopes the round to
 the resources named in the query.
 
+|`POST /api/v1/iac/import`
+|`developer`
+|Brings unmanaged resources under Terraform management. `is_partial:
+true` limits it to the resources named in the query. See
+xref:main:guides/import-infrastructure.adoc[Import infrastructure].
+
 |`POST /api/v1/iac/apply`
 |`developer`
 |Applies the plan pinned by the session's last successful generate
 round. No re-plan happens at apply time.
 |===
 
-`generate` and `drift` share a request body. Exactly one of `repo_uri`
+`generate`, `drift` and `import` share a request body. Exactly one of `repo_uri`
 (a first call, which opens a session) or `session_id` (an iteration
 call on an existing session) must be present; supplying both or
 neither is a validation error.
@@ -182,38 +188,49 @@ carry a userinfo username (for example `\https://org@dev.azure.com/...`)
 but must not embed a password or token; an empty password
 (`user:@host`) is rejected too.
 
-|`scope_id`
-|required
-|Cloud scope: Azure subscription id, GCP project id, AWS account id,
-OCI compartment OCID, VMware vSphere datacenter name. Kubernetes has no
-cloud scope, so any stable identifier does.
-
-|`terraform_providers`
-|required
-|Which cloud the operation targets.
-
-|`iac_path`
+|`root_module_path`
 |optional
-|Repository-relative path to the IaC root, for example
+|Repository-relative path to the root module, for example
 `environments/dev`. Defaults to the repository root. An absolute path
 or one containing a `..` segment is rejected. After the clone, the path
 must resolve, symlinks included, to an existing directory inside the
-repository, or the session ends `FAILED` with `runner failed: iac_path
+repository, or the session ends `FAILED` with `runner failed: root_module_path
 '<path>' is not a directory inside the repository`. First call only —
-iteration calls inherit it from the session.
+iteration calls inherit it from the session. The former name `iac_path`
+is still accepted as a deprecated alias; prefer `root_module_path`.
+
+|`manifest`
+|optional
+|Answers for the root module's inputs:
+`{"variables": [{"name", "value", "sensitive"}], "var_files": [...],
+"scopes": {"<provider>": "<scope id>"}}`. Needed when
+<<manifest,`POST /api/v1/manifest/probe`>> reports `needs_input`; the
+session saves them to the module's manifest before running. First call
+only.
 
 |`session_id`
 |omit
-|On an iteration call, the session to continue. Only `q` may accompany
-it; `iac_path` in particular is rejected.
+|On an iteration call, the session to continue. Only `q` (and
+`is_partial`) may accompany it; `root_module_path` and `manifest` are
+rejected.
 
 |`is_partial`
 |optional
-|`drift` only, and not gated on which call it is — a first call
+|`drift` and `import` only, and not gated on which call it is — a first call
 carrying `repo_uri` may set it. Defaults to `false`. When true, `q`
 must be non-empty: a blank query is rejected with
 pass:[<code>Partial drift detection requires a non-empty `q`.</code>]
+(pass:[<code>Partial import requires a non-empty `q`.</code>] for
+import).
 |===
+
+There is no provider or scope field. The session's providers are the
+ones the root module's `required_providers` declares, and their scopes
+come from the module's
+xref:main:reference/root-module-manifest.adoc[manifest]. The former
+`terraform_providers` and `scope_id` fields are gone; the request
+model ignores unknown fields, so a client that still sends them gets no
+error, and no effect either.
 
 `apply` takes only `session_id`, which is required.
 
@@ -221,8 +238,10 @@ Failures on these three routes:
 
 * `400` — the repository URI was rejected as unreachable or not
   allowed.
-* `403` — the operation role is too low, or the caller is not the
-  owner of the session named by `session_id`.
+* `403` — the operation role is too low, the caller is not the
+  owner of the session named by `session_id`, or, on an iteration call
+  or `apply`, the authorization sidecar denied one of the session's
+  provider scopes.
 * `404` — an iteration call referenced an unknown session.
 * `409` — `apply` only, and only when the session's plan is locked:
   `Session <id> is blocked; apply is not allowed.`
@@ -233,6 +252,58 @@ succeeded. If the session is already running, or already finished, the
 background runner cannot take the session lock and exits without
 starting — the `202` has already been sent. Everything after the `202`
 is visible only on the event stream and in the session detail.
+
+A first call is authorized after the `202`, inside the session: the
+providers and scopes to check are only known once the manifest has
+been read, so the session sets the manifest up, asks the authorization
+sidecar about every provider scope before saving anything, and then
+records the pairs on the session. A denial, or a module that still
+needs input the call did not carry, ends the session `FAILED` with
+`runner failed: <reason>` before any manifest, secret or commit is
+written. Iteration calls and `apply` are authorized synchronously from
+the recorded pairs. See
+xref:main:reference/api/authz.adoc[Authorization sidecar API].
+
+[#manifest]
+== Manifest
+
+Prefix `/v1/manifest`. One route, requiring operation role
+`developer`.
+
+`POST /api/v1/manifest/probe` tells a client what a root module needs
+before a session can run on it. The body is
+`{"repo_uri": "<uri>", "root_module_path": "<path>"}` (the path is
+optional and defaults to the repository root; the same URI and path
+rules as on `generate` apply). The core clones the repository's
+default branch, inspects the module and compares it with its committed
+`kumoss.yaml`. It reads only, and never returns variable values.
+
+[source,json]
+----
+{
+  "status": "not_found",
+  "needs_input": true,
+  "missing_variables": [
+    {"name": "db_password", "type": "string", "description": "",
+     "required": true, "sensitive": true}
+  ],
+  "selectable_var_files": [
+    {"path": "envs/dev.tfvars", "selected": false, "sets": ["region"]}
+  ],
+  "missing_var_files": [],
+  "missing_scopes": [{"provider": "azurerm", "source": "hashicorp/azurerm"}],
+  "provider_changes": []
+}
+----
+
+`status` is `not_found` (no manifest yet), `up_to_date`, or `drifted`
+(the module changed since the manifest was written). When
+`needs_input` is true, the first `generate`, `drift` or `import` call
+must carry the answers in `manifest`; when it is false the session sets
+the manifest up on its own. A repository that is unreachable or a path
+that is not a directory in it is `400`, an unreadable configuration or
+manifest is `422`, and a failed clone is `502`. The whole model is in
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
 
 == Events
 
@@ -292,21 +363,35 @@ session. Success is `204` with no content. A locked session is `409
 Session <id> is blocked; PR merge is not allowed.`, an unknown session
 or a session with no pull requests is `404`.
 
-`POST /api/v1/repository/parse` clones a repository and returns the
-Terraform root-module directories it found, as POSIX paths relative to
-the repository root. The body is `{"repo_uri": "<uri>"}` and the same
-https-only, no-password-or-token rules apply. This route takes no session, so
-there is no ownership check — the wizard calls it as soon as a
-repository URL is entered.
+`POST /api/v1/repository/parse` resolves a repository through the
+xref:main:reference/api/mapping.adoc[mapping sidecar], clones it, and
+returns the resolved clone URL with the Terraform root-module
+directories it found, as POSIX paths relative to the repository root.
+The body is `{"repo_uri": "<input>"}`, where the input is a full
+`https://` URI or an identifier the mapper accepts — with the bundled
+mapper, a bare repository name such as `my-iac`. This route takes no
+session, so there is no ownership check — the wizard calls it as soon
+as the repository is entered.
 
 [source,json]
 ----
-{"roots": [".", "environments/dev", "environments/prod"]}
+{
+  "repo_url": "https://github.com/MySuperOrg/my-iac.git",
+  "roots": [".", "environments/dev", "environments/prod"]
+}
 ----
 
-A URI that is not `https://` or embeds a password or token is `422`,
-one that `git ls-remote` cannot reach is `400`, and a failed clone or
-scan is `502`. The `400` and the clone `502` carry the fixed detail
+Later calls (`manifest/probe`, `generate`, `drift`, `import`) must send
+the returned `repo_url`: they accept `https://` URIs only and do not
+resolve names. While `services.mapping` is disabled the input is used
+as is, so it must already be a URI.
+
+An input the mapper cannot resolve is `404` with the mapper's own
+explanation; a mapper that times out is `504`, and one that fails or
+answers off-contract is `502`. An empty input, or one that is (or
+resolves to) a URI that is not `https://` or embeds a password or
+token, is `422`. A repository `git ls-remote` cannot reach is `400`,
+and a failed clone or scan is `502`. The `400` and the clone `502` carry the fixed detail
 "Repository is not reachable or access was denied."; git's own output
 is only logged. The
 detection rules behind the answer are in
@@ -314,7 +399,7 @@ xref:main:reference/repository-layout.adoc[Repository layout].
 
 == Authentication
 
-Prefix `/v1/auth`. Two routes.
+Prefix `/v1/auth`. One route.
 
 `GET /api/v1/auth/config` is *the only public route under `/v1`*,
 deliberately so: the single-page application has to read it before it
@@ -347,28 +432,9 @@ this is the only way the client can learn it. See
 xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
 for the CORS rules that must expose those headers.
 
-`POST /api/v1/auth/authorize` asks whether the caller may operate on a
-cloud project. It requires a signed-in user and takes `cloud`,
-`project_name`, and `environment` in the body. It is the *only* place
-the core consults the authorization sidecar, forwarding the three
-values plus the caller's e-mail (falling back to the token subject) to
-the sidecar's `POST /v1/check`.
-
-[source,json]
-----
-{
-  "result": true,
-  "message": "Authorized",
-  "portalUrl": "https://portal.azure.com/..."
-}
-----
-
-`result` is the sidecar's `authorized` flag, `message` is its `reason`
-or a generated sentence, and `portalUrl` renames the sidecar's
-`portal_url`. When the sidecar is disabled — the shipped default — the
-core answers authorized without calling anything. When it is enabled
-and unreachable the answer is `502` or `504`, and when it answers with
-a `4xx` or `5xx` the answer is `502`. It is never an allow. See
+The authorization sidecar is not reached through a route of its own:
+the core consults it from the IaC routes, once per provider scope of
+the session's root module. See
 xref:main:reference/api/authz.adoc[Authorization sidecar API].
 
 == Users
@@ -430,15 +496,19 @@ id. Up to 200 characters.
 
 The envelope carries `items`, `total`, `page`, `page_size`, and
 `total_pages`. Each item resolves server-side everything the list view
-renders: `uuid`, `username`, `operation`, `provider`, `first_query`,
+renders: `uuid`, `username`, `operation`, `providers`, `first_query`,
 `workspace` (URI, branch, root path), `current_status`, the
 `in_flight` and `is_blocked` flags, and the timestamps. `username` is
 the owning user's e-mail, or `user-<id>` when the user has none; the
 name is historical, and it is a response field only — there is no
-`username` query parameter.
+`username` query parameter. `providers` lists the Terraform providers
+of the session's root module as `[{"name": "azurerm", "scope_id":
+"<subscription id>"}]`, with a null `scope_id` for providers that have
+no scope; it is empty until the session's first call has set the
+manifest up. It replaces the former `provider` and `scope_id` fields.
 
 `GET /api/v1/sessions?id=\{session_id}` returns the full session
-aggregate: the summary fields, its `scope_id`, and one entry in
+aggregate: the summary fields and one entry in
 `rounds` per generation round. Each round carries its own statuses,
 its `reports`, `compliance_checks`, `plans`, and `code_changes`
 artifacts as client-fetchable URLs, oldest first, and its
@@ -536,39 +606,6 @@ Note what is *not* here. There is no route to delete a user or a
 session, and a panel role never grants the right to act on another
 user's session — continuing it, opening or merging its pull request,
 and applying it all remain owner-only.
-
-== Mapping
-
-Prefix `/v1/mapping`. One route, open to any
-signed-in user.
-
-`POST /api/v1/mapping/resolve` is a passthrough to the mapping
-sidecar. It takes `identifier` (required) plus an optional
-`terraform_provider` the caller already knows, and returns what the
-mapper knows about that identifier:
-
-[source,json]
-----
-{
-  "repo_url": "https://github.com/me/my-iac.git",
-  "identifier": "https://github.com/me/my-iac.git",
-  "terraform_provider": null,
-  "scope_id": null
-}
-----
-
-Only `repo_url` is guaranteed. `terraform_provider` and `scope_id` are
-the mapper's best effort, and `null` means "unknown, ask the user" —
-never "there is none". The wizard skips its provider and scope questions
-for whichever of them comes back non-null. A body with extra keys is
-`422`; a sidecar that times out is `504`, and one that is unreachable,
-answers off-contract, or names a provider outside the enum is `502`.
-
-The sidecar is not reachable from the browser; this route is how the
-web application gets at it. When mapping is disabled in the system
-configuration the core's client answers with an identity passthrough,
-so a default deployment works without a configured mapper. See
-xref:main:reference/api/mapping.adoc[Mapping sidecar API].
 
 == Notifications
 

@@ -10,7 +10,6 @@ from typing import Any, Self, TypeVar
 from attrs import define as _attrs_define
 from attrs import field as _attrs_field
 
-from ..models.resource_properties_provider import ResourcePropertiesProvider
 from ..types import UNSET, Unset
 
 T = TypeVar("T", bound="ResourceProperties")
@@ -20,24 +19,29 @@ T = TypeVar("T", bound="ResourceProperties")
 class ResourceProperties:
     """
     Attributes:
-        provider (ResourcePropertiesProvider | Unset):
+        provider (str | Unset): Terraform provider type name the scope belongs to (the last
+            segment of its source address, e.g. `azurerm`, `google`,
+            `aws`, `oci`). Any provider a root module uses may appear.
+            Changed in 2.0.0 from a fixed enum of the core's former names
+            (`azure`, `gcp`, `vmware`...). The core evaluates one request
+            per provider scope of the session's root module; a module with
+            no scoped provider is evaluated once, with an empty resource
+            id and no provider.
         repo_uri (str | Unset):
-        iac_path (str | Unset):
+        root_module_path (str | Unset):
     """
 
-    provider: ResourcePropertiesProvider | Unset = UNSET
+    provider: str | Unset = UNSET
     repo_uri: str | Unset = UNSET
-    iac_path: str | Unset = UNSET
+    root_module_path: str | Unset = UNSET
     additional_properties: dict[str, Any] = _attrs_field(init=False, factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
-        provider: str | Unset = UNSET
-        if not isinstance(self.provider, Unset):
-            provider = self.provider.value
+        provider = self.provider
 
         repo_uri = self.repo_uri
 
-        iac_path = self.iac_path
+        root_module_path = self.root_module_path
 
         field_dict: dict[str, Any] = {}
         field_dict.update(self.additional_properties)
@@ -46,29 +50,24 @@ class ResourceProperties:
             field_dict["provider"] = provider
         if repo_uri is not UNSET:
             field_dict["repo_uri"] = repo_uri
-        if iac_path is not UNSET:
-            field_dict["iac_path"] = iac_path
+        if root_module_path is not UNSET:
+            field_dict["root_module_path"] = root_module_path
 
         return field_dict
 
     @classmethod
     def from_dict(cls, src_dict: Mapping[str, Any]) -> Self:
         d = dict(src_dict)
-        _provider = d.pop("provider", UNSET)
-        provider: ResourcePropertiesProvider | Unset
-        if isinstance(_provider, Unset):
-            provider = UNSET
-        else:
-            provider = ResourcePropertiesProvider(_provider)
+        provider = d.pop("provider", UNSET)
 
         repo_uri = d.pop("repo_uri", UNSET)
 
-        iac_path = d.pop("iac_path", UNSET)
+        root_module_path = d.pop("root_module_path", UNSET)
 
         resource_properties = cls(
             provider=provider,
             repo_uri=repo_uri,
-            iac_path=iac_path,
+            root_module_path=root_module_path,
         )
 
         resource_properties.additional_properties = d

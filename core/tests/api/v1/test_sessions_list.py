@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from httpx import ASGITransport, AsyncClient
 
+from src.domains.value_objects import ProviderScope
 from src.main import app
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
@@ -17,7 +18,6 @@ from src.shared.constants import (
     OperationType,
     ReportType,
     SessionStatus,
-    TerraformProvider,
 )
 
 
@@ -40,11 +40,12 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             user_pk=self.user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
+        )
+        await DatabaseService.set_session_providers(
+            self.sid, (ProviderScope("azurerm", "sub-123"), ProviderScope("random"))
         )
         self.client = AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -66,7 +67,13 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["uuid"], str(self.sid))
         self.assertEqual(item["username"], self.username)
         self.assertEqual(item["operation"], "generate")
-        self.assertEqual(item["provider"], "azure")
+        self.assertEqual(
+            item["providers"],
+            [
+                {"name": "azurerm", "scope_id": "sub-123"},
+                {"name": "random", "scope_id": None},
+            ],
+        )
         self.assertEqual(item["first_query"], "create a resource group")
         self.assertEqual(item["workspace"]["uri"], "https://example.com/foo.git")
         self.assertEqual(item["current_status"], "started")
@@ -116,7 +123,14 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(body["uuid"], str(self.sid))
         self.assertEqual(body["operation"], "generate")
-        self.assertEqual(body["scope_id"], "sub-123")
+        self.assertNotIn("scope_id", body)
+        self.assertEqual(
+            body["providers"],
+            [
+                {"name": "azurerm", "scope_id": "sub-123"},
+                {"name": "random", "scope_id": None},
+            ],
+        )
         self.assertEqual(body["workspace"]["branch"], "Kumoss/x")
         self.assertEqual(body["workspace"]["root_path"], "infra")
         # Pull requests live inside their round, not at session level.
@@ -224,3 +238,28 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await fetch(search=str(self.sid)), 1)
         self.assertEqual(await fetch(search=str(self.sid)[:8]), 1)
         self.assertEqual(await fetch(search="no-match-xyz"), 0)
+
+    async def test_list_search_in_one_field(self):
+        async def fetch(search: str, search_in: str) -> int:
+            resp = await self.client.get(
+                "/v1/sessions/list",
+                params={"search": search, "search_in": search_in},
+            )
+            self.assertEqual(resp.status_code, 200, resp.text)
+            return resp.json()["total"]
+
+        sid = str(self.sid)[:8]
+        # Each term only appears in its own field.
+        self.assertEqual(await fetch("resource group", "query"), 1)
+        self.assertEqual(await fetch("resource group", "repository"), 0)
+        self.assertEqual(await fetch("foo.git", "repository"), 1)
+        self.assertEqual(await fetch("foo.git", "query"), 0)
+        self.assertEqual(await fetch(sid, "session_id"), 1)
+        self.assertEqual(await fetch(sid, "query"), 0)
+        self.assertEqual(await fetch("foo.git", "all"), 1)
+
+    async def test_list_search_in_rejects_unknown_field(self):
+        resp = await self.client.get(
+            "/v1/sessions/list", params={"search": "x", "search_in": "owner"}
+        )
+        self.assertEqual(resp.status_code, 422, resp.text)

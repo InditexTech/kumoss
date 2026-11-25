@@ -2,9 +2,11 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Any, final, override
+from collections.abc import Sequence
+from typing import Any, Literal, final, override
 
 from src.domains.interfaces.template_interface import ITemplate
+from src.infrastructure.exceptions import PromptFetchError
 from src.infrastructure.templates._fetcher import remote_fetcher
 from src.infrastructure.templates.jinja_env import jinja_environment
 from src.shared.config import system_config
@@ -12,8 +14,8 @@ from src.shared.constants import (
     OperationType,
     ReportType,
     TargetGenerationMode,
-    TerraformProvider,
 )
+from src.shared.logger import logging
 
 
 @final
@@ -21,10 +23,14 @@ class TemplateAdapter(ITemplate):
     _get_template = jinja_environment.get_template
     _core: str = "base_layouts/core/"
     _message: str = "base_layouts/messages/"
-    _scope: str
+    _providers: tuple[str, ...]
 
-    def __init__(self, template_provider: TerraformProvider, cwd: str):
-        self._scope = template_provider.value
+    def __init__(self, providers: Sequence[str], cwd: str):
+        """``providers`` are the root module's Terraform provider types; each
+        one's prompts (``<provider>/guidelines/*``, ``<provider>/resources/*``)
+        are used when Langfuse has them. A provider without prompts, or a
+        module with none yet, gets the general prompts only."""
+        self._providers = tuple(providers)
         self._cwd = cwd
 
     @override
@@ -188,18 +194,8 @@ class TemplateAdapter(ITemplate):
         already_selected_templates: list[str] | None = None,
         already_selected_abbreviations: list[str] | None = None,
     ) -> str:
-        abbr = await remote_fetcher.fetch(
-            prompt_name="abbreviations",
-            scope=self._scope,
-            type="guidelines",
-            tag=system_config.environment,
-        )
-        resources = await remote_fetcher.fetch(
-            prompt_name="resources_list",
-            scope=self._scope,
-            type="guidelines",
-            tag=system_config.environment,
-        )
+        abbr = await self._fetch_guidelines("abbreviations")
+        resources = await self._fetch_guidelines("resources_list")
 
         templates: dict[str, str] | None = await self._get_resources_templates(
             already_selected_templates
@@ -274,12 +270,36 @@ class TemplateAdapter(ITemplate):
         }
 
     async def _fetch_guidelines(self, name: str) -> str:
-        return await remote_fetcher.fetch(
-            prompt_name=name,
-            scope=self._scope,
-            type="guidelines",
-            tag=system_config.environment,
-        )
+        """The ``name`` guidelines of every provider that has them, one section each."""
+        sections: list[str] = []
+        for provider in self._providers:
+            content = await self._fetch_optional(provider, "guidelines", name)
+            if content is not None:
+                sections.append(
+                    content
+                    if len(self._providers) == 1
+                    else f"## {provider}\n{content}"
+                )
+        return "\n\n".join(sections)
+
+    async def _fetch_optional(
+        self,
+        provider: str,
+        type: Literal["resources", "guidelines"],
+        name: str,
+    ) -> str | None:
+        """A provider prompt, or None when Langfuse has no such prompt."""
+        try:
+            return await remote_fetcher.fetch(
+                prompt_name=name,
+                scope=provider,
+                type=type,
+                tag=system_config.environment,
+            )
+        except PromptFetchError as e:
+            if e.error_code == 404:
+                return None
+            raise
 
     async def _get_resources_templates(
         self, resources: list[str]
@@ -288,14 +308,16 @@ class TemplateAdapter(ITemplate):
             return None
         rendered_resources: dict[str, str] = {}
         for r in resources:
-            rendered_resources[r] = await remote_fetcher.fetch(
-                prompt_name=r,
-                scope=self._scope,
-                type="resources",
-                tag=system_config.environment,
-            )
+            # A resource template belongs to one provider: the first that has it.
+            for provider in self._providers:
+                content = await self._fetch_optional(provider, "resources", r)
+                if content is not None:
+                    rendered_resources[r] = content
+                    break
+            else:
+                logging.warning(f"No resource template {r!r} for {self._providers}")
 
-        return rendered_resources
+        return rendered_resources or None
 
     @override
     def render_supervisor(self) -> str:

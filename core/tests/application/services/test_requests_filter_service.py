@@ -6,9 +6,10 @@ import unittest
 
 from unittest.mock import AsyncMock, MagicMock
 
+from src.application.exceptions import RequestFilterException
 from src.application.services.requests_filter_service import RequestsFilterService
 from src.domains.entities.history import History
-from src.shared.constants import OperationType, PromptsLibrary, SessionStatus
+from src.shared.constants import OperationType, PromptsLibrary
 
 
 class TestRequestsFilterService(unittest.IsolatedAsyncioTestCase):
@@ -59,9 +60,13 @@ class TestRequestsFilterService(unittest.IsolatedAsyncioTestCase):
 
 
 class TestRequestsFilterRejection(unittest.IsolatedAsyncioTestCase):
-    """Rejection side-effects are centralised in filter(), not the handlers."""
+    """filter() records the rejection in the history and raises.
 
-    def _build_rejected_service(self):
+    Persisting the round (``save()``) and marking the session UNCOMPLETED are
+    left to the handlers' ``finally`` and the API runner respectively.
+    """
+
+    def _build_service(self, status: bool, explanation: str):
         llm_svc = AsyncMock()
         tool_svc = MagicMock()
         template_svc = AsyncMock()
@@ -71,7 +76,7 @@ class TestRequestsFilterRejection(unittest.IsolatedAsyncioTestCase):
         tool_svc.get_sentinel_tool.return_value = MagicMock()
 
         response = MagicMock()
-        response.result = {"status": False, "explanation": "Not a valid IaC request."}
+        response.result = {"status": status, "explanation": explanation}
         llm_svc.generate.return_value = response
 
         svc = RequestsFilterService(
@@ -82,63 +87,37 @@ class TestRequestsFilterRejection(unittest.IsolatedAsyncioTestCase):
         )
         return svc, session_svc
 
-    async def test_rejection_appends_turn_and_persists_before_uncompleted(self):
-        svc, session_svc = self._build_rejected_service()
+    async def test_rejection_appends_turn_and_raises(self):
+        svc, _ = self._build_service(False, "Not a valid IaC request.")
         history = History([])
 
-        ok = await svc.filter(
-            "What is the capital of France?", history, OperationType.GENERATE
-        )
+        with self.assertRaises(RequestFilterException) as raised:
+            await svc.filter(
+                "What is the capital of France?", history, OperationType.GENERATE
+            )
 
-        self.assertFalse(ok)
+        self.assertEqual(raised.exception.message, "Not a valid IaC request.")
+        self.assertEqual(raised.exception.error_code, 400)
         self.assertEqual(len(history), 1)
         turn = history.get_last_turn()
         self.assertEqual(str(turn.user), "What is the capital of France?")
         self.assertEqual(str(turn.assistant), "Not a valid IaC request.")
-        session_svc.save.assert_awaited_once_with("What is the capital of France?")
-        session_svc.update_status.assert_awaited_once_with(
-            msg="Not a valid IaC request.",
-            status=SessionStatus.UNCOMPLETED,
-        )
 
-    async def test_save_is_called_before_update_status(self):
-        svc, session_svc = self._build_rejected_service()
-        call_order = []
-        session_svc.save.side_effect = lambda *a, **kw: call_order.append("save")
-        session_svc.update_status.side_effect = lambda *a, **kw: call_order.append(
-            f"status:{kw.get('status')}"
-        )
+    async def test_rejection_leaves_session_bookkeeping_to_the_caller(self):
+        svc, session_svc = self._build_service(False, "Not a valid IaC request.")
 
-        await svc.filter("off-topic", History([]), OperationType.GENERATE)
+        with self.assertRaises(RequestFilterException):
+            await svc.filter("off-topic", History([]), OperationType.GENERATE)
 
-        save_idx = call_order.index("save")
-        status_idx = call_order.index(f"status:{SessionStatus.UNCOMPLETED}")
-        self.assertLess(save_idx, status_idx)
+        session_svc.save.assert_not_awaited()
+        session_svc.update_status.assert_not_awaited()
 
     async def test_accepted_request_has_no_side_effects(self):
-        llm_svc = AsyncMock()
-        tool_svc = MagicMock()
-        template_svc = AsyncMock()
-        session_svc = AsyncMock()
-
-        tool_svc.get_available_tools.return_value = []
-        tool_svc.get_sentinel_tool.return_value = MagicMock()
-
-        response = MagicMock()
-        response.result = {"status": True, "explanation": "Looks good."}
-        llm_svc.generate.return_value = response
-
-        svc = RequestsFilterService(
-            second_llm_service=llm_svc,
-            tool_service=tool_svc,
-            template_service=template_svc,
-            session_service=session_svc,
-        )
+        svc, session_svc = self._build_service(True, "Looks good.")
         history = History([])
 
-        ok = await svc.filter("add a vnet", history, OperationType.GENERATE)
+        await svc.filter("add a vnet", history, OperationType.GENERATE)
 
-        self.assertTrue(ok)
         self.assertEqual(len(history), 0)
         session_svc.save.assert_not_awaited()
         session_svc.update_status.assert_not_awaited()

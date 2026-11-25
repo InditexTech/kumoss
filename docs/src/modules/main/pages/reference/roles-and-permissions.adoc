@@ -13,7 +13,8 @@ enforces, and who receives which role by default.
 Roles live in the core database, not in the authorization sidecar. The
 AuthZEN PDP is consulted on every write route via `POST
 /access/v1/evaluation` to decide whether the caller may perform an
-action on a given scope — a check that is disabled by default
+action on each provider scope of the session's root module — a check
+that is disabled by default
 (`services.authz.enabled: false`) and has no bearing on operation or
 panel roles. See
 xref:main:guides/deploy-to-production.adoc[Deploy to production] for
@@ -113,6 +114,11 @@ repository)
 |None; the wizard calls it on every new session, immediately after the
 repository URL is entered
 
+|`POST /api/v1/manifest/probe` (what a root module needs)
+|`developer`
+|None; the wizard calls it once the root module is chosen. It reads
+only and never returns variable values
+
 |`PUT /api/v1/repository/pr` (create pull request)
 |`developer`
 |Owner only
@@ -163,7 +169,7 @@ text, or session id
 repository link, pull-request links, lock state
 |no |yes |yes |yes
 
-|Open Phoenix from the admin sessions tab
+|Open Langfuse from the admin sessions tab
 |no |yes |yes |yes
 
 |Receive support requests sent from the web application's header
