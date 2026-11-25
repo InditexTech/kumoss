@@ -52,6 +52,30 @@ type Wizard struct {
 	// Doc is the installed config.yaml, parsed: the forms pre-fill from it
 	// when the state holds no answer of its own.
 	Doc map[string]any
+
+	// runForm shows one step form. nil means runStep, the real terminal; the
+	// tests substitute a stub, since the step logic cannot be driven through a
+	// running huh form.
+	runForm func(*stepForm) error
+	// clearScreen wipes the terminal before a reopened form is drawn. nil
+	// means the real escape sequence; the tests substitute a counter.
+	clearScreen func()
+
+	// llmPicked is the select row behind each entry of s.LLM.Providers, in the
+	// same order. A prefix cannot name a row on its own: "OpenAI" and
+	// "OpenAI-compatible" share "openai", so resolving a stored prefix back
+	// through providerIndex would always yield the first of the two and the
+	// wizard would ask the wrong defaults and hints. Empty when a reconfigure
+	// has not reached the provider form yet, where the prefix is all there is.
+	llmPicked []int
+}
+
+// execStep runs one step form through the seam runForm provides.
+func (w *Wizard) execStep(f *stepForm) error {
+	if w.runForm != nil {
+		return w.runForm(f)
+	}
+	return w.runStep(f)
 }
 
 // SetDefaults stores the parsed config.yaml for the forms.
