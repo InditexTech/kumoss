@@ -1,0 +1,21 @@
+docs/src/modules/main/pages/guides/follow-a-session.adoc
+  s_ad638db013a85c::t_b003bdb00ee448 2,4-6,13-14,16-19,26,30-31,35-37,41,45-115,119,122-124,127-128,130-175,181-184
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_ad638db013a85c::t_5938b2f7bcb8a5 157-178
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "174893d9f97b3a6a4ae2e0648ff3f5edae859765",
+  "prompts": {},
+  "sessions": {
+    "s_ad638db013a85c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57599cb7-4d09-45f1-8e43-30af586f4da0",
+        "model": "unknown"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
