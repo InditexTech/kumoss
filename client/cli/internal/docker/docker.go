@@ -96,8 +96,10 @@ func rel(base, path string) string {
 	return path
 }
 
-// run captures combined output; only the short detached Up uses it. On failure
-// the output is wrapped into the error, since `exit status 1` alone reads as
+// run captures combined output, for the calls whose output the caller parses
+// rather than shows: ps and the proxy health probe. Anything that takes real
+// time streams instead, or the CLI looks hung. On failure the output is
+// wrapped into the error, since `exit status 1` alone reads as
 // "nothing happened".
 func (c *Compose) run(ctx context.Context, sub ...string) (string, error) {
 	cmd := exec.CommandContext(ctx, "docker", c.args(sub...)...)
@@ -125,7 +127,12 @@ func (c *Compose) stream(ctx context.Context, sub ...string) error {
 	cmd.Dir = c.ProjectDir
 	cmd.Stdout = os.Stderr
 	cmd.Stderr = os.Stderr
-	return cmd.Run()
+	if err := cmd.Run(); err != nil {
+		// The output already went to the terminal, so name the command rather
+		// than repeat it: `exit status 1` alone reads as nothing happened.
+		return fmt.Errorf("docker compose %s: %w", sub[0], err)
+	}
+	return nil
 }
 
 // Recreate replaces the named services so a rewritten .env or mounted file
@@ -135,9 +142,9 @@ func (c *Compose) stream(ctx context.Context, sub ...string) error {
 // The caller only names the services whose files changed, so forcing every
 // named one costs nothing else.
 func (c *Compose) Recreate(ctx context.Context, services ...string) error {
-	args := append([]string{"up", "-d", "--force-recreate"}, services...)
-	_, err := c.run(ctx, args...)
-	return err
+	// Streamed for the same reason as Up: replacing a service is slow enough
+	// that silence reads as a hang.
+	return c.stream(ctx, append([]string{"up", "-d", "--force-recreate"}, services...)...)
 }
 
 // Probe fetches url from inside the stack and reports whether it answered 2xx.
@@ -205,11 +212,9 @@ func upArgs(recreate, detach bool) []string {
 // replace containers whose definition is unchanged: a rewritten config.yaml or
 // .env is a mounted file, so compose sees no reason to act on its own.
 func (c *Compose) Up(ctx context.Context, recreate, detach bool) error {
-	args := upArgs(recreate, detach)
-	if detach {
-		_, err := c.run(ctx, args...)
-		return err
-	}
-	// Stream rather than buffer, or the user sees nothing until Ctrl-C.
-	return c.stream(ctx, args...)
+	// Streamed either way. Detached is not quick: it pulls what is missing and
+	// creates or replaces every container, which is tens of seconds at best
+	// and minutes on a cold machine. Buffered, the CLI printed nothing for all
+	// of it and looked hung.
+	return c.stream(ctx, upArgs(recreate, detach)...)
 }
