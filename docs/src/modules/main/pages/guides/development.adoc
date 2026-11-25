@@ -114,21 +114,21 @@ instances).
 
 == Compliance policy tests
 
-The seed policy (`core/prompts/seed/general/policies`) has Rego tests
-in `core/tests/policies`; see
+The seed policies (`core/prompts/seed/*/policies`: the general policy
+and one per provider) have Rego tests in `core/tests/policies`; see
 xref:main:reference/compliance-policy.adoc#testing[Testing a
-policy]. From the repository root, with the OPA version of the core
+policy]. From the `core` directory, with the OPA version of the core
 image:
 
 [source,bash]
 ----
-docker run --rm -v "$PWD/core:/core:ro" -w /core \
+docker run --rm -v "$PWD:/core:ro" -w /core \
   openpolicyagent/opa:1.22.4-static \
-  test prompts/seed/general/policies tests/policies
+  test prompts/seed/*/policies tests/policies
 ----
 
-`opa fmt --diff --fail` and `opa check` on the same two directories
-must pass too.
+`opa fmt --diff --fail` and `opa check` on the same directories must
+pass too.
 
 == Type checking
 

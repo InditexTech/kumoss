@@ -205,12 +205,17 @@ models Kumoss supports today.
 Kumoss evaluates the final plan of every generate round against a
 deterministic policy written in Rego with
 https://www.openpolicyagent.org[Open Policy Agent], alongside the
-language-model compliance audit. The first form is a single policy
-stored in Langfuse, which ships with one rule, `critical_deletion`; see
+language-model compliance audit. The policies are stored in Langfuse:
+a general one, which ships with three deny rules (standalone deletions,
+removed customer-managed keys, command execution) and one warning
+(credential outputs not marked sensitive), and one
+per provider, evaluated when a module declares that provider and
+shipped for AWS, Azure, Google Cloud, Kubernetes, OCI and vSphere with
+three rules each; see
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
 Still to come: loading policy bundles an organization already maintains
-outside Kumoss, per-cloud policy packages, and feeding denies back into
+outside Kumoss, and feeding denies back into
 the generate-and-validate loop so the model can repair the code before
 the round is locked.
 

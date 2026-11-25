@@ -1,37 +1,74 @@
 = Compliance policy
-:description: The Rego policy OPA evaluates on every generate round's final plan: the input document, the decision contract, what happens when it fails, the shipped rule, and how to test a policy.
+:description: The Rego policies OPA evaluates on every generate round's final plan: the general and provider policies, the input document, the decision contract, what happens when one fails, the shipped rules, and how to test a policy.
 
 The compliance check of a generate round has two parts. The first is
-deterministic: the core evaluates a Rego v1 policy with
+deterministic: the core evaluates Rego v1 policies with
 https://www.openpolicyagent.org[Open Policy Agent] against the round's
 final plan. The second is the LLM audit against the conventions and
 `general/compliance/report`. Both run when
-`orchestration.enable_compliance_checker` is `true`, the policy first,
+`orchestration.enable_compliance_checker` is `true`, the policies first,
 and their results are merged into one compliance report per round.
 Drift and import rounds have no compliance check.
 
-The policy is the Langfuse text prompt `general/policies/compliance`,
-seeded from `core/prompts/seed/general/policies/compliance.rego`. The
-core uses its raw text: Langfuse's `+{{variable}}+` templating is not
-applied, so the braces of Rego are safe. How it is
-seeded, edited and rolled out is covered in
+Two kinds of Langfuse text prompt hold a policy:
+
+[cols="2,2,3",options="header"]
+|===
+|Prompt |Package |Evaluated
+
+|`general/policies/compliance`
+|`kumoss.compliance`
+|On every generate round. It must exist.
+
+|`<provider>/policies/compliance`
+|`kumoss.providers.<provider>`
+|On the rounds whose root module declares that provider. A provider
+without one is skipped.
+|===
+
+`<provider>` is the Terraform provider type name, as in the other
+provider prompts: `aws`, `azurerm`, `google`, `kubernetes`, `oci`,
+`vsphere`. A type name containing `-` is not a valid Rego identifier,
+so its package uses the bracket form, for example `package
+kumoss.providers["google-beta"]`. Every policy gets the same
+<<input,input>> and returns the same <<decision,decision>>.
+
+The policies are seeded from
+`core/prompts/seed/<scope>/policies/compliance.rego`. The core uses
+their raw text: Langfuse's `+{{variable}}+` templating is not applied,
+so the braces of Rego are safe. How they are seeded, edited and rolled
+out is covered in
 xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
 prompts]; this page is the contract a policy author writes against.
 
 == How it runs
 
-Each evaluation fetches the policy version carrying the `environment`
-label and runs one `opa` process (OPA 1.22.4, shipped in the core image):
+Each evaluation fetches the general policy and the policy of every
+provider the root module declares in `required_providers` (the
+session's providers), each from the version carrying the `environment`
+label. A provider whose policy prompt does not exist, or has no version
+with that label, is left out: a module declaring `random` gets no
+`random` policy, and no error. All the fetched policies run in one
+`opa` process (OPA 1.22.4, shipped in the core image) that queries
+`data.kumoss`, so the general package and every provider package are
+read from a single result:
 
 [source,bash]
 ----
 opa eval --stdin-input --strict-builtin-errors --format json \
-  --data compliance.rego data.kumoss.compliance
+  --data general.rego --data aws.rego ... data.kumoss
 ----
+
+Errors name the prompt and the line they come from, for example
+`aws/policies/compliance:12: ...`.
 
 Nothing stays running between rounds, and nothing is cached: moving the
 environment label to another version in Langfuse applies on the next
 generate round.
+
+Every policy sees the whole plan, not only its provider's resources: a
+module may use several providers. A provider policy's rules therefore
+match on their own resource `type`s.
 
 [#input]
 == Input
@@ -61,7 +98,8 @@ does.
 
 |`input.kumoss.providers`
 |The provider type names of the root module's `required_providers`
-(`azurerm` for `hashicorp/azurerm`). Use it to scope rules to the
+(`azurerm` for `hashicorp/azurerm`): the providers whose policies are
+evaluated. The general policy can use it to scope a rule to the
 providers a module actually uses.
 |===
 
@@ -69,15 +107,21 @@ The plan is a `-target` plan: it holds the session's targets only, not
 the whole workspace. A rule cannot see resources outside the targets,
 so it cannot reason about the rest of the estate.
 
-The plan JSON carries sensitive values unmasked. Never put attribute
-values in a finding's `message`: messages end up in the compliance
-report, the session's artifacts and the failure notification. Name the
-resource address and the attribute instead.
+The plan JSON carries sensitive values unmasked. Never put a value that
+can hold a secret (passwords, keys, tokens, connection strings, user
+data, policy or script bodies) in a finding's `message`: messages end up
+in the compliance report, the session's artifacts and the failure
+notification. Name the resource address and the attribute instead.
+Addresses, CIDR blocks, ports, protocols and paths, which the shipped
+rules quote, are fine.
 
+[#decision]
 == Decision
 
-The core queries `data.kumoss.compliance`. All keys are optional; a
-missing one counts as empty, and keys outside these three are ignored.
+Each policy's package, `data.kumoss.compliance` or
+`data.kumoss.providers.<provider>`, is read with the same contract.
+All keys are optional; a missing one counts as empty, and keys outside
+these three are ignored.
 
 [cols="1,2,3",options="header"]
 |===
@@ -102,28 +146,34 @@ present, is a string, usually the resource address.
 
 In the merged report, each violation carries `source: "opa"` (LLM
 findings carry `"llm"`; reports stored before the policy existed have
-no `source` and are LLM findings), and the report's `policy_revision`
-is the version of the policy that ran, as the string
-`"<prompt name>@<version>"`, for example
-`general/policies/compliance@4` (`null` when no policy ran). The policy's findings come first. The report has `passed: false`
-when either source has an `error` or `critical` finding, and the
-session is locked exactly as for any failed compliance check. When the
-policy blocks, the summary starts with `Blocked by the compliance
+no `source` and are LLM findings), and the report's `policy_revisions`
+lists the versions of the policies that ran, each as the string
+`"<prompt name>@<version>"`, the general policy first, for example
+`["general/policies/compliance@3", "aws/policies/compliance@1"]`
+(empty when no policy ran). Reports stored when there was only the
+general policy carry a single `policy_revision` string; they are read
+into the list. The policies' findings come first. The report has
+`passed: false` when either source has an `error` or `critical`
+finding, and the session is locked exactly as for any failed
+compliance check. When the policies block, the summary starts with `Blocked by the compliance
 policy: N finding(s) (<rule ids>).` The web UI marks policy findings
 with a *policy* badge.
 
 [#failure]
-== When the policy cannot be evaluated
+== When a policy cannot be evaluated
 
-The policy fails closed. Each of these means the policy could not be
+The policies fail closed. Each of these means a policy could not be
 evaluated:
 
-* the policy could not be fetched from Langfuse: Langfuse is
-  unreachable, the prompt or a version carrying the `environment` label
-  does not exist, or that version is not a single text prompt;
-* a syntax or compile error;
-* no `package kumoss.compliance`, or `data.kumoss.compliance` is not an
-  object;
+* a policy could not be fetched from Langfuse: Langfuse is
+  unreachable, the version carrying the `environment` label is not a
+  single text prompt, or, for the general policy only, the prompt or
+  such a version does not exist;
+* a syntax or compile error in any of the policies;
+* a fetched policy does not define its package (`package
+  kumoss.compliance` for the general policy, `package
+  kumoss.providers.<provider>` for a provider's), or the package is not
+  an object;
 * `deny`, `warn` or `rules` is not a set, a finding is not an object or
   lacks `rule_id` or `message`, or a `deny` severity is neither `error`
   nor `critical`;
@@ -137,20 +187,71 @@ The round then gets a blocking `policy_unavailable` finding (severity
 compliance failure notification is sent. The LLM audit still runs and
 its findings are in the same report.
 
+Since all the policies run in one evaluation, one broken provider
+policy blocks every round of a module that declares that provider, and
+a broken general policy blocks every round.
+
 *Startup check.* When `enable_compliance_checker` is `true`, the core,
-after seeding the prompts, evaluates the current policy against an
-empty plan and refuses to start if that fails: a missing `opa` binary,
-a broken policy, or Langfuse unreachable. A broken version that gets
-the environment label while the core is running is not caught until it is evaluated, and then
-blocks every round.
+after seeding the prompts, evaluates the general policy and the policy
+of every provider that ships a seed (`aws`, `azurerm`, `google`,
+`kubernetes`, `oci`, `vsphere`) against an empty plan, and refuses to
+start if that fails: a missing `opa` binary, a broken policy, or
+Langfuse unreachable. A provider policy missing from Langfuse is
+skipped there too. A broken version that gets the environment label
+while the core is running is not caught until it is evaluated, and
+then blocks every round it applies to.
 
-== The shipped rule
+== The shipped rules
 
-The seed defines one rule, `critical_deletion` (severity `critical`): a
-managed resource whose plan actions are exactly `["delete"]` is denied,
-even when the user requested the deletion. A replacement
+=== General policy
+
+The general seed defines four rules that apply whatever the provider.
+`critical_deletion` looks at every managed resource; the other three
+look only at what the plan creates or updates (a replacement included),
+so a resource the round leaves alone is not judged.
+
+[cols="2,1,5",options="header"]
+|===
+|Rule id |Decision |Finds
+
+|`critical_deletion`
+|`deny`, `critical`
+|A managed resource whose plan actions are exactly `["delete"]`, even
+when the user requested the deletion. A replacement
 (`["delete", "create"]` or `["create", "delete"]`), a `forget` (a
 `removed` block with `destroy = false`) and data sources are allowed.
+
+|`customer_managed_key_removed`
+|`deny`, `error`
+|A resource the plan updates or replaces that loses its
+customer-managed encryption key: an attribute named `kms_key_id`,
+`kms_key_arn`, `kms_master_key_id`, `kms_key_name`,
+`kms_key_self_link`, `default_kms_key_name`, `customer_managed_key`,
+`disk_encryption_set_id` or `key_vault_key_id`, at any nesting depth,
+is set before the change and empty or absent after it. Switching to
+another key is allowed, and a key whose new value is only known at
+apply time is not judged.
+
+|`command_execution`
+|`deny`, `error`
+|Terraform running commands: a `null_resource`, or a provisioner of
+any kind (`local-exec`, `remote-exec`, `file`) on a resource the plan
+creates or updates, child modules included; and any `data "external"`
+data source anywhere in the configuration, changed or not, since it
+runs its program on every plan. A resource with a provisioner that the
+round leaves untouched is not flagged.
+
+|`unprotected_credential_output`
+|`warn`
+|A root module output the plan creates or updates whose name contains,
+case-insensitively, `password`, `passwd`, `secret`, `token`,
+`private_key`, `api_key`, `access_key`, `credential` or
+`connection_string`, and that is not marked `sensitive = true`. The
+name is only a hint, hence a warning; the message carries the output's
+name, never its value.
+|===
+
+`critical_deletion`, the rule a custom policy most often starts from:
 
 [source,rego]
 ----
@@ -174,47 +275,170 @@ deny contains finding if {
 }
 ----
 
-No prompt lists forbidden actions any more. Prohibitions for the
-providers your modules use (no public buckets, no IAM owner bindings,
-allowed regions...) are written as further rules in this module, each
-adding its id to `rules`. A rule scoped to one provider can check
-`"aws" in input.kumoss.providers`, or simply match on the resource
-`type`.
+The seed declares its four ids in one `rules contains rule if some rule
+in {...}` statement; the excerpt above declares only its own.
+
+`data "external"` runs its program while the plan is made, so by the
+time `command_execution` locks the round the program has already run
+in the IaC sidecar; the rule keeps the code from being applied and
+merged. Provisioners and `null_resource` commands run at apply and are
+stopped before they run.
+
+Some safeguards of the former prompts are not in the general policy.
+Removing `lifecycle.prevent_destroy` cannot be detected: the plan JSON
+does not contain `lifecycle` blocks. Turning off deletion protection
+and replacing a stateful resource are visible in the plan, but the
+prompts allowed them on an explicit request, so they were not
+translated (see below).
+
+=== Provider policies
+
+No prompt lists forbidden actions any more. The provider seeds
+translate the most critical rules of the removed `forbidden_actions`
+prompts that can be decided from the plan alone. Each has three rules,
+all `deny` with the default severity `error`, with ids prefixed by the
+provider (`k8s_` for Kubernetes). They check only resources the plan
+creates or updates, and only values known at plan time;
+`vsphere_unverified_ssl` reads the plan's provider configuration
+instead.
+
+[cols="2,2,5",options="header"]
+|===
+|Provider |Rule id |Denies
+
+.3+|`aws`
+|`aws_public_ingress`
+|Security group ingress (inline, `aws_security_group_rule` or
+`aws_vpc_security_group_ingress_rule`) from `0.0.0.0/0` or `::/0` on
+anything but TCP 80 or 443. ICMP is exempt.
+
+|`aws_iam_wildcard_admin`
+|An IAM policy statement allowing `Action` `"*"` on `Resource` `"*"`,
+including the inline policies of a role.
+
+|`aws_s3_public_access`
+|A `public-read` or `public-read-write` bucket ACL, or any S3 Block
+Public Access flag set to `false`, at bucket or account level.
+
+.3+|`azurerm`
+|`azurerm_public_inbound`
+|A network security group inbound `Allow` rule from `*`, `Internet`,
+`0.0.0.0/0` or `::/0` on anything but TCP 80 or 443. ICMP is exempt.
+
+|`azurerm_subscription_owner`
+|Owner or Contributor assigned at subscription, management group or
+root scope.
+
+|`azurerm_host_command`
+|The CustomScript extension on a virtual machine or scale set, or an
+`azurerm_virtual_machine_run_command`.
+
+.3+|`google`
+|`google_public_ingress`
+|An ingress firewall rule or firewall policy rule from `0.0.0.0/0` or
+`::/0` on anything but TCP 80 or 443; a rule without ports opens every
+port. ICMP is exempt.
+
+|`google_sa_key`
+|A `google_service_account_key`.
+
+|`google_basic_role_to_sa`
+|`roles/owner`, `roles/editor` or `roles/viewer` granted to a
+`serviceAccount:` member through any `google_*_iam_member` or
+`google_*_iam_binding`.
+
+.3+|`kubernetes`
+|`k8s_privilege_escalation`
+|`allow_privilege_escalation = true` in any security context.
+
+|`k8s_runtime_socket`
+|A `hostPath` volume on the container runtime socket or a directory
+exposing it: `/`, `/run`, `/var/run`, and the Docker, containerd and
+CRI-O sockets and directories.
+
+|`k8s_cluster_admin_sa`
+|`cluster-admin` bound to a ServiceAccount.
+
+.3+|`oci`
+|`oci_public_ingress`
+|Ingress from `0.0.0.0/0` or `::/0` on anything but TCP 80 or 443, in
+a security list (`oci_core_security_list`), a VCN's default security
+list (`oci_core_default_security_list`) or a network security group
+rule. ICMP is exempt.
+
+|`oci_bastion_open`
+|A bastion whose `client_cidr_block_allow_list` contains `0.0.0.0/0`
+or `::/0`.
+
+|`oci_any_user_no_condition`
+|An `Allow any-user` policy statement without a `request.principal`
+condition.
+
+.3+|`vsphere`
+|`vsphere_host_management`
+|Host-level resources: `vsphere_host*`, `vsphere_vnic`,
+`vsphere_license`.
+
+|`vsphere_unverified_ssl`
+|A `vsphere` provider block with `allow_unverified_ssl = true` written
+as a literal.
+
+|`vsphere_snapshot`
+|A `vsphere_virtual_machine_snapshot`.
+|===
+
+Rules of the removed prompts that allowed an exception on an explicit
+user request were not translated: a policy sees the plan, not the
+request. Write such rules as `warn` rules, so a reviewer sees them
+without the session being locked, or leave them to review.
+
+Further prohibitions (allowed regions, mandatory tags...) are written
+as rules in the policy of the provider they concern, or in the general
+policy when they span providers, each adding its id to `rules`. To
+give a provider without a seed a policy, create its
+`<provider>/policies/compliance` prompt in Langfuse with `package
+kumoss.providers.<provider>`.
 
 [#testing]
 == Testing a policy
 
-The shipped rule's tests are in `core/tests/policies`. Their fixtures
-are real Terraform 1.16 and OpenTofu 1.13 plans,
-`fixtures/<engine>/data.json`, which `opa test` loads as
-`data.fixtures.<engine>`. From the repository root:
+The shipped rules' tests are in `core/tests/policies`, one
+`<scope>_test.rego` per policy. The general policy's fixtures are real
+Terraform 1.16 and OpenTofu 1.13 plans, `fixtures/<engine>/data.json`,
+and a Terraform plan exercising its command and output rules,
+`fixtures/general/data.json`; the AWS, Google and Kubernetes rules are
+tested against real `terraform plan` output,
+`fixtures/<provider>/data.json`. `opa test`
+loads each as `data.fixtures.<directory>`. From the repository root:
 
 [source,bash]
 ----
-opa test core/prompts/seed/general/policies core/tests/policies
+opa test core/prompts/seed/*/policies core/tests/policies
 ----
 
-or, without a local `opa`:
+or, without a local `opa`, from the `core` directory (the shell
+expands the glob, so run it there):
 
 [source,bash]
 ----
-docker run --rm -v "$PWD/core:/core:ro" -w /core \
+docker run --rm -v "$PWD:/core:ro" -w /core \
   openpolicyagent/opa:1.22.4-static \
-  test prompts/seed/general/policies tests/policies
+  test prompts/seed/*/policies tests/policies
 ----
 
 To see the decision for a real plan, wrap its `show -json` in the
-input document and evaluate it:
+input document and evaluate the policies the core would run for it:
 
 [source,bash]
 ----
 terraform show -json tfplan > plan.json
 jq '{plan: ., kumoss: {schema: "kumoss.compliance.input/v1", providers: ["aws"]}}' \
-  plan.json | opa eval --stdin-input -d policy.rego data.kumoss.compliance
+  plan.json | opa eval --stdin-input -d general.rego -d aws.rego data.kumoss
 ----
 
-Add `--strict-builtin-errors` to match how the core evaluates it. To
+Add `--strict-builtin-errors` to match how the core evaluates them. To
 test an edited version before moving the environment label to it, copy
-its text from Langfuse into `policy.rego` and run the same commands; see
+its text from Langfuse into the matching file and run the same
+commands; see
 xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
 prompts].

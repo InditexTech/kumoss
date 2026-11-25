@@ -234,8 +234,11 @@ session branch in your repository.
 ====
 The compliance check found an error-level or critical violation (with
 the default rules: changes outside the scope of your request, parts of
-the request left undone, or a standalone deletion), the compliance
-policy could not be evaluated, or the impact was
+the request left undone, a standalone deletion, a removed
+customer-managed encryption key, a `null_resource`, provisioner or
+`data "external"`, or one of the provider policies' prohibitions such
+as a port open to the internet),
+a compliance policy could not be evaluated, or the impact was
 rated High in a deployment that locks on high impact.
 ====
 
