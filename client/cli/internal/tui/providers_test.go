@@ -102,6 +102,21 @@ func TestSharedOpenAIPrefixRowsAreInterchangeable(t *testing.T) {
 	}
 }
 
+// secretByName is what a credential's name says about it. An identifier is
+// not a secret even when it is called a key: AWS_ACCESS_KEY_ID names the
+// account making the request, the way a username does, and masking it only
+// stops the user checking what they typed. AWS_SECRET_ACCESS_KEY beside it is
+// the one that has to be hidden.
+func secretByName(name string) bool {
+	if strings.HasSuffix(name, "_ID") {
+		return false
+	}
+	return strings.Contains(name, "_KEY") ||
+		strings.Contains(name, "SECRET") ||
+		strings.Contains(name, "_TOKEN") ||
+		strings.Contains(name, "CREDENTIALS")
+}
+
 // Only a credential is masked. A project id, a region or an API base must stay
 // readable while it is typed, so anything not named like a secret is visible.
 func TestOnlyCredentialsAreMasked(t *testing.T) {
@@ -116,13 +131,29 @@ func TestOnlyCredentialsAreMasked(t *testing.T) {
 		return out
 	}
 	for _, c := range all() {
-		secretName := strings.Contains(c.Name, "API_KEY") ||
-			strings.Contains(c.Name, "_KEY") ||
-			strings.Contains(c.Name, "SECRET") ||
-			strings.Contains(c.Name, "_TOKEN") ||
-			strings.Contains(c.Name, "CREDENTIALS")
-		if c.Secret != secretName {
-			t.Errorf("%s: Secret = %v, want %v", c.Name, c.Secret, secretName)
+		if want := secretByName(c.Name); c.Secret != want {
+			t.Errorf("%s: Secret = %v, want %v", c.Name, c.Secret, want)
+		}
+	}
+}
+
+// The rule the table is checked against, checked itself: a miswritten
+// heuristic would pass every row by agreeing with whatever is there.
+func TestSecretByName(t *testing.T) {
+	for name, want := range map[string]bool{
+		"AWS_ACCESS_KEY_ID":     false,
+		"AWS_SECRET_ACCESS_KEY": true,
+		"AWS_REGION_NAME":       false,
+		"ANTHROPIC_API_KEY":     true,
+		"HOSTED_VLLM_API_KEY":   true,
+		"HOSTED_VLLM_API_BASE":  false,
+		"VERTEXAI_PROJECT":      false,
+		"VERTEXAI_CREDENTIALS":  true,
+		"STORAGE_ACCOUNT_KEY":   true,
+		"KUMOSS_IAC_TOKEN":      true,
+	} {
+		if got := secretByName(name); got != want {
+			t.Errorf("secretByName(%q) = %v, want %v", name, got, want)
 		}
 	}
 }
