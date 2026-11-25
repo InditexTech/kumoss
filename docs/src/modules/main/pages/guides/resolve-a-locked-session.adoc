@@ -1,0 +1,141 @@
+= Resolve a locked session
+:description: Find out why Kumoss locked your session, who was notified, and how to get it unlocked so you can merge and apply.
+
+Kumoss checks every generate round before it lets you merge and apply.
+When a check fails, the session is locked: you can keep working on it,
+but merge and apply are refused until the lock is cleared. This guide
+explains why a session gets locked, what you see, and the two ways to
+get it unlocked.
+
+== Prerequisites
+
+* A session whose latest generate round finished, reached by following
+  xref:main:guides/follow-a-session.adoc[Follow a session].
+* To unlock a session yourself, the panel role `editor` or `admin`; see
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
+  Without it, you need a follow-up request or a reviewer who has it.
+
+[#why]
+== Why a session is locked
+
+Three independent checks run at the end of every generate round. Any one
+of them can lock the session. Drift and import rounds are never checked
+and never lock a session.
+
+[#compliance-policy]
+=== Compliance policy
+
+A deterministic check. Open Policy Agent evaluates your organization's
+Rego policy against the plan, and any `deny` finding locks the session.
+
+* The shipped rule, `critical_deletion`, denies any resource that is
+  destroyed without being recreated, *even when you asked for the
+  deletion*. Replacements are allowed.
+* If the policy cannot be evaluated at all, the round gets a
+  `policy_unavailable` finding and is locked too: the policy fails
+  closed.
+
+Findings from this check carry a *policy* badge.
+
+[#compliance-audit]
+=== Compliance audit
+
+A language-model agent compares the plan with your requests and with
+your organization's conventions. Two rules are always checked:
+
+* `scope_exceeded`: the plan changes something you did not ask for, for
+  example it removes a block or sets an attribute to null.
+* `scope_incomplete`: part of your request has no matching change in
+  the plan.
+
+Any other finding of severity `error` or `critical` comes from the
+conventions and locks the session as well. Findings of severity
+`warning` are reported and never lock.
+
+[#high-impact]
+=== High impact
+
+The report rates the impact of the change. When the rating is `high`,
+because of destructive actions, restarts, service downtime, or critical
+networking changes, the session is locked. The impact banner is shown on
+every report; only your deployment's configuration decides whether a
+`high` rating locks.
+
+Your operator decides which of these checks run; see
+xref:main:reference/configuration.adoc[Configuration] for the
+`orchestration` switches.
+
+[#what-you-see]
+== What you see
+
+When you continue to the pull request, the *Deployment Blocked* screen
+opens instead of the merge controls.
+
+.The Deployment Blocked screen with *Why* expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the compliance audit
+image::deployment-blocked.png[Deployment Blocked screen listing the high-impact reason and two blocking compliance findings, with Back to Report, Contact Team, and Check again buttons,width=560,link=self]
+
+* Expand *Why* to see the cause: *High impact* with the impact summary,
+  *Compliance* with each blocking finding (severity, rule id, and
+  resource), or both. *Show all findings* adds the warnings and the
+  suggested fixes.
+* *Check again* reads the lock state again, for example after a
+  reviewer unlocked the session.
+* *Back to Report* returns to the report. *Contact Team* sends a support
+  request.
+
+The full compliance report, including the rules that passed, is also in
+the session details, as the round's *Compliance Check* artifact.
+
+While locked, you can still read everything, continue the conversation,
+and create the pull request so reviewers can read the diff. Merge and
+apply are refused with `409`. Your sessions list shows the lock in the
+*Apply* column.
+
+[#who-is-notified]
+== Who is notified
+
+When the notifications sidecar is enabled, Kumoss sends a "Compliance
+check failed" notification, a "High impact changes detected"
+notification, or both. They go to you and to every user with the panel
+role `editor` or higher, so a reviewer usually knows about the lock
+before you ask.
+
+If your browser tab is hidden when the round finishes, you also get a
+"Session blocked" browser notification.
+
+[#unlock]
+== Unlock the session
+
+Choose one of the two ways:
+
+. *Fix the request.* Read the findings under *Why*, then send a
+  follow-up request that addresses them, for example "keep the existing
+  bucket and only add the tag". When the new round passes all three
+  checks, the lock clears and the merge controls return.
+. *Ask a reviewer.* A user with the panel role `editor` or `admin`
+  reviews the findings in the admin panel and unlocks the session; see
+  xref:main:guides/administer-users-and-locks.adoc#unlock-a-session[Lock
+  or unlock the apply of a session]. When they are done, choose *Check
+  again*.
++
+.A reviewer opens the locked session from the admin panel's Sessions tab and presses *Apply Locked* to unlock it
+image::admin-unlock-session.png[Admin panel Sessions tab with the locked session's detail panel open and the Apply Locked button highlighted,link=self]
+
+NOTE: A reviewer's unlock lasts only until your next generate round on
+the session. That round runs the checks again and sets the lock afresh.
+
+== Verify
+
+The *Deployment Blocked* screen no longer opens when you continue to the
+pull request, the *Apply* column of your sessions list shows the session
+unlocked, and *Approve PR and Apply* is available. Continue with
+xref:main:guides/merge-and-apply.adoc[Merge and apply].
+
+== Next steps
+
+* xref:main:guides/merge-and-apply.adoc[Merge and apply] to merge the
+  pull request and apply the plan.
+* xref:main:reference/compliance-policy.adoc[Compliance policy] to
+  write your own policy rules.
+* xref:main:guides/customize-prompts.adoc[Customize prompts] to change
+  the conventions the compliance audit checks against.

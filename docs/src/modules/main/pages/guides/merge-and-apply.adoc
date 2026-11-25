@@ -1,127 +1,76 @@
 = Merge and apply
-:description: Handle a locked session, then open, merge, and apply a Kumoss pull request.
+:description: Open the pull request for a Kumoss session, merge it, and apply the reviewed plan.
 
-Once you have reviewed a session's results, this guide covers what a
-session lock means for you and how to open the pull request, merge it,
-and apply the reviewed plan.
+Once you have reviewed a session's results, this guide takes you from the
+session branch to applied infrastructure: you open the pull request, get
+it reviewed, merge it, and apply exactly the plan you reviewed.
+
+[#session-locked]
+NOTE: If the *Deployment Blocked* screen opens when you continue to the
+pull request, the session is locked and merge and apply are refused. See
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked session]
+for why, and for how to get it unlocked.
 
 == Prerequisites
 
 * A session with results, reached by following
   xref:main:guides/follow-a-session.adoc[Follow a session].
-* The `developer` role to open, merge, and apply; drift-remediation
-  sessions end at the merge and never apply.
-
-[#session-locked]
-== If the session is locked
-
-At the end of every generate round Kumoss decides whether the plan may be
-merged and applied. Three independent checks can lock the session:
-
-[cols="1,3,2",options="header"]
-|===
-|Cause |What triggers it |Switch
-
-|*Compliance policy* (deterministic)
-|The Rego policy, evaluated by Open Policy Agent on the plan JSON,
-returns a `deny` finding. The shipped rule, `critical_deletion`, denies
-any resource that is destroyed without being recreated, *even when you
-asked for the deletion*. A policy that cannot be evaluated also locks
-the session (`policy_unavailable`). These findings carry a *policy*
-badge.
-|`orchestration.enable_compliance_checker`
-
-|*Compliance audit* (LLM)
-|A language-model agent compares the plan with your requests and your
-organization's conventions. `scope_exceeded`: the plan changes something
-you did not ask for, for example it removes a block or sets an attribute
-to null. `scope_incomplete`: part of your request has no matching change
-in the plan. Any other `error` or `critical` finding comes from the
-conventions. Findings of severity `warning` are reported and never lock.
-|`orchestration.enable_compliance_checker`
-
-|*High impact*
-|The report's impact assessment rates the change `high`: destructive
-actions, restarts, service downtime, or critical networking changes. The
-impact banner is shown either way; the switch only decides whether it
-locks.
-|`orchestration.block_on_high_impact`
-|===
-
-Both switches default to `false` in code, and the shipped `config.yaml`
-turns both on; see
-xref:main:reference/configuration.adoc[Configuration]. Drift and import
-rounds are never checked and never lock a session.
-
-*What you see.* When you continue to the pull request, the *Deployment
-Blocked* screen opens. Expand *Why* to see which cause applies: *High
-impact* with the impact summary, *Compliance* with each blocking finding
-(severity, rule id, and resource), or both. *Check again* reads the lock
-again, for example after a reviewer unlocked it; *Back to Report*
-returns to the report; *Contact Team* sends a support request.
-
-*Who is notified.* When the notifications sidecar is enabled, Kumoss
-sends a "Compliance check failed" notification, a "High impact changes
-detected" notification, or both, to you and to every user with the panel
-role `editor` or higher. If your browser tab is hidden when the round
-finishes, you also get a "Session blocked" browser notification.
-
-*While locked* you can still read everything, continue the conversation,
-and create the pull request so reviewers can read the diff. You cannot
-merge it or apply: the server answers `409` because the session is
-blocked. Your own sessions list shows the lock state in the *Apply*
-column.
-
-*Getting unlocked.* Either:
-
-* send a follow-up request whose round passes all three checks, which
-  clears the lock; or
-* ask a reviewer with the panel role `editor` or `admin` to review the
-  session in the admin panel and unlock it; see
-  xref:main:guides/administer-users-and-locks.adoc#unlock-a-session[Locking
-  or unlocking the apply of a session].
-
-A manual unlock lasts only until your next generate round on the
-session, which runs the checks again and sets the lock afresh. To write
-your own policy rules, see
-xref:main:reference/compliance-policy.adoc[Compliance policy].
+* The `developer` role; see
+  xref:main:reference/roles-and-permissions.adoc[Roles and permissions].
 
 == Steps
 
-. *Create PR.* In the results view choose *Create PR*. Kumoss writes the
-  title and description and opens the pull request from the session
-  branch on your Git provider. Creating it can take a minute.
-. *Review.* "Here is your Pull Request." Use *View Pull Request* to open
-  it (the button appears when the link points at a recognized host;
-  otherwise copy the link from the session details). Your team's normal
-  review and CI apply. If reviewers ask for changes, type them as a
-  follow-up request; the new round pushes to the same branch and updates
-  the pull request.
-. *Approve PR and Apply.* When the review is done, choose *Approve PR and
-  Apply*. A confirmation asks you to confirm that you read and understood
-  the report and the proposed changes; *Request Review* sends a support
-  request instead, *Confirm and Apply* merges the pull request into the
-  default branch and starts the apply. In a drift-remediation session the
-  button only merges: the merge is the remediation, no apply follows, and
-  you return to the report.
-. *Apply.* The engine executes exactly the plan you reviewed; it is not
-  re-planned. The report's own status is `Success`, `Partial`, or
-  `Failed`, shown on the apply-results screen as *Succeeded*, *Partially
-  Applied*, or *Failed*, together with the execution summary, the
-  resources created, updated, destroyed, or failed, and recommendations. A
-  failed apply still closes the session normally — it is not retried and
-  nothing is rolled back; read the error and start a new request.
+. In the results view, choose *Create PR*.
++
+Kumoss writes the title and description and opens the pull request from
+the session branch on your Git provider. This can take a minute. When it
+is ready you see "Here is your Pull Request."
+
+. Choose *View Pull Request* and review it with your team.
++
+The button appears when the link points at a recognized Git host;
+otherwise copy the link from the session details. Your team's normal
+review and CI apply. To make changes, type them as a follow-up request:
+the new round pushes to the same branch and updates the pull request.
+
+. When the review is done, choose *Approve PR and Apply*, then *Confirm
+  and Apply*.
++
+The confirmation asks you to confirm that you read and understood the
+report and the proposed changes. *Confirm and Apply* merges the pull
+request into the default branch and starts the apply; to ask for help
+instead, choose *Request Review*, which sends a support request.
++
+The engine executes exactly the plan you reviewed; it is not re-planned.
+The apply-results screen shows *Succeeded*, *Partially Applied*, or
+*Failed*, with the execution summary, the resources created, updated,
+destroyed, or failed, and recommendations.
+
+NOTE: In drift-remediation and import sessions the button reads *Approve
+and Merge PR* and only merges: the merge is the remediation, an import is
+already in the state, and no apply follows. See
+xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating modes].
 
 == Verify
 
-After an apply the reviewed plan is consumed. To change something else,
-send a new request; a fresh plan is produced and reviewed before the next
-apply. Drift and import sessions end at the merge instead: no apply
-follows, because the merge is the remediation and an import is already
-in the state. See
-xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating modes].
+* The apply-results screen shows *Succeeded*.
+* The pull request shows as merged into the default branch on your Git
+  provider.
+
+The session's own status is not a reliable check: a failed apply also
+ends the session normally. A failed apply is not retried and nothing is
+rolled back; read the error on the apply-results screen and start a new
+request.
+
+After an apply the reviewed plan is consumed. To change anything else,
+send a new request; a fresh plan is produced and reviewed before the
+next apply.
 
 == Next steps
 
 * xref:main:guides/make-a-request.adoc[Make a request] to start a new
   session for the next change.
+* xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+  session] if a later round locks the session.
+* xref:main:guides/remediate-drift.adoc[Remediate drift] to bring
+  changed infrastructure back in line with its code.

@@ -214,8 +214,8 @@ language-model compliance audit. The policy is stored in Langfuse, ships
 with one rule, `critical_deletion`, and locks the session whenever it
 denies the plan or cannot be evaluated; see
 xref:main:reference/compliance-policy.adoc[Compliance policy] and
-xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
-locked].
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session].
 
 [#policy-bundles]
 === Policy bundles and self-repair

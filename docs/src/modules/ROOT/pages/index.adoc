@@ -67,7 +67,7 @@ and delivers a successful Terraform or OpenTofu plan that meets your
 organization's standards.
 
 [card]
-.xref:main:guides/merge-and-apply.adoc#session-locked[Review what is risky]
+.xref:main:guides/resolve-a-locked-session.adoc[Review what is risky]
 A high-impact or non-compliant request locks the session until your
 administrator team reviews it.
 

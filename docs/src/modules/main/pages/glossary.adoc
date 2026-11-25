@@ -9,7 +9,8 @@ for clarity and consistency when discussing Kumoss.
 
 include::partial$glossary/compliance-audit.adoc[]
 
-See
+See xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session] and
 xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
 locks].
 
@@ -109,7 +110,8 @@ See xref:main:guides/follow-a-session.adoc[Follow a session].
 
 include::partial$glossary/session-lock.adoc[]
 
-See
+See xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session] and
 xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
 locks].
 
