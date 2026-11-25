@@ -154,6 +154,28 @@ reports `Succeeded`.
   runs several drift rounds sees each report attribute every change on
   the branch, including the ones an earlier round made.
 
+[#drift-report]
+== Read the drift report
+
+A drift round's *Report* tab shows a *Drift Summary*, an outcome
+(*Succeeded*, *Partial*, or *Failed*), and these sections:
+
+* *Remediated Resources*: each resource Kumoss reconciled, with the file,
+  the change, and the reason.
+* *Drift Not Reconciled*: drift Kumoss could *not* fix, because the
+  remediation ran out of iterations or the drift could not be read. Each
+  entry gives the reason and what still differs. This is what makes an
+  outcome *Partial*; act on it.
+* *Left Alone by Exception Rules*: drift Kumoss deliberately did not
+  touch, because one of your platform's drift exception rules covers it.
+  Each entry names the change and quotes the rule. This is the intended
+  behavior and does not lower the outcome, so a report can say
+  *Succeeded* and still list entries here.
+
+The last two sections appear only when the round left drift behind. For
+the rest of the results screen, see
+xref:main:guides/follow-a-session.adoc#results[Read the results].
+
 == Next steps
 
 * xref:main:guides/merge-and-apply.adoc[Merge and apply] to open and
