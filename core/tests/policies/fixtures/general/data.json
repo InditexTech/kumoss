@@ -1,0 +1,275 @@
+{
+  "plan": {
+    "configuration": {
+      "provider_config": {
+        "external": {
+          "full_name": "registry.terraform.io/hashicorp/external",
+          "name": "external"
+        },
+        "null": {
+          "full_name": "registry.terraform.io/hashicorp/null",
+          "name": "null"
+        },
+        "terraform": {
+          "full_name": "terraform.io/builtin/terraform",
+          "name": "terraform"
+        }
+      },
+      "root_module": {
+        "module_calls": {
+          "m": {
+            "count_expression": {
+              "constant_value": 1
+            },
+            "module": {
+              "resources": [
+                {
+                  "address": "terraform_data.inner",
+                  "mode": "managed",
+                  "name": "inner",
+                  "provider_config_key": "terraform",
+                  "provisioners": [
+                    {
+                      "expressions": {
+                        "command": {
+                          "constant_value": "echo inner"
+                        }
+                      },
+                      "type": "local-exec"
+                    }
+                  ],
+                  "schema_version": 0,
+                  "type": "terraform_data"
+                }
+              ]
+            },
+            "source": "./mod"
+          }
+        },
+        "outputs": {
+          "api_token": {
+            "expression": {
+              "constant_value": "y"
+            },
+            "sensitive": true
+          },
+          "db_password": {
+            "expression": {
+              "constant_value": "x"
+            }
+          },
+          "subnet_id": {
+            "expression": {
+              "constant_value": "z"
+            }
+          }
+        },
+        "resources": [
+          {
+            "address": "null_resource.new",
+            "mode": "managed",
+            "name": "new",
+            "provider_config_key": "null",
+            "schema_version": 0,
+            "type": "null_resource"
+          },
+          {
+            "address": "terraform_data.legacy",
+            "expressions": {
+              "input": {
+                "constant_value": "old"
+              }
+            },
+            "mode": "managed",
+            "name": "legacy",
+            "provider_config_key": "terraform",
+            "provisioners": [
+              {
+                "expressions": {
+                  "command": {
+                    "constant_value": "echo legacy"
+                  }
+                },
+                "type": "local-exec"
+              }
+            ],
+            "schema_version": 0,
+            "type": "terraform_data"
+          },
+          {
+            "address": "terraform_data.remote",
+            "mode": "managed",
+            "name": "remote",
+            "provider_config_key": "terraform",
+            "provisioners": [
+              {
+                "expressions": {
+                  "inline": {
+                    "constant_value": [
+                      "true"
+                    ]
+                  }
+                },
+                "type": "remote-exec"
+              }
+            ],
+            "schema_version": 0,
+            "type": "terraform_data"
+          },
+          {
+            "address": "data.external.probe",
+            "expressions": {
+              "program": {
+                "constant_value": [
+                  "sh",
+                  "-c",
+                  "echo {}"
+                ]
+              }
+            },
+            "mode": "data",
+            "name": "probe",
+            "provider_config_key": "external",
+            "schema_version": 0,
+            "type": "external"
+          }
+        ]
+      }
+    },
+    "format_version": "1.2",
+    "output_changes": {
+      "api_token": {
+        "actions": [
+          "create"
+        ],
+        "after": "y",
+        "after_sensitive": true,
+        "after_unknown": false,
+        "before": null,
+        "before_sensitive": true
+      },
+      "db_password": {
+        "actions": [
+          "create"
+        ],
+        "after": "x",
+        "after_sensitive": false,
+        "after_unknown": false,
+        "before": null,
+        "before_sensitive": false
+      },
+      "subnet_id": {
+        "actions": [
+          "create"
+        ],
+        "after": "z",
+        "after_sensitive": false,
+        "after_unknown": false,
+        "before": null,
+        "before_sensitive": false
+      }
+    },
+    "resource_changes": [
+      {
+        "address": "null_resource.new",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "triggers": null
+          },
+          "after_sensitive": {},
+          "after_unknown": {
+            "id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "new",
+        "provider_name": "registry.terraform.io/hashicorp/null",
+        "type": "null_resource"
+      },
+      {
+        "address": "terraform_data.legacy",
+        "change": {
+          "actions": [
+            "no-op"
+          ],
+          "after": {
+            "id": "a42cc68c-a9df-3c85-72e8-51e2ce651d04",
+            "input": "old",
+            "output": "old",
+            "store": null,
+            "triggers_replace": null
+          },
+          "after_sensitive": {},
+          "after_unknown": {},
+          "before": {
+            "id": "a42cc68c-a9df-3c85-72e8-51e2ce651d04",
+            "input": "old",
+            "output": "old",
+            "store": null,
+            "triggers_replace": null
+          },
+          "before_sensitive": {}
+        },
+        "mode": "managed",
+        "name": "legacy",
+        "provider_name": "terraform.io/builtin/terraform",
+        "type": "terraform_data"
+      },
+      {
+        "address": "terraform_data.remote",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "input": null,
+            "output": null,
+            "store": null,
+            "triggers_replace": null
+          },
+          "after_sensitive": {},
+          "after_unknown": {
+            "id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "remote",
+        "provider_name": "terraform.io/builtin/terraform",
+        "type": "terraform_data"
+      },
+      {
+        "address": "module.m[0].terraform_data.inner",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "input": null,
+            "output": null,
+            "store": null,
+            "triggers_replace": null
+          },
+          "after_sensitive": {},
+          "after_unknown": {
+            "id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "module_address": "module.m[0]",
+        "name": "inner",
+        "provider_name": "terraform.io/builtin/terraform",
+        "type": "terraform_data"
+      }
+    ],
+    "terraform_version": "1.16.0"
+  }
+}

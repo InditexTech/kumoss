@@ -96,7 +96,15 @@ class TestSeedPolicy(_EngineTestCase):
                 self.assertEqual(finding.severity, "critical")
                 self.assertEqual(finding.resource, "terraform_data.deleted")
                 self.assertEqual(finding.source, "opa")
-                self.assertEqual(decision.checked_rules, ["critical_deletion"])
+                self.assertEqual(
+                    decision.checked_rules,
+                    [
+                        "command_execution",
+                        "critical_deletion",
+                        "customer_managed_key_removed",
+                        "unprotected_credential_output",
+                    ],
+                )
                 self.assertEqual(decision.revisions, ["general/policies/compliance@42"])
 
     async def test_provider_seeds_deny_their_real_plan_findings(self):
@@ -125,6 +133,92 @@ class TestSeedPolicy(_EngineTestCase):
                         f"{provider}/policies/compliance@1",
                     ],
                 )
+
+    async def test_seed_policies_tolerate_nulls_under_strict_builtin_errors(self):
+        # `opa test` swallows builtin errors; the engine evaluates with
+        # --strict-builtin-errors, where a builtin given a null raises and
+        # the round would lock as policy_unavailable.
+        def change(type_: str, after: dict | None, **extra) -> dict:
+            body = {"actions": ["update"], "before": {}, "after": after}
+            return {
+                "type": type_,
+                "address": f"{type_}.x",
+                "mode": "managed",
+                "change": body | extra,
+            }
+
+        plan = {
+            "resource_changes": [
+                change(
+                    "azurerm_role_assignment",
+                    {
+                        "scope": "/subscriptions/0",
+                        "role_definition_name": "Reader",
+                        "role_definition_id": None,
+                    },
+                ),
+                change(
+                    "azurerm_network_security_rule",
+                    {
+                        "direction": None,
+                        "access": None,
+                        "protocol": None,
+                        "source_address_prefix": "*",
+                    },
+                ),
+                change("azurerm_virtual_machine_extension", {"type": None}),
+                change(
+                    "aws_security_group_rule",
+                    {"type": "ingress", "protocol": None, "cidr_blocks": ["0.0.0.0/0"]},
+                ),
+                change("aws_iam_policy", {"policy": None}),
+                change(
+                    "google_project_iam_binding",
+                    {"role": "roles/owner", "members": [None]},
+                ),
+                change(
+                    "google_compute_firewall",
+                    {
+                        "direction": None,
+                        "source_ranges": ["0.0.0.0/0"],
+                        "allow": [{"protocol": None, "ports": None}],
+                    },
+                ),
+                change(
+                    "kubernetes_pod_v1",
+                    {"spec": [{"volume": [{"host_path": [{"path": None}]}]}]},
+                ),
+                change(
+                    "oci_identity_policy",
+                    {"statements": [None, "Allow any-user to read buckets in tenancy"]},
+                ),
+                change(
+                    "oci_core_security_list",
+                    {
+                        "ingress_security_rules": [
+                            {"protocol": None, "source": "0.0.0.0/0"}
+                        ]
+                    },
+                ),
+                change(
+                    "aws_ebs_volume",
+                    None,
+                    before={"kms_key_id": "k"},
+                    after_unknown=True,
+                ),
+                {**change("terraform_data", {}), "module_address": None},
+            ]
+        }
+        _ = self._policy(SEED_POLICY, providers=PROVIDER_SEEDS)
+
+        decision = await OpaPolicyEngine().evaluate(plan, list(SEED_PROVIDERS))
+
+        self.assertNotIn(
+            "azurerm_subscription_owner", {v.rule_id for v in decision.violations}
+        )
+        self.assertIn(
+            "oci_any_user_no_condition", {v.rule_id for v in decision.violations}
+        )
 
     async def test_verify_passes_with_every_seed_policy(self):
         _ = self._policy(SEED_POLICY, providers=PROVIDER_SEEDS)

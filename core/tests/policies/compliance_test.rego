@@ -75,3 +75,51 @@ test_every_deletion_is_reported if {
 		change("a.three", ["update"]),
 	])
 }
+
+update(address, before, after, unknown) := {
+	"address": address,
+	"mode": "managed",
+	"change": {"actions": ["update"], "before": before, "after": after, "after_unknown": unknown},
+}
+
+test_rules_lists_the_general_rules if {
+	compliance.rules == {"critical_deletion", "customer_managed_key_removed", "command_execution", "unprotected_credential_output"}
+}
+
+test_a_removed_customer_managed_key_is_denied if {
+	findings := compliance.deny with input as plan_input([
+		update("aws_ebs_volume.data", {"kms_key_id": "arn:aws:kms:k"}, {"kms_key_id": null}, {}),
+		update("azurerm_storage_account.st", {"customer_managed_key": [{"key_vault_key_id": "k"}]}, {"customer_managed_key": []}, {}),
+		update("google_storage_bucket.b", {"encryption": [{"default_kms_key_name": "k"}]}, {"encryption": []}, {}),
+	])
+	{f.resource | some f in findings; f.rule_id == "customer_managed_key_removed"} == {
+		"aws_ebs_volume.data", "azurerm_storage_account.st", "google_storage_bucket.b",
+	}
+}
+
+test_a_kept_changed_or_unknown_key_is_allowed if {
+	count(compliance.deny) == 0 with input as plan_input([
+		update("a.kept", {"kms_key_id": "k"}, {"kms_key_id": "k"}, {}),
+		update("a.rotated", {"kms_key_id": "k1"}, {"kms_key_id": "k2"}, {}),
+		update("a.unknown", {"kms_key_id": "k"}, {"kms_key_id": null}, {"kms_key_id": true}),
+		update("a.unknown_block", {"encryption": [{"default_kms_key_name": "k"}]}, {"encryption": []}, {"encryption": true}),
+		update("a.unknown_all", {"kms_key_id": "k"}, {"kms_key_id": null}, true),
+		update("a.added", {"kms_key_id": null}, {"kms_key_id": "k"}, {}),
+		{"address": "a.new", "mode": "managed", "change": {"actions": ["create"], "before": null, "after": {"kms_key_id": null}}},
+	])
+}
+
+test_the_real_plan_flags_commands_but_not_untouched_legacy if {
+	findings := compliance.deny with input as data.fixtures.general
+	{f.resource | some f in findings; f.rule_id == "command_execution"} == {
+		"null_resource.new",
+		"terraform_data.remote",
+		"module.m[0].terraform_data.inner",
+		"data.external.probe",
+	}
+}
+
+test_only_unprotected_credential_outputs_warn if {
+	findings := compliance.warn with input as data.fixtures.general
+	[f.message | some f in findings] == [`Output "db_password" looks like a credential; mark it sensitive = true.`]
+}
