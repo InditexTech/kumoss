@@ -1,0 +1,37 @@
+docs/src/modules/ROOT/pages/index.adoc
+  s_ad638db013a85c::t_1cce7cff4c92e7 70
+docs/src/modules/main/nav.adoc
+  s_ad638db013a85c::t_2b413aa9cf436d 18
+docs/src/modules/main/pages/guides-overview.adoc
+  s_ad638db013a85c::t_602dd263ab0f76 30-34
+docs/src/modules/main/pages/guides/administer-users-and-locks.adoc
+  s_ad638db013a85c::t_5058220a146d7c 214-221,227-229
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_ad638db013a85c::t_0dbada4dc240a5 160-161
+docs/src/modules/main/pages/guides/resolve-a-locked-session.adoc
+  s_ad638db013a85c::t_c0c8b94a0b79af 1-141
+docs/src/modules/main/pages/roadmap.adoc
+  s_ad638db013a85c::t_d173896be03a06 217-218
+docs/src/modules/main/pages/see-it-in-action.adoc
+  s_ad638db013a85c::t_498be9444d1789 98
+docs/src/modules/main/pages/glossary.adoc
+  s_ad638db013a85c::t_d0c0d7a6bfc59d 12-13,113-114
+docs/src/modules/main/pages/guides/merge-and-apply.adoc
+  s_ad638db013a85c::t_44b9de80814e26 2,4-12,18-19,23-52,56-67,73-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "208b99e3aa76f015b701f227ae4c8a6bd89764cc",
+  "prompts": {},
+  "sessions": {
+    "s_ad638db013a85c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57599cb7-4d09-45f1-8e43-30af586f4da0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
