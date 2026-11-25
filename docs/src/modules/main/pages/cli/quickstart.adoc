@@ -148,10 +148,14 @@ see xref:main:guides/enable-authentication.adoc[Enable authentication].
 The same stack also serves, on host ports:
 
 * http://localhost:9000 - the RustFS S3 API, through the proxy; presigned
-  download links point here.
+  download links point here. An API, not a page to open: `kumoss init` does
+  not print it.
 * http://localhost/monitoring/ - the Phoenix UI for LLM traces.
+* http://localhost:9001/rustfs/console/ - the RustFS console, only if you
+  enabled it when picking the bundled store. Bound to loopback, and you sign
+  in with the keys the wizard asked for.
 
-`kumoss init` prints the same list once the stack is up.
+`kumoss init` prints the addresses worth opening once the stack is up.
 
 == What just happened
 

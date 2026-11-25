@@ -67,6 +67,13 @@ cloud credentials the engine's providers read.
 |The notifications sidecar's environment: its bearer token, the Slack webhook
 and the log level.
 
+|`src/object-storage.env`
+|The bundled RustFS container's own access and secret keys, `0600`. Written
+only when you enable the storage console; the same pair is mirrored into
+`src/core/.env`, because the core signs download links with them and RustFS
+has to accept the signature. Its own file so the storage container is handed
+those two keys and nothing else the core holds.
+
 |`config/config.yaml`
 |The core's configuration, built from the repository's own `config.yaml`
 overlaid with your answers. Mounted read-only over the path the core already
@@ -78,7 +85,10 @@ and for diffing.
 
 |`compose.override.yml`
 |The override that mounts the generated `config.yaml` and any cloud credential
-files into the containers.
+files into the containers, and — when the storage console is enabled — turns
+it on and binds it to `127.0.0.1:9001`. Holds no secret: the console keys
+reach the container through `src/object-storage.env`, since this file is
+world-readable and the `.env` files are not.
 |===
 
 === Where the home comes from

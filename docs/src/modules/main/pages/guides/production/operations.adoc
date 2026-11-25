@@ -102,12 +102,20 @@ an isolated workstation:
   digest.
 
 [#rustfs-console]
-*RustFS console.* Kumoss does not ship or configure the RustFS web
-console. RustFS turns it on by default, so the compose file sets
-`RUSTFS_CONSOLE_ENABLE=false` on `object-storage`. Kumoss only needs the
-S3 API on port 9000, and the nginx reference proxies nothing else. If
-you want the console to browse buckets or manage access keys, set it up
-yourself by following the
+*RustFS console.* The compose file ships the console off
+(`RUSTFS_CONSOLE_ENABLE=false` on `object-storage`): Kumoss only needs
+the S3 API on port 9000, and the nginx reference proxies nothing else.
+
+The `kumoss` CLI offers to turn it on when you pick the bundled RustFS
+store, which is a workstation convenience and not a production setup.
+Answering yes writes an override that sets `RUSTFS_CONSOLE_ENABLE=true`,
+binds the console to `127.0.0.1:9001`, and hands `object-storage` a
+`src/object-storage.env` holding the access and secret keys you were
+asked for — the same pair it mirrors into `core/.env`, because the core
+signs presigned URLs with them and RustFS has to accept the signature.
+See xref:main:cli/how-it-works.adoc[How the CLI works].
+
+Outside that, set the console up yourself by following the
 https://docs.rustfs.com/en/administration/console[RustFS console
 documentation]. With the bundled compose file that means:
 
