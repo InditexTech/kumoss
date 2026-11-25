@@ -17,12 +17,6 @@ All file paths are relative to this directory.
   {{ OPERATION_TYPE }}
 </operation_type>
 
-{% if FORBIDDEN_ACTIONS %}
-<prohibited_actions_and_files>
-{{ FORBIDDEN_ACTIONS }}
-</prohibited_actions_and_files>
-{% endif %}
-
 <request_assessment_guidelines>
 {{ REQUESTS_GUIDELINES }}
 </request_assessment_guidelines>
@@ -54,14 +48,13 @@ All file paths are relative to this directory.
 {% endif %}
   B. INFORMATIONAL QUESTION — the user asks ABOUT the workspace infrastructure rather than asking to change it. Set `status` to `false` (no code generation must run) and write the FULL ANSWER in `explanation`. Supported question types:
   1. Inventory: "what infrastructure do I have?", "which storage accounts exist?" — inspect the workspace and summarize the resources it defines (types, names, resource groups, notable settings).
-  2. Improvements: "what improvements are possible?" — compare the workspace against the naming conventions, resource module templates, and restrictions above, and list concrete gaps (e.g., resources not following the naming conventions, settings diverging from the module templates, missing mandatory tags). Ground every suggestion in those conventions and the workspace; do NOT offer generic best-practice advice beyond them.
+  2. Improvements: "what improvements are possible?" — compare the workspace against the naming conventions and resource module templates, and list concrete gaps (e.g., resources not following the naming conventions, settings diverging from the module templates, missing mandatory tags). Ground every suggestion in those conventions and the workspace; do NOT offer generic best-practice advice beyond them.
   3. Impact: "if I change X, will it impact Y?" — trace references and dependencies between the Terraform files (outputs, variables, module calls, resource attributes referencing other resources) using the inspection tools, and report which resources depend on the changed one. State that the analysis is code-level, based on the workspace files, not on live cloud state.
 
   C. REJECTION — set `status` to `false` and explain why, if at least one of the following holds:
   1. Out of scope: the request is neither an actionable operation for this session nor a question about THIS workspace's infrastructure (e.g., "What is the capital of France?", "How do I debug Python?", generic cloud theory unrelated to the workspace).
-  2. Prohibited: fulfilling it would violate a prohibited action listed above.
-  3. Ambiguous target: it modifies, deletes, or asks about an existing resource but it is genuinely unclear WHICH one, and neither the workspace nor the conversation history disambiguates. In this case use `explanation` to list the candidates and ask the user which one is meant.
-  4. Missing referent: it refers to something as already existing that is not present in the workspace.
+  2. Ambiguous target: it modifies, deletes, or asks about an existing resource but it is genuinely unclear WHICH one, and neither the workspace nor the conversation history disambiguates. In this case use `explanation` to list the candidates and ask the user which one is meant.
+  3. Missing referent: it refers to something as already existing that is not present in the workspace.
 
   In `explanation` (this text is shown to the user verbatim when `status` is `false`):
 {% if OPERATION_TYPE == "generate" %}
@@ -72,7 +65,7 @@ All file paths are relative to this directory.
   - Category A: state the scope of the import (full scope diff or the specific resource(s) targeted for import).
 {% endif %}
   - Category B: the complete, self-contained answer to the question, based on the evidence you gathered from the workspace.
-  - Category C: state which condition applies and exactly what is out of scope, prohibited, ambiguous, or missing from the workspace.
+  - Category C: state which condition applies and exactly what is out of scope, ambiguous, or missing from the workspace.
 
   <examples>
 {% if OPERATION_TYPE == "generate" %}

@@ -725,6 +725,35 @@ describe("ArtifactContent compliance checks", () => {
     ]);
   });
 
+  it("marks the policy's findings and not the LLM's", async () => {
+    renderCompliance({
+      passed: false,
+      summary: "Blocked by the compliance policy: 1 finding (critical_deletion).",
+      checked_rules: ["critical_deletion", "scope_exceeded"],
+      policy_revisions: ["general/policies/compliance@3", "aws/policies/compliance@1"],
+      violations: [
+        {
+          rule_id: "critical_deletion",
+          severity: "critical",
+          resource: "aws_s3_bucket.logs",
+          message: "aws_s3_bucket.logs is destroyed without being recreated",
+          source: "opa",
+        },
+        {
+          rule_id: "scope_exceeded",
+          severity: "error",
+          message: "Unrequested tag change",
+          source: "llm",
+        },
+      ],
+    });
+
+    const badge = await screen.findByText("policy");
+    expect(badge).toHaveAttribute("title", "Reported by the OPA compliance policy");
+    expect(badge.closest("li")).toHaveTextContent("critical_deletion");
+    expect(screen.getAllByText("policy")).toHaveLength(1);
+  });
+
   it("clamps a long summary behind a toggle", async () => {
     const summary = "Inventory entry. ".repeat(40).trim();
     renderCompliance({ passed: true, summary, violations: [] });

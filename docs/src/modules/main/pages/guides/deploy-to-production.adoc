@@ -420,13 +420,19 @@ execution environment* are the security decisions you must make:
   every other variable in the IaC sidecar's environment are reachable by
   the provider plugins the generated HCL invokes, and by any
   `local-exec` provisioner in that HCL — generated code runs with the
-  same privileges as the sidecar process. The seeded
-  `general/guidelines/terraform` prompt tells the generator never to
-  emit `null_resource`, `provisioner` blocks, or `data "external"`, and
-  the compliance auditor receives the same rule, but this is a prompt
-  instruction: neither the core nor the sidecar inspects the generated
-  HCL, and no allowlist restricts provider sources. Repository code is
-  not covered by the prompt at all. The job's `workspace_path` is
+  same privileges as the sidecar process. With
+  `orchestration.enable_compliance_checker` on, the general compliance
+  policy's `command_execution` rule denies a `null_resource` or a
+  provisioner on any resource the plan creates or updates, and any
+  `data "external"` in the configuration, repository code included, so
+  the round is locked before it is applied. It judges the plan, after
+  the fact: a `data "external"` program has already run in the sidecar
+  when the plan is made, a provisioner on a resource the round leaves
+  untouched is not flagged, and with the checker off nothing checks
+  any of them. The sidecar does not inspect the HCL it runs, and no
+  allowlist restricts provider sources; see
+  xref:main:reference/compliance-policy.adoc[Compliance policy]. The
+  job's `workspace_path` is
   not restricted to `/workspaces` by the sidecar itself. Treat the
   sidecar as reachable only from the core and give it nothing more than
   the cloud identity it needs.

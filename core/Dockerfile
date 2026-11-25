@@ -11,6 +11,10 @@ RUN update-ca-certificates
 RUN CGO_ENABLED=0 GOBIN=/out go install \
     "github.com/hashicorp/terraform-config-inspect@${TERRAFORM_CONFIG_INSPECT_VERSION}"
 
+# Policy engine for the compliance check: the static build (no libc
+# dependency) from OPA's official image, pinned by digest.
+FROM openpolicyagent/opa:1.22.4-static@sha256:12cecac5a174368f7d3f09d3a19d040ebe0c91d576e520335ae7a985a26e39d3 AS opa
+
 FROM python:3.15-bookworm@sha256:6f060cab421d9509c6c6a6a7762c651baf03c3f1d0145befe16b688762b7fe81
 
 # Minimal apt deps the core actually uses at runtime: git for cloning user
@@ -43,6 +47,7 @@ COPY config.yaml /etc/kumoss/
 
 COPY --from=uv /uv /uvx /bin/
 COPY --from=config-inspect /out/terraform-config-inspect /usr/local/bin/
+COPY --from=opa /opa /usr/local/bin/opa
 
 WORKDIR /usr/src/app
 

@@ -149,6 +149,9 @@ export interface ComplianceViolation {
   resource?: string | null;
   message: string;
   suggested_fix?: string | null;
+  /** Who reported it: the LLM audit or the OPA policy. Absent on reports
+   *  stored before the policy engine, which are all LLM findings. */
+  source?: "llm" | "opa";
 }
 
 export interface ComplianceReport {
@@ -156,6 +159,9 @@ export interface ComplianceReport {
   violations?: ComplianceViolation[];
   summary?: string;
   checked_rules?: string[];
+  /** The Langfuse prompt versions ("<name>@<version>") of the policies
+   *  that produced the OPA findings, the general policy first. */
+  policy_revisions?: string[];
 }
 
 // ─── Events ─────────────────────────────────────────────────

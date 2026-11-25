@@ -14,7 +14,6 @@ class ITemplate(ABC):
         operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> str:
         pass
 

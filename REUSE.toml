@@ -38,6 +38,13 @@ path = ["charts/**/templates/**"]
 SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
 SPDX-License-Identifier = "Apache-2.0"
 
+# Seed policies: the whole file is pushed to Langfuse as the policy, so a
+# comment header would end up in every operator's copy.
+[[annotations]]
+path = ["core/prompts/seed/**/*.rego"]
+SPDX-FileCopyrightText = "2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)"
+SPDX-License-Identifier = "Apache-2.0"
+
 [[annotations]]
 path = [
     "docs/**/*.adoc",

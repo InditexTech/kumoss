@@ -183,3 +183,12 @@ class ManifestNotConfigured(ExceptionHandler):
     """Raised when a root module's inputs are requested before its manifest is set up."""
 
     pass
+
+
+class PolicyEvaluationError(ExceptionHandler):
+    """Raised when the compliance policy could not be evaluated: the policy
+    could not be fetched, does not compile, timed out, or returned output
+    outside the decision contract. Never raised for a policy that ran and
+    denied; that is a PolicyDecision with findings."""
+
+    pass

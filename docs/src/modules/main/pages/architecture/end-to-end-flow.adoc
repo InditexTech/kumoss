@@ -95,11 +95,9 @@ its Terraform runs; apply runs the pinned plan, which already has them.
 
 |Request Filter Agent (`filtering`)
 |The small model, with read-only workspace tools, classifies the request
-against the `general/guidelines/requests` prompt and the
-`<provider>/guidelines/forbidden_actions` prompt of each provider of the
-root module that has one. A change request
-proceeds; a question is answered in the conversation; an out-of-scope,
-prohibited or ambiguous request is declined with a rationale. In the
+against the `general/guidelines/requests` prompt. A change request
+proceeds; a question is answered in the conversation; an out-of-scope
+or ambiguous request is declined with a rationale. In the
 last two cases the round ends `uncompleted` and the user is invited to
 reformulate — the session itself stays usable.
 
@@ -185,8 +183,8 @@ Filter (small model) then drops every operation the providers'
 
 |Decide
 |Genuine drift re-enters the generation loop in batches of
-`orchestration.drift_group_operations` (8) with the forbidden-actions
-block omitted, and the pre-check runs once more. If only the session's
+`orchestration.drift_group_operations` (8), and the pre-check runs
+once more. If only the session's
 own changes remain, or the plan is clean, the pre-check stops and the
 last plan is final. If genuine drift is still there after the second
 iteration, the round continues to the report anyway: a warning is logged
@@ -232,21 +230,34 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.
 |===
 |Step |What happens
 
+|Compliance policy
+|With `orchestration.enable_compliance_checker` on, the core first
+evaluates the Rego policies from Langfuse with OPA against the final
+plan's `show -json`, deterministically: `general/policies/compliance`
+and the `<provider>/policies/compliance` of every provider the root
+module declares (a provider without one is skipped), in one
+evaluation. Its
+`deny` findings block; `warn` findings do not. A policy that cannot be
+evaluated yields a blocking `policy_unavailable` finding: the check
+fails closed. Contract:
+xref:main:reference/compliance-policy.adoc[Compliance policy].
+
 |Compliance Auditor
-|With `orchestration.enable_compliance_checker` on, a second,
+|Then a second,
 independent small-model agent reads the session's first request and the
 raw plan output — not the report JSON — alongside the
 `general/compliance/report` rules and the cloud guidelines. It has no
 repository tools and must answer through its only tool,
 `report_compliance_findings`: rule id, severity, resource, message,
-suggested fix. The findings are stored like any other artifact, at
+suggested fix. Both parts' findings, each tagged with its `source`
+(`opa` or `llm`), are merged into one report, stored like any other artifact, at
 `compliance/check-<token>.json` with a `compliance_checks` row holding
 the verdict, so the session detail and the portal can show them.
 
 |Verdict in code
 |The tool handler recomputes `passed` from the severities: any `error`
 or `critical` finding fails the audit regardless of the model's own
-claim.
+claim. The merged report fails when either part has one.
 
 |Lock or release, then pin
 |The handler first writes `is_blocked`, which decides whether apply and
@@ -534,8 +545,8 @@ fixed at two iterations).
 routers and use-case handlers; PostgreSQL session, ownership, status,
 `in_flight` and `is_blocked` controls; the git workspace service and the
 GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
-calculation (`plan_to_drift`, DeepDiff); the code-computed compliance
-verdict; object storage with presigned URLs; SSE status delivery; the
+calculation (`plan_to_drift`, DeepDiff); the OPA compliance policies and
+the code-computed compliance verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.
 
 [#agent-tool-loop]
@@ -692,8 +703,8 @@ round, never a second apply.
 
 === `UNCOMPLETED`: the request needs reformulating
 
-The Request Filter Agent declined the request in phase 3 as out of scope,
-prohibited or ambiguous, or answered it as a question. The rationale is
+The Request Filter Agent declined the request in phase 3 as out of scope
+or ambiguous, or answered it as a question. The rationale is
 added to the conversation, and the owner's next request opens a new round of
 the same session.
 
@@ -933,8 +944,8 @@ All drift work runs through one bounded loop:
   `<provider>/guidelines/drift_exceptions` rules of the module's providers
   cover (logging each one), and
   the survivors, chunked into groups of `drift_group_operations` (8), each
-  re-enter the generation and validation loop with the forbidden-actions
-  block omitted, the intent being reconciliation. When every operation is
+  re-enter the generation and validation loop, the intent being
+  reconciliation. When every operation is
   excluded the loop stops there: re-planning would only rediscover the
   same drift.
 
@@ -1042,15 +1053,34 @@ runs it, and the apply handler never calls it. Disabled, the check
 short-circuits to an empty passing report and stores nothing. The gate has
 no progress status of its own.
 
+|Policy
+|First, the core evaluates the Rego policies (fetched from Langfuse with
+the `environment` label) with one run of the `opa` binary against the
+final plan's `show -json`: `general/policies/compliance`, plus the
+`<provider>/policies/compliance` of each provider the root module
+declares that has one. `deny` findings have severity
+`error` or `critical`, `warn` findings `warning`. A policy that cannot be
+evaluated — fetch failure, broken policy, malformed decision, timeout —
+adds a blocking `policy_unavailable` finding instead, and the LLM audit
+still runs. With the checker on, the core refuses to start if the
+general policy or the policy of a provider that ships a seed fails
+against an empty plan. Contract:
+xref:main:reference/compliance-policy.adoc[Compliance policy].
+
 |How it audits
-|A second, independent small-model agent loop. Its query is the session's
+|Then a second, independent small-model agent loop. Its query is the session's
 first user request plus the raw plan output, rendered into the local
 compliance-checker layout with the `general/compliance/report` rules and the
 cloud guidelines from Langfuse. It has no repository access and one tool, the
 sentinel `report_compliance_findings`, whose arguments — `rule_id`,
 `severity`, `resource`, `message` and `suggested_fix` per violation — are
 parsed into a typed report. The rules are applied by the model; only the
-verdict is computed in code.
+verdict is computed in code. The policy decision and the audit are then
+merged into one report: policy findings first (`source: "opa"`), then the
+model's (`source: "llm"`), with `policy_revisions` listing the policy
+versions that ran as `"<prompt name>@<version>"`, the general policy
+first, for example `["general/policies/compliance@3",
+"aws/policies/compliance@1"]`.
 
 |Persistence
 |The report is stored in object storage under the round, as
@@ -1062,7 +1092,8 @@ when the session is locked, in the blocked pull-request view.
 |Verdict in code
 |The tool handler recomputes `passed` from the reported severities: any
 `error` or `critical` violation fails the check regardless of the model's
-own claim.
+own claim. The merged report fails if either source has such a
+violation.
 
 |Effect
 |Every generate round writes `is_blocked = (audit failed) or (high

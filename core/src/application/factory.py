@@ -43,6 +43,7 @@ from src.infrastructure.filesystem import (
     WorkspaceService,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
+from src.infrastructure.policy import OpaPolicyEngine
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.terraform.factory import TerraformFactory
 from src.infrastructure.terraform.utils import TerraformUtils
@@ -401,6 +402,7 @@ class ApplicationFactory:
             llm_service=llm_svc,
             template_service=template_svc,
             artifact_service=artifact_svc,
+            policy_engine=OpaPolicyEngine(),
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:

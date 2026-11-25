@@ -81,7 +81,6 @@ class TestGenerateAndValidate(unittest.IsolatedAsyncioTestCase):
             q="create it",
             ctx=self.ctx,
             conventions=Conventions(templates=[], abbreviations=[]),
-            include_forbidden_actions=False,
             operation_type=OperationType.IMPORT,
             validator=validator,
             **kwargs,

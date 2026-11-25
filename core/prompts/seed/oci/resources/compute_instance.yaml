@@ -38,8 +38,6 @@ body: |
     (`instance_options { are_legacy_imds_endpoints_disabled = true }`).
   - Do not assign a public IP unless explicitly requested
     (`create_vnic_details.assign_public_ip = false`).
-  - Use cloud-init (`metadata.user_data`) for instance
-    initialization rather than provisioners.
   - Changing the shape or `shape_config` restarts the instance
     (high impact). Changing the image in `source_details` rebuilds
     the boot volume, and moving between x86 and Arm shapes needs a

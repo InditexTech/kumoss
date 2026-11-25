@@ -11,7 +11,6 @@ body: |
     case before considering a custom role.
   - Assign roles at resource-group scope, not subscription scope,
     unless explicitly required.
-  - `Owner` is only granted to break-glass identities.
 
   ## Managed identities
   - Prefer system-assigned managed identities for compute resources

@@ -1,0 +1,446 @@
+{
+  "plan": {
+    "format_version": "1.2",
+    "resource_changes": [
+      {
+        "address": "kubernetes_cluster_role_binding_v1.admin",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "metadata": [
+              {
+                "annotations": null,
+                "generate_name": null,
+                "labels": null,
+                "name": "admin"
+              }
+            ],
+            "role_ref": [
+              {
+                "api_group": "rbac.authorization.k8s.io",
+                "kind": "ClusterRole",
+                "name": "cluster-admin"
+              }
+            ],
+            "subject": [
+              {
+                "kind": "ServiceAccount",
+                "name": "app",
+                "namespace": "apps"
+              }
+            ]
+          },
+          "after_sensitive": {
+            "metadata": [
+              {}
+            ],
+            "role_ref": [
+              {}
+            ],
+            "subject": [
+              {}
+            ]
+          },
+          "after_unknown": {
+            "id": true,
+            "metadata": [
+              {
+                "generation": true,
+                "resource_version": true,
+                "uid": true
+              }
+            ],
+            "role_ref": [
+              {}
+            ],
+            "subject": [
+              {
+                "api_group": true
+              }
+            ]
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "admin",
+        "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+        "type": "kubernetes_cluster_role_binding_v1"
+      },
+      {
+        "address": "kubernetes_deployment_v1.app",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "metadata": [
+              {
+                "annotations": null,
+                "generate_name": null,
+                "labels": null,
+                "name": "app",
+                "namespace": "apps"
+              }
+            ],
+            "spec": [
+              {
+                "min_ready_seconds": 0,
+                "paused": false,
+                "progress_deadline_seconds": 600,
+                "revision_history_limit": 10,
+                "selector": [
+                  {
+                    "match_expressions": [],
+                    "match_labels": {
+                      "app": "app"
+                    }
+                  }
+                ],
+                "template": [
+                  {
+                    "metadata": [
+                      {
+                        "annotations": null,
+                        "generate_name": null,
+                        "labels": {
+                          "app": "app"
+                        },
+                        "namespace": null
+                      }
+                    ],
+                    "spec": [
+                      {
+                        "active_deadline_seconds": null,
+                        "affinity": [],
+                        "automount_service_account_token": true,
+                        "container": [
+                          {
+                            "args": null,
+                            "command": null,
+                            "env": [],
+                            "env_from": [],
+                            "image": "nginx:1.27",
+                            "lifecycle": [],
+                            "liveness_probe": [],
+                            "name": "app",
+                            "port": [],
+                            "readiness_probe": [],
+                            "security_context": [
+                              {
+                                "allow_privilege_escalation": true,
+                                "capabilities": [],
+                                "privileged": false,
+                                "read_only_root_filesystem": false,
+                                "run_as_group": null,
+                                "run_as_non_root": null,
+                                "run_as_user": null,
+                                "se_linux_options": [],
+                                "seccomp_profile": []
+                              }
+                            ],
+                            "startup_probe": [],
+                            "stdin": false,
+                            "stdin_once": false,
+                            "termination_message_path": "/dev/termination-log",
+                            "tty": false,
+                            "volume_device": [],
+                            "volume_mount": [
+                              {
+                                "mount_path": "/var/run/docker.sock",
+                                "mount_propagation": "None",
+                                "name": "sock",
+                                "read_only": false,
+                                "sub_path": null,
+                                "sub_path_expr": null
+                              }
+                            ],
+                            "working_dir": null
+                          }
+                        ],
+                        "dns_config": [],
+                        "dns_policy": "ClusterFirst",
+                        "enable_service_links": true,
+                        "host_aliases": [],
+                        "host_ipc": false,
+                        "host_network": false,
+                        "host_pid": false,
+                        "init_container": [],
+                        "node_selector": null,
+                        "os": [],
+                        "priority_class_name": null,
+                        "restart_policy": "Always",
+                        "runtime_class_name": null,
+                        "security_context": [],
+                        "share_process_namespace": false,
+                        "subdomain": null,
+                        "termination_grace_period_seconds": 30,
+                        "toleration": [],
+                        "topology_spread_constraint": [],
+                        "volume": [
+                          {
+                            "aws_elastic_block_store": [],
+                            "azure_disk": [],
+                            "azure_file": [],
+                            "ceph_fs": [],
+                            "cinder": [],
+                            "config_map": [],
+                            "csi": [],
+                            "downward_api": [],
+                            "empty_dir": [],
+                            "ephemeral": [],
+                            "fc": [],
+                            "flex_volume": [],
+                            "flocker": [],
+                            "gce_persistent_disk": [],
+                            "git_repo": [],
+                            "glusterfs": [],
+                            "host_path": [
+                              {
+                                "path": "/var/run/docker.sock",
+                                "type": null
+                              }
+                            ],
+                            "iscsi": [],
+                            "local": [],
+                            "name": "sock",
+                            "nfs": [],
+                            "persistent_volume_claim": [],
+                            "photon_persistent_disk": [],
+                            "projected": [],
+                            "quobyte": [],
+                            "rbd": [],
+                            "secret": [],
+                            "vsphere_volume": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ],
+            "timeouts": null,
+            "wait_for_rollout": true
+          },
+          "after_sensitive": {
+            "metadata": [
+              {}
+            ],
+            "spec": [
+              {
+                "selector": [
+                  {
+                    "match_expressions": [],
+                    "match_labels": {}
+                  }
+                ],
+                "strategy": [],
+                "template": [
+                  {
+                    "metadata": [
+                      {
+                        "labels": {}
+                      }
+                    ],
+                    "spec": [
+                      {
+                        "affinity": [],
+                        "container": [
+                          {
+                            "env": [],
+                            "env_from": [],
+                            "lifecycle": [],
+                            "liveness_probe": [],
+                            "port": [],
+                            "readiness_probe": [],
+                            "resources": [],
+                            "security_context": [
+                              {
+                                "capabilities": [],
+                                "se_linux_options": [],
+                                "seccomp_profile": []
+                              }
+                            ],
+                            "startup_probe": [],
+                            "volume_device": [],
+                            "volume_mount": [
+                              {}
+                            ]
+                          }
+                        ],
+                        "dns_config": [],
+                        "host_aliases": [],
+                        "image_pull_secrets": [],
+                        "init_container": [],
+                        "os": [],
+                        "readiness_gate": [],
+                        "security_context": [],
+                        "toleration": [],
+                        "topology_spread_constraint": [],
+                        "volume": [
+                          {
+                            "aws_elastic_block_store": [],
+                            "azure_disk": [],
+                            "azure_file": [],
+                            "ceph_fs": [],
+                            "cinder": [],
+                            "config_map": [],
+                            "csi": [],
+                            "downward_api": [],
+                            "empty_dir": [],
+                            "ephemeral": [],
+                            "fc": [],
+                            "flex_volume": [],
+                            "flocker": [],
+                            "gce_persistent_disk": [],
+                            "git_repo": [],
+                            "glusterfs": [],
+                            "host_path": [
+                              {}
+                            ],
+                            "iscsi": [],
+                            "local": [],
+                            "nfs": [],
+                            "persistent_volume_claim": [],
+                            "photon_persistent_disk": [],
+                            "projected": [],
+                            "quobyte": [],
+                            "rbd": [],
+                            "secret": [],
+                            "vsphere_volume": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "after_unknown": {
+            "id": true,
+            "metadata": [
+              {
+                "generation": true,
+                "resource_version": true,
+                "uid": true
+              }
+            ],
+            "spec": [
+              {
+                "replicas": true,
+                "selector": [
+                  {
+                    "match_expressions": [],
+                    "match_labels": {}
+                  }
+                ],
+                "strategy": true,
+                "template": [
+                  {
+                    "metadata": [
+                      {
+                        "generation": true,
+                        "labels": {},
+                        "name": true,
+                        "resource_version": true,
+                        "uid": true
+                      }
+                    ],
+                    "spec": [
+                      {
+                        "affinity": [],
+                        "container": [
+                          {
+                            "env": [],
+                            "env_from": [],
+                            "image_pull_policy": true,
+                            "lifecycle": [],
+                            "liveness_probe": [],
+                            "port": [],
+                            "readiness_probe": [],
+                            "resources": true,
+                            "restart_policy": true,
+                            "security_context": [
+                              {
+                                "capabilities": [],
+                                "se_linux_options": [],
+                                "seccomp_profile": []
+                              }
+                            ],
+                            "startup_probe": [],
+                            "termination_message_policy": true,
+                            "volume_device": [],
+                            "volume_mount": [
+                              {}
+                            ]
+                          }
+                        ],
+                        "dns_config": [],
+                        "host_aliases": [],
+                        "hostname": true,
+                        "image_pull_secrets": true,
+                        "init_container": [],
+                        "node_name": true,
+                        "os": [],
+                        "readiness_gate": true,
+                        "scheduler_name": true,
+                        "security_context": [],
+                        "service_account_name": true,
+                        "toleration": [],
+                        "topology_spread_constraint": [],
+                        "volume": [
+                          {
+                            "aws_elastic_block_store": [],
+                            "azure_disk": [],
+                            "azure_file": [],
+                            "ceph_fs": [],
+                            "cinder": [],
+                            "config_map": [],
+                            "csi": [],
+                            "downward_api": [],
+                            "empty_dir": [],
+                            "ephemeral": [],
+                            "fc": [],
+                            "flex_volume": [],
+                            "flocker": [],
+                            "gce_persistent_disk": [],
+                            "git_repo": [],
+                            "glusterfs": [],
+                            "host_path": [
+                              {}
+                            ],
+                            "iscsi": [],
+                            "local": [],
+                            "nfs": [],
+                            "persistent_volume_claim": [],
+                            "photon_persistent_disk": [],
+                            "projected": [],
+                            "quobyte": [],
+                            "rbd": [],
+                            "secret": [],
+                            "vsphere_volume": []
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "app",
+        "provider_name": "registry.terraform.io/hashicorp/kubernetes",
+        "type": "kubernetes_deployment_v1"
+      }
+    ],
+    "terraform_version": "1.16.0"
+  }
+}

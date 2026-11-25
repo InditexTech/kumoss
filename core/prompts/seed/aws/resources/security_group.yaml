@@ -26,10 +26,6 @@ body: |
     `aws_security_group_rule`, and never mix styles on one group.
   - Every rule must have a description explaining its purpose.
   - Default-deny inbound; allow rules must be explicit and narrow.
-  - Never use `cidr_ipv4 = "0.0.0.0/0"` or `cidr_ipv6 = "::/0"` for
-    ingress unless the resource is explicitly public-facing (and then
-    only on 80/443). Scope to known CIDRs or reference other security
-    groups (`referenced_security_group_id`) for intra-VPC traffic.
   - Always declare egress explicitly. The provider removes AWS's
     default allow-all egress rule from every new `aws_security_group`,
     so a group without egress rules blocks all outbound traffic.

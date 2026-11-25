@@ -1,9 +1,101 @@
 = Upgrade notes
-:description: Breaking changes to check before upgrading Kumoss: Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
+:description: Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
 
 This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.
+
+== Compliance policy with OPA; `forbidden_actions` removed
+
+With `orchestration.enable_compliance_checker` on, generate rounds now
+also evaluate Rego policies with OPA against the final plan, before the
+LLM audit, and all results go into one compliance report. The policies
+are the Langfuse text prompts `general/policies/compliance`, evaluated
+on every round, and `<provider>/policies/compliance`, evaluated when
+the root module declares that provider (skipped for a provider without
+one), all seeded on the next boot. See
+xref:main:reference/compliance-policy.adoc[Compliance policy].
+
+What that changes:
+
+* *`forbidden_actions` is gone.* The six
+  `<provider>/guidelines/forbidden_actions` seeds are deleted and no
+  agent reads that prompt any more: not the request filter, not the IaC
+  generator, not the compliance checker. The request filter no longer
+  declines requests as prohibited. Versions already in Langfuse
+  (including those the Phoenix migration script imported) stay there,
+  unused; the seeder never deletes. *This removes guardrails*: an
+  install that relied on those lists and writes no policy has no
+  replacement for them beyond the shipped policies. Those deny
+  standalone deletions, removed customer-managed keys and command
+  execution (general policy) and, per provider, three of
+  the most critical prohibitions the lists held that can be decided
+  from the plan alone, such as security groups open to the internet or
+  `cluster-admin` bound to a ServiceAccount. Rules that allowed an
+  exception on an explicit user request were not translated. Write the
+  other prohibitions you need as Rego rules in
+  `<provider>/policies/compliance` or `general/policies/compliance`.
+* *`critical_deletion` moved to the policy.* The seed of
+  `general/compliance/report` no longer defines it; the policy does,
+  deterministically. If you customized that prompt, your version keeps
+  its `critical_deletion` section and standalone deletions are reported
+  twice, once by each source. Delete the section from your version.
+* *Three more general rules.* The general policy also denies
+  `customer_managed_key_removed` (a resource the plan updates or
+  replaces losing its customer-managed encryption key) and
+  `command_execution` (a `null_resource` or a provisioner on a resource
+  the plan creates or updates, or any `data "external"` in the
+  configuration, repository code included), and warns with
+  `unprotected_credential_output` (a root module output named like a
+  credential and not marked `sensitive = true`). A round that updates a
+  repository resource carrying a provisioner, or whose configuration
+  holds a `data "external"`, is now locked.
+  The OCI policy's `oci_public_ingress` now also checks
+  `oci_core_default_security_list`. See
+  xref:main:reference/compliance-policy.adoc[Compliance policy].
+* *Bans removed from the prompts.* What a policy enforces is no longer
+  restated in the guideline and resource prompts, which feed both the
+  IaC generator and the LLM audit. The seeds lost the "No arbitrary
+  command execution" section of `general/guidelines/terraform`, the
+  "guest configuration only through user data or cloud-init" bullets
+  of the compute resource prompts and `vsphere/guidelines/resource_creation`,
+  the bans on internet-open ingress (security groups, NSGs, firewalls,
+  OCI security lists, the OCI default security list, bastions), on
+  basic roles and service account keys (`google`), `cluster-admin`
+  (`kubernetes`), `Allow any-user` (`oci`) and Owner and similar
+  assignments (`azurerm`), the `vsphere` provider-block and TLS
+  bullets, and the deletion safeguards bullet of
+  `oci/guidelines/resource_creation`. Bullets were removed whole, so
+  the generator is no longer told to avoid these patterns: a round that
+  generates one is locked by the policy instead of being written
+  correctly. The parts of those bullets no policy checks (no secrets in
+  user data, Owner or User Access Administrator at narrower scopes, the
+  alternatives to service account keys, locking down the OCI default
+  security list, OCI delete-protection defaults...) are now checked by
+  nothing; restore them in your own prompts if you need them. Prompts
+  you customized keep your text, bans included. See
+  xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
+  prompts].
+* *The core image ships `opa`* (OPA 1.22.4). A custom core image must
+  provide it on the `PATH`.
+* *Startup check.* With the checker on, the core evaluates the general
+  policy and the policy of every provider that ships a seed (`aws`,
+  `azurerm`, `google`, `kubernetes`, `oci`, `vsphere`) against an empty
+  plan after seeding, and refuses to start if that fails: no `opa`
+  binary, a broken policy, or Langfuse unreachable. A provider policy
+  missing from Langfuse is skipped.
+* *Fail closed.* A policy that cannot be evaluated during a round adds
+  a blocking `policy_unavailable` finding, so the session is locked and
+  the compliance failure notification is sent.
+* *Compliance reports.* Each violation has `source` (`llm` or `opa`;
+  absent on older reports, meaning `llm`) and the report has
+  `policy_revisions`, the Langfuse prompt versions of the policies that
+  ran, each as `"<prompt name>@<version>"`, the general policy first,
+  for example `["general/policies/compliance@3",
+  "aws/policies/compliance@1"]` (empty when no policy ran). It replaces
+  the single `policy_revision` string of earlier builds; reports stored
+  with `policy_revision` are still read, into the list. Consumers of
+  the report JSON must read the new field.
 
 [#phoenix-to-langfuse]
 == Langfuse replaces Phoenix

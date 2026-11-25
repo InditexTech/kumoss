@@ -30,7 +30,7 @@ bucket for application logs", "open port 443 on the web security group",
 . *Filtering.* A small-model chain with read-only workspace tools
   classifies the request. A change request proceeds. A question is
   answered in the conversation and the round ends `uncompleted`. An
-  out-of-scope, prohibited, or ambiguous request is declined with an
+  out-of-scope or ambiguous request is declined with an
   explanation and the round ends `uncompleted`.
 . *Prompt composition.* The compositor selects the relevant resource
   prompts and abbreviations for the root module's providers from Langfuse, in two
@@ -54,13 +54,25 @@ bucket for application logs", "open port 443 on the web security group",
   change summary (create, update, delete, recreate), detailed changes, an
   impact banner (`low`, `medium`, `high`), and cost estimates.
 . *Compliance check* (when `orchestration.enable_compliance_checker` is
-  `true`). A small-model auditor checks the plan against the rules in the
-  `general/compliance/report` prompt. The auditor judges the plan against
+  `true`). Two checks, merged into one compliance report. First, OPA
+  evaluates the compliance policies (the Rego prompts
+  `general/policies/compliance` and the
+  `<provider>/policies/compliance` of each provider of the root
+  module) against the plan; the shipped policies deny standalone
+  deletions, removed customer-managed encryption keys and command
+  execution (`null_resource`, provisioners, `data "external"`), warn
+  about credential outputs not marked sensitive, and deny, per
+  provider, critical misconfigurations such as ingress open to the
+  internet. A policy that cannot be evaluated adds
+  a blocking `policy_unavailable` finding. Then a small-model auditor
+  checks the plan against the rules in the `general/compliance/report`
+  prompt. See xref:main:reference/compliance-policy.adoc[Compliance
+  policy]. The auditor judges the plan against
   the session's *first* request, not the current round's, so in a
   follow-up round `scope_exceeded` and `scope_incomplete` are measured
   against the original request.
-. *Lock decision.* The session is locked when the compliance check fails
-  or, with `orchestration.block_on_high_impact`, when the impact banner is
+. *Lock decision.* The session is locked when either compliance check
+  has an `error` or `critical` finding or, with `orchestration.block_on_high_impact`, when the impact banner is
   `high`. A clean round clears an earlier lock. Notifications are sent for
   both conditions when the notifications sidecar is enabled.
 . *Pin.* The validated workspace, including the plan file, becomes the

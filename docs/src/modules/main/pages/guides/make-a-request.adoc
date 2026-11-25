@@ -133,12 +133,6 @@ changes. You can follow up with a change request in the same session.
 storage?"
 |Ask for a Terraform-managed change, or accept that it is a question.
 
-|Prohibited
-|Opening a security group to the world on port 22, granting `*` on `*`,
-disabling encryption, deleting a database without protection
-|Your organization's forbidden-actions list applies regardless of how the
-request is phrased. Ask for the compliant alternative.
-
 |Ambiguous target
 |"Rename the subnet" when the workspace has five subnets
 |Name the resource: "rename subnet `app-subnet-01` to `app-subnet-web`".
@@ -160,8 +154,9 @@ Practical rules:
 * *Do not paste secrets.* Request text, the files the agent reads, and the
   plan are sent to the configured language model and stored in the tracing
   system. Reference secrets by name or vault path.
-* *Prefer additive changes.* Standalone deletions are flagged by the
-  default compliance rules and lock the session, see
+* *Prefer additive changes.* A standalone deletion is always denied by
+  the compliance policy, even when you ask for it, and locks the
+  session, see
   xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
   locked].
 

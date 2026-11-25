@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import Literal
-
 import httpx
 
 from src.infrastructure.exceptions import PromptFetchError
@@ -11,6 +9,7 @@ from src.infrastructure.templates._langfuse_prompts import (
     LangfusePrompts,
     default_client,
 )
+from src.infrastructure.templates._seed_loader import PromptType
 from src.infrastructure.templates._seed_loader import prompt_name as langfuse_name
 from src.shared.constants import Environment
 
@@ -26,7 +25,7 @@ class _PromptFetcher:
         prompt_name: str,
         # "general", or a Terraform provider type name (azurerm, google...).
         scope: str,
-        type: Literal["resources", "guidelines", "compliance"],
+        type: PromptType,
         tag: Environment,
     ) -> str:
         """The text of the version labelled ``tag``.
@@ -37,6 +36,18 @@ class _PromptFetcher:
                 status for any other refusal, 502 for a prompt that is not
                 a single text and 500 when Langfuse could not be reached.
         """
+        text, _ = await self.fetch_versioned(prompt_name, scope, type, tag)
+        return text
+
+    async def fetch_versioned(
+        self,
+        prompt_name: str,
+        scope: str,
+        type: PromptType,
+        tag: Environment,
+    ) -> tuple[str, str]:
+        """The text of the version labelled ``tag`` and that version as
+        ``<prompt name>@<version>``. Raises like ``fetch``."""
         qualified_name = langfuse_name(scope, type, prompt_name)
         try:
             version = await self.__prompts.get(qualified_name, label=tag)
@@ -63,7 +74,7 @@ class _PromptFetcher:
                 ),
                 error_code=502,
             )
-        return version.text
+        return version.text, f"{version.name}@{version.version}"
 
 
 # singleton shared by every session

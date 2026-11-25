@@ -16,9 +16,6 @@ body: |
   - Never grant `manage all-resources in tenancy` without an
     explicit user request, and then only to an administrators
     group.
-  - Never write `Allow any-user` statements without an explicit
-    request; documented service patterns must carry a
-    `request.principal` condition.
   - In tenancies with identity domains, subjects are
     domain-qualified: `Allow group '<domain>'/'<group>' to ...` and
     `Allow dynamic-group '<domain>'/'<dynamic-group>' to ...`.

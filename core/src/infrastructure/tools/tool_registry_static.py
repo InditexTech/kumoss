@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from src.domains.interfaces import IToolRegistry
 from src.domains.dto import (
     ComplianceCheckReport,
+    ComplianceViolation,
     TerraformDriftReport,
     ToolCallDTO,
     ToolResultDTO,
@@ -406,10 +407,15 @@ class ToolRegistryStatic(IToolRegistry):
         self, parameters: dict[str, Any]
     ) -> ComplianceCheckReport:
         try:
-            violations = parameters["violations"]
+            # The model reports its own findings only: it cannot label one
+            # as the policy engine's.
+            violations = [
+                {**v, "source": "llm"} if isinstance(v, dict) else v
+                for v in parameters["violations"]
+            ]
             return ComplianceCheckReport(
                 passed=not any(
-                    violation["severity"] in {"error", "critical"}
+                    violation["severity"] in ComplianceViolation.BLOCKING_SEVERITIES
                     for violation in violations
                 ),
                 violations=violations,

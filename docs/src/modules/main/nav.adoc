@@ -40,6 +40,7 @@
 * xref:main:reference-overview.adoc[Overview]
 * xref:main:reference/operating-modes.adoc[Operating modes]
 * xref:main:reference/configuration.adoc[Configuration]
+* xref:main:reference/compliance-policy.adoc[Compliance policy]
 * xref:main:reference/environment-variables.adoc[Environment variables]
 * xref:main:reference/llm-providers.adoc[LLM providers and models]
 * xref:main:reference/roles-and-permissions.adoc[Roles and permissions]

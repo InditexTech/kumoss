@@ -13,8 +13,6 @@ body: |
     topic, service account, crypto key) when it supports IAM; fall
     back to the project only when it does not. Bind at organization
     or folder level only when explicitly required.
-  - Never grant basic roles (`roles/owner`, `roles/editor`,
-    `roles/viewer`) to service accounts.
   - Grant roles to Google groups rather than individual users.
   - Use IAM conditions (`condition` block) to scope temporary
     access or access to a subset of resources.
@@ -37,9 +35,6 @@ body: |
   - Grant `roles/iam.serviceAccountUser` and
     `roles/iam.serviceAccountTokenCreator` on the individual service
     account, never project-wide.
-  - Never create service account keys (see the forbidden actions).
-    Use attached service accounts, Workload Identity Federation, or
-    service account impersonation instead.
 
   ## Workload identity
   - GKE: use Workload Identity Federation for GKE. Grant roles

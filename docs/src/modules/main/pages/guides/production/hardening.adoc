@@ -92,5 +92,14 @@ optional for a shared deployment.
 * Git token scoped to the repositories in scope; LLM provider configured
   under acceptable data-handling terms.
 * Seeded prompts reviewed and adapted before the first user session;
-  they encode a generic policy, including the compliance rules and
-  forbidden actions (xref:main:guides/customize-prompts.adoc[]).
+  they encode a generic policy, including the compliance rules. No
+  prompt lists forbidden actions: write your prohibitions as rules in
+  the compliance policies, the general one or a provider's (xref:main:guides/customize-prompts.adoc[],
+  xref:main:reference/compliance-policy.adoc[]).
+* With `orchestration.enable_compliance_checker` on, the core starts
+  only if the general compliance policy and the policies of the
+  providers that ship a seed evaluate; keep Langfuse reachable and the
+  policies valid. Keep the checker on: the shipped prompts no longer
+  forbid what the policies deny, so with it off nothing stops
+  `null_resource`, provisioners, `data "external"`, internet-open
+  ingress or admin grants in generated code.
