@@ -105,7 +105,8 @@ findings carry `"llm"`; reports stored before the policy existed have
 no `source` and are LLM findings), and the report's `policy_revision`
 is the version of the policy that ran, as the string
 `"<prompt name>@<version>"`, for example
-`general/policies/compliance@4` (`null` when no policy ran). The policy's findings come first. The report has `passed: false`
+`general/policies/compliance@4` (`null` when no policy ran). The
+policy's findings come first. The report has `passed: false`
 when either source has an `error` or `critical` finding, and the
 session is locked exactly as for any failed compliance check. When the
 policy blocks, the summary starts with `Blocked by the compliance

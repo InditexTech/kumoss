@@ -205,12 +205,20 @@ session, which sets the flag afresh; drift rounds never change it.
 . Failed sessions cannot be resumed; ask the owner to start a new
   session with the corrected request.
 
+[#unlock-a-session]
 === Locking or unlocking the apply of a session (panel `editor` or higher)
 
 Use a lock when a report looks risky but the automatic lock did not
 trigger, or when a change must wait for an out-of-band approval. Use an
 unlock after the automatic lock (failed compliance or `high` impact) has
-been reviewed and accepted.
+been reviewed and accepted. Editors receive the "Compliance check
+failed" and "High impact changes detected" notifications for every
+session when the notifications sidecar is enabled. Before unlocking,
+read the round's compliance report: findings from the compliance policy
+carry a *policy* badge, the others come from the LLM audit. For what each
+cause means, see
+xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
+locked].
 
 . Admin panel, Sessions tab. Find the session (search by user e-mail,
   project, or session id).
