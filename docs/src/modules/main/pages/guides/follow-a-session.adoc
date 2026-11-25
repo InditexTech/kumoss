@@ -114,12 +114,14 @@ only when the round left drift behind, and they mean different things:
   behaviour and does not lower the outcome, so a report can say
   *Succeeded* and still list entries here.
 
-*What you do not see.* The compliance audit that runs after the report
-produces rule-level findings, but they are not displayed in the
-application. If the audit fails you see its consequence, the lock (see
-xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
-locked]), and the reviewers who receive the notification see the summary.
-Ask your reviewer or platform team for the details.
+*Compliance findings.* The compliance check that runs after the report
+stores its findings as the round's *Compliance Check* artifact in the
+session details: a summary, each violation with its severity, rule id,
+and resource, and the rules that passed. Findings from the compliance
+policy carry a *policy* badge. When a finding locks the session, the
+same findings appear under *Why* on the *Deployment Blocked* screen; see
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session].
 
 *Reading order that works.* Impact level first, then the Deleted and
 Recreated filters, then the plan for anything you do not expect, then the
