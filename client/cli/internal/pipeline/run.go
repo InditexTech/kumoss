@@ -73,7 +73,10 @@ func RunStack(ctx context.Context, opts RunOptions) error {
 		if err := runner.Pull(ctx); err != nil {
 			return err
 		}
-		return runner.Up(ctx, false, !opts.Foreground)
+		if err := runner.Up(ctx, false, !opts.Foreground); err != nil {
+			return err
+		}
+		return started(out, s, opts.Foreground)
 	}
 
 	// Compose compares the service definition, not the bytes of a mounted
@@ -82,7 +85,20 @@ func RunStack(ctx context.Context, opts RunOptions) error {
 	for _, line := range stale {
 		fmt.Fprintln(out, "recreating:", line)
 	}
-	return runner.Up(ctx, len(stale) > 0, !opts.Foreground)
+	if err := runner.Up(ctx, len(stale) > 0, !opts.Foreground); err != nil {
+		return err
+	}
+	return started(out, s, opts.Foreground)
+}
+
+// started prints where the stack can be reached. Attached, the logs own the
+// terminal until Ctrl-C, so there is no moment to print anything.
+func started(out io.Writer, s *state.State, foreground bool) error {
+	if foreground {
+		return nil
+	}
+	_, err := fmt.Fprint(out, stackURLs(s))
+	return err
 }
 
 // printProblems lists what blocks the run, each with the command that fixes
@@ -129,7 +145,10 @@ func generatedFiles(h home.Home) map[string][]string {
 		h.CoreEnv():                   {"core"},
 		h.ServiceEnv("iac"):           {"iac"},
 		h.ServiceEnv("notifications"): {"notifications"},
-		h.ComposeOverride():           {"core", "iac"},
+		// object-storage too: the override turns the console on and
+		// publishes its port, so a rewrite changes that service as well.
+		h.ComposeOverride():  {"core", "iac", "object-storage"},
+		h.ObjectStorageEnv(): {"object-storage"},
 	}
 }
 

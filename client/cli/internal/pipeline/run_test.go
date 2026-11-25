@@ -171,3 +171,67 @@ func TestRunStackStaysAttachedInForeground(t *testing.T) {
 		t.Error("--foreground detached anyway")
 	}
 }
+
+// The console keys live in their own file and reach only object-storage, so
+// staleness has to know about both or editing them starts nothing.
+func TestRunStackRecreatesWhenTheObjectStorageEnvIsNewer(t *testing.T) {
+	opts, rec := runnable(t)
+	rec.rows = []docker.PS{container("object-storage", time.Now().Add(-time.Hour))}
+	write(t, opts.Home.ObjectStorageEnv(), "RUSTFS_ACCESS_KEY=changed\n")
+
+	if err := RunStack(context.Background(), opts); err != nil {
+		t.Fatalf("RunStack: %v", err)
+	}
+	if !rec.recreate {
+		t.Error("an edited object-storage.env did not force a recreate")
+	}
+}
+
+// The override turns the console on and publishes its port, so a rewritten
+// one changes object-storage too, not just core and iac.
+func TestRunStackRecreatesObjectStorageWhenTheOverrideIsNewer(t *testing.T) {
+	opts, rec := runnable(t)
+	rec.rows = []docker.PS{container("object-storage", time.Now().Add(-time.Hour))}
+	write(t, opts.Home.ComposeOverride(), "services: {}\n")
+
+	if err := RunStack(context.Background(), opts); err != nil {
+		t.Fatalf("RunStack: %v", err)
+	}
+	if !rec.recreate {
+		t.Error("a rewritten override did not force object-storage to be recreated")
+	}
+}
+
+// A detached run ends with no sign it worked; the addresses are the point.
+func TestRunStackPrintsTheAddresses(t *testing.T) {
+	opts, rec := runnable(t)
+	rec.rows = []docker.PS{container("core", time.Now().Add(-time.Hour))}
+	out := &strings.Builder{}
+	opts.Out = out
+
+	if err := RunStack(context.Background(), opts); err != nil {
+		t.Fatalf("RunStack: %v", err)
+	}
+	for _, want := range []string{"Kumoss is up", "http://localhost/", "http://localhost/monitoring/"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %q:\n%s", want, out.String())
+		}
+	}
+}
+
+// Attached, the logs own the terminal until Ctrl-C, so there is no moment to
+// print them.
+func TestRunStackStaysQuietInForeground(t *testing.T) {
+	opts, rec := runnable(t)
+	rec.rows = []docker.PS{container("core", time.Now().Add(-time.Hour))}
+	opts.Foreground = true
+	out := &strings.Builder{}
+	opts.Out = out
+
+	if err := RunStack(context.Background(), opts); err != nil {
+		t.Fatalf("RunStack: %v", err)
+	}
+	if strings.Contains(out.String(), "Kumoss is up") {
+		t.Errorf("printed the addresses while attached:\n%s", out.String())
+	}
+}
