@@ -7,8 +7,8 @@ import type { ComplianceReport, TerraformReport } from "./index";
 import type {
   HistoryEntry,
   OperationType,
+  ProviderScopeRef,
   SessionStatus,
-  TerraformProvider,
   WorkspaceRef,
 } from "./api";
 
@@ -19,9 +19,8 @@ export type StateSetter<T> = Dispatch<SetStateAction<T>>;
 export type WizardStep =
   | "query"
   | "repository_url"
-  | "iac_path"
-  | "provider"
-  | "cloud_scope";
+  | "root_module_path"
+  | "inputs";
 export type HomeView = "wizard" | "planning" | "result" | "apply-results";
 
 export interface ApplyResultsData {
@@ -79,8 +78,7 @@ export interface AssistantMsgState {
 export interface Session {
   uuid?: string;
   operation?: OperationType;
-  provider?: TerraformProvider;
-  scope_id?: string;
+  providers?: ProviderScopeRef[];
   first_query?: string;
   workspace?: Partial<WorkspaceRef>;
   /** Failed sessions can't be resumed server-side; gates the follow-up input. */

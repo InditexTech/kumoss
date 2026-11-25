@@ -6,6 +6,7 @@
 
 from .apply_request import ApplyRequest
 from .apply_response_400 import ApplyResponse400
+from .env import Env
 from .health import Health
 from .health_status import HealthStatus
 from .import_request import ImportRequest
@@ -21,18 +22,20 @@ from .plan_request import PlanRequest
 from .plan_response_400 import PlanResponse400
 from .problem import Problem
 from .scope_resource_ids_request import ScopeResourceIdsRequest
+from .scope_resource_ids_request_provider import ScopeResourceIdsRequestProvider
 from .scope_resource_ids_response_400 import ScopeResourceIdsResponse400
 from .show_request import ShowRequest
 from .show_response_400 import ShowResponse400
 from .state_resource_ids_request import StateResourceIdsRequest
 from .state_resource_ids_response_400 import StateResourceIdsResponse400
-from .terraform_provider import TerraformProvider
 from .validate_request import ValidateRequest
 from .validate_response_400 import ValidateResponse400
+from .vars_ import Vars
 
 __all__ = (
     "ApplyRequest",
     "ApplyResponse400",
+    "Env",
     "Health",
     "HealthStatus",
     "ImportRequest",
@@ -48,12 +51,13 @@ __all__ = (
     "PlanResponse400",
     "Problem",
     "ScopeResourceIdsRequest",
+    "ScopeResourceIdsRequestProvider",
     "ScopeResourceIdsResponse400",
     "ShowRequest",
     "ShowResponse400",
     "StateResourceIdsRequest",
     "StateResourceIdsResponse400",
-    "TerraformProvider",
     "ValidateRequest",
     "ValidateResponse400",
+    "Vars",
 )

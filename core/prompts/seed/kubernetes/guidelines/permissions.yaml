@@ -16,8 +16,7 @@ body: |
   Default to `restricted` for application namespaces. Use `baseline`
   only when `restricted` is not feasible. Never use `privileged`
   for application workloads; the only exception is the dedicated
-  namespace of an explicitly requested node-agent DaemonSet (see the
-  node-agent exception in Forbidden Actions).
+  namespace of an explicitly requested node-agent DaemonSet.
 
   ## RBAC Principles
   - Apply the principle of least privilege — grant only the minimum

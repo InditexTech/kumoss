@@ -157,11 +157,13 @@ export default function ConfigurationModal({ onClose }: ConfigurationModalProps)
             <p className={styles.sessionValue}>{session.workspace?.uri || "—"}</p>
           </div>
           <div className={styles.sessionCard}>
-            <p className={styles.sessionLabel}>Provider</p>
-            <p className={styles.sessionValue}>{session.provider || "—"}</p>
+            <p className={styles.sessionLabel}>Providers</p>
+            <p className={styles.sessionValue}>
+              {session.providers?.map((p) => p.name).join(", ") || "—"}
+            </p>
           </div>
           <div className={styles.sessionCard}>
-            <p className={styles.sessionLabel}>Path</p>
+            <p className={styles.sessionLabel}>Root module</p>
             <p className={styles.sessionValue}>
               {session.workspace?.root_path || "—"}
             </p>

@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Shape of the import request models against the contract."""
+"""Shape of the request models against the contract."""
 
 from __future__ import annotations
 
@@ -12,34 +12,34 @@ import pytest
 from pydantic import ValidationError
 
 from src.models import (
+    ApplyRequest,
     ImportRequest,
+    InitRequest,
     JobKind,
+    PlanRequest,
     ScopeResourceIdsRequest,
+    ShowRequest,
     StateResourceIdsRequest,
+    ValidateRequest,
 )
 
-SCOPE: dict[str, Any] = {"scope_id": "sub-1", "terraform_provider": "azure"}
+DISCOVERY_SCOPE: dict[str, Any] = {"scope_id": "sub-1", "provider": "azurerm"}
+IMPORT: dict[str, Any] = {
+    "workspace_path": "/ws",
+    "address": "azurerm_resource_group.main",
+    "resource_id": "/subscriptions/x/resourceGroups/y",
+}
 
 
 def test_import_request_carries_address_and_resource_id() -> None:
-    request = ImportRequest(
-        workspace_path="/ws",
-        address="azurerm_resource_group.main",
-        resource_id="/subscriptions/x/resourceGroups/y",
-        **SCOPE,
-    )
+    request = ImportRequest.model_validate(IMPORT)
     assert request.address == "azurerm_resource_group.main"
     assert request.resource_id == "/subscriptions/x/resourceGroups/y"
 
 
-@pytest.mark.parametrize("missing", ["address", "resource_id", "scope_id"])
+@pytest.mark.parametrize("missing", ["address", "resource_id"])
 def test_import_request_requires_every_field(missing: str) -> None:
-    body: dict[str, str] = {
-        "workspace_path": "/ws",
-        "address": "azurerm_resource_group.main",
-        "resource_id": "/subscriptions/x/resourceGroups/y",
-        **SCOPE,
-    }
+    body = dict(IMPORT)
     del body[missing]
     with pytest.raises(ValidationError):
         _ = ImportRequest.model_validate(body)
@@ -47,17 +47,161 @@ def test_import_request_requires_every_field(missing: str) -> None:
 
 def test_import_request_rejects_empty_address() -> None:
     with pytest.raises(ValidationError):
-        _ = ImportRequest(
-            workspace_path="/ws", address="", resource_id="/subscriptions/x", **SCOPE
-        )
+        _ = ImportRequest.model_validate({**IMPORT, "address": ""})
 
 
-@pytest.mark.parametrize("field", ["scope_id", "terraform_provider"])
-def test_state_resource_ids_request_rejects_scope_fields(field: str) -> None:
+@pytest.mark.parametrize(
+    ("model", "extra"),
+    [
+        (InitRequest, {}),
+        (ValidateRequest, {}),
+        (ShowRequest, {"plan_file": "p.plan"}),
+        (ApplyRequest, {"plan_file": "p.plan"}),
+        (PlanRequest, {"plan_file": "p.plan"}),
+        (ImportRequest, {"address": "a.b", "resource_id": "i"}),
+    ],
+)
+def test_every_command_takes_env(model: Any, extra: dict[str, Any]) -> None:
+    request = model.model_validate(
+        {"workspace_path": "/ws", "env": {"GOOGLE_PROJECT": "p"}, **extra}
+    )
+    assert request.env == {"GOOGLE_PROJECT": "p"}
+    assert model.model_validate({"workspace_path": "/ws", **extra}).env == {}
+
+
+@pytest.mark.parametrize("name", ["", "1X", "A-B", "A B", "A=B", "X" * 129])
+def test_env_names_are_plain_identifiers(name: str) -> None:
     with pytest.raises(ValidationError):
-        _ = StateResourceIdsRequest.model_validate(
-            {"workspace_path": "/ws", field: SCOPE[field]}
+        _ = InitRequest.model_validate({"workspace_path": "/ws", "env": {name: "v"}})
+
+
+def test_env_values_are_strings() -> None:
+    with pytest.raises(ValidationError):
+        _ = InitRequest.model_validate({"workspace_path": "/ws", "env": {"X": 1}})
+
+
+def test_env_values_cannot_hold_nul() -> None:
+    # The OS cannot pass a NUL to a process; caught here, not in the job.
+    with pytest.raises(ValidationError):
+        _ = InitRequest.model_validate(
+            {"workspace_path": "/ws", "env": {"X": "a\x00b"}}
         )
+
+
+@pytest.mark.parametrize(
+    ("model", "extra"),
+    [
+        (PlanRequest, {"plan_file": "p.plan"}),
+        (ImportRequest, {"address": "a.b", "resource_id": "i"}),
+    ],
+)
+@pytest.mark.parametrize(
+    "path",
+    [
+        "dev.tfvars",
+        "envs/dev.tfvars.json",
+        "envs/my env.tfvars",
+        "envs/.hidden.tfvars",
+        "a..b.tfvars",
+        "no-suffix",
+    ],
+)
+def test_var_files_take_any_relative_path_inside_the_workspace(
+    model: Any, extra: dict[str, Any], path: str
+) -> None:
+    request = model.model_validate(
+        {"workspace_path": "/ws", "var_files": [path, "z.tfvars"], **extra}
+    )
+    assert request.var_files == [path, "z.tfvars"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    ["", "/etc/x.tfvars", "../x.tfvars", "envs/../../x.tfvars", "envs/..", "a\x00b"],
+)
+def test_var_files_cannot_leave_the_workspace(path: str) -> None:
+    with pytest.raises(ValidationError):
+        _ = PlanRequest.model_validate(
+            {"workspace_path": "/ws", "plan_file": "p.plan", "var_files": [path]}
+        )
+
+
+@pytest.mark.parametrize(
+    ("model", "extra"),
+    [
+        (InitRequest, {}),
+        (ValidateRequest, {}),
+        (ShowRequest, {"plan_file": "p.plan"}),
+        (ApplyRequest, {"plan_file": "p.plan"}),
+    ],
+)
+def test_commands_that_evaluate_nothing_reject_var_files(
+    model: Any, extra: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError):
+        _ = model.model_validate(
+            {"workspace_path": "/ws", "var_files": ["a.tfvars"], **extra}
+        )
+
+
+def test_vars_take_any_json_value_and_stay_out_of_repr() -> None:
+    request = PlanRequest.model_validate(
+        {
+            "workspace_path": "/ws",
+            "plan_file": "p.plan",
+            "vars": {"pw": "s3cr3t", "net": {"ips": ["1.2.3.4/32"]}, "n": 3},
+        }
+    )
+    assert request.vars["net"] == {"ips": ["1.2.3.4/32"]}
+    assert "s3cr3t" not in repr(request)
+
+
+def test_env_stays_out_of_repr() -> None:
+    request = InitRequest.model_validate(
+        {"workspace_path": "/ws", "env": {"TOKEN_X": "s3cr3t"}}
+    )
+    assert "s3cr3t" not in repr(request)
+
+
+@pytest.mark.parametrize(
+    ("model", "extra"),
+    [
+        (InitRequest, {}),
+        (ValidateRequest, {}),
+        (ShowRequest, {"plan_file": "p.plan"}),
+        (ApplyRequest, {"plan_file": "p.plan"}),
+    ],
+)
+def test_commands_that_evaluate_nothing_reject_vars(
+    model: Any, extra: dict[str, Any]
+) -> None:
+    with pytest.raises(ValidationError):
+        _ = model.model_validate({"workspace_path": "/ws", "vars": {"a": 1}, **extra})
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        {"scopes": [{"provider": "azurerm", "scope_id": "s"}]},
+        {"variables": {"a": 1}},
+    ],
+)
+def test_pre_2_0_fields_are_rejected(field: dict[str, Any]) -> None:
+    with pytest.raises(ValidationError):
+        _ = PlanRequest.model_validate(
+            {"workspace_path": "/ws", "plan_file": "p.plan", **field}
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [{"env": {"X": "1"}}, {"scope_id": "s"}, {"provider": "azurerm"}],
+)
+def test_state_resource_ids_request_rejects_other_fields(
+    field: dict[str, Any],
+) -> None:
+    with pytest.raises(ValidationError):
+        _ = StateResourceIdsRequest.model_validate({"workspace_path": "/ws", **field})
 
 
 def test_state_resource_ids_request_needs_only_the_workspace() -> None:
@@ -65,18 +209,31 @@ def test_state_resource_ids_request_needs_only_the_workspace() -> None:
     assert request.workspace_path == "/ws"
 
 
-@pytest.mark.parametrize("missing", ["scope_id", "terraform_provider"])
+@pytest.mark.parametrize("missing", ["scope_id", "provider"])
 def test_scope_resource_ids_request_requires_the_scope(missing: str) -> None:
-    body: dict[str, str] = {"workspace_path": "/ws", **SCOPE}
+    body: dict[str, str] = {"workspace_path": "/ws", **DISCOVERY_SCOPE}
     del body[missing]
     with pytest.raises(ValidationError):
         _ = ScopeResourceIdsRequest.model_validate(body)
 
 
-def test_scope_resource_ids_request_forbids_extra_fields() -> None:
+@pytest.mark.parametrize("field", [{"address": "x"}, {"env": {"X": "1"}}])
+def test_scope_resource_ids_request_forbids_extra_fields(
+    field: dict[str, Any],
+) -> None:
     with pytest.raises(ValidationError):
         _ = ScopeResourceIdsRequest.model_validate(
-            {"workspace_path": "/ws", "address": "x", **SCOPE}
+            {"workspace_path": "/ws", **field, **DISCOVERY_SCOPE}
+        )
+
+
+@pytest.mark.parametrize("provider", ["azure", "gcp", "oci", "kubernetes"])
+def test_scope_resource_ids_request_takes_only_listable_providers(
+    provider: str,
+) -> None:
+    with pytest.raises(ValidationError):
+        _ = ScopeResourceIdsRequest.model_validate(
+            {"workspace_path": "/ws", "scope_id": "s", "provider": provider}
         )
 
 

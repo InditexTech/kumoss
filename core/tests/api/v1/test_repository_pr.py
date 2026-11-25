@@ -185,7 +185,7 @@ class TestCreatePR(_EndpointBase):
                 new=AsyncMock(return_value=self.ctx),
             ),
             patch("src.api.v1.repository.ApplicationFactory", factory),
-            patch("src.api.v1.repository.PhoenixTracer", MagicMock()),
+            patch("src.api.v1.repository.LangfuseTracer", MagicMock()),
         ):
             resp = self.client.put("/v1/repository/pr", json={"session_id": _SID})
         self.assertEqual(resp.status_code, 201, resp.text)

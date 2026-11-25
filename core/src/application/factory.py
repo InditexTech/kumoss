@@ -12,7 +12,7 @@ from src.domains.interfaces.filesystem_interface import IFileSystem
 from src.domains.interfaces.git_interface import IGit
 from src.domains.services import (
     ComplianceCheckService,
-    IacRootDetectionService,
+    RootModuleDetectionService,
     LLMOrchestrationService,
     SessionService,
     TemplateOrchestrationService,
@@ -22,10 +22,14 @@ from src.domains.services import (
     ToolOrchestrationService,
     TaskService,
     ArtifactStorageService,
+    ManifestService,
 )
 
 # Infrastructure layer imports
 from src.infrastructure.storage import default_object_storage
+from src.infrastructure.storage.manifest_secret_store import (
+    ObjectStorageManifestSecretStore,
+)
 from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
 )
@@ -33,16 +37,21 @@ from src.infrastructure.tools import ToolRegistryWorkspace, ToolRegistryStatic
 from src.infrastructure.filesystem import (
     FileSystemUtils,
     GitUtils,
-    IacRootDetector,
+    ManifestFile,
+    RootModuleDetector,
+    TerraformConfigInspector,
     WorkspaceService,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
+from src.infrastructure.policy import OpaPolicyEngine
 from src.infrastructure.llm.factory import LLMFactory
 from src.infrastructure.terraform.factory import TerraformFactory
 from src.infrastructure.terraform.utils import TerraformUtils
 
 # Application layer imports
 from src.application.services import (
+    ManifestProbeService,
+    SessionInputsService,
     RequestsFilterService,
     TerraformDriftService,
     TerraformImportService,
@@ -130,7 +139,7 @@ class ApplicationFactory:
                 temperature=0.5,
             ),
             templates=TemplateAdapter(
-                template_provider=self.__ctx.terraform_prv,
+                providers=self.__ctx.provider_types,
                 cwd=self.__ctx.call_dir.as_posix(),
             ),
         )
@@ -149,9 +158,15 @@ class ApplicationFactory:
     def _get_tool_service_static(self) -> ToolOrchestrationService:
         return ToolOrchestrationService(tool_registry=ToolRegistryStatic())
 
-    def _get_session_service(self, second_llm_service: LLMOrchestrationService):
+    def _get_session_service(
+        self,
+        second_llm_service: LLMOrchestrationService,
+        template_service: TemplateOrchestrationService,
+    ):
         return SessionService(
-            llm_service=second_llm_service, session_context=self.__ctx
+            llm_service=second_llm_service,
+            session_context=self.__ctx,
+            template_service=template_service,
         )
 
     def _get_template_service(
@@ -161,7 +176,7 @@ class ApplicationFactory:
         tool_service: ToolOrchestrationService,
     ):
         template_adapter = TemplateAdapter(
-            template_provider=self.__ctx.terraform_prv,
+            providers=self.__ctx.provider_types,
             cwd=call_dir.as_posix(),
         )
         return TemplateOrchestrationService(
@@ -171,10 +186,35 @@ class ApplicationFactory:
         )
 
     @staticmethod
-    def get_iac_root_detection_service() -> IacRootDetectionService:
-        return IacRootDetectionService(
+    def get_root_module_detection_service() -> RootModuleDetectionService:
+        return RootModuleDetectionService(
             workspace=WorkspaceService(),
-            detector=IacRootDetector(),
+            detector=RootModuleDetector(),
+        )
+
+    @staticmethod
+    def get_manifest_service() -> ManifestService:
+        return ManifestService(
+            inspector=TerraformConfigInspector(),
+            manifests=ManifestFile(),
+            secrets=ObjectStorageManifestSecretStore(default_object_storage()),
+        )
+
+    @staticmethod
+    def get_manifest_probe_service() -> ManifestProbeService:
+        return ManifestProbeService(
+            workspace=WorkspaceService(),
+            manifests=ApplicationFactory.get_manifest_service(),
+        )
+
+    @staticmethod
+    def get_session_inputs_service(
+        repo_uri: str, clone_dir: Path
+    ) -> SessionInputsService:
+        """``clone_dir`` is the call's clone: what commits ``kumoss.yaml``."""
+        return SessionInputsService(
+            manifests=ApplicationFactory.get_manifest_service(),
+            git=ApplicationFactory.get_git_utils(repo_uri, clone_dir),
         )
 
     def _get_artifact_storage_service(self) -> ArtifactStorageService:
@@ -232,13 +272,12 @@ class ApplicationFactory:
         return TerraformFactory(
             project_root=project_root,
             git=self.get_git_utils(self.__ctx.repo_uri, project_root),
-            scope_id=self.__ctx.scope_id,
-            terraform_provider=self.__ctx.terraform_prv,
+            scopes=self.__ctx.providers,
             project_id=TerraformUtils.project_id(
                 repo_uri=self.__ctx.repo_uri,
-                scope_id=self.__ctx.scope_id,
-                iac_path=self.__ctx.iac_path,
+                root_module_path=self.__ctx.root_module_path,
             ),
+            inputs=self.__ctx.terraform_inputs,
         ).get()
 
     def _get_terraform_validation_service(
@@ -363,6 +402,7 @@ class ApplicationFactory:
             llm_service=llm_svc,
             template_service=template_svc,
             artifact_service=artifact_svc,
+            policy_engine=OpaPolicyEngine(),
         )
 
     def get_terraform_crud_handler(self) -> TerraformCRUDHandler:
@@ -371,10 +411,10 @@ class ApplicationFactory:
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
@@ -426,10 +466,10 @@ class ApplicationFactory:
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         target_svc = self._get_terraform_target_service(tool_svc, llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
@@ -474,12 +514,12 @@ class ApplicationFactory:
         artifact_svc = self._get_artifact_storage_service()
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             call_dir=file_utils.project_root,
             llm_service=llm_svc,
             tool_service=tool_svc,
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )
@@ -506,10 +546,10 @@ class ApplicationFactory:
         git_utils = self.get_git_utils(self.__ctx.repo_uri, file_utils.project_root)
         tool_svc = self._get_tool_service_workspace(file_utils, git_utils)
         llm_svc = self._get_default_llm_service(tool_svc)
-        session_svc = self._get_session_service(llm_svc)
         template_svc = self._get_template_service(
             file_utils.project_root, llm_svc, tool_svc
         )
+        session_svc = self._get_session_service(llm_svc, template_svc)
         report_svc = self._get_report_service(
             llm_svc, tool_svc, template_svc, session_svc, artifact_svc
         )

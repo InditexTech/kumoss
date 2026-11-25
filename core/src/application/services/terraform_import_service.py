@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
 from src.domains.dto import (
     TerraformDiscoveryDTO,
@@ -12,7 +12,8 @@ from src.domains.dto import (
 )
 from src.domains.interfaces import ITerraform
 from src.domains.services.template_service import TemplateOrchestrationService
-from src.shared.constants import PromptsLibrary, TerraformProvider
+from src.domains.value_objects import ProviderScope
+from src.shared.constants import DISCOVERABLE_PROVIDERS, PromptsLibrary
 from src.shared.logger import logging
 
 
@@ -28,71 +29,83 @@ class TerraformImportService:
         self.__template_svc = template_service
 
     async def get_unmanaged_resources(
-        self,
-        scope_id: str,
-        terraform_provider: TerraformProvider,
+        self, scopes: Sequence[ProviderScope]
     ) -> TerraformDiscoveryDTO:
-        """Diff the cloud scope against the Terraform state.
+        """Diff the root module's cloud scopes against the Terraform state.
 
-        Returns the unmanaged resource IDs.
+        Every scope of a provider the IaC service can list
+        (``DISCOVERABLE_PROVIDERS``) is listed; the unmanaged resource IDs
+        of all of them are returned together. A scope that cannot be
+        listed is reported in the feedback without hiding the others.
 
         The exception list is applied here, on every round.
 
         Azure ARM IDs compare case-insensitively. Every other provider compares
         exactly.
         """
+        listable = [
+            sc for sc in scopes if sc.scope_id and sc.provider in DISCOVERABLE_PROVIDERS
+        ]
+        if not listable:
+            return TerraformDiscoveryDTO(
+                resource_ids=[],
+                feedback="The root module uses no provider whose scope can be listed "
+                + f"({', '.join(sorted(DISCOVERABLE_PROVIDERS))}).",
+            )
+
         state = await self.__import_prv.state_resource_ids()
         managed_res = state.resource_ids
+        logging.debug(f"Managed resources: {managed_res}")
 
-        logging.debug(f"Managed resources for scope {scope_id}: {managed_res}")
-
-        scope = await self.__import_prv.scope_resource_ids(
-            scope_id=scope_id,
-            terraform_provider=terraform_provider,
-        )
-        logging.debug(f"Scope resources for scope {scope_id}: {scope.resource_ids}")
-
-        if scope.feedback:
-            logging.warning(f"Listing scope {scope_id} failed: {scope.feedback}")
-            return TerraformDiscoveryDTO(
-                resource_ids=[],
-                feedback=f"The scope {scope_id} could not be listed: {scope.feedback}",
-            )
-        if not scope.resource_ids:
-            return TerraformDiscoveryDTO(
-                resource_ids=[],
-                feedback=f"The scope {scope_id} holds no importable resource.",
-            )
-
-        key = self.__comparison_key(terraform_provider)
-        seen = {key(rid) for rid in managed_res}
-        unmanaged_res: list[str] = []
-        for rid in scope.resource_ids:
-            if key(rid) not in seen:
-                seen.add(key(rid))
-                unmanaged_res.append(rid)
-        unmanaged_res.sort()
-        logging.debug(f"Unmanaged resources for scope {scope_id}: {unmanaged_res}")
+        unmanaged: dict[str, Callable[[str], str]] = {}
+        problems: list[str] = []
+        listed_any = False
+        for sc in listable:
+            label = f"{sc.provider} scope {sc.scope_id}"
+            listed = await self.__import_prv.scope_resource_ids(sc)
+            logging.debug(f"Resources in {label}: {listed.resource_ids}")
+            if listed.feedback:
+                logging.warning(f"Listing {label} failed: {listed.feedback}")
+                problems.append(f"The {label} could not be listed: {listed.feedback}")
+                continue
+            listed_any = listed_any or bool(listed.resource_ids)
+            key = self.__comparison_key(sc.provider)
+            seen = {key(rid) for rid in managed_res}
+            for rid in listed.resource_ids:
+                if key(rid) not in seen and rid not in unmanaged:
+                    seen.add(key(rid))
+                    unmanaged[rid] = key
+        unmanaged_res = sorted(unmanaged)
+        logging.debug(f"Unmanaged resources: {unmanaged_res}")
+        scopes_text = ", ".join(f"{sc.provider} {sc.scope_id}" for sc in listable)
         if not unmanaged_res:
-            return TerraformDiscoveryDTO(
-                resource_ids=[],
-                feedback=f"Every resource in the scope {scope_id} is already managed.",
-            )
+            if len(problems) < len(listable):
+                problems.append(
+                    f"Every resource in the scopes ({scopes_text}) is already managed."
+                    if listed_any
+                    else f"The scopes ({scopes_text}) hold no importable resource."
+                )
+            return TerraformDiscoveryDTO(resource_ids=[], feedback=" ".join(problems))
 
         exceptions = await self.__template_svc.render(PromptsLibrary.IMPORT_EXCEPTIONS)
-        withheld = {key(rid) for rid in self.__exception_ids(exceptions.prompt)}
-        importable = [rid for rid in unmanaged_res if key(rid) not in withheld]
-        excluded = [rid for rid in unmanaged_res if key(rid) in withheld]
+        exception_ids = self.__exception_ids(exceptions.prompt)
+        withheld = {
+            rid
+            for rid, key in unmanaged.items()
+            if key(rid) in {key(e) for e in exception_ids}
+        }
+        importable = [rid for rid in unmanaged_res if rid not in withheld]
+        excluded = [rid for rid in unmanaged_res if rid in withheld]
         if excluded:
-            logging.debug(
-                f"Import exceptions withheld for scope {scope_id}: {excluded}"
+            logging.debug(f"Import exceptions withheld: {excluded}")
+        if not importable:
+            problems.append(
+                f"Every unmanaged resource in the scopes ({scopes_text}) is on the "
+                + "import exception list."
             )
         return TerraformDiscoveryDTO(
             resource_ids=importable,
-            feedback=""
-            if importable
-            else f"Every unmanaged resource in the scope {scope_id} is on the "
-            + "import exception list.",
+            feedback=" ".join(problems),
             excluded=excluded,
         )
 
@@ -114,10 +127,8 @@ class TerraformImportService:
         return ids
 
     @staticmethod
-    def __comparison_key(
-        terraform_provider: TerraformProvider,
-    ) -> Callable[[str], str]:
-        if terraform_provider is TerraformProvider.AZURE:
+    def __comparison_key(provider: str) -> Callable[[str], str]:
+        if provider == "azurerm":
             return str.casefold
         return lambda rid: rid
 

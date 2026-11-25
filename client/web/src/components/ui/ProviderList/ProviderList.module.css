@@ -1,0 +1,54 @@
+/*
+ * SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+.list {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.listIcons {
+  gap: 6px 10px;
+}
+
+/* Icon + type name, set in the surrounding text so it reads like a list. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  color: inherit;
+}
+
+.iconOnly {
+  display: inline-flex;
+  align-items: center;
+  color: inherit;
+}
+
+.icon {
+  font-size: 1.1em;
+  flex-shrink: 0;
+}
+
+.iconOnly .icon {
+  font-size: inherit;
+}
+
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  opacity: 0.6;
+}

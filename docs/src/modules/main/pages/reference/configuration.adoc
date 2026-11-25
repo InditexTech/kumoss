@@ -14,8 +14,8 @@ xref:main:guides/deploy-to-production.adoc[Deploy to production].
 Related guides: xref:main:reference/environment-variables.adoc[Environment
 variables and secrets], xref:main:reference/llm-providers.adoc[LiteLLM
 providers and models], xref:main:guides/enable-authentication.adoc[OIDC
-setup], xref:main:guides/monitor-with-phoenix.adoc[Monitoring with
-Phoenix], xref:main:guides/customize-prompts.adoc[Phoenix prompt
+setup], xref:main:guides/monitor-with-langfuse.adoc[Monitor with
+Langfuse], xref:main:guides/customize-prompts.adoc[Langfuse prompt
 templates], xref:main:guides-overview.adoc[Guides], and
 xref:main:guides/administer-users-and-locks.adoc[Administer users and locks] — and the
 sidecar READMEs under `services/`.
@@ -103,17 +103,17 @@ shipped value enables Kumoss-managed state by default;
 |A label for the deployment tier. Any other value fails validation.
 |===
 
-Operational effect: it selects the Phoenix tracing project prefix
-(`dev-`, `pre-`, `pro-`; see xref:main:guides/monitor-with-phoenix.adoc[Monitoring
-with Phoenix]) and it is the *tag* used when fetching prompts from
-Phoenix at runtime (see
+Operational effect: it is the Langfuse *environment* every trace is
+recorded under (see xref:main:guides/monitor-with-langfuse.adoc[Monitor
+with Langfuse]) and the *label* used when fetching prompts from
+Langfuse at runtime (see
 xref:main:guides/customize-prompts.adoc[Customize prompts]). The
-seeder tags every prompt it creates with all three values, so switching
-between them finds the seeded prompts without re-tagging. It
+seeder labels every prompt it creates with all three values, so switching
+between them finds the seeded prompts without relabelling. It
 does *not* enable any security control: setting `production` does not
 turn on authentication, authorization, or stricter defaults. A prompt
-created or re-versioned by hand in Phoenix is found only if its version
-carries the tag for the current value.
+created or re-versioned by hand in Langfuse is found only if one of its
+versions carries the label for the current value.
 
 Requires restart: yes.
 
@@ -169,6 +169,19 @@ the default and the issuer host is `login.microsoftonline.com`,
 |`60`
 |Optional
 |Leeway applied to `exp`, `iat`, and `nbf` validation.
+
+|`oidc.claims`
+|map (string → string)
+|`{}`
+|Optional
+|Extra JWT claims to extract and forward to the authorization PDP as
+`subject.properties`. Keys are the property names sent to the PDP;
+values are the JWT claim names to read from the token. These merge with
+the universal defaults (`issuer` ← `iss`, `email` ← `email`); extras
+override a default on collision. Example for Azure Entra ID:
+`{ groups: "groups", identifier: "oid", tenant_id: "tid" }`.
+Entra ID caveat: group claims are object IDs; users with >200 groups
+receive an overage indicator instead of the list.
 |===
 
 Related environment variables: none. The SPA is a public PKCE client
@@ -209,10 +222,10 @@ Requires restart: yes.
 == `services`
 
 Wiring for the four sidecars. Each sidecar implements an OpenAPI
-contract in `contracts/openapi/`. Kumoss bundles services for IaC and
-notifications, and any implementation of their contract can replace
-the bundled one by changing `endpoint`; mapping and authorization are
-optional extension points you implement yourself and point `endpoint`
+contract in `contracts/openapi/`. Kumoss bundles services for IaC,
+notifications and mapping, and any implementation of their contract
+can replace the bundled one by changing `endpoint`; authorization is an
+optional extension point you implement yourself and point `endpoint`
 at.
 
 Common fields, available under `services.notifications`,
@@ -227,20 +240,20 @@ none because the core cannot run without it.
 |`services.<name>.enabled` (not for `iac`)
 |boolean
 |`false`
-|`false` for `notifications`, `mapping`, `authz`
+|`true` for `notifications` and `mapping`; `false` for `authz`
 |Optional
 |Whether the core calls the sidecar. A disabled sidecar is never
-contacted: mapping is done locally, notifications are dropped, and
-authorization answers "authorized". Compose still starts the
-bundled notifications container; mapping and authorization have no
-bundled container. An `enabled` key under `services.iac` is ignored.
+contacted: mapping is done locally (what the user typed is the
+repository URL), notifications are dropped, and authorization answers
+"authorized". Compose still starts the bundled notifications and
+mapping containers; authorization has no bundled container. An `enabled` key under `services.iac` is ignored.
 
 |`services.<name>.endpoint`
 |string (base URL)
 |`""` for `notifications`, `mapping`, `authz`; *`\http://iac:8082`* for
 `iac` (its own code default, not just the shipped value)
-|`\http://notifications:8080`, `\http://iac:8082`; `""` for
-`mapping` and `authz` (no bundled implementation)
+|`\http://notifications:8080`, `\http://mapping:8081`,
+`\http://iac:8082`; `""` for `authz` (no bundled implementation)
 |Conditional (needed when enabled; always for `iac`)
 |Base URL the core calls, resolvable from inside the core container.
 *An empty `services.iac.endpoint` aborts the boot* with
@@ -271,9 +284,8 @@ enabled: false (services.iac cannot — it is mandatory).`
 |Optional
 |Per-request HTTP budget. Every sidecar call returns promptly (long
 work runs as jobs the core polls), so this covers one round trip only.
-Honoured by the IaC and notifications clients; the mapping and
-authorization clients currently use fixed budgets of 10 and 15 seconds
-and ignore this field.
+Honoured by the IaC, notifications, and authorization clients; the
+mapping client uses a fixed budget of 10 seconds.
 |===
 
 Fields specific to the IaC sidecar:
@@ -328,17 +340,25 @@ Raise the limits carefully: they bound the cost of a runaway session.
 |`false`
 |`true`
 |Optional
-|Runs the compliance auditor once a generate round has been validated
-and its report written: a second, independent small-model agent reads
-the session's first request and the raw plan, and checks them against
-the rules in the `general-compliance-report` prompt. The session is
-*locked* if any finding comes back with severity `error` or `critical`;
+|Runs the compliance check once a generate round has been validated
+and its report written, in two parts merged into one report. First the
+core evaluates the Rego policy `general/policies/compliance` with OPA
+against the final plan's `show -json`; a policy that cannot be
+evaluated adds a blocking `policy_unavailable` finding, see
+xref:main:reference/compliance-policy.adoc[Compliance policy]. Then a
+second, independent small-model agent reads the session's first
+request and the raw plan, and checks them against the rules in the
+`general/compliance/report` prompt. The session is
+*locked* if any finding of either part has severity `error` or `critical`;
 `warning` findings are recorded in the report but do not lock. The
 report is stored as a round artifact and shown in the portal. A lock
 also sends an `iac.compliance.failed` notification. When `false` the
 audit is skipped entirely and reported as an empty passing result, so
 it can never lock and nothing is stored. Generate rounds only — drift
-rounds do not audit, and apply does not re-audit.
+rounds do not audit, and apply does not re-audit. When `true`, the core
+evaluates the policy at startup against an empty plan and refuses to
+start if that fails (no `opa` binary, a broken policy, Langfuse
+unreachable).
 
 |`orchestration.block_on_high_impact`
 |boolean
@@ -348,7 +368,7 @@ rounds do not audit, and apply does not re-audit.
 |*Locks* the session when the generate report's impact banner comes
 back `high`, and sends an `iac.impact.high` notification. The banner
 itself — `low`, `medium`, or `high`, judged against the
-`general-compliance-impact` prompt criteria — is part of every report
+`general/compliance/impact` prompt criteria — is part of every report
 either way; this flag decides only whether it gates. It is evaluated
 independently of the auditor above: the round ends locked if *either*
 condition fires.
@@ -596,13 +616,11 @@ loses detail the agent cannot get back.
 |===
 
 Each search starts the same way: the engine returns ranked hits, and
-every hit's page is rendered in headless Chromium through Playwright and
-reduced to markdown with https://trafilatura.readthedocs.io/[trafilatura],
-so the agent works from the pages themselves — including
-JavaScript-rendered ones — rather than the engine's snippets. The pages
-are read concurrently from one shared browser, and Chromium presents the
-fingerprint bot protection expects, so blogs and forums answer `200`
-where a bare HTTP client would get `403`. A page that will not render
+every hit's page is fetched over HTTP and reduced to markdown with
+https://trafilatura.readthedocs.io/[trafilatura], so the agent works from
+the pages themselves rather than the engine's snippets. The pages are
+read concurrently over one shared client. A page that will not fetch or
+extract — a `403` from bot protection, a PDF, a JavaScript-only page —
 falls back to its snippet, so a partial failure costs detail rather than
 the whole search.
 
@@ -682,6 +700,17 @@ only merges files with that suffix over the rest of the configuration,
 and the gitignore rules the core injects only cover that suffix. The
 file holds the state store credentials, so the agent's file tools can
 neither see nor touch it.
+
+|`paths.manifest_filename`
+|string matching `^[A-Za-z0-9._-]{1,128}\.ya?ml$`
+|`kumoss.yaml`
+|Optional
+|Name of the root module manifest the core reads from, and commits to,
+each root module directory: the module's providers, scopes, picked var
+files and plain variable values (sensitive ones by name only). Changing
+it makes every existing manifest invisible, so each module is set up
+again on its next session. See
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
 |===
 
 Requires restart: yes.
@@ -706,9 +735,9 @@ fails when it is unreachable. A `postgresql://` scheme is rewritten to
 `ssl=`, so URLs copied from a managed PostgreSQL service work as-is.
 |===
 
-Schema note: there are no migrations; tables are created with
-`create_all`. A database volume created by an older schema must be
-migrated by hand or dropped.
+Schema note: the core migrates the schema with Alembic at startup, so
+a database from an older release is upgraded in place. See
+xref:main:reference/database-schema.adoc#changing-the-schema[Changing the schema].
 
 Requires restart: yes for the field name; the URL value lives in
 `core/.env`.
@@ -768,28 +797,44 @@ restart: yes.
 [#telemetry]
 == `telemetry`
 
-OpenTelemetry export and, in the current implementation, also the
-address of the Phoenix prompt registry. See
-xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] and
+Langfuse: where traces are exported (OTLP/HTTP) and where prompts are
+read from. Both use the same base URL and the same project key pair. See
+xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] and
 xref:main:guides/customize-prompts.adoc[Customize prompts].
 
 [cols="2,2,1,1,1,4",options="header"]
 |===
 |YAML path |Type |Code default |Shipped `config.yaml` |Requirement |Meaning and effect
 
-|`telemetry.collector_url`
-|string (base URL *ending in `/`*)
-|`\http://phoenix:6006/`
-|`\http://phoenix:6006/`
+|`telemetry.langfuse_url`
+|string (base URL)
+|`\http://langfuse-web:3000/`
+|`\http://langfuse-web:3000/`
 |Optional
-|Base URL of the trace collector. The core appends `v1/traces` by plain
-string concatenation, so the value must end with a slash:
-`\http://phoenix:6006/` becomes `\http://phoenix:6006/v1/traces`. The
-*same URL* is used as the Phoenix client base URL for prompt seeding
-and fetching, so today it must point at a Phoenix server even if you
-export traces elsewhere. The default is the Phoenix service of the
-bundled stack; running the core outside docker needs an explicit
-`\http://localhost:6006/`.
+|Base URL of Langfuse as the core reaches it; a missing trailing slash
+is added. Traces go to `<langfuse_url>api/public/otel/v1/traces` and
+prompts are read from `<langfuse_url>api/public/v2/prompts`. The default
+is the `langfuse-web` service of the bundled stack; running the core
+outside docker needs an explicit `\http://localhost:3000/`. Any
+Langfuse v4 works, self-hosted or Cloud.
+
+|`telemetry.public_key_env`
+|string (env var name)
+|`LANGFUSE_PUBLIC_KEY`
+|`LANGFUSE_PUBLIC_KEY`
+|Optional
+|Variable holding the public key (`pk-lf-...`) of the Langfuse project.
+Unset, the core uses `pk-lf-kumoss-dev`, the key the bundled stack
+provisions.
+
+|`telemetry.secret_key_env`
+|string (env var name)
+|`LANGFUSE_SECRET_KEY`
+|`LANGFUSE_SECRET_KEY`
+|Optional
+|Variable holding the secret key (`sk-lf-...`). Unset, the core uses
+`sk-lf-kumoss-dev`. A key pair Langfuse rejects fails the boot (prompt
+seeding) with `Langfuse refused the API key pair (401)`.
 
 |`telemetry.otel_attribute_count_limit`
 |integer
@@ -797,8 +842,8 @@ bundled stack; running the core outside docker needs an explicit
 |`1024`
 |Optional
 |Maximum number of attributes per span (attribute _count_, not length).
-When exceeded the SDK drops the oldest attributes first, which on LLM
-spans are the session and user identifiers and the span kind.
+Spans carry a few dozen; the conversation of an LLM span is a single
+attribute.
 
 |`telemetry.otel_console_exporter`
 |boolean
@@ -809,8 +854,9 @@ spans are the session and user identifiers and the span kind.
 prompts and plans; do not enable this where logs are shared.
 |===
 
-The code default only works when the core runs outside Docker on the
-same host as Phoenix. Requires restart: yes.
+The removed Phoenix key `telemetry.collector_url` fails validation, so
+an old file is not silently sent to the default URL. Requires restart:
+yes.
 
 [#config-http]
 == `http`
@@ -1083,7 +1129,7 @@ web_search:
   endpoint: "http://searxng:8888"
 
 telemetry:
-  collector_url: "http://phoenix:6006/"
+  langfuse_url: "http://langfuse-web:3000/"
 
 storage:
   provider: "RUSTFS"
@@ -1116,6 +1162,8 @@ oidc:
   issuer_url: "https://login.example.invalid/realms/platform"
   client_id: "kumoss-web"
   clock_skew_seconds: 60
+  claims:
+    groups: "groups"
 
 admin:
   default_root_email: "platform-admin@example.invalid"
@@ -1155,7 +1203,7 @@ llm:
   max_output_tokens: 32000
 
 telemetry:
-  collector_url: "https://phoenix.kumoss.example.invalid/"
+  langfuse_url: "https://langfuse.kumoss.example.invalid/"
 
 http:
   cors_origins:
@@ -1182,11 +1230,13 @@ git:
 ----
 
 Points that this example relies on but that the file cannot express:
-the mapping and authz endpoints must be your own implementations of
-their contracts (Kumoss bundles neither);
-Phoenix must be reachable at `collector_url` for prompt seeding; the
-Phoenix UI must be protected separately because it receives prompts and
-plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,
+the authz endpoint must be your own implementation of its contract
+(Kumoss bundles none), and the mapping endpoint either the bundled
+service or your own catalogue-backed one;
+Langfuse must be reachable at `langfuse_url` for prompt seeding, with
+its project key pair in `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`;
+access to the Langfuse UI must be restricted because it holds prompts
+and plans; and every `*_TOKEN`, `STORAGE_ACCOUNT_KEY`,
 `KUMOSS_SQL_DATABASE_URL`, `GIT_TOKEN`, and the `AZURE_API_*`
 credentials must come from a secret store. See
 xref:main:reference/environment-variables.adoc[Environment variables and

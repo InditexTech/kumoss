@@ -21,7 +21,6 @@ from src.shared.constants import (
     OperationRole,
     OperationType,
     PanelRole,
-    TerraformProvider,
 )
 
 
@@ -71,11 +70,9 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
             user_pk=user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
         return user, sid
 
@@ -111,11 +108,100 @@ class TestAdminApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(body["total"], 1)
         self.assertEqual(body["items"][0]["uuid"], str(sid))
 
+    async def test_admin_sessions_search_in_combines_with_owner_email(self):
+        _ = await self._seed_session("a@example.com")
+        _ = await self._seed_session("b@example.com")
+
+        async def total(**params: str) -> int:
+            resp = await self.client.get("/v1/admin/sessions/list", params=params)
+            self.assertEqual(resp.status_code, 200, resp.text)
+            return resp.json()["total"]
+
+        self.assertEqual(
+            await total(search="resource group", search_in="query", user_email="a@"),
+            1,
+        )
+        self.assertEqual(
+            await total(search="resource group", search_in="repository"), 0
+        )
+
     async def test_admin_session_detail(self):
         _, sid = await self._seed_session("a@example.com")
         resp = await self.client.get("/v1/admin/sessions", params={"id": str(sid)})
         self.assertEqual(resp.status_code, 200, resp.text)
         self.assertEqual(resp.json()["uuid"], str(sid))
+
+    async def test_admin_detail_both_histories(self):
+        _, sid = await self._seed_session("a@example.com")
+        ctx = await DatabaseService.get_session_context(sid)
+        ctx.history.append_turn("create a resource group", "<raw llm summary>")
+        ctx.chat_history.append_turn(
+            "create a resource group", "Done: the plan adds rg-main."
+        )
+        await DatabaseService.update_history(ctx)
+
+        resp = await self.client.get(
+            "/v1/admin/sessions",
+            params={
+                "id": str(sid),
+                "include_chat_history": "true",
+                "include_history": "true",
+            },
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertEqual(
+            body["chat_history"],
+            [
+                {
+                    "user": "create a resource group",
+                    "assistant": "Done: the plan adds rg-main.",
+                }
+            ],
+        )
+        self.assertEqual(
+            body["history"],
+            [
+                {
+                    "user": "create a resource group",
+                    "assistant": "<raw llm summary>",
+                }
+            ],
+        )
+
+    async def test_admin_detail_flags_are_independent(self):
+        _, sid = await self._seed_session("a@example.com")
+        ctx = await DatabaseService.get_session_context(sid)
+        ctx.history.append_turn("add a vnet", "<raw>")
+        ctx.chat_history.append_turn("add a vnet", "Done.")
+        await DatabaseService.update_history(ctx)
+
+        # Only chat_history requested.
+        resp = await self.client.get(
+            "/v1/admin/sessions",
+            params={"id": str(sid), "include_chat_history": "true"},
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertIsNotNone(body["chat_history"])
+        self.assertIsNone(body["history"])
+
+        # Only internal history requested.
+        resp = await self.client.get(
+            "/v1/admin/sessions",
+            params={"id": str(sid), "include_history": "true"},
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertIsNone(body["chat_history"])
+        self.assertIsNotNone(body["history"])
+
+        # Neither requested.
+        resp = await self.client.get("/v1/admin/sessions", params={"id": str(sid)})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertIsNone(body["chat_history"])
+        self.assertIsNone(body["history"])
 
     async def test_toggle_lock_round_trip(self):
         _, sid = await self._seed_session("a@example.com")

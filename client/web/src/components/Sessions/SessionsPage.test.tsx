@@ -3,29 +3,58 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useLocation } from "react-router-dom";
 import { http, HttpResponse } from "msw";
 import { server } from "@/test/server";
 import { makeSessionDetail, mockState } from "@/test/factories";
+import { projectAdminDetail } from "@/test/handlers";
 import { renderWithProviders } from "@/test/render";
-import type { PanelRole, SessionDetail } from "@/types/api";
+import {
+  resolveSessionOutcome,
+  buildSessionPatch,
+  buildApplyResults,
+  findSessionPr,
+} from "@/services/workflows/session_outcome";
+import type { AdminSessionDetail, PanelRole } from "@/types/api";
 import SessionsPage from "./SessionsPage";
+
+vi.mock("@/services/workflows/session_outcome", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/services/workflows/session_outcome")>();
+  return {
+    ...actual,
+    resolveSessionOutcome: vi.fn(),
+    buildSessionPatch: vi.fn(),
+    buildApplyResults: vi.fn(),
+    findSessionPr: vi.fn(),
+  };
+});
+
+vi.mock("@/services/core/sessionsCache", () => ({
+  getCachedSessions: vi.fn(),
+  setCachedSessions: vi.fn(),
+  invalidateSessionsCache: vi.fn(),
+}));
 
 const auth = vi.hoisted(() => ({ panelRole: null as PanelRole | null }));
 vi.mock("@/contexts/AuthContext", () => ({ useAuth: () => auth }));
 
-function paginated(items: SessionDetail[]) {
+function paginated(items: AdminSessionDetail[]) {
   return { items, total: items.length, page: 1, page_size: 10, total_pages: 1 };
 }
 
-function mockAdminSession(detail: SessionDetail) {
+function mockAdminSession(detail: AdminSessionDetail) {
   const patches: Array<{ locked: boolean }> = [];
   server.use(
     http.get("/api/v1/admin/sessions/list", () =>
       HttpResponse.json(paginated([detail])),
     ),
-    http.get("/api/v1/admin/sessions", () => HttpResponse.json(detail)),
+    // Projected like the real route, so each record only arrives when the
+    // page actually asks for it.
+    http.get("/api/v1/admin/sessions", ({ request }) =>
+      HttpResponse.json(projectAdminDetail(detail, request)),
+    ),
     http.patch(
       "/api/v1/admin/sessions/:id/toggle_lock",
       async ({ request }) => {
@@ -46,6 +75,21 @@ function renderPage(variant: "admin" | "user", path: string) {
     withNotifications: true,
     routerProps: { initialEntries: [path] },
   });
+}
+
+function LocationProbe() {
+  const { pathname } = useLocation();
+  return <div data-testid="location">{pathname}</div>;
+}
+
+function renderPageWithProbe(variant: "admin" | "user", path: string) {
+  return renderWithProviders(
+    <>
+      <LocationProbe />
+      <SessionsPage variant={variant} />
+    </>,
+    { withNotifications: true, routerProps: { initialEntries: [path] } },
+  );
 }
 
 describe("SessionsPage session id column", () => {
@@ -73,6 +117,72 @@ describe("SessionsPage session id column", () => {
     await screen.findByText("deploy a VM");
     expect(screen.queryByRole("columnheader", { name: "Session ID" })).toBeNull();
     expect(screen.queryByTitle(uuid)).toBeNull();
+  });
+});
+
+describe("SessionsPage Langfuse link", () => {
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("links the admin table to Langfuse through the proxy", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({}));
+    renderPage("admin", "/admin");
+
+    const link = await screen.findByRole("link", { name: /langfuse/i });
+    expect(link).toHaveAttribute("href", "/langfuse");
+    expect(link).toHaveAttribute("target", "_blank");
+  });
+});
+
+describe("SessionsPage providers", () => {
+  const providers = [
+    { name: "azurerm", scope_id: "sub-123" },
+    { name: "google", scope_id: "my-project" },
+    { name: "random", scope_id: null },
+  ];
+
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("shows each infrastructure provider of a session as an icon in the table", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ providers }));
+    renderPage("user", "/user/sessions");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.getByRole("columnheader", { name: "Providers" })).toBeInTheDocument();
+    const list = screen.getByRole("list", { name: "Providers" });
+    // Icons only, named for assistive tech; the random helper is left out.
+    expect(
+      within(list).getAllByRole("listitem").map((li) => li.getAttribute("aria-label")),
+    ).toEqual(["azurerm", "google"]);
+    expect(list.textContent).toBe("");
+  });
+
+  it("shows a dash for a session whose setup has not run yet", async () => {
+    auth.panelRole = "viewer";
+    mockAdminSession(makeSessionDetail({ providers: [] }));
+    renderPage("admin", "/admin");
+
+    await screen.findByText("deploy a VM");
+    expect(screen.queryByRole("list", { name: "Providers" })).toBeNull();
+    expect(screen.getByText("—")).toBeInTheDocument();
+  });
+
+  it("shows the providers and each scope in the detail panel", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail({ providers }));
+    renderPage("user", "/user/sessions?session=sess-1");
+
+    expect(await screen.findByText("sub-123")).toBeInTheDocument();
+    expect(screen.getByText("Subscription ID")).toBeInTheDocument();
+    expect(screen.getByText("my-project")).toBeInTheDocument();
+    expect(screen.getByText("Project ID")).toBeInTheDocument();
+    // `random` has no scope: no row for it.
+    expect(screen.queryAllByText("Scope", { exact: true })).toHaveLength(0);
   });
 });
 
@@ -137,5 +247,97 @@ describe("SessionsPage apply lock in the detail panel", () => {
 
     expect(await screen.findByText("Apply Locked")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /apply locked/i })).toBeNull();
+  });
+});
+
+describe("SessionsPage handleReload", () => {
+  const mockResolve = vi.mocked(resolveSessionOutcome);
+  const mockPatch = vi.mocked(buildSessionPatch);
+  const mockApply = vi.mocked(buildApplyResults);
+  const mockFindPr = vi.mocked(findSessionPr);
+
+  beforeEach(() => {
+    mockState.clear();
+    vi.clearAllMocks();
+  });
+
+  it("navigates to the results page on a successful reload", async () => {
+    auth.panelRole = null;
+    const detail = makeSessionDetail({ uuid: "sess-1", current_status: "completed" });
+    mockState.addSession(detail);
+
+    mockResolve.mockResolvedValue({
+      kind: "results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+      compliance: null,
+      code: "",
+    });
+    mockPatch.mockReturnValue({ uuid: "sess-1" });
+    mockFindPr.mockReturnValue({ number: 42, url: "https://git.example.com/pr/42" });
+
+    renderPageWithProbe("user", "/user/sessions?session=sess-1");
+
+    await userEvent.click(await screen.findByText("Reload Session"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/home/results/sess-1",
+      );
+    });
+    expect(mockResolve).toHaveBeenCalled();
+    expect(mockPatch).toHaveBeenCalled();
+    expect(mockFindPr).toHaveBeenCalled();
+    expect(mockApply).not.toHaveBeenCalled();
+  });
+
+  it("navigates to the apply-results page for an apply outcome", async () => {
+    auth.panelRole = null;
+    const detail = makeSessionDetail({ uuid: "sess-1", current_status: "completed" });
+    mockState.addSession(detail);
+
+    mockResolve.mockResolvedValue({
+      kind: "apply-results",
+      detail,
+      round: detail.rounds[0],
+      report: null,
+    });
+    mockPatch.mockReturnValue({ uuid: "sess-1" });
+    mockApply.mockReturnValue({
+      sessionId: "sess-1",
+      status: "Succeeded",
+      message: "",
+      errorMessage: "",
+      timestamp: detail.updated_at,
+      applyReport: null,
+    });
+    mockFindPr.mockReturnValue(null);
+
+    renderPageWithProbe("user", "/user/sessions?session=sess-1");
+
+    await userEvent.click(await screen.findByText("Reload Session"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("location")).toHaveTextContent(
+        "/home/apply-results/sess-1",
+      );
+    });
+    expect(mockApply).toHaveBeenCalled();
+  });
+});
+
+describe("SessionsPage search prefill from URL", () => {
+  beforeEach(() => {
+    mockState.clear();
+  });
+
+  it("pre-fills the search input from URL params on mount", async () => {
+    auth.panelRole = null;
+    mockState.addSession(makeSessionDetail());
+    renderPage("user", "/user/sessions?search=VM");
+
+    const input = await screen.findByRole("textbox", { name: "Search sessions" });
+    expect(input).toHaveValue("VM");
   });
 });

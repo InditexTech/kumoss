@@ -20,5 +20,51 @@
       ],
       "type": "object"
     }
+  },
+  {
+    "description": "Read the Terraform Registry documentation of one resource or data source type for a given provider version. Prefer it over `web_search` for anything the provider documentation answers: arguments, nested blocks, exported attributes, constraints between arguments, and import ID formats. It returns the documentation condensed to what `focus` asks for: with `section` 'import' only the resource's \"Import\" section, with 'full' the whole page.",
+    "name": "terraform_docs",
+    "single_use": false,
+    "mutates_workspace": false,
+    "parameters": {
+      "properties": {
+        "provider": {
+          "description": "The provider source address as declared in `required_providers` or `.terraform.lock.hcl`, e.g. 'hashicorp/aws', 'oracle/oci', 'registry.terraform.io/hashicorp/azurerm'. A bare name such as 'aws' means 'hashicorp/aws'.",
+          "type": "string"
+        },
+        "resource_type": {
+          "description": "The full Terraform type name, with its provider prefix, e.g. 'aws_s3_bucket', 'azurerm_storage_account', 'oci_objectstorage_bucket'.",
+          "type": "string"
+        },
+        "version": {
+          "description": "The exact provider version locked in `.terraform.lock.hcl` (e.g. '5.82.0', '6.0.0-beta1'). Omit it when no version is locked, to read the latest version. Never pass a constraint such as '~> 5.0': the registry does not resolve it and the documentation is not found.",
+          "type": "string"
+        },
+        "section": {
+          "description": "'import' for only the resource's \"Import\" section (the import ID format and its examples); 'full' for the whole documentation. Either is condensed to `focus`. Defaults to 'full'.",
+          "type": "string",
+          "enum": ["full", "import"]
+        },
+        "kind": {
+          "description": "'resource' for a `resource` block type, 'data_source' for a `data` block type. Data sources have no \"Import\" section. Defaults to 'resource'.",
+          "type": "string",
+          "enum": ["resource", "data_source"]
+        },
+        "focus": {
+          "description": "What you need from the documentation, e.g. 'required arguments and the allowed values of sku_name', 'which arguments force replacement' or, with section 'import', 'exact import ID format and the terraform import example'. The documentation is condensed to this, so be specific.",
+          "type": "string"
+        },
+        "explanation": {
+          "description": "One sentence explanation as to why this tool is being used, and how it contributes to the goal.",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "resource_type",
+        "focus"
+      ],
+      "type": "object"
+    }
   }
 ]

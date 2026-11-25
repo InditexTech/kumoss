@@ -115,22 +115,14 @@ class TerraformImportHandler:
                     history=ctx.history,
                 )
                 if is_partial:
-                    ok, rationale = await self.__requests_filter_svc.filter(
+                    await self.__requests_filter_svc.filter(
                         q, ctx.history, ctx.operation
                     )
-                    if not ok:
-                        ctx.history.append_turn(q, rationale)
-                        _ = await self.__session_svc.update_status(
-                            msg=rationale,
-                            status=SessionStatus.UNCOMPLETED,
-                        )
-                        return
 
                 conventions = await self.__template_svc.compose_template(q, ctx.history)
 
                 discovery = await self.__import_svc.get_unmanaged_resources(
-                    scope_id=ctx.scope_id,
-                    terraform_provider=ctx.terraform_prv,
+                    ctx.providers
                 )
                 unmanaged_ids = discovery.resource_ids
                 if not unmanaged_ids:
@@ -169,7 +161,6 @@ class TerraformImportHandler:
                     + "\n".join(f"- {rid}" for rid in unmanaged_ids),
                     ctx=ctx,
                     conventions=Conventions.empty(),
-                    include_forbidden_actions=False,
                     operation_type=OperationType.IMPORT,
                     validator=plan_callback,
                     max_iterations=system_config.orchestration.max_import_iteration,
@@ -215,7 +206,6 @@ class TerraformImportHandler:
                             q=await split_errors(import_results.feedback),
                             ctx=ctx,
                             conventions=Conventions.empty(),
-                            include_forbidden_actions=False,
                             operation_type=OperationType.GENERATE,
                             validator=import_callback,
                             max_iterations=system_config.orchestration.max_import_iteration,
@@ -261,6 +251,6 @@ class TerraformImportHandler:
                     ),
                 )
             finally:
-                await self.__session_svc.save()
+                await self.__session_svc.save(q)
 
         return background_task

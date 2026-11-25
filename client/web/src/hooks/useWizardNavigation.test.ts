@@ -15,9 +15,9 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
-      provider: "",
-      cloudScope: "",
-      iacPath: "",
+      rootModulePath: "",
+      inputsChecked: false,
+      inputs: null,
     });
   });
 
@@ -27,8 +27,8 @@ describe("useWizardNavigation", () => {
     act(() => result.current.setStep("repository_url"));
     expect(result.current.step).toBe("repository_url");
 
-    act(() => result.current.setStep("cloud_scope"));
-    expect(result.current.step).toBe("cloud_scope");
+    act(() => result.current.setStep("inputs"));
+    expect(result.current.step).toBe("inputs");
   });
 
   it("setData merges partial updates", () => {
@@ -55,7 +55,7 @@ describe("useWizardNavigation", () => {
   describe("promptMessage", () => {
     it("returns query prompt for query step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.promptQuery,
       );
     });
@@ -63,56 +63,24 @@ describe("useWizardNavigation", () => {
     it("returns repository prompt for repository_url step", () => {
       const { result } = renderHook(() => useWizardNavigation());
       act(() => result.current.setStep("repository_url"));
-      expect(result.current.promptMessage("idle")).toBe(
+      expect(result.current.promptMessage()).toBe(
         STRINGS.wizard.promptRepository,
       );
     });
 
-    it("returns iac_path prompt for iac_path step", () => {
+    it("returns root_module_path prompt for root_module_path step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("iac_path"));
-      expect(result.current.promptMessage("idle")).toBe(
-        STRINGS.wizard.promptIacPath,
+      act(() => result.current.setStep("root_module_path"));
+      expect(result.current.promptMessage()).toBe(
+        STRINGS.wizard.promptRootModulePath,
       );
     });
 
-    it("returns provider prompt for provider step", () => {
+    it("returns the inputs prompt for inputs step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("provider"));
-      expect(result.current.promptMessage("idle")).toBe(
-        STRINGS.wizard.promptProvider,
-      );
-    });
-
-    it("returns generic cloud scope prompt when no provider is set", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("cloud_scope"));
-      expect(result.current.promptMessage("idle")).toBe(
-        STRINGS.wizard.promptCloudScope,
-      );
-    });
-
-    it("returns the provider's scope jargon for cloud_scope step", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => {
-        result.current.setStep("cloud_scope");
-        result.current.setData((prev) => ({ ...prev, provider: "azure" }));
-      });
-      expect(result.current.promptMessage("idle")).toBe(
-        STRINGS.wizard.scopeByProvider.azure.prompt,
-      );
-    });
-
-    it("returns auth-checking message when auth is loading", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() =>
-        result.current.setData((prev) => ({
-          ...prev,
-          cloudScope: "my-subscription",
-        })),
-      );
-      expect(result.current.promptMessage("loading")).toBe(
-        `${STRINGS.wizard.checkingPermissions} my-subscription`,
+      act(() => result.current.setStep("inputs"));
+      expect(result.current.promptMessage()).toBe(
+        STRINGS.wizard.promptInputs,
       );
     });
   });
@@ -133,35 +101,16 @@ describe("useWizardNavigation", () => {
       );
     });
 
-    it("returns empty string for iac_path step", () => {
+    it("returns empty string for root_module_path step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("iac_path"));
+      act(() => result.current.setStep("root_module_path"));
       expect(result.current.placeholder()).toBe("");
     });
 
-    it("returns empty string for provider step", () => {
+    it("returns empty string for inputs step", () => {
       const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("provider"));
+      act(() => result.current.setStep("inputs"));
       expect(result.current.placeholder()).toBe("");
-    });
-
-    it("returns generic cloud scope placeholder when no provider is set", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => result.current.setStep("cloud_scope"));
-      expect(result.current.placeholder()).toBe(
-        STRINGS.wizard.placeholderCloudScope,
-      );
-    });
-
-    it("returns the provider's scope placeholder for cloud_scope step", () => {
-      const { result } = renderHook(() => useWizardNavigation());
-      act(() => {
-        result.current.setStep("cloud_scope");
-        result.current.setData((prev) => ({ ...prev, provider: "gcp" }));
-      });
-      expect(result.current.placeholder()).toBe(
-        STRINGS.wizard.scopeByProvider.gcp.placeholder,
-      );
     });
   });
 
@@ -169,18 +118,16 @@ describe("useWizardNavigation", () => {
     const { result } = renderHook(() => useWizardNavigation());
 
     act(() => {
-      result.current.setStep("cloud_scope");
+      result.current.setStep("inputs");
       result.current.setData((prev) => ({
         ...prev,
         query: "create vm",
         repositoryUrl: "https://repo.example.com",
-        provider: "azure",
-        cloudScope: "sub-123",
-        iacPath: "environments/dev",
+        rootModulePath: "environments/dev",
       }));
     });
 
-    expect(result.current.step).toBe("cloud_scope");
+    expect(result.current.step).toBe("inputs");
     expect(result.current.data.query).toBe("create vm");
 
     act(() => result.current.resetNavigation());
@@ -189,9 +136,9 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
-      provider: "",
-      cloudScope: "",
-      iacPath: "",
+      rootModulePath: "",
+      inputsChecked: false,
+      inputs: null,
     });
   });
 });

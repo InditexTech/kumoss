@@ -19,8 +19,10 @@ class TerraformImportAddressService:
     The pair goes straight to ``terraform import``, so the id has to be
     spelled the way the provider parses it — a cloud listing API and a
     Terraform provider do not always agree on the case of a resource type
-    segment. Web search rides along with the workspace tools for that:
-    the registry's import example is what settles the canonical spelling.
+    segment. The external information tools ride along with the workspace
+    tools for that: the registry's import example, read through
+    ``terraform_docs``, is what settles the canonical spelling, and web
+    search covers what the registry cannot answer.
     """
 
     def __init__(

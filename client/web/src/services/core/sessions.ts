@@ -8,6 +8,7 @@ import { isGitDiff } from "@/utils/diffUtils";
 import type {
   OperationType,
   PaginatedSessionSummary,
+  SessionSearchField,
   PlanType,
   SessionDetail,
   SessionStatus,
@@ -19,6 +20,7 @@ export interface ListSessionsParams {
   page?: number;
   page_size?: number;
   search?: string;
+  search_in?: SessionSearchField;
   status?: SessionStatus;
   operation?: OperationType;
 }
@@ -41,16 +43,16 @@ export async function listUserSessions(
 
 /**
  * GET /api/v1/sessions?id={sessionId} — Full session aggregate (facts,
- * timeline, rounds). `includeHistory` also populates `history` with the
- * raw conversation turns; it always reads fresh (bypasses the
+ * timeline, rounds). `includeChatHistory` also populates `chat_history`
+ * with the conversation turns; it always reads fresh (bypasses the
  * finished-session cache), so leave it off in polling loops.
  */
 export async function getSessionDetail(
   sessionId: string,
-  opts?: { includeHistory?: boolean },
+  opts?: { includeChatHistory?: boolean },
 ): Promise<SessionDetail> {
   const query = new URLSearchParams({ id: sessionId });
-  if (opts?.includeHistory) query.set("include_history", "true");
+  if (opts?.includeChatHistory) query.set("include_chat_history", "true");
   return apiFetch<SessionDetail>(`${BASE}?${query}`);
 }
 

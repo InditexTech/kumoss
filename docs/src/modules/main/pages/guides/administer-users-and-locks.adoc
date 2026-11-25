@@ -47,7 +47,7 @@ described.
 == Your sessions view
 
 Reached from the user page or the footer. It lists the sessions you own,
-newest first, with these columns: query, project, type, cloud, status,
+newest first, with these columns: query, project, type, providers, status,
 apply lock, and creation time. Controls:
 
 * *Search* by project name, query text, or session id, plus *type*
@@ -58,11 +58,11 @@ apply lock, and creation time. Controls:
   cannot change it; only a panel editor or admin can, from the admin
   panel.
 
-Clicking a row opens the detail panel with: type, cloud, status, failure
+Clicking a row opens the detail panel with: type, providers, status, failure
 message when present, duration, a timeline of statuses per round with
 the artifacts attached to each (report, apply report, drift report,
 Terraform plan, changed files), and additional information (session id,
-IaC path, scope, repository link, pull-request links). Artifacts render
+root module path, provider scopes, repository link, pull-request links). Artifacts render
 inline: JSON reports as change tables with impact and cost sections,
 plans as code, and code changes as file diffs.
 
@@ -72,8 +72,10 @@ review the results, create or merge the pull request, apply, or
 continue the conversation. Failed sessions cannot be resumed; start a
 new one.
 
-The conversation history is not shown in this view; it is available in
-the admin panel.
+The detail panel also shows the session's *Conversation*: every request
+you made and the answer that closed each round. A round whose answer
+could not be produced contributes nothing, so the conversation can be
+shorter than the timeline.
 
 == Admin panel
 
@@ -85,7 +87,7 @@ only.
 
 The table lists sessions from every user with these columns: user
 (local part of the e-mail), session id (first eight characters; the
-full id on hover), query, project, type, cloud, status, apply lock, and
+full id on hover), query, project, type, providers, status, apply lock, and
 creation time.
 
 Controls:
@@ -98,15 +100,23 @@ Controls:
   is "Lock apply" or "Unlock apply") that toggles the lock; the detail
   panel shows the same state as the text "Apply Locked" or "Apply
   Open".
-* *Phoenix.* A link that opens `/monitoring/projects` in a new tab,
-  where the traces of every run live. The link is not filtered by
-  session; search by session id in Phoenix. See
-  xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix].
+* *Langfuse.* A link that opens Langfuse in a new tab, where the traces
+  of every run live. It goes to `/langfuse` on the proxy, which
+  redirects to the Langfuse UI. The link is not filtered by session;
+  open *Sessions* in Langfuse and search for the session id. See
+  xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse].
 
-The detail panel shows everything the owner sees plus the conversation
-*History* (every user request and answer in the session) and, for
-editors and admins, the "Apply Locked" or "Apply Open" toggle. "Reload
-Session" is available here too and opens the session in the wizard.
+The detail panel shows everything the owner sees — including the
+*Conversation* — plus the *Internal history* and, for editors and
+admins, the "Apply Locked" or "Apply Open" toggle. "Reload Session" is
+available here too and opens the session in the wizard.
+
+*Internal history* is the record the backend feeds to the LLM, shown
+only here. It is not the user's conversation: it holds whatever the
+prompting strategy needs, so expect raw tool output, validation notes,
+and internal status text, and expect its shape to change without
+notice. Read it to understand why a round produced what it did; for what
+the user was actually told, read the *Conversation*.
 
 === Users tab (panel `admin` only)
 
@@ -145,9 +155,12 @@ change it.
 Locks are set in two ways:
 
 * *Automatically* at the end of a generate round, from two independent
-  triggers, each behind its own switch: the compliance check fails (only
-  when `orchestration.enable_compliance_checker` is `true`; a disabled
-  checker always passes), or the report's impact banner is `high` (only
+  triggers, each behind its own switch: the compliance check fails — the
+  compliance policy denies the plan or could not be evaluated
+  (`policy_unavailable`), or the LLM audit finds an `error` or
+  `critical` violation (only when
+  `orchestration.enable_compliance_checker` is `true`; a disabled
+  checker always passes) — or the report's impact banner is `high` (only
   when `orchestration.block_on_high_impact` is `true`). Both default to
   `false` in code and the shipped `config.yaml` turns both on, so a
   configuration that omits the `orchestration` block disables both
@@ -187,7 +200,7 @@ session, which sets the flag afresh; drift rounds never change it.
   artifacts show exactly what was written.
 . Open *History* to read the conversation, including declined or
   reformulated requests.
-. Use the *Phoenix* link to inspect the traces for the session id when
+. Use the *Langfuse* link to inspect the traces for the session id when
   you need the prompts, tool calls, or model outputs behind a step.
 . Failed sessions cannot be resumed; ask the owner to start a new
   session with the corrected request.
@@ -231,7 +244,7 @@ to infrastructure; adjust the operation role separately if needed.
 
 == Next steps
 
-* xref:main:guides/monitor-with-phoenix.adoc[Monitor with Phoenix] to
+* xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] to
   inspect the traces behind any session.
 * xref:main:additional-information.adoc#support-requests[Support
   requests] for who receives the support requests users send from the

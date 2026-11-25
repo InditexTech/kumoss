@@ -4,9 +4,9 @@
 
 # Default values for the Kumoss chart.
 #
-# The chart mirrors docker-compose.yml: the four Kumoss services (proxy,
-# core, iac, notifications) plus the bundled backing services (two
-# Postgres, Redis, RustFS object storage, Phoenix and SearXNG). Every
+# The chart mirrors docker-compose.yml: the five Kumoss services (proxy,
+# core, iac, notifications, mapping) plus the bundled backing services (two
+# Postgres, Redis, RustFS object storage, Langfuse and SearXNG). Every
 # backing service can be switched off and replaced by an external one.
 
 nameOverride: ""
@@ -67,17 +67,34 @@ secrets:
   # ignored.
   existingSecret: ""
   # Bearer tokens the core sends to (and each service validates from)
-  # iac / notifications.
+  # iac / notifications / mapping.
   iacToken: ""
   notificationsToken: ""
+  mappingToken: ""
   # Bundled RustFS credentials (also handed to the core).
   objectStorageAccessKey: ""
   objectStorageSecretKey: ""
   # Bundled Postgres superuser passwords. Changing them after the first
   # install does not alter an already initialised database.
   coreDbPassword: ""
-  phoenixDbPassword: ""
+  langfuseDbPassword: ""
   searxngSecret: ""
+  # Bundled Langfuse. The key pair is the one the chart provisions for the
+  # Langfuse project and hands to the core; when set, keep the pk-lf- /
+  # sk-lf- prefixes. encryptionKey is 64 hex characters (`openssl rand
+  # -hex 32`). The admin logs in to the Langfuse UI as langfuse.adminEmail.
+  # Like the database passwords, the key pair, the admin password and the
+  # salt / encryption key only take effect on the first install: Langfuse
+  # provisions them once, and changing salt or encryptionKey afterwards
+  # invalidates what it stored with them.
+  langfusePublicKey: ""
+  langfuseSecretKey: ""
+  langfuseAdminPassword: ""
+  langfuseNextauthSecret: ""
+  langfuseSalt: ""
+  langfuseEncryptionKey: ""
+  langfuseClickhousePassword: ""
+  langfuseRedisPassword: ""
 
 # Shared /workspaces volume. The core clones repositories into it and
 # the iac service runs the engine inside those clones, so both pods
@@ -140,10 +157,13 @@ proxy:
     type: ClusterIP
     httpPort: 80
     storagePort: 9000
+    # The Langfuse UI.
+    langfusePort: 3000
     # Only used with type NodePort.
     nodePorts:
       http: null
       storage: null
+      langfuse: null
   env: {}
   secretEnv: {}
   existingSecret: ""
@@ -193,7 +213,7 @@ core:
     annotations: {}
     # Kumoss never calls the Kubernetes API: no API token in the pod.
     automount: false
-  # The core creates tables, buckets and Phoenix prompts and validates
+  # The core creates tables, buckets and Langfuse prompts and validates
   # the LLM credentials before it answers, so allow a slow first start.
   startupProbe:
     httpGet: { path: /healthz, port: http }
@@ -259,10 +279,46 @@ notifications:
     # Kumoss never calls the Kubernetes API: no API token in the pod.
     automount: false
 
+# Resolves what users type in the wizard's repository field. On by
+# default: a bare repository name `foo` becomes
+# `<MAPPING_PREFIX_IDENTIFIER>foo.git`, and a full https:// URL passes
+# through. Leave the prefix empty to accept full URLs only. Turn it off
+# (or point config.services.mapping.endpoint at your own implementation
+# of the mapping contract) to replace it.
+mapping:
+  enabled: true
+  image:
+    repository: ghcr.io/inditextech/kumoss-mapping
+    tag: ""
+    pullPolicy: IfNotPresent
+  env:
+    LOG_LEVEL: INFO
+    # e.g. https://github.com/my-org/. See services/mapping/env.sample.
+    MAPPING_PREFIX_IDENTIFIER: ""
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
+  extraVolumes: []
+  extraVolumeMounts: []
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podLabels: {}
+  serviceAccount:
+    create: true
+    # Defaults to <release>-kumoss-mapping when create is true, else "default".
+    name: ""
+    # Workload identity binding (see the header of this section).
+    annotations: {}
+    # Kumoss never calls the Kubernetes API: no API token in the pod.
+    automount: false
+
 # Optional Ingress in front of the proxy. The proxy already routes the
-# SPA, /api (including the SSE stream) and /monitoring, so the Ingress
-# only needs to forward everything; with ingress-nginx keep buffering off
-# and timeouts long for the event stream (annotations below).
+# SPA and /api (including the SSE stream), so the Ingress only needs to
+# forward everything; with ingress-nginx keep buffering off and timeouts
+# long for the event stream (annotations below).
 ingress:
   enabled: false
   className: ""
@@ -275,6 +331,9 @@ ingress:
   # Host routed to the proxy's object-storage port, for presigned
   # artifact URLs. Set storagePublicUrl to match. Empty to skip.
   storageHost: ""
+  # Host routed to the proxy's Langfuse port.
+  # Set langfuse.publicUrl to match. Empty to skip.
+  langfuseHost: ""
   tls: []
 
 # --- Bundled backing services -----------------------------------------
@@ -292,10 +351,10 @@ postgres:
     persistence: { size: 5Gi, storageClass: "" }
     # postgresql://user:password@host:5432/db — used when enabled: false.
     externalUrl: ""
-  # Phoenix database.
-  phoenix:
+  # Langfuse database.
+  langfuse:
     enabled: true
-    database: phoenix
+    database: langfuse
     persistence: { size: 5Gi, storageClass: "" }
     externalUrl: ""
 
@@ -321,22 +380,72 @@ objectStorage:
   resources: {}
   persistence: { size: 10Gi, storageClass: "" }
 
-# Tracing UI, served by the proxy under /monitoring. The core seeds its
-# prompts into Phoenix at startup, so when disabled point
-# config.telemetry.collector_url at your own Phoenix.
-phoenix:
+# Langfuse: the core's traces and prompts. The core seeds its prompts
+# into it at startup. When disabled, point config.telemetry.langfuse_url
+# and publicUrl at your own Langfuse and give the core that project's key
+# pair as LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY in core.secretEnv or
+# core.existingSecret.
+langfuse:
   enabled: true
-  # Serve the Phoenix UI under /monitoring/ on the proxy (and so on any
-  # Ingress in front of it), as docker-compose does. Phoenix has no
-  # authentication of its own and its traces hold full prompts and
-  # repository content: in production, set false and reach it through
-  # kubectl port-forward or a separately protected route.
-  exposeViaProxy: true
-  image:
-    repository: arizephoenix/phoenix
-    tag: "20.12.0"
-    pullPolicy: IfNotPresent
-  resources: {}
+  # Where browsers reach the Langfuse UI, which the proxy serves on its
+  # langfusePort: Langfuse's NEXTAUTH_URL (its login redirects go there)
+  # and where the proxy's /langfuse (the admin panel's link) redirects.
+  # Must match how you expose that port (port-forward, NodePort or
+  # ingress.langfuseHost). The stock Langfuse image cannot be served under
+  # a path, hence a port (or host) of its own. Its traces hold full
+  # prompts and repository content: in production serve it over TLS.
+  publicUrl: "http://localhost:3000"
+  # The admin user provisioned on the first start; the password is
+  # secrets.langfuseAdminPassword (generated when blank: read it from the
+  # internal Secret, key LANGFUSE_ADMIN_PASSWORD).
+  adminEmail: admin@example.com
+  web:
+    image:
+      repository: langfuse/langfuse
+      tag: "4.83.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+  worker:
+    image:
+      repository: langfuse/langfuse-worker
+      tag: "4.83.0"
+      pullPolicy: IfNotPresent
+    resources: {}
+  # Bucket for Langfuse's raw events and media. Blank endpoint: a bucket
+  # on the bundled object storage, which the chart creates. Otherwise an
+  # existing bucket on your S3-compatible store, with its credentials as
+  # LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID / _SECRET_ACCESS_KEY and
+  # LANGFUSE_S3_MEDIA_UPLOAD_ACCESS_KEY_ID / _SECRET_ACCESS_KEY in
+  # secretEnv or existingSecret (leave them unset to use the pod's cloud
+  # identity).
+  s3:
+    endpoint: ""
+    bucket: langfuse
+    region: us-east-1
+    forcePathStyle: true
+  # Bundled single-node ClickHouse. When disabled, set CLICKHOUSE_URL,
+  # CLICKHOUSE_MIGRATION_URL, CLICKHOUSE_USER and CLICKHOUSE_PASSWORD
+  # (and CLICKHOUSE_CLUSTER_ENABLED) in secretEnv or existingSecret.
+  clickhouse:
+    enabled: true
+    image:
+      repository: clickhouse/clickhouse-server
+      tag: "26.3.66.4"
+      pullPolicy: IfNotPresent
+    resources: {}
+    persistence: { size: 10Gi, storageClass: "" }
+  # Bundled Redis for Langfuse's job queue; a separate one from the
+  # core's cache, as the queue must never evict. Ephemeral like the
+  # core's: a restart drops queued jobs. When disabled, set
+  # REDIS_CONNECTION_STRING in secretEnv or existingSecret.
+  redis:
+    enabled: true
+  # Extra Langfuse settings for web and worker, as for the Kumoss
+  # services (see https://langfuse.com/self-hosting/configuration).
+  env: {}
+  secretEnv: {}
+  existingSecret: ""
+  extraEnv: []
 
 # Backend of the agents' web_search tool. When disabled the tool is off
 # unless config.web_search points elsewhere.

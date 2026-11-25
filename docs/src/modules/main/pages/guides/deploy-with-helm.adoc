@@ -4,7 +4,7 @@
 The chart in `charts/kumoss` deploys the same stack as
 `docker-compose.yml` on Kubernetes: the proxy, the core, the IaC and
 notifications sidecars, and the bundled backing services (two
-PostgreSQL databases, Redis, RustFS object storage, Phoenix and
+PostgreSQL databases, Redis, RustFS object storage, Langfuse and
 SearXNG). Every backing service can be switched off and replaced by an
 external one.
 
@@ -36,9 +36,9 @@ them to Kubernetes.
 
 |`proxy`
 |Deployment + Service
-|The single entry point, as in Compose: port 80 serves the SPA, `/api`
-(including the event stream) and `/monitoring`; port 9000 fronts the
-object store for presigned artifact URLs.
+|The single entry point, as in Compose: port 80 serves the SPA and `/api`
+(including the event stream); port 9000 fronts the object store for
+presigned artifact URLs; port 3000 serves the Langfuse UI.
 
 |`core`
 |Deployment (1 replica, `Recreate`)
@@ -54,21 +54,28 @@ volume. Probed on `GET /healthz`.
 |Off by default: the service refuses to start without
 `SLACK_WEBHOOK_URL`.
 
-|`core-db`, `phoenix-db`
+|`core-db`, `langfuse-db`
 |StatefulSet (`postgres:17`)
 |Single instance each. Use a managed database or an operator in
 production.
 
-|`redis`, `object-storage`, `phoenix`, `searxng`
+|`redis`, `object-storage`, `searxng`
 |Deployment / StatefulSet
 |Same images and settings as Compose. SearXNG runs the upstream image
 with the repository's `settings.yml`.
+
+|`langfuse-web`, `langfuse-worker`, `langfuse-clickhouse`, `langfuse-redis`
+|Deployments, StatefulSet (ClickHouse)
+|Langfuse, as in Compose. An init container on `langfuse-web` creates
+its bucket on the object store; the worker and the core wait for
+`langfuse-web` to answer, so they start after its database migrations.
+The queue Redis is ephemeral, like the core's.
 |===
 
 The repository's `config.yaml`, `nginx/nginx.conf` and
 `services/searxng/settings.yml` are symlinked into `charts/kumoss/files`,
 so the chart always ships what Compose ships. At render time the chart
-replaces the Compose hostnames (`core`, `iac`, `phoenix`, ...) with the
+replaces the Compose hostnames (`core`, `iac`, `langfuse-web`, ...) with the
 release's Service names, then applies your `config` overrides on top.
 
 == Values that matter
@@ -122,37 +129,61 @@ multi-node cluster, a `ReadWriteMany` class removes the constraint.
 it and set `config.storage.*` instead.
 
 |`<component>.serviceAccount`, `<component>.podLabels`
-|The Kubernetes identity each of `proxy`, `core`, `iac` and
-`notifications` runs as; see <<workload-identity>>.
+|The Kubernetes identity each of `proxy`, `core`, `iac`,
+`notifications` and `mapping` runs as; see <<workload-identity>>.
 
 |`notifications.enabled`
 |Off by default. Turning it on requires `SLACK_WEBHOOK_URL` in
 `notifications.secretEnv` or `notifications.existingSecret`; the chart
 refuses to render without it.
 
+|`mapping.enabled`, `mapping.env.MAPPING_PREFIX_IDENTIFIER`
+|On by default. The prefix a bare repository name typed in the wizard
+is appended to (`foo` → `<prefix>foo.git`); empty accepts full
+`https://` URLs only. Turn `mapping.enabled` off to use the input as
+the URL without a mapper, or point `config.services.mapping.endpoint`
+at your own implementation.
+
 |`<component>.resources`
 |CPU and memory requests and limits. Empty by default; set them for
 production, and on clusters that require them (GKE Autopilot fills in
 its own defaults otherwise).
 
-|`phoenix.exposeViaProxy`
-|On by default, as in Compose: the proxy serves the Phoenix UI under
-`/monitoring/`, and so does any Ingress in front of it. Phoenix has no
-authentication and its traces hold full prompts and repository
-content, so in production set it to `false` and reach Phoenix with
-`kubectl port-forward` or a separately protected route. The admin
-panel's Phoenix link then answers 502.
+|`langfuse.publicUrl`
+|Where browsers reach the Langfuse UI (`\http://localhost:3000` by
+default). Langfuse sends its login redirects there, and the admin
+panel's *Langfuse* link opens it, so it must match how you expose the
+proxy's port 3000: a port-forward, a NodePort
+(`proxy.service.nodePorts.langfuse`) or `ingress.langfuseHost`. The
+proxy is the only way in. Langfuse has its own login, but its traces
+hold full prompts and repository content: serve it over TLS in
+production.
 
-|`phoenix.enabled`
-|With `false`, point `config.telemetry.collector_url` at your own
-Phoenix (the core seeds its prompts there at startup). The proxy does
-not route `/monitoring/` to an external Phoenix; open it at its own
-URL.
+|`langfuse.adminEmail`, `secrets.langfuseAdminPassword`
+|The Langfuse admin, created on the first start (`admin@example.com`
+and a generated password by default; sign-up is off). Read the password
+with `kubectl get secret <release>-kumoss-internal -o
+jsonpath='{.data.LANGFUSE_ADMIN_PASSWORD}' \| base64 -d`.
+
+|`langfuse.enabled`
+|With `false`, point `config.telemetry.langfuse_url` and `langfuse.publicUrl`
+at your own Langfuse and give the core that project's key pair as
+`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` in `core.existingSecret`.
+The core seeds its prompts there at startup.
+
+|`langfuse.clickhouse.enabled`, `langfuse.redis.enabled`, `postgres.langfuse.*`, `langfuse.s3.*`
+|Replace Langfuse's bundled ClickHouse, Redis, database or bucket with
+your own; the settings to provide then (`CLICKHOUSE_*`,
+`REDIS_CONNECTION_STRING`, S3 keys) go in `langfuse.secretEnv` or
+`langfuse.existingSecret`. See the comments in `values.yaml` and
+https://langfuse.com/self-hosting/configuration[Langfuse's
+configuration reference].
 
 |`ingress.*`
 |Optional Ingress in front of the proxy. `ingress.storageHost` routes
 a second host to port 9000 for downloads; set `storagePublicUrl` to
-match.
+match. `ingress.langfuseHost` routes a third one to port 3000, the
+Langfuse UI; set `langfuse.publicUrl` to match.
 |===
 
 `<component>.extraEnv`, `extraVolumes` and `extraVolumeMounts` cover
@@ -248,16 +279,30 @@ generated one has:
 |===
 |Key |Value
 
-|`KUMOSS_IAC_TOKEN`, `KUMOSS_NOTIFICATIONS_TOKEN`
+|`KUMOSS_IAC_TOKEN`, `KUMOSS_NOTIFICATIONS_TOKEN`, `KUMOSS_MAPPING_TOKEN`
 |Bearer tokens between the core and the sidecars (any random string)
 
-|`CORE_DB_PASSWORD`, `PHOENIX_DB_PASSWORD`
+|`CORE_DB_PASSWORD`, `LANGFUSE_DB_PASSWORD`
 |Passwords the bundled databases are initialised with
 
-|`KUMOSS_SQL_DATABASE_URL`, `PHOENIX_SQL_DATABASE_URL`
+|`KUMOSS_SQL_DATABASE_URL`, `LANGFUSE_DATABASE_URL`
 |Connection URLs, e.g.
 `postgresql://postgres:<password>@<release>-kumoss-core-db:5432/kumoss`.
 Percent-encode the password.
+
+|`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`
+|The Langfuse project key pair, provisioned by `langfuse-web` and used by
+the core; `pk-lf-` and `sk-lf-` followed by a random string
+
+|`LANGFUSE_ADMIN_PASSWORD`
+|The Langfuse admin's password
+
+|`LANGFUSE_NEXTAUTH_SECRET`, `LANGFUSE_SALT`, `LANGFUSE_CLICKHOUSE_PASSWORD`, `LANGFUSE_REDIS_PASSWORD`
+|Any random strings
+
+|`LANGFUSE_ENCRYPTION_KEY`
+|64 hex characters (`openssl rand -hex 32`). Never change it once
+Langfuse has stored data, nor `LANGFUSE_SALT`.
 
 |`KUMOSS_REDIS_URL`
 |e.g. `redis://<release>-kumoss-redis:6379/0`
@@ -293,14 +338,14 @@ ENV_FILE=core/.env charts/kind-up.sh
 # Behind a TLS-inspecting proxy:
 ENV_FILE=core/.env CA_DIR=/usr/local/share/ca-certificates charts/kind-up.sh
 # Other host ports, or the published chart instead of the checkout:
-HTTP_PORT=8080 STORAGE_PORT=9900 charts/kind-up.sh
+HTTP_PORT=8080 STORAGE_PORT=9900 LANGFUSE_PORT=3300 charts/kind-up.sh
 CHART=oci://ghcr.io/inditextech/charts/kumoss CHART_VERSION=<version> charts/kind-up.sh
 ----
 
 Its header lists every setting; arguments after them go to `helm
 upgrade --install`. The manual steps:
 
-. Create the cluster. The port mappings forward host ports 80 and 9000
+. Create the cluster. The port mappings forward host ports 80, 9000 and 3000
   to the node ports the proxy is exposed on in step 4:
 +
 [source,bash]
@@ -313,6 +358,7 @@ nodes:
     extraPortMappings:
       - { containerPort: 30080, hostPort: 80 }
       - { containerPort: 30900, hostPort: 9000 }
+      - { containerPort: 30300, hostPort: 3000 }
 EOF
 ----
 
@@ -354,12 +400,15 @@ helm upgrade --install kumoss charts/kumoss -n kumoss \
   --set proxy.service.type=NodePort \
   --set proxy.service.nodePorts.http=30080 \
   --set proxy.service.nodePorts.storage=30900 \
+  --set proxy.service.nodePorts.langfuse=30300 \
   --set core.existingSecret=kumoss-credentials \
   --wait --timeout 10m
 helm test kumoss -n kumoss
 ----
 
-. Open `\http://localhost`. Phoenix is at `\http://localhost/monitoring/`.
+. Open `\http://localhost`. Langfuse is at `\http://localhost:3000`; log
+  in as `admin@example.com` with the password from the internal Secret
+  (`helm status kumoss -n kumoss` prints the command).
 
 [#tls-inspecting-proxy]
 === Behind a TLS-inspecting proxy

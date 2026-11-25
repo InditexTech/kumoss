@@ -11,7 +11,7 @@ from src.api.deps import assert_session_access, get_current_user
 from src.domains.dto import PaginatedSessionSummary, SessionDetail
 from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
-from src.shared.constants import OperationType, SessionStatus
+from src.shared.constants import OperationType, SessionSearchField, SessionStatus
 from src.shared.exceptions import ExceptionHandler
 
 router = APIRouter(prefix="/sessions", tags=["Session Management"])
@@ -28,6 +28,7 @@ async def sessions_list(
     operation: Annotated[OperationType | None, Query()] = None,
     status: Annotated[SessionStatus | None, Query()] = None,
     search: Annotated[str | None, Query(max_length=200)] = None,
+    search_in: Annotated[SessionSearchField, Query()] = SessionSearchField.ALL,
 ) -> PaginatedSessionSummary:
     """Paginated session summaries for the sessions table.
 
@@ -35,8 +36,8 @@ async def sessions_list(
     carries the operation, terraform provider, first query, workspace
     URI, latest status, and lock flags — everything the list view
     renders, resolved server-side. ``status`` matches a session's most
-    recent status; ``search`` matches first query, workspace URI, or
-    session id.
+    recent status; ``search`` partially matches first query, workspace
+    URI, or session id, or only the one ``search_in`` names.
     """
     try:
         return await DatabaseService.list_sessions(
@@ -44,6 +45,7 @@ async def sessions_list(
             operation=operation,
             status=status,
             search=search,
+            search_in=search_in,
             offset=(page - 1) * page_size,
             limit=page_size,
         )
@@ -59,9 +61,9 @@ async def sessions_list(
 async def session_detail(
     session_id: Annotated[UUID, Query(alias="id")],
     user: Annotated[User, Depends(get_current_user)],
-    include_history: Annotated[
+    include_chat_history: Annotated[
         bool,
-        Query(description="Include the session's serialized conversation history."),
+        Query(description="Include the session's user-facing conversation."),
     ] = False,
 ) -> SessionDetail:
     """The complete read model for the session detail view.
@@ -72,10 +74,11 @@ async def session_detail(
     URLs. The session's timeline is the rounds' statuses concatenated in
     round order; ``current_status`` carries the latest one.
 
-    Pass ``include_history=true`` to also populate ``history`` with the
-    session's conversation turns (``[{"user": ..., "assistant": ...}]``);
-    this variant always reads fresh from the database, so keep status
-    polls on the default.
+    Pass ``include_chat_history=true`` to also populate ``chat_history``
+    with the session's conversation — one turn per finished round, as
+    ``[{"user": ..., "assistant": ...}]`` oldest first. This variant
+    always reads fresh from the database, so keep status polls on the
+    default.
 
     Clients subscribed to the push channel should refetch this endpoint
     whenever a `session.updated` nudge arrives for this session id.
@@ -83,7 +86,7 @@ async def session_detail(
     await assert_session_access(user, session_id, write=False)
     try:
         return await DatabaseService.get_session_detail(
-            session_id, include_history=include_history
+            session_id, include_chat_history=include_chat_history
         )
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)

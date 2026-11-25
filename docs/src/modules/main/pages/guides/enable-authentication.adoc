@@ -218,9 +218,8 @@ user — see link:#bootstrap-admin[Grant the first administrator access].
 
 `admin.default_root_email` elevates a user to the top role of both role
 groups only when the access token carries a matching `email` claim and
-`email_verified: true`. A `preferred_username` fallback or a missing
-`email_verified` never elevates. Of the providers above only Keycloak
-emits both claims in access tokens.
+`email_verified: true`. A missing `email_verified` never elevates. Of
+the providers above only Keycloak emits both claims in access tokens.
 
 The elevation is re-applied on every authenticated request, not only at
 login: demoting that user in the admin panel reverts on their next
@@ -278,5 +277,6 @@ change.
   restart core`); the file is read only at startup.
 * *A `core_db_data` volume predates authentication.* A volume created
   before OIDC support was added keyed sessions by `username` instead of
-  the current `users` table; migrate it by hand or drop it before
-  pointing a current core at it.
+  the current `users` table. The core refuses to start on it ("The
+  database predates authentication"); migrate it by hand or drop it
+  before pointing a current core at it.

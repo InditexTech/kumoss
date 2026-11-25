@@ -98,14 +98,8 @@ def sync_detailed(
     """Resolve a business identifier into an IaC repository reference.
 
      Translates `identifier` into the repository the rest of Kumoss
-    operates on, and optionally into the Terraform provider and cloud
-    scope the caller would otherwise have to ask the user for.
-
-    `repo_url` is required. `terraform_provider` and `scope_id` are
-    best effort: implementations MUST return `null` rather than a
-    guess, because the caller skips its corresponding prompt for any
-    field that comes back non-null. `identifier` MUST echo the
-    request's `identifier` verbatim so callers can correlate.
+    operates on. `identifier` MUST echo the request's `identifier`
+    verbatim so callers can correlate.
 
     Args:
         body (ResolveRequest):
@@ -137,14 +131,8 @@ def sync(
     """Resolve a business identifier into an IaC repository reference.
 
      Translates `identifier` into the repository the rest of Kumoss
-    operates on, and optionally into the Terraform provider and cloud
-    scope the caller would otherwise have to ask the user for.
-
-    `repo_url` is required. `terraform_provider` and `scope_id` are
-    best effort: implementations MUST return `null` rather than a
-    guess, because the caller skips its corresponding prompt for any
-    field that comes back non-null. `identifier` MUST echo the
-    request's `identifier` verbatim so callers can correlate.
+    operates on. `identifier` MUST echo the request's `identifier`
+    verbatim so callers can correlate.
 
     Args:
         body (ResolveRequest):
@@ -171,14 +159,8 @@ async def asyncio_detailed(
     """Resolve a business identifier into an IaC repository reference.
 
      Translates `identifier` into the repository the rest of Kumoss
-    operates on, and optionally into the Terraform provider and cloud
-    scope the caller would otherwise have to ask the user for.
-
-    `repo_url` is required. `terraform_provider` and `scope_id` are
-    best effort: implementations MUST return `null` rather than a
-    guess, because the caller skips its corresponding prompt for any
-    field that comes back non-null. `identifier` MUST echo the
-    request's `identifier` verbatim so callers can correlate.
+    operates on. `identifier` MUST echo the request's `identifier`
+    verbatim so callers can correlate.
 
     Args:
         body (ResolveRequest):
@@ -208,14 +190,8 @@ async def asyncio(
     """Resolve a business identifier into an IaC repository reference.
 
      Translates `identifier` into the repository the rest of Kumoss
-    operates on, and optionally into the Terraform provider and cloud
-    scope the caller would otherwise have to ask the user for.
-
-    `repo_url` is required. `terraform_provider` and `scope_id` are
-    best effort: implementations MUST return `null` rather than a
-    guess, because the caller skips its corresponding prompt for any
-    field that comes back non-null. `identifier` MUST echo the
-    request's `identifier` verbatim so callers can correlate.
+    operates on. `identifier` MUST echo the request's `identifier`
+    verbatim so callers can correlate.
 
     Args:
         body (ResolveRequest):

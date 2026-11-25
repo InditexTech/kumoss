@@ -43,7 +43,7 @@ selectable via `storage.provider`, or any other S3-compatible endpoint
 via the `RUSTFS` provider
 
 |PostgreSQL 17
-|core-db and phoenix-db
+|core-db and langfuse-db
 |PostgreSQL Licence
 |—
 
@@ -62,15 +62,22 @@ via the `RUSTFS` provider
 |MIT
 |—
 
-|OpenTelemetry / OpenInference
-|Tracing standard and semantic conventions
+|OpenTelemetry
+|Tracing standard
 |Apache-2.0
 |OpenTelemetry is CNCF Graduated (2026-05-21)
 
-|Arize Phoenix
+|Langfuse
 |Trace UI and runtime prompt registry
-|*Elastic License 2.0 (source-available, not OSI-approved)*
-|The only non-OSI component; disclosed in all public material
+|MIT
+|Self-hosted open-source edition. Code under its `ee` directories is
+under a commercial licence and stays inactive without a licence key;
+Kumoss uses none of it
+
+|ClickHouse
+|Langfuse's trace store
+|Apache-2.0
+|—
 
 |OpenID Connect
 |Authentication protocol

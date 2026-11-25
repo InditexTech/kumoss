@@ -29,17 +29,16 @@ polled at ``GET /v1/jobs/{job_id}`` until terminal; a non-zero
 ``exit_code`` is a terraform-level failure reported through the
 returned DTO, while a ``failed`` job is a service-level fault raised as
 an ExceptionHandler error. Every operation runs on whatever is on disk
-at the workspace path, which must be visible to the service. ``init``,
-``plan`` and ``apply`` reach a cloud API, so they carry the session's
-``scope_id`` (subscription / project / account) together with its
-``terraform_provider``: generated provider blocks do not name a scope,
-so the service injects it into the engine's environment for those three
-commands where the provider has a variable that names a scope (Azure,
-GCP, and the OCI and AWS input variables the generated code declares).
-``validate`` and ``show`` reach no cloud API and are submitted
-unscoped. An OCI compartment is a resource argument, so an OCI ``plan``
-is followed by a ``show`` of its artifact, and a plan that creates
-resources in another compartment fails validation.
+at the workspace path, which must be visible to the service. The
+service attaches no meaning to providers, so this adapter points every
+command at the session's provider scopes itself (subscription / project
+/ account / compartment, one per scoped provider of the root module):
+each scope becomes the environment variable or input variable its
+provider reads (``SCOPE_BINDINGS``). The environment goes with every
+command; ``plan`` and ``import``, the commands that evaluate input
+variables, also get the picked var files (read by Terraform itself)
+and the root module's configured values, the scope variables last so
+no configured value can retarget them.
 
 Import discovery follows the same planes: a ``state pull`` that exits
 non-zero leaves the managed set unknown, so it is raised, while a
@@ -56,7 +55,8 @@ import json
 import time
 from pathlib import Path
 from types import ModuleType
-from typing import override
+from collections.abc import Sequence
+from typing import Any, override
 from uuid import UUID
 
 import httpx
@@ -82,14 +82,16 @@ from src.clients.iac.models.operation_result import OperationResult
 from src.clients.iac.models.plan_request import PlanRequest
 from src.clients.iac.models.problem import Problem
 from src.clients.iac.models.show_request import ShowRequest
-from src.clients.iac.models.terraform_provider import (
-    TerraformProvider as IacTerraformProvider,
+from src.clients.iac.models.scope_resource_ids_request_provider import (
+    ScopeResourceIdsRequestProvider,
 )
 from src.clients.iac.models.validate_request import ValidateRequest
 from src.clients.iac.models.state_resource_ids_request import StateResourceIdsRequest
 from src.clients.iac.models.scope_resource_ids_request import ScopeResourceIdsRequest
 from src.clients.iac.models.import_request import ImportRequest
-from src.clients.iac.types import UNSET
+from src.clients.iac.models.env import Env
+from src.clients.iac.models.vars_ import Vars
+from src.clients.iac.types import UNSET, Unset
 from src.domains.dto import (
     TerraformApplyDTO,
     TerraformDiscoveryDTO,
@@ -100,10 +102,10 @@ from src.domains.dto import (
 from src.domains.interfaces.git_interface import IGit
 from src.domains.interfaces.terraform_interface import ITerraform
 from src.domains.services.tracer_service import trace_terraform
-from src.domains.value_objects import PlanRef
+from src.domains.value_objects import PlanRef, ProviderScope, TerraformInputs
 from src.shared.config import system_config
+from src.shared.constants import SCOPE_BINDINGS
 from src.shared.config.system_config import IacServiceConfig
-from src.shared.constants import TerraformProvider
 from src.shared.exceptions import ExceptionHandler
 from src.shared.logger import logging
 
@@ -127,14 +129,26 @@ class Terraform(ITerraform):
         self,
         workspace_path: Path,
         git: IGit,
-        scope_id: str,
-        terraform_provider: TerraformProvider,
+        scopes: Sequence[ProviderScope],
         backend: TerraformBackend,
+        inputs: TerraformInputs | None = None,
     ):
+        """``inputs`` are the root module's configured variables, passed to
+        the commands that evaluate them (``plan``, ``import``). ``scopes`` are
+        the session's providers; those with a scope id point every command
+        at it (see ``SCOPE_BINDINGS``)."""
         self.__workspace_path = workspace_path
+        self.__inputs = inputs
         self.__git = git
-        self.__scope_id = scope_id
-        self.__terraform_provider = IacTerraformProvider(terraform_provider.value)
+        scoped = [
+            (SCOPE_BINDINGS[p.provider], p.scope_id)
+            for p in scopes
+            if p.scope_id and p.provider in SCOPE_BINDINGS
+        ]
+        self.__env = {b.name: scope_id for b, scope_id in scoped if b.kind == "env"}
+        self.__scope_vars = {
+            b.name: scope_id for b, scope_id in scoped if b.kind == "var"
+        }
         self.__backend = backend
         self.__initialized = False
 
@@ -164,6 +178,7 @@ class Terraform(ITerraform):
                     validate_op,
                     ValidateRequest(
                         workspace_path=self.__workspace_path.as_posix(),
+                        env=self.__env_field(),
                     ),
                     cfg,
                 )
@@ -181,19 +196,13 @@ class Terraform(ITerraform):
                     plan_op,
                     PlanRequest(
                         workspace_path=self.__workspace_path.as_posix(),
-                        scope_id=self.__scope_id,
-                        terraform_provider=self.__terraform_provider,
+                        env=self.__env_field(),
+                        var_files=self.__var_files_field(),
+                        vars_=self.__vars_field(),
                         plan_file=system_config.paths.session_plan_filename,
                         targets=targets,
                     ),
                     cfg,
-                )
-                # FIXME: ad hoc OCI workaround - AWS, GCP and OCI doesn't bind scope id to terraform scope the same way Azure does (enforced via env variable)
-                scope_feedback = (
-                    await self.__oci_scope_feedback(c, cfg)
-                    if plan_res.exit_code == 0
-                    and self.__terraform_provider is IacTerraformProvider.OCI
-                    else ""
                 )
         except httpx.TimeoutException as e:
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
@@ -204,14 +213,6 @@ class Terraform(ITerraform):
             return TerraformPlanDTO(
                 ok=False,
                 feedback=plan_res.stderr or "terraform plan failed",
-                stdout=plan_res.stdout,
-                targets=targets,
-                plan=None,
-            )
-        if scope_feedback:
-            return TerraformPlanDTO(
-                ok=False,
-                feedback=scope_feedback,
                 stdout=plan_res.stdout,
                 targets=targets,
                 plan=None,
@@ -279,6 +280,7 @@ class Terraform(ITerraform):
                     show_op,
                     ShowRequest(
                         workspace_path=plan.workspace.as_posix(),
+                        env=self.__env_field(),
                         plan_file=plan.plan_file,
                     ),
                     cfg,
@@ -311,6 +313,7 @@ class Terraform(ITerraform):
             feedback="",
             stdout=plan.stdout,
             plan=plan,
+            plan_json=plan_json,
         )
 
     @trace_terraform
@@ -329,8 +332,7 @@ class Terraform(ITerraform):
                     apply_op,
                     ApplyRequest(
                         workspace_path=str(self.__workspace_path),
-                        scope_id=self.__scope_id,
-                        terraform_provider=self.__terraform_provider,
+                        env=self.__env_field(),
                         plan_file=system_config.paths.session_plan_filename,
                     ),
                     cfg,
@@ -372,8 +374,7 @@ class Terraform(ITerraform):
             init_op,
             InitRequest(
                 workspace_path=str(self.__workspace_path),
-                scope_id=self.__scope_id,
-                terraform_provider=self.__terraform_provider,
+                env=self.__env_field(),
             ),
             cfg,
         )
@@ -406,45 +407,6 @@ class Terraform(ITerraform):
         if init_res is not None:
             return init_res
         return await self.__run_op(client, submit_module, body, cfg)
-
-    async def __oci_scope_feedback(
-        self,
-        client: AuthenticatedClient,
-        cfg: IacServiceConfig,
-    ) -> str:
-        """Feedback naming the resources the session plan creates outside
-        the request's compartment, or "" when there are none.
-
-        The injected ``TF_VAR_compartment_ocid`` only reaches code that
-        uses the variable; this reads the plan itself, so a hardcoded
-        compartment fails validation and goes back to the generator.
-        """
-        show_res = await self.__run_initialized_op(
-            client,
-            show_op,
-            ShowRequest(
-                workspace_path=self.__workspace_path.as_posix(),
-                plan_file=system_config.paths.session_plan_filename,
-            ),
-            cfg,
-        )
-        if show_res.exit_code != 0:
-            return show_res.stderr or "terraform show failed"
-        try:
-            plan_json = json.loads(show_res.stdout)
-        except json.JSONDecodeError as e:
-            raise ExceptionHandler(
-                f"terraform show succeeded but returned unparseable JSON: {e}", 502
-            ) from e
-        outside = TerraformUtils.oci_creations_outside(plan_json, self.__scope_id)
-        if not outside:
-            return ""
-        return (
-            "These resources would be created outside the request's compartment "
-            + f"({self.__scope_id}): {', '.join(outside)}. Set their "
-            + "compartment_id to var.compartment_ocid, or to a compartment this "
-            + "configuration creates under it; never hardcode a compartment OCID."
-        )
 
     @staticmethod
     def __needs_init(res: OperationResult) -> bool:
@@ -502,11 +464,7 @@ class Terraform(ITerraform):
 
     @trace_terraform
     @override
-    async def scope_resource_ids(
-        self,
-        scope_id: str,
-        terraform_provider: TerraformProvider,
-    ) -> TerraformDiscoveryDTO:
+    async def scope_resource_ids(self, scope: ProviderScope) -> TerraformDiscoveryDTO:
         cfg = system_config.services.iac
         client = AuthenticatedClient(
             base_url=cfg.endpoint,
@@ -527,8 +485,8 @@ class Terraform(ITerraform):
                     scope_op,
                     ScopeResourceIdsRequest(
                         workspace_path=workspace,
-                        scope_id=scope_id,
-                        terraform_provider=terraform_provider,
+                        scope_id=scope.scope_id or "",
+                        provider=ScopeResourceIdsRequestProvider(scope.provider),
                     ),
                     cfg,
                 )
@@ -584,8 +542,9 @@ class Terraform(ITerraform):
                     import_op,
                     ImportRequest(
                         workspace_path=workspace,
-                        scope_id=self.__scope_id,
-                        terraform_provider=self.__terraform_provider,
+                        env=self.__env_field(),
+                        var_files=self.__var_files_field(),
+                        vars_=self.__vars_field(),
                         address=address,
                         resource_id=resource_id,
                     ),
@@ -607,6 +566,25 @@ class Terraform(ITerraform):
             raise ExceptionHandler(f"IaC service timed out: {e}", 504) from e
         except httpx.RequestError as e:
             raise ExceptionHandler(f"IaC service unreachable: {e}", 502) from e
+
+    def __env_field(self) -> Env | Unset:
+        """The scope environment variables; unset when there are none."""
+        return Env.from_dict(self.__env) if self.__env else UNSET
+
+    def __var_files_field(self) -> list[str] | Unset:
+        """The picked var files, in order; unset when there are none."""
+        if self.__inputs is None or not self.__inputs.var_files:
+            return UNSET
+        return list(self.__inputs.var_files)
+
+    def __vars_field(self) -> Vars | Unset:
+        """The configured values, then the scope variables so they win; unset
+        when there are none."""
+        values: dict[str, Any] = {
+            **(self.__inputs.values if self.__inputs else {}),
+            **self.__scope_vars,
+        }
+        return Vars.from_dict(values) if values else UNSET
 
     async def __run_op(
         self,

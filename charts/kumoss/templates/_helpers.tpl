@@ -123,7 +123,7 @@ In-cluster service URLs. The repository's config.yaml and nginx.conf
 use the docker-compose hostnames; the chart rewrites them to these.
 */}}
 {{- define "kumoss.coreHost" -}}{{ include "kumoss.component" (list . "core") }}{{- end }}
-{{- define "kumoss.phoenixHost" -}}{{ include "kumoss.component" (list . "phoenix") }}{{- end }}
+{{- define "kumoss.langfuseHost" -}}{{ include "kumoss.component" (list . "langfuse-web") }}{{- end }}
 {{- define "kumoss.objectStorageHost" -}}{{ include "kumoss.component" (list . "object-storage") }}{{- end }}
 
 {{/*
@@ -138,10 +138,13 @@ wiring, then the user's `config` overrides (each layer wins).
     "iac" (dict "endpoint" (printf "http://%s:8082" (include "kumoss.component" (list . "iac"))))
     "notifications" (dict
       "enabled" .Values.notifications.enabled
-      "endpoint" (ternary (printf "http://%s:8080" (include "kumoss.component" (list . "notifications"))) "" .Values.notifications.enabled)))
+      "endpoint" (ternary (printf "http://%s:8080" (include "kumoss.component" (list . "notifications"))) "" .Values.notifications.enabled))
+    "mapping" (dict
+      "enabled" .Values.mapping.enabled
+      "endpoint" (ternary (printf "http://%s:8081" (include "kumoss.component" (list . "mapping"))) "" .Values.mapping.enabled)))
 }}
-{{- if .Values.phoenix.enabled }}
-{{- $_ := set $wiring "telemetry" (dict "collector_url" (printf "http://%s:6006/" (include "kumoss.phoenixHost" .))) }}
+{{- if .Values.langfuse.enabled }}
+{{- $_ := set $wiring "telemetry" (dict "langfuse_url" (printf "http://%s:3000/" (include "kumoss.langfuseHost" .))) }}
 {{- end }}
 {{- if .Values.searxng.enabled }}
 {{- $_ := set $wiring "web_search" (dict "provider" "searxng" "endpoint" (printf "http://%s:8888" (include "kumoss.component" (list . "searxng")))) }}
@@ -167,17 +170,18 @@ to load a config with an unresolvable upstream) and that path answers 502.
 */}}
 {{- define "kumoss.nginxConf" -}}
 {{- $off := "http://127.0.0.1:9" }}
-{{- $phoenix := ternary (printf "http://%s:6006" (include "kumoss.phoenixHost" .)) $off (and .Values.phoenix.enabled .Values.phoenix.exposeViaProxy) }}
+{{- $langfuse := ternary (printf "http://%s:3000" (include "kumoss.langfuseHost" .)) $off .Values.langfuse.enabled }}
 {{- $storage := ternary (printf "http://%s:9000" (include "kumoss.objectStorageHost" .)) $off .Values.objectStorage.enabled }}
 {{- .Files.Get "files/nginx.conf"
   | replace "http://core:8000" (printf "http://%s:8000" (include "kumoss.coreHost" .))
-  | replace "http://phoenix:6006" $phoenix
+  | replace "http://langfuse-web:3000" $langfuse
+  | replace "return 302 $scheme://$host:3000/;" (printf "return 302 %s/;" (trimSuffix "/" .Values.langfuse.publicUrl))
   | replace "http://object-storage:9000" $storage }}
 {{- end }}
 
 {{/*
 Init container that blocks until a bundled Postgres accepts connections:
-the core and Phoenix exit on a refused connection at startup instead of
+the core and Langfuse exit on a refused connection at startup instead of
 retrying. Usage: include "kumoss.waitForPostgres" (list . "core-db")
 */}}
 {{- define "kumoss.waitForPostgres" -}}
@@ -226,7 +230,7 @@ them. Usage: include "kumoss.secretsChecksum" (list . "core")
 {{- $v := $root.Values }}
 {{- toJson (dict
   "shared" $v.secrets
-  "externalUrls" (list $v.postgres.core.externalUrl $v.postgres.phoenix.externalUrl $v.redis.externalUrl)
+  "externalUrls" (list $v.postgres.core.externalUrl $v.postgres.langfuse.externalUrl $v.redis.externalUrl)
   "secretEnv" ((index $v (index . 1)).secretEnv | default dict)) | sha256sum }}
 {{- end }}
 
@@ -327,4 +331,76 @@ Usage: include "kumoss.caBundle.initContainer" (dict "root" . "image" "<ref>" "p
 - name: ca-bundle
   emptyDir: {}
 {{- end }}
+{{- end }}
+
+{{/*
+Init container that blocks until langfuse-web answers its health check:
+the core seeds its prompts at startup, and the worker must start after
+the web service has migrated the databases (or it loads its model prices
+into tables not created yet, and generations carry no cost).
+Usage: include "kumoss.waitForLangfuse" .
+*/}}
+{{- define "kumoss.waitForLangfuse" -}}
+- name: wait-for-langfuse
+  image: curlimages/curl:8.17.0
+  command: ["sh", "-c", "until curl -fsS -o /dev/null http://{{ include "kumoss.langfuseHost" . }}:3000/api/public/health; do sleep 3; done"]
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    allowPrivilegeEscalation: false
+    capabilities:
+      drop: ["ALL"]
+{{- end }}
+
+{{/* Settings shared by langfuse-web and langfuse-worker, as env entries. */}}
+{{- define "kumoss.langfuseEnv" -}}
+{{- $l := .Values.langfuse }}
+- name: NEXTAUTH_URL
+  value: {{ $l.publicUrl | quote }}
+- name: TELEMETRY_ENABLED
+  value: "false"
+{{ include "kumoss.secretKeyRef" (list . "DATABASE_URL" "LANGFUSE_DATABASE_URL") }}
+{{ include "kumoss.secretKeyRef" (list . "SALT" "LANGFUSE_SALT") }}
+{{ include "kumoss.secretKeyRef" (list . "ENCRYPTION_KEY" "LANGFUSE_ENCRYPTION_KEY") }}
+{{- if $l.clickhouse.enabled }}
+{{- $ch := include "kumoss.component" (list . "langfuse-clickhouse") }}
+- name: CLICKHOUSE_URL
+  value: "http://{{ $ch }}:8123"
+- name: CLICKHOUSE_MIGRATION_URL
+  value: "clickhouse://{{ $ch }}:9000"
+- name: CLICKHOUSE_USER
+  value: clickhouse
+{{ include "kumoss.secretKeyRef" (list . "CLICKHOUSE_PASSWORD" "LANGFUSE_CLICKHOUSE_PASSWORD") }}
+- name: CLICKHOUSE_CLUSTER_ENABLED
+  value: "false"
+{{- end }}
+{{- if $l.redis.enabled }}
+- name: REDIS_HOST
+  value: {{ include "kumoss.component" (list . "langfuse-redis") | quote }}
+- name: REDIS_PORT
+  value: "6379"
+{{ include "kumoss.secretKeyRef" (list . "REDIS_AUTH" "LANGFUSE_REDIS_PASSWORD") }}
+{{- end }}
+{{- $endpoint := $l.s3.endpoint | default (printf "http://%s:9000" (include "kumoss.objectStorageHost" .)) }}
+{{- range $kind := list "EVENT" "MEDIA" }}
+- name: LANGFUSE_S3_{{ $kind }}_UPLOAD_BUCKET
+  value: {{ $l.s3.bucket | quote }}
+- name: LANGFUSE_S3_{{ $kind }}_UPLOAD_REGION
+  value: {{ $l.s3.region | quote }}
+- name: LANGFUSE_S3_{{ $kind }}_UPLOAD_ENDPOINT
+  value: {{ $endpoint | quote }}
+- name: LANGFUSE_S3_{{ $kind }}_UPLOAD_FORCE_PATH_STYLE
+  value: {{ $l.s3.forcePathStyle | toString | quote }}
+- name: LANGFUSE_S3_{{ $kind }}_UPLOAD_PREFIX
+  value: {{ ternary "events/" "media/" (eq $kind "EVENT") | quote }}
+{{- if include "kumoss.langfuseBundledBucket" $ }}
+{{ include "kumoss.secretKeyRef" (list $ (printf "LANGFUSE_S3_%s_UPLOAD_ACCESS_KEY_ID" $kind) "RUSTFS_ACCESS_KEY") }}
+{{ include "kumoss.secretKeyRef" (list $ (printf "LANGFUSE_S3_%s_UPLOAD_SECRET_ACCESS_KEY" $kind) "RUSTFS_SECRET_KEY") }}
+{{- end }}
+{{- end }}
+{{- end }}
+
+{{/* "true" when Langfuse's bucket lives on the bundled object storage. */}}
+{{- define "kumoss.langfuseBundledBucket" -}}
+{{- if and .Values.objectStorage.enabled (not .Values.langfuse.s3.endpoint) }}true{{ end }}
 {{- end }}

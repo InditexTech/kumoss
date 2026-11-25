@@ -22,3 +22,9 @@ class SetLockError(ExceptionHandler):
     """Raised when the DB lock update encountered an error"""
 
     pass
+
+
+class RequestFilterException(ExceptionHandler):
+    """Raised when the request filter service has flagged a query as incorrect"""
+
+    pass

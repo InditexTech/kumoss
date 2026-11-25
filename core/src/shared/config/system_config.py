@@ -72,6 +72,7 @@ class OidcConfig(BaseModel):
     audience: str = ""
     scope: str = DEFAULT_OIDC_SCOPE
     clock_skew_seconds: int = 60
+    custom_claims: dict[str, str] = Field(default_factory=dict)
 
     @model_validator(mode="after")
     def _validate_and_resolve(self) -> OidcConfig:
@@ -334,21 +335,62 @@ class PathsConfig(BaseModel):
         default="backend_override.tf",
         pattern=r"^[A-Za-z0-9._-]{1,128}_override\.tf$",
     )
+    # Committed in each root module; holds its configured inputs (no secrets).
+    manifest_filename: str = Field(
+        default="kumoss.yaml", pattern=r"^[A-Za-z0-9._-]{1,128}\.ya?ml$"
+    )
 
 
 class TelemetryConfig(BaseModel):
-    """Generic OTel telemetry knobs.
+    """Langfuse: where traces go and where prompts are read from.
 
-    ``collector_url`` is a base URL; the OTLP endpoint is computed from
-    it at use time as ``f"{collector_url}v1/traces"``. The default is the
-    Phoenix service of the bundled docker-compose stack; anything that
-    speaks OTLP/HTTP works. Running the core outside docker needs an
-    explicit ``http://localhost:6006/``.
+    ``langfuse_url`` is the base URL of the Langfuse web service. Traces
+    are exported over OTLP/HTTP to ``{langfuse_url}api/public/otel/v1/traces``
+    and prompts are read from its public REST API, both authenticated
+    with the project's API key pair. The default is the langfuse-web
+    service of the bundled docker-compose stack; running the core
+    outside docker needs ``http://localhost:3000/``.
+
+    The key pair is referenced indirectly via env-var names. When unset,
+    the development keys the bundled stack provisions are used, so the
+    OSS stack boots without extra wiring; any other Langfuse answers
+    them with 401, which the prompt seeder reports at startup.
     """
 
-    collector_url: str = "http://phoenix:6006/"
+    # The keys LANGFUSE_INIT_PROJECT_*_KEY provision in docker-compose.yml.
+    _DEV_PUBLIC_KEY: ClassVar[str] = "pk-lf-kumoss-dev"
+    _DEV_SECRET_KEY: ClassVar[str] = "sk-lf-kumoss-dev"
+
+    langfuse_url: str = "http://langfuse-web:3000/"
+    public_key_env: str = "LANGFUSE_PUBLIC_KEY"
+    secret_key_env: str = "LANGFUSE_SECRET_KEY"
     otel_attribute_count_limit: int = 1024
     otel_console_exporter: bool = False
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_phoenix_settings(cls, data: Any) -> Any:
+        # Ignoring the key would silently send traces to the default URL.
+        if isinstance(data, dict) and "collector_url" in data:
+            raise ConfigError(
+                "telemetry.collector_url was the Phoenix URL and is no longer "
+                + "read: Kumoss now uses Langfuse. Replace it with "
+                + "telemetry.langfuse_url (see the upgrade notes)."
+            )
+        return data
+
+    @field_validator("langfuse_url")
+    @classmethod
+    def _trailing_slash(cls, v: str) -> str:
+        return v if v.endswith("/") else f"{v}/"
+
+    @property
+    def public_key(self) -> str:
+        return _env(self.public_key_env, self._DEV_PUBLIC_KEY)
+
+    @property
+    def secret_key(self) -> str:
+        return _env(self.secret_key_env, self._DEV_SECRET_KEY)
 
 
 class HttpConfig(BaseModel):

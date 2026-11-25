@@ -29,6 +29,8 @@
         { "type": "toml", "path": "services/iac/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-iac')].version" },
         { "type": "toml", "path": "services/notifications/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "services/notifications/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-notifications')].version" },
+        { "type": "toml", "path": "services/mapping/pyproject.toml", "jsonpath": "$.project.version" },
+        { "type": "toml", "path": "services/mapping/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-mapping')].version" },
         { "type": "toml", "path": "contracts/conformance/authz/pyproject.toml", "jsonpath": "$.project.version" },
         { "type": "toml", "path": "contracts/conformance/authz/uv.lock", "jsonpath": "$.package[?(@.name.value==='kumoss-authz-conformance')].version" },
         { "type": "toml", "path": "contracts/conformance/iac/pyproject.toml", "jsonpath": "$.project.version" },

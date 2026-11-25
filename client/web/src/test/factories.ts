@@ -12,8 +12,8 @@
  */
 
 import type {
+  AdminSessionDetail,
   RoundDetail,
-  SessionDetail,
   SessionStatus,
   StatusEntry,
 } from "@/types/api";
@@ -47,13 +47,16 @@ export function makeRound(overrides: Partial<RoundDetail> = {}): RoundDetail {
 }
 
 export function makeSessionDetail(
-  overrides: Partial<SessionDetail> = {},
-): SessionDetail {
+  overrides: Partial<AdminSessionDetail> = {},
+): AdminSessionDetail {
   return {
     uuid: "sess-1",
     username: "user@test.com",
     operation: "generate",
-    provider: "azure",
+    providers: [
+      { name: "azurerm", scope_id: "sub-123" },
+      { name: "random", scope_id: null },
+    ],
     first_query: "deploy a VM",
     workspace: {
       uri: "https://dev.azure.com/org/project/_git/repo",
@@ -65,29 +68,34 @@ export function makeSessionDetail(
     is_blocked: false,
     created_at: NOW,
     updated_at: NOW,
-    scope_id: "sub-123",
     rounds: [makeRound()],
-    history: [{ user: "deploy a VM", assistant: "Here is your VM" }],
+    chat_history: [
+      {
+        user: "deploy a VM",
+        assistant: "Done: the plan adds one VM. Need anything else?",
+      },
+    ],
+    history: [{ user: "deploy a VM", assistant: "<raw llm summary>" }],
     ...overrides,
   };
 }
 
 // ─── In-memory session store the handlers read from ────────────
 
-const sessions = new Map<string, SessionDetail>();
+const sessions = new Map<string, AdminSessionDetail>();
 
 export const mockState = {
   clear() {
     sessions.clear();
   },
-  addSession(detail: SessionDetail): SessionDetail {
+  addSession(detail: AdminSessionDetail): AdminSessionDetail {
     sessions.set(detail.uuid, detail);
     return detail;
   },
-  getSession(uuid: string): SessionDetail | undefined {
+  getSession(uuid: string): AdminSessionDetail | undefined {
     return sessions.get(uuid);
   },
-  listSessions(): SessionDetail[] {
+  listSessions(): AdminSessionDetail[] {
     return [...sessions.values()];
   },
 };

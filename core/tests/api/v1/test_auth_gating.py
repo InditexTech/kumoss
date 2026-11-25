@@ -27,7 +27,6 @@ from src.shared.constants import (
     OperationRole,
     OperationType,
     PanelRole,
-    TerraformProvider,
 )
 
 
@@ -78,11 +77,9 @@ class _GatingBase(unittest.IsolatedAsyncioTestCase):
             user_pk=user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
         )
         return user, sid
 
@@ -98,14 +95,6 @@ class TestBearerRequirement(_GatingBase):
         with patch("src.api.deps._oidc_enabled", return_value=True):
             resp = await self.client.get(
                 "/v1/users/me", headers={"Authorization": "Bearer garbage"}
-            )
-        self.assertEqual(resp.status_code, 401, resp.text)
-
-    async def test_authorize_requires_a_token(self):
-        with patch("src.api.deps._oidc_enabled", return_value=True):
-            resp = await self.client.post(
-                "/v1/auth/authorize",
-                json={"cloud": "azure", "project_name": "p", "environment": "dev"},
             )
         self.assertEqual(resp.status_code, 401, resp.text)
 
@@ -135,8 +124,6 @@ class TestOperationRoleGates(_GatingBase):
             "/v1/iac/drift",
             json={
                 "repo_uri": "https://example.com/foo.git",
-                "terraform_providers": "azure",
-                "scope_id": "dev",
                 "q": "check drift",
             },
         )

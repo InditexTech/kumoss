@@ -17,14 +17,15 @@ Dashed edges are wiring that exists but is not exercised by the checked-in
 `oidc.issuer_url` is set.
 
 The diagram condenses some detail. The sidecars share one node: the
-bundled `iac :8082` and `notifications :8080`,
-`searxng :8888`, plus the optional mapping
-and authz contracts, whose implementations you provide yourself; the
+bundled `iac :8082`, `notifications :8080` and `mapping :8081`,
+`searxng :8888`, plus the optional authz contract, whose
+implementation you provide yourself; the
 core appears as its API layer plus a single "application and adapters" node
 covering the other three layers; and Redis, the `workspaces` volume,
-`phoenix-db` and the notification and storage backends are carried in the
-notes beside it rather than drawn. Phoenix is reachable through the proxy at
-`/monitoring/`, artifacts land in the `kumoss-artifacts` bucket, and the
+Langfuse's own stores and the notification and storage backends are carried
+in the notes beside it rather than drawn. The Langfuse UI is reachable
+through the proxy on port 3000, artifacts land in the `kumoss-artifacts`
+bucket, and the
 shipped configuration routes model calls through LiteLLM.
 
 == Component responsibilities
@@ -41,14 +42,14 @@ progress over Server-Sent Events.
 identity provider directly for login
 
 |Nginx (`proxy`)
-|Sole public entry point, on ports 80 and 9000: serves the built SPA and
-proxies `/api`, the events stream, `/monitoring/` and object storage.
-|Browser → core, Phoenix, object storage
+|Sole public entry point, on ports 80, 9000 and 3000: serves the built SPA
+and proxies `/api`, the events stream, object storage and the Langfuse UI.
+|Browser → core, object storage, Langfuse
 
 |Core API layer (`core/src/api/v1`)
 |Routes every request: IaC operations, the progress stream, session reads,
 repository and pull-request actions, identity and roles, the admin panel,
-and passthroughs to the mapping and notifications sidecars. One
+and a passthrough to the notifications sidecar. One
 authentication dependency guards all of them but the public OIDC
 configuration.
 |Delegates to application handlers
@@ -73,12 +74,12 @@ layer — they live in `core/src/clients`, a sibling package.
 |Implements domain ports
 
 |authz service
-|Cloud project access checks, disabled by default and not bundled: provide
-your own implementation of the contract. Disabled, the core answers
-"authorized" without calling it; enabled, an unreachable sidecar is an
-error, never an allow. The contract's user and role endpoints are unused —
-Kumoss keeps those in core-db.
-|Called from the authorize route with the caller's identity
+|AuthZEN policy decision point for organizational access control. Disabled
+by default and not bundled: deploy your own PDP implementing the 2-endpoint
+contract (evaluation + healthz). Disabled, the core treats every operation
+as authorized; enabled, the core consults the PDP on every write route and
+never fails open.
+|Called from every write route via the PEP helper with the caller's identity
 
 |iac service
 |Runs one IaC engine command per asynchronous job — `init`, `validate`,
@@ -88,12 +89,13 @@ deployments are expected to supply their own.
 |Shares the `workspaces` volume with the core
 
 |mapping service
-|Resolves a business identifier to a repository URL, plus a best-effort
-terraform provider and cloud scope (`null` means unknown, ask the user).
-Disabled by default and not bundled: provide your own implementation;
-disabled, the core treats the identifier as the repository URL (identity
+|Resolves what the user types in the wizard's repository step (a
+repository name or URL) to the clone URL. Bundled and enabled by
+default: a bare name is appended to `MAPPING_PREFIX_IDENTIFIER`; replace
+it with your own catalogue-backed implementation if you have one.
+Disabled, the core treats the input as the repository URL (identity
 passthrough).
-|Called through a core passthrough route
+|Called by the core from `POST /api/v1/repository/parse`
 
 |notifications service
 |Channel-agnostic notify contract; the reference implementation posts
@@ -142,10 +144,13 @@ to `/workspaces/<session>/pinned`, which survives until apply discards it
 or the next generate round replaces it.
 |Mounted by core and iac
 
-|Phoenix + phoenix-db
-|OpenTelemetry trace collector and UI, and the prompt registry seeded at
-core boot.
-|Core, over OTLP/HTTP and the Prompts API
+|Langfuse (web, worker, langfuse-db, ClickHouse, its own Redis, a
+`langfuse` bucket)
+|Trace store and UI (OpenTelemetry), and the prompt registry seeded at
+core boot. One project; the deployment's `environment` is Langfuse's
+environment and the operation and providers are trace tags.
+|Core, over OTLP/HTTP and the public prompt API, with the project's key
+pair
 
 |OIDC identity provider
 |Authenticates users and issues the JWT access tokens the core validates.
@@ -172,7 +177,7 @@ Enterprise Server and self-managed GitLab are not supported today.
   phases of one generate session, from the request to the applied
   infrastructure, and the mechanisms behind them.
 * xref:main:architecture/data-and-state.adoc[Data and state] — what
-  core-db, phoenix-db, Redis, object storage, and the `workspaces` volume
+  core-db, Langfuse's stores, Redis, object storage, and the `workspaces` volume
   each hold.
 * xref:main:architecture/deployment-view.adoc[Deployment view] — the
   Compose topology, operational notes, and single-instance limits.

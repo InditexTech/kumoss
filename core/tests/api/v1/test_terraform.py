@@ -9,16 +9,31 @@ from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
+from alembic import command
 from fastapi.testclient import TestClient
+from sqlalchemy.engine import Connection
 
 from src.api.deps import get_current_user
 from src.domains.entities import User
 from src.main import app
 from src.infrastructure.database.database import db
+from src.infrastructure.database.migrator import alembic_config
 from src.infrastructure.database.models import Base
 from src.infrastructure.exceptions import RepositoryUnreachable
 from src.shared.config import system_config
 from src.shared.constants import OperationRole
+
+
+def _build_schema(connection: Connection) -> None:
+    """The current schema, recorded at the latest revision.
+
+    The app migrates at startup: without the revision, it would take this
+    schema for a pre-Alembic database and re-apply the later revisions.
+    """
+    Base.metadata.drop_all(connection)
+    command.stamp(alembic_config(connection), "base", purge=True)
+    Base.metadata.create_all(connection)
+    command.stamp(alembic_config(connection), "head")
 
 
 def _caller() -> User:
@@ -34,7 +49,7 @@ def _caller() -> User:
     )
 
 
-def _no_runner(ctx, build_handler):
+def _no_runner(ctx, build_handler, inputs=None):
     async def runner():
         return None
 
@@ -82,8 +97,7 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
         self._runner_patch.start()
         await db.initialize()
         async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_build_schema)
         await db.close()
 
     async def asyncTearDown(self):
@@ -102,8 +116,6 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
                 "/v1/iac/generate",
                 json={
                     "repo_uri": "https://github.example.com/org/iac.git",
-                    "terraform_providers": "azure",
-                    "scope_id": "dev",
                     "q": "hello",
                 },
             )
@@ -123,8 +135,6 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
                 "/v1/iac/generate",
                 json={
                     "repo_uri": "https://github.example.com/org/missing.git",
-                    "terraform_providers": "azure",
-                    "scope_id": "dev",
                     "q": "hello",
                 },
             )
@@ -145,8 +155,6 @@ class TestGenerateEndpoint(unittest.IsolatedAsyncioTestCase):
                         "/v1/iac/generate",
                         json={
                             "repo_uri": uri,
-                            "terraform_providers": "azure",
-                            "scope_id": "dev",
                             "q": "hello",
                         },
                     )
@@ -175,8 +183,7 @@ class TestDriftEndpoint(unittest.IsolatedAsyncioTestCase):
         self._runner_patch.start()
         await db.initialize()
         async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_build_schema)
         await db.close()
 
     async def asyncTearDown(self):
@@ -195,8 +202,6 @@ class TestDriftEndpoint(unittest.IsolatedAsyncioTestCase):
                 "/v1/iac/drift",
                 json={
                     "repo_uri": "https://github.example.com/org/iac.git",
-                    "terraform_providers": "azure",
-                    "scope_id": "dev",
                     "q": "check drift",
                     "is_partial": True,
                 },
@@ -217,8 +222,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         self._runner_patch.start()
         await db.initialize()
         async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_build_schema)
         # Hand the engine back: async connections are bound to the loop
         # that created them, and the seeding coroutine and the TestClient
         # lifespan each run their own loop.
@@ -237,7 +241,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         from src.domains.services.database_service import DatabaseService
         from src.domains.services.user_service import UserService
         from src.infrastructure.redis import redis_client
-        from src.shared.constants import OperationType, TerraformProvider
+        from src.shared.constants import OperationType
 
         sid = uuid4()
 
@@ -253,11 +257,9 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     user_pk=user.id,
                     operation=OperationType.GENERATE,
                     repo_uri=_bare_remote(self.tmp),
-                    terraform_prv=TerraformProvider.AZURE,
-                    scope_id="dev",
                     branch_name="Kumoss/apply-x",
                     query="seed",
-                    iac_path="",
+                    root_module_path="",
                 )
             finally:
                 await redis_client.close()
@@ -280,7 +282,7 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
         from src.domains.services.database_service import DatabaseService
         from src.domains.services.user_service import UserService
         from src.infrastructure.redis import redis_client
-        from src.shared.constants import OperationType, TerraformProvider
+        from src.shared.constants import OperationType
 
         sid = uuid4()
 
@@ -294,11 +296,9 @@ class TestApplyEndpoint(unittest.IsolatedAsyncioTestCase):
                     user_pk=user.id,
                     operation=OperationType.GENERATE,
                     repo_uri=_bare_remote(self.tmp),
-                    terraform_prv=TerraformProvider.AZURE,
-                    scope_id="dev",
                     branch_name="Kumoss/apply-blocked",
                     query="seed",
-                    iac_path="",
+                    root_module_path="",
                 )
                 self.assertTrue(await DatabaseService.set_lock(sid, True))
             finally:
@@ -332,8 +332,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
         self._runner_patch.start()
         await db.initialize()
         async with db.session_manager.engine.begin() as conn:
-            await conn.run_sync(Base.metadata.drop_all)
-            await conn.run_sync(Base.metadata.create_all)
+            await conn.run_sync(_build_schema)
         # Hand the engine back: async connections are bound to the loop
         # that created them, and the seeding coroutine and the TestClient
         # lifespan each run their own loop.
@@ -351,7 +350,7 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
         from src.domains.services.database_service import DatabaseService
         from src.domains.services.user_service import UserService
         from src.infrastructure.redis import redis_client
-        from src.shared.constants import OperationType, TerraformProvider
+        from src.shared.constants import OperationType
         import asyncio
 
         sid = uuid4()
@@ -366,11 +365,9 @@ class TestInFlightConflict(unittest.IsolatedAsyncioTestCase):
                     user_pk=user.id,
                     operation=OperationType.GENERATE,
                     repo_uri=_bare_remote(self.tmp),
-                    terraform_prv=TerraformProvider.AZURE,
-                    scope_id="dev",
                     branch_name="Kumoss/x",
                     query="seed",
-                    iac_path="",
+                    root_module_path="",
                 )
                 await DatabaseService.acquire_in_flight(str(sid))
             finally:
@@ -391,6 +388,6 @@ class TestUploadEndpointGone(unittest.TestCase):
     def test_upload_returns_404(self):
         client = TestClient(app)
         resp = client.post(
-            "/v1/upload/project", json={"project": "x", "cloud": "azure"}
+            "/v1/upload/project", json={"project": "x", "cloud": "azurerm"}
         )
         self.assertEqual(resp.status_code, 404)

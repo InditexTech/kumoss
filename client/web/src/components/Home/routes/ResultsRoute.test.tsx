@@ -101,6 +101,41 @@ describe("ResultsRoute", () => {
     expect(screen.queryByText("Create PR")).not.toBeInTheDocument();
   });
 
+  it("uncompleted session with no code or report renders chat-only with enabled input", () => {
+    renderRoute({
+      current_status: "uncompleted",
+      code: undefined,
+      terraform_report: undefined,
+      history: [
+        { role: "user", content: "do something dangerous" },
+        { role: "assistant", content: "I cannot help with that" },
+      ],
+    });
+
+    // Chat messages are visible
+    expect(screen.getByText("do something dangerous")).toBeInTheDocument();
+    expect(screen.getByText("I cannot help with that")).toBeInTheDocument();
+
+    // Follow-up input is enabled so the user can try a different query
+    expect(screen.getByLabelText("Follow-up question")).toBeEnabled();
+
+    // No result panel rendered
+    expect(screen.queryByRole("button", { name: "Report" })).not.toBeInTheDocument();
+  });
+
+  it("failed session disables the follow-up input", () => {
+    renderRoute({
+      current_status: "failed",
+      history: [
+        { role: "user", content: "deploy a VM" },
+        { role: "assistant", content: "Something went wrong" },
+      ],
+    });
+
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
+    expect(screen.getByLabelText("Follow-up question")).toBeDisabled();
+  });
+
   it("keeps the split view for a rejected iteration with prior artifacts", () => {
     renderRoute({
       current_status: "uncompleted",

@@ -7,6 +7,7 @@ from uuid import uuid4
 
 from httpx import ASGITransport, AsyncClient
 
+from src.domains.value_objects import ProviderScope
 from src.main import app
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
@@ -17,7 +18,6 @@ from src.shared.constants import (
     OperationType,
     ReportType,
     SessionStatus,
-    TerraformProvider,
 )
 
 
@@ -40,11 +40,12 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             user_pk=self.user.id,
             operation=OperationType.GENERATE,
             repo_uri="https://example.com/foo.git",
-            terraform_prv=TerraformProvider.AZURE,
-            scope_id="sub-123",
             branch_name="Kumoss/x",
             query="create a resource group",
-            iac_path="infra",
+            root_module_path="infra",
+        )
+        await DatabaseService.set_session_providers(
+            self.sid, (ProviderScope("azurerm", "sub-123"), ProviderScope("random"))
         )
         self.client = AsyncClient(
             transport=ASGITransport(app=app), base_url="http://test"
@@ -66,7 +67,13 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item["uuid"], str(self.sid))
         self.assertEqual(item["username"], self.username)
         self.assertEqual(item["operation"], "generate")
-        self.assertEqual(item["provider"], "azure")
+        self.assertEqual(
+            item["providers"],
+            [
+                {"name": "azurerm", "scope_id": "sub-123"},
+                {"name": "random", "scope_id": None},
+            ],
+        )
         self.assertEqual(item["first_query"], "create a resource group")
         self.assertEqual(item["workspace"]["uri"], "https://example.com/foo.git")
         self.assertEqual(item["current_status"], "started")
@@ -116,7 +123,14 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(body["uuid"], str(self.sid))
         self.assertEqual(body["operation"], "generate")
-        self.assertEqual(body["scope_id"], "sub-123")
+        self.assertNotIn("scope_id", body)
+        self.assertEqual(
+            body["providers"],
+            [
+                {"name": "azurerm", "scope_id": "sub-123"},
+                {"name": "random", "scope_id": None},
+            ],
+        )
         self.assertEqual(body["workspace"]["branch"], "Kumoss/x")
         self.assertEqual(body["workspace"]["root_path"], "infra")
         # Pull requests live inside their round, not at session level.
@@ -126,8 +140,10 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         # The timeline is the rounds' statuses concatenated in round
         # order; the payload no longer ships a second, flat copy.
         self.assertNotIn("statuses", body)
-        # History is opt-in via ?include_history=true; null by default.
-        self.assertIsNone(body["history"])
+        # The conversation is opt-in via ?include_chat_history=true; null
+        # by default. The internal record is admin-only and never here.
+        self.assertIsNone(body["chat_history"])
+        self.assertNotIn("history", body)
 
         self.assertEqual(len(body["rounds"]), 2)
         first = body["rounds"][0]
@@ -159,24 +175,45 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
             ],
         )
 
-    async def test_detail_include_history(self):
+    async def test_detail_include_chat_history(self):
         ctx = await DatabaseService.get_session_context(self.sid)
-        ctx.history.append_turn("create a resource group", "done: rg-main")
+        ctx.history.append_turn("create a resource group", "<raw llm summary>")
+        ctx.chat_history.append_turn(
+            "create a resource group", "Done: the plan adds rg-main."
+        )
         await DatabaseService.update_history(ctx)
 
+        resp = await self.client.get(
+            "/v1/sessions", params={"id": str(self.sid), "include_chat_history": "true"}
+        )
+        self.assertEqual(resp.status_code, 200, resp.text)
+        body = resp.json()
+        self.assertEqual(
+            body["chat_history"],
+            [
+                {
+                    "user": "create a resource group",
+                    "assistant": "Done: the plan adds rg-main.",
+                }
+            ],
+        )
+        # The internal record is not part of this contract at all, even
+        # when the session has one.
+        self.assertNotIn("history", body)
+
+        # Default stays conversation-less.
+        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
+        self.assertEqual(resp.status_code, 200, resp.text)
+        self.assertIsNone(resp.json()["chat_history"])
+
+    async def test_detail_rejects_the_internal_history_flag(self):
+        # ``include_history`` is admin-only: on this route it is an
+        # unknown query parameter, never a way in to the internal record.
         resp = await self.client.get(
             "/v1/sessions", params={"id": str(self.sid), "include_history": "true"}
         )
         self.assertEqual(resp.status_code, 200, resp.text)
-        self.assertEqual(
-            resp.json()["history"],
-            [{"user": "create a resource group", "assistant": "done: rg-main"}],
-        )
-
-        # Default stays history-less.
-        resp = await self.client.get("/v1/sessions", params={"id": str(self.sid)})
-        self.assertEqual(resp.status_code, 200, resp.text)
-        self.assertIsNone(resp.json()["history"])
+        self.assertNotIn("history", resp.json())
 
     async def test_detail_unknown_session_is_404(self):
         resp = await self.client.get("/v1/sessions", params={"id": str(uuid4())})
@@ -201,3 +238,28 @@ class TestSessionsApi(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await fetch(search=str(self.sid)), 1)
         self.assertEqual(await fetch(search=str(self.sid)[:8]), 1)
         self.assertEqual(await fetch(search="no-match-xyz"), 0)
+
+    async def test_list_search_in_one_field(self):
+        async def fetch(search: str, search_in: str) -> int:
+            resp = await self.client.get(
+                "/v1/sessions/list",
+                params={"search": search, "search_in": search_in},
+            )
+            self.assertEqual(resp.status_code, 200, resp.text)
+            return resp.json()["total"]
+
+        sid = str(self.sid)[:8]
+        # Each term only appears in its own field.
+        self.assertEqual(await fetch("resource group", "query"), 1)
+        self.assertEqual(await fetch("resource group", "repository"), 0)
+        self.assertEqual(await fetch("foo.git", "repository"), 1)
+        self.assertEqual(await fetch("foo.git", "query"), 0)
+        self.assertEqual(await fetch(sid, "session_id"), 1)
+        self.assertEqual(await fetch(sid, "query"), 0)
+        self.assertEqual(await fetch("foo.git", "all"), 1)
+
+    async def test_list_search_in_rejects_unknown_field(self):
+        resp = await self.client.get(
+            "/v1/sessions/list", params={"search": "x", "search_in": "owner"}
+        )
+        self.assertEqual(resp.status_code, 422, resp.text)

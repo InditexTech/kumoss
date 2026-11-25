@@ -7,9 +7,8 @@ import Fade from "@mui/material/Fade";
 import Typography from "@mui/material/Typography";
 import type { useHomeWizard } from "./useHomeWizard";
 import { STRINGS } from "@/constants/strings";
-import { providerLabel } from "@/constants/providers";
-import { TERRAFORM_PROVIDERS } from "@/types/api";
-import { ProviderIcon } from "@/components/ui";
+import { extractProjectName } from "@/utils/workspace";
+import InputsForm from "./InputsForm";
 import styles from "./HomeScreen.module.css";
 
 const HINTS = STRINGS.wizard.hints;
@@ -21,29 +20,35 @@ type WizardProps = Pick<
   ReturnType<typeof useHomeWizard>,
   | "step"
   | "scanPaths"
+  | "probe"
   | "isLoading"
+  | "loadingMessage"
   | "error"
   | "promptMessage"
   | "placeholder"
   | "handleKeyDown"
   | "handlePath"
-  | "handleProvider"
+  | "handleInputs"
   | "retry"
-  | "reset"
+  | "restart"
+  | "data"
 >;
 
 export default function WizardView({
   step,
   scanPaths,
+  probe,
   isLoading,
+  loadingMessage,
   error,
   promptMessage,
   placeholder,
   handleKeyDown,
   handlePath,
-  handleProvider,
+  handleInputs,
   retry,
-  reset,
+  restart,
+  data,
 }: WizardProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [hintIndex, setHintIndex] = useState(0);
@@ -68,12 +73,9 @@ export default function WizardView({
     [handlePath],
   );
 
-  const isTextStep =
-    step === "query" || step === "repository_url" || step === "cloud_scope";
+  const isTextStep = step === "query" || step === "repository_url";
 
-  const isListStep = step === "iac_path";
-
-  const isProviderStep = step === "provider";
+  const isListStep = step === "root_module_path";
 
   return (
     <div className={styles.center} onClick={() => inputRef.current?.focus()}>
@@ -82,9 +84,7 @@ export default function WizardView({
       {isLoading && (
         <Fade in timeout={500}>
           <Typography variant="h3" className={styles.loadingMsg}>
-            {step === "repository_url"
-              ? STRINGS.wizard.loadingRepository
-              : STRINGS.wizard.loadingPermissions}
+            {loadingMessage}
           </Typography>
         </Fade>
       )}
@@ -96,7 +96,7 @@ export default function WizardView({
             <button className={styles.retryBtn} onClick={retry}>
               {STRINGS.wizard.tryAgain}
             </button>
-            <button className={styles.startOverBtn} onClick={reset}>
+            <button className={styles.startOverBtn} onClick={restart}>
               {STRINGS.wizard.startOver}
             </button>
           </div>
@@ -113,15 +113,14 @@ export default function WizardView({
             autoComplete="off"
             autoFocus
             className={styles.input}
+            defaultValue={step === "query" ? data.query : ""}
             onKeyDown={handleKeyDown}
-            maxLength={step === "cloud_scope" ? 64 : 500}
+            maxLength={500}
             placeholder={placeholder()}
             aria-label={
               step === "query"
                 ? STRINGS.wizard.ariaQuery
-                : step === "repository_url"
-                  ? STRINGS.wizard.ariaRepositoryUrl
-                  : STRINGS.wizard.ariaCloudScope
+                : STRINGS.wizard.ariaRepositoryUrl
             }
           />
         </Fade>
@@ -132,7 +131,7 @@ export default function WizardView({
           <ul
             className={styles.selectContainer}
             role="listbox"
-            aria-label={STRINGS.wizard.ariaIacPath}
+            aria-label={STRINGS.wizard.ariaRootModulePath}
           >
             {scanPaths.map((path) => (
               <Typography variant="h3" component="li" key={path} onClick={handlePathClick} role="option">
@@ -143,28 +142,14 @@ export default function WizardView({
         </Fade>
       )}
 
-      {!isLoading && !error && isProviderStep && (
-        <Fade in timeout={800}>
-          <ul
-            className={styles.selectContainer}
-            role="listbox"
-            aria-label={STRINGS.wizard.ariaProvider}
-          >
-            {TERRAFORM_PROVIDERS.map((provider) => (
-              <Typography
-                variant="h3"
-                component="li"
-                key={provider}
-                onClick={() => handleProvider(provider)}
-                role="option"
-                className={styles.providerOption}
-              >
-                <ProviderIcon provider={provider} className={styles.providerIcon} />
-                {providerLabel(provider)}
-              </Typography>
-            ))}
-          </ul>
-        </Fade>
+      {!isLoading && !error && step === "inputs" && probe && (
+        <InputsForm
+          probe={probe}
+          project={extractProjectName(data.repositoryUrl).replace(/\.git$/, "")}
+          rootModulePath={data.rootModulePath || undefined}
+          onSubmit={handleInputs}
+          onCancel={restart}
+        />
       )}
 
       {step === "query" && !isLoading && !error && (

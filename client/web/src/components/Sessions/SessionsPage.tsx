@@ -14,33 +14,34 @@ import { useSession } from "@/contexts/SessionContext";
 import { useMode } from "@/contexts/ModeContext";
 import { useNotification } from "@/contexts/NotificationContext";
 import { getApiErrorMessage } from "@/services/api";
-import {
-  listUserSessions,
-  getSessionDetail,
-} from "@/services/core/sessions";
+import { listUserSessions, getSessionDetail } from "@/services/core/sessions";
 import {
   listAdminSessions,
   getAdminSessionDetail,
   setSessionLock,
 } from "@/services/core/admin";
-import { setCachedSessions, invalidateSessionsCache } from "@/services/core/sessionsCache";
+import {
+  setCachedSessions,
+  invalidateSessionsCache,
+} from "@/services/core/sessionsCache";
 import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
-  buildAssistantMessage,
+  findSessionPr,
   type SessionOutcome,
 } from "@/services/workflows/session_outcome";
 import type {
+  AdminSessionDetail,
   OperationType,
-  SessionDetail,
+  SessionSearchField,
   SessionStatus,
   SessionSummary,
 } from "@/types/api";
-import { normalizeHistory, panelRoleAtLeast } from "@/types/api";
-import { providerLabel } from "@/constants/providers";
+import { panelRoleAtLeast } from "@/types/api";
 import {
   StatusBadge,
+  ProviderList,
   SideSheet,
   SessionsTable,
   truncate,
@@ -52,15 +53,28 @@ import { extractProjectName } from "./types";
 import SessionData from "./SessionData/SessionData";
 import styles from "./SessionsPage.module.css";
 
-const SEARCH_PLACEHOLDER = "Search by project name, query or session id";
+/** The session search, narrowed by what it matches (`searchIn` in the URL). */
+const sessionSearch: SearchFieldConfig = {
+  key: "search",
+  label: "Search sessions",
+  placeholder: "Search query, repository or session ID",
+  scope: {
+    key: "searchIn",
+    label: "Search in",
+    options: [
+      { value: "all", label: "All fields", placeholder: "Search query, repository or session ID" },
+      { value: "query", label: "Query", placeholder: "Search query text, e.g. storage account" },
+      { value: "repository", label: "Repository", placeholder: "Search repository, e.g. kumossdemo" },
+      { value: "session_id", label: "Session ID", placeholder: "Search session ID, e.g. 57bacc95" },
+    ],
+  },
+};
 
-const userSearches: SearchFieldConfig[] = [
-  { key: "search", placeholder: SEARCH_PLACEHOLDER },
-];
+const userSearches: SearchFieldConfig[] = [sessionSearch];
 
 const adminSearches: SearchFieldConfig[] = [
-  { key: "userSearch", placeholder: "Search by user email" },
-  { key: "search", placeholder: SEARCH_PLACEHOLDER },
+  { key: "userSearch", label: "User email", placeholder: "Search by user email" },
+  sessionSearch,
 ];
 
 const baseColumns: ColumnDef<SessionSummary>[] = [
@@ -87,11 +101,18 @@ const baseColumns: ColumnDef<SessionSummary>[] = [
     render: (s) => s.operation || "-",
   },
   {
-    key: "cloud",
-    header: "Cloud",
+    key: "providers",
+    header: "Providers",
     width: "12%",
     className: styles.secondaryCell,
-    render: (s) => providerLabel(s.provider),
+    render: (s) => (
+      <ProviderList
+        providers={(s.providers ?? []).map((p) => p.name)}
+        variant="icons"
+        hideUtilities
+        className={styles.providerIcons}
+      />
+    ),
   },
   {
     key: "status",
@@ -160,11 +181,18 @@ function buildAdminColumns(
       render: (s) => s.operation,
     },
     {
-      key: "cloud",
-      header: "Cloud",
+      key: "providers",
+      header: "Providers",
       width: "12%",
       className: styles.secondaryCell,
-      render: (s) => providerLabel(s.provider),
+      render: (s) => (
+        <ProviderList
+          providers={(s.providers ?? []).map((p) => p.name)}
+          variant="icons"
+          hideUtilities
+          className={styles.providerIcons}
+        />
+      ),
     },
     {
       key: "status",
@@ -203,10 +231,16 @@ const filters: FilterConfig[] = [
     key: "status",
     placeholder: "STATUS",
     options: [
-      { value: "generating", label: "Generating" },
-      { value: "completed", label: "Completed" },
-      { value: "uncompleted", label: "Uncompleted" },
-      { value: "failed", label: "Failed" },
+      { value: "started", label: "Started", group: "In progress" },
+      { value: "filtering", label: "Filtering", group: "In progress" },
+      { value: "generating", label: "Generating", group: "In progress" },
+      { value: "validating", label: "Validating", group: "In progress" },
+      { value: "reconciling", label: "Reconciling", group: "In progress" },
+      { value: "report", label: "Report", group: "In progress" },
+      { value: "apply", label: "Apply", group: "In progress" },
+      { value: "completed", label: "Completed", group: "Finished" },
+      { value: "uncompleted", label: "Uncompleted", group: "Finished" },
+      { value: "failed", label: "Failed", group: "Finished" },
     ],
   },
 ];
@@ -219,14 +253,16 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
   const isAdminView = variant === "admin";
   const { panelRole } = useAuth();
   const navigate = useNavigate();
-  const { updateSession } = useSession();
+  const { updateSession, prDetails, updatePrDetails } = useSession();
   const { setMode } = useMode();
   const { showNotification } = useNotification();
   const [searchParams, setSearchParams] = useSearchParams();
   const sessionId = searchParams.get("session");
-  const [detail, setDetail] = useState<SessionDetail | null>(null);
+  const [detail, setDetail] = useState<AdminSessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>({});
+  const [lockOverrides, setLockOverrides] = useState<Record<string, boolean>>(
+    {},
+  );
   const canToggleLock = isAdminView && panelRoleAtLeast(panelRole, "editor");
 
   const setSessionParam = useCallback(
@@ -258,8 +294,15 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
     let cancelled = false;
     setLoadingDetail(true);
-    const fetchDetail = isAdminView ? getAdminSessionDetail : getSessionDetail;
-    fetchDetail(sessionId, { includeHistory: true })
+    // The admin view asks for the internal record too, as debug material;
+    // the user view can only ever receive the conversation.
+    const pending = isAdminView
+      ? getAdminSessionDetail(sessionId, {
+          includeChatHistory: true,
+          includeHistory: true,
+        })
+      : getSessionDetail(sessionId, { includeChatHistory: true });
+    pending
       .then((d) => {
         if (!cancelled) setDetail(d);
       })
@@ -283,11 +326,12 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
 
   const fetchSessions = useCallback(
     async (params: FetchParams) => {
-      const { page, page_size, search, userSearch, operation, status } = params;
+      const { page, page_size, search, searchIn, userSearch, operation, status } = params;
       const listParams = {
         page: page as number,
         page_size: page_size as number,
         search: search as string | undefined,
+        search_in: searchIn as SessionSearchField | undefined,
         status: status as SessionStatus | undefined,
         operation: operation as OperationType | undefined,
       };
@@ -313,7 +357,9 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         const nowBlocked = res.is_blocked;
         setLockOverrides((prev) => ({ ...prev, [uuid]: nowBlocked }));
         setDetail((prev) =>
-          prev && prev.uuid === uuid ? { ...prev, is_blocked: nowBlocked } : prev,
+          prev && prev.uuid === uuid
+            ? { ...prev, is_blocked: nowBlocked }
+            : prev,
         );
       } catch (err) {
         showNotification(
@@ -374,41 +420,44 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
       return;
     }
 
-    // The API has no partial operations, so a reloaded session resumes in
-    // the full mode of its operation.
-    setMode(
-      detail.operation === "drift"
-        ? "drift"
-        : detail.operation === "import"
-          ? "import"
-          : "generate",
-    );
+    const operationModeMap: Record<string, "generate" | "drift" | "import"> = {
+      drift: "drift",
+      import: "import",
+    };
+    setMode(operationModeMap[detail.operation] ?? "generate");
 
     const patch = buildSessionPatch(outcome);
 
     if (outcome.kind === "apply-results") {
       updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
-      handleCloseOverlay();
-      navigate(`/home/apply-results/${detail.uuid}`);
-      return;
-    }
-
-    if (outcome.kind === "rejected") {
-      updateSession({
-        ...patch,
-        history: [
-          ...(patch.history ?? []),
-          {
-            role: "assistant" as const,
-            content: buildAssistantMessage(outcome),
-          },
-        ],
-      });
     } else {
       updateSession(patch);
     }
+
+    const pr = findSessionPr(outcome.detail);
+    const samePr = pr != null && pr.number === prDetails.number;
+    updatePrDetails(
+      pr
+        ? {
+            number: pr.number,
+            url: pr.url,
+            merged: samePr ? prDetails.merged : undefined,
+            lastPrStep: samePr ? prDetails.lastPrStep : undefined,
+          }
+        : {
+            number: undefined,
+            url: undefined,
+            merged: undefined,
+            lastPrStep: undefined,
+          },
+    );
+
     handleCloseOverlay();
-    navigate(`/home/results/${detail.uuid}`);
+    void navigate(
+      outcome.kind === "apply-results"
+        ? `/home/apply-results/${detail.uuid}`
+        : `/home/results/${detail.uuid}`,
+    );
   }
 
   function handleCloseOverlay() {
@@ -427,13 +476,13 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
         extraToolbarContent={
           isAdminView ? (
             <a
-              href="/monitoring/projects"
+              href="/langfuse"
               target="_blank"
               rel="noopener noreferrer"
-              className={styles.phoenixLink}
+              className={styles.monitoringLink}
             >
               <OpenInNewIcon style={{ fontSize: "14px" }} />
-              Phoenix
+              Langfuse
             </a>
           ) : undefined
         }
@@ -450,16 +499,13 @@ export default function SessionsPage({ variant = "user" }: SessionsPageProps) {
           <SessionData
             session={detail}
             onReload={
-              detail.current_status !== "failed" ? handleReload : undefined
+              detail.current_status !== "failed"
+                ? () => void handleReload()
+                : undefined
             }
             onToggleLock={
               canToggleLock
                 ? () => void handleToggleLock(detail.uuid, detail.is_blocked)
-                : undefined
-            }
-            conversationHistory={
-              isAdminView && detail.history
-                ? normalizeHistory(detail.history)
                 : undefined
             }
           />

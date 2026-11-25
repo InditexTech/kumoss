@@ -4,8 +4,9 @@
 
 from .artifact_storage_service import ArtifactStorageService
 from .compliance_check_service import ComplianceCheckService
-from .iac_root_detection_service import IacRootDetectionService
 from .llm_service import LLMOrchestrationService
+from .manifest_service import ManifestService
+from .root_module_detection_service import RootModuleDetectionService
 from .session_service import SessionService
 from .task_service import TaskService
 from .template_service import TemplateOrchestrationService
@@ -18,8 +19,9 @@ from .tracer_service import TracerService, trace_chain, trace_llm, trace_tool
 __all__ = [
     "ArtifactStorageService",
     "ComplianceCheckService",
-    "IacRootDetectionService",
     "LLMOrchestrationService",
+    "ManifestService",
+    "RootModuleDetectionService",
     "SessionService",
     "TaskService",
     "TemplateOrchestrationService",

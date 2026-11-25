@@ -13,6 +13,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from src.domains.entities import User
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.user_service import UserService
+from src.domains.value_objects.token_claims import TokenClaims, DEV_CLAIMS
 from src.infrastructure.auth import oidc
 from src.infrastructure.exceptions import TokenValidationError
 from src.shared.config.system_config import system_config
@@ -27,11 +28,11 @@ def _oidc_enabled() -> bool:
     return bool(system_config.oidc.issuer_url)
 
 
-async def get_current_user(
+async def get_validated_claims(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-) -> User:
+) -> TokenClaims:
     if not _oidc_enabled():
-        return await UserService.resolve()
+        return DEV_CLAIMS
     if credentials is None or oidc.oidc_validator is None:
         raise HTTPException(
             status_code=401,
@@ -39,13 +40,18 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     try:
-        claims = await oidc.oidc_validator.validate(credentials.credentials)
+        return await oidc.oidc_validator.validate(credentials.credentials)
     except TokenValidationError as e:
         raise HTTPException(
             status_code=401,
             detail=e.message,
             headers={"WWW-Authenticate": 'Bearer error="invalid_token"'},
         )
+
+
+async def get_current_user(
+    claims: Annotated[TokenClaims, Depends(get_validated_claims)],
+) -> User:
     return await UserService.resolve(claims)
 
 

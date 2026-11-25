@@ -69,6 +69,65 @@
   color: var(--tbl-ink-faint);
 }
 
+/* Scope selector + text box read as one control. */
+.searchGroup {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.search {
+  min-width: 200px;
+}
+
+.searchWide {
+  width: 340px;
+  max-width: 100%;
+}
+
+.scopeSelect,
+.filterSelect {
+  font-size: 13px !important;
+  font-weight: 300 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scopeSelect {
+  /* Wide enough for the longest scope, so the search box doesn't jump. */
+  min-width: 104px;
+  color: var(--tbl-ink-soft) !important;
+}
+
+/* An applied filter reads in full ink, underlined like the search box. */
+.filterActive {
+  color: var(--tbl-ink) !important;
+  font-weight: 500 !important;
+  box-shadow: inset 0 -1px 0 var(--tbl-ink);
+}
+
+.filterGroup {
+  font-size: 11px !important;
+  font-weight: 500 !important;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  line-height: 32px !important;
+}
+
+.clearAll {
+  font-size: 12px !important;
+  font-weight: 300 !important;
+  letter-spacing: 0.08em !important;
+  color: var(--tbl-ink) !important;
+  text-decoration: underline !important;
+  text-underline-offset: 4px;
+  border-radius: 0 !important;
+}
+
+.emptyRow .clearAll {
+  margin-left: 12px;
+}
+
 .extraContent {
   margin-left: auto;
   display: flex;

@@ -68,16 +68,6 @@ class AwsScopeLister:
     async def list_resource_ids(self, scope_id: str) -> list[str]:
         return await asyncio.to_thread(self._list, scope_id)
 
-    async def verify_account(self, scope_id: str) -> None:
-        """Raise DiscoveryError unless the ambient credentials belong to
-        account ``scope_id``.
-
-        No environment variable selects an AWS account, so the engine
-        runs in whatever account the credentials resolve to; this is the
-        check that keeps it from running in a different one.
-        """
-        _ = await asyncio.to_thread(self._verified_session, scope_id)
-
     def _list(self, scope_id: str) -> list[str]:
         session, region = self._verified_session(scope_id)
         explorer, view_arn = self._view(session, region, scope_id)
@@ -229,9 +219,7 @@ class AwsScopeLister:
                 continue
             if self._is_default_managed(entry):
                 continue
-            if self._is_default_ec2(
-                session, entry, arn, res_type, ec2_defaults_cache
-            ):
+            if self._is_default_ec2(session, entry, arn, res_type, ec2_defaults_cache):
                 continue
             kept.append(arn)
         return kept
@@ -239,9 +227,7 @@ class AwsScopeLister:
     def _is_default_memorydb_acl(self, arn: str) -> bool:
         parts = arn.split(":", 5)
         return (
-            len(parts) >= 6
-            and parts[2] == "memorydb"
-            and parts[5] == "acl/open-access"
+            len(parts) >= 6 and parts[2] == "memorydb" and parts[5] == "acl/open-access"
         )
 
     def _is_default_ec2(

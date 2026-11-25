@@ -14,7 +14,7 @@ them:
 * xref:main:reference/llm-providers.adoc[LLM providers and models],
   for LLM providers and credentials.
 * xref:main:guides/enable-authentication.adoc[] for authentication.
-* xref:main:guides/monitor-with-phoenix.adoc[] for tracing.
+* xref:main:guides/monitor-with-langfuse.adoc[] for tracing.
 * xref:main:guides/customize-prompts.adoc[] for the prompt registry.
 * xref:main:reference/api/index.adoc[HTTP APIs] for the sidecar
   contracts in `contracts/openapi/` and their conformance suites in
@@ -64,15 +64,15 @@ inventory]
 
 |5
 |Use managed PostgreSQL, Redis, object storage (S3, Azure, or
-S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is
-required at boot
+S3-compatible), and a persistent, access-controlled Langfuse; Langfuse
+is required at boot
 |xref:main:guides/production/operations.adoc#data-and-persistence[Data
 services and persistence]
 
 |6
-|Reproduce the ingress rules: SSE path unbuffered, `/monitoring/`
-restricted, public object-storage endpoint, CORS origin, IdP redirect
-URIs
+|Reproduce the ingress rules: SSE path unbuffered, the Langfuse UI on
+its own protected host or port, public object-storage endpoint, CORS
+origin, IdP redirect URIs
 |xref:main:guides/production/networking-and-tls.adoc[Networking and TLS]
 
 |7
@@ -90,8 +90,8 @@ generic policy
 checklist]
 
 |9
-|Plan upgrades by hand: no database migrations, seeds never overwrite
-curated prompts, `environment` is a prompt tag
+|Back up before upgrading: the core migrates the database at startup,
+seeds never overwrite curated prompts, `environment` is a prompt tag
 |xref:main:guides/production/operations.adoc#backups-and-upgrades[Backups
 and upgrades]
 |===
@@ -110,8 +110,8 @@ has to control who can reach it, which cloud identity it acts with,
 where its data lives, and how it is operated.
 
 Production is *not* the local Compose stack with `environment:
-production`. That field only selects the Phoenix project prefix and the
-prompt tag. It enables no authentication, no authorization, and no
+production`. That field only selects the Langfuse environment traces
+are recorded under and the prompt label. It enables no authentication, no authorization, and no
 stricter default.
 
 The differences from xref:main:quickstart.adoc[Quickstart], in one
@@ -142,7 +142,7 @@ hardened, replaced or implemented where needed
 environment variables
 
 |Data services
-|Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the
+|Bundled PostgreSQL, Redis, RustFS, Langfuse on local volumes, with the
 well-known default credentials the samples ship
 |Managed or operated services with persistence, backups, access
 control, and credentials from your secret store
@@ -158,7 +158,7 @@ file mounted into the sidecar (xref:main:guides/configure-state-backends.adoc[])
 |Networking
 |Plain HTTP on `localhost`
 |TLS, a real origin, an ingress that handles server-sent events, a
-protected Phoenix, a public object-storage endpoint
+protected Langfuse, a public object-storage endpoint
 |===
 
 The repository provides the container images, `docker-compose.yml` as
@@ -166,7 +166,7 @@ the reference topology, a Helm chart for Kubernetes
 (xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]), and the
 OpenAPI contracts and conformance suites for the sidecars. It does not
 provide Kustomize overlays, Terraform modules for the platform itself,
-database migrations, or a multi-replica execution model. The chart wires
+or a multi-replica execution model. The chart wires
 the stack together, but the production decisions on this page (managed
 data services, identity, TLS, hardening) remain yours to make through
 its values.
@@ -198,7 +198,8 @@ it at `KUMOSS_CONFIG`.
 
 |Web application and edge
 |`nginx/Dockerfile` builds the React app and serves it; forwards
-`/api`, the SSE path, `/monitoring/`, and port 9000
+`/api` and the SSE path on port 80, object storage on port 9000, and
+the Langfuse UI on port 3000
 |Users
 |none
 |Keep it, or serve the built bundle from your own ingress. Reproduce its
@@ -224,19 +225,43 @@ and TLS]).
 |Prefer AWS S3 or an Azure Storage Account through `storage.provider`;
 RustFS or another S3-compatible store is also supported.
 
-|Phoenix
-|`arizephoenix/phoenix:20.12.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring`
-|Core (traces and prompt API), operators (UI)
-|*Required* (through its PostgreSQL)
-|Operate it with persistence and access control. It is required at core
-start-up.
+|Langfuse
+|`langfuse/langfuse` and `langfuse/langfuse-worker` 4.83.0, UI on port
+3000 (the stock image cannot be served under a path)
+|Core (OTLP traces and prompt API, with the project's API key pair),
+operators (UI, behind Langfuse's own login)
+|*Required* (through its PostgreSQL, ClickHouse, Redis, and a bucket)
+|Operate it with persistence and access control, or use a Langfuse you
+already run and point `telemetry.langfuse_url` at it. It is required at
+core start-up.
 
-|PostgreSQL (Phoenix)
+|PostgreSQL (Langfuse)
 |`postgres:17`
-|Phoenix
+|Langfuse
 |*Required*
-|Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on
-Phoenix.
+|Managed PostgreSQL recommended; set Langfuse's `DATABASE_URL`.
+
+|ClickHouse (Langfuse)
+|`clickhouse/clickhouse-server:26.3.66.4`
+|Langfuse
+|*Required* (holds the traces)
+|Single node is enough to evaluate; managed ClickHouse or an operator in
+production.
+
+|Redis (Langfuse)
+|`redis:8.8` with `--maxmemory-policy noeviction`
+|Langfuse (job queue)
+|*Required*
+|Separate from the core's Redis: a queue must never evict, while the
+core's Redis is a cache.
+
+|Bucket (Langfuse)
+|A `langfuse` bucket on the object-storage service
+|Langfuse (raw events, media)
+|*Required*
+|Langfuse does not create it: Compose's one-shot `langfuse-bucket`
+service and the chart's init container do. Any S3-compatible bucket
+works.
 
 |IaC sidecar
 |`services/iac/Dockerfile` (OpenTofu {opentofu-version}, Terraform {terraform-version}; port
@@ -247,10 +272,12 @@ Phoenix.
 or implement the contract yourself to your organization's requirements.
 
 |Mapping sidecar
-|None bundled; your implementation of the mapping contract
+|Bundled prefix mapper (`services/mapping`), or your implementation of
+the mapping contract
 |Core only
-|Up to your implementation
-|Implement it against your catalogue, or leave it disabled.
+|None: it holds no data and calls nothing
+|Set `MAPPING_PREFIX_IDENTIFIER`, or replace it with an implementation
+backed by your catalogue.
 
 |Notifications sidecar
 |`services/notifications/Dockerfile` (port 8080, user `kumoss` 10001)
@@ -287,9 +314,10 @@ Two volumes matter beyond databases:
   (each run's directory is deleted afterwards), but the pinned plan of
   every session lives there between a generate round and its apply, so
   the volume must survive pod restarts.
-* *Phoenix's database*, which holds your curated prompts as well as
-  traces. Losing it means re-seeding from the repository defaults and
-  losing every prompt edit.
+* *Langfuse's PostgreSQL database*, which holds your curated prompts
+  (and Langfuse's users and API keys); its ClickHouse holds the traces.
+  Losing the PostgreSQL database means re-seeding from the repository
+  defaults and losing every prompt edit.
 
 [#sidecars-as-production-integration-boundaries]
 == Sidecars as production integration boundaries
@@ -314,9 +342,9 @@ Common rules for every *enabled* sidecar:
   time, but they remain simple reference services. Keep every sidecar on
   a private network segment reachable only by the core, and never expose
   one through the ingress.
-* The `services.<name>.timeout` field is honoured by the IaC and
-  notifications clients; the mapping and authorization clients use fixed
-  budgets of 10 and 15 seconds.
+* The `services.<name>.timeout` field is honoured by the IaC,
+  notifications, and authorization clients; the mapping client uses a
+  fixed budget of 10 seconds.
 * Every sidecar exposes `GET /healthz` for liveness probes.
 
 [#iac-mandatory]
@@ -393,7 +421,7 @@ execution environment* are the security decisions you must make:
   the provider plugins the generated HCL invokes, and by any
   `local-exec` provisioner in that HCL — generated code runs with the
   same privileges as the sidecar process. The seeded
-  `general-guidelines-terraform` prompt tells the generator never to
+  `general/guidelines/terraform` prompt tells the generator never to
   emit `null_resource`, `provisioner` blocks, or `data "external"`, and
   the compliance auditor receives the same rule, but this is a prompt
   instruction: neither the core nor the sidecar inspects the generated
@@ -403,23 +431,24 @@ execution environment* are the security decisions you must make:
   sidecar as reachable only from the core and give it nothing more than
   the cloud identity it needs.
 
-=== Mapping (optional)
+=== Mapping (on by default)
 
-Kumoss ships no mapping implementation. While the integration is
-disabled, the core echoes every identifier: the value the user types is
-used as the repository URL. Enable it only with
-an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue)
-against the canonical IaC repository. Once enabled, a slow or
-unreachable sidecar makes the wizard's resolve step fail with
-`504`/`502`.
+The wizard's repository step goes through the mapping sidecar, so users
+can type a repository name instead of a clone URL. The bundled service
+appends a bare name to `MAPPING_PREFIX_IDENTIFIER` with a `.git` suffix
+(`foo` → `\https://github.com/MySuperOrg/foo.git`) and passes full
+`https://` URLs through; set the prefix to your organization's base
+URL, or leave it empty to accept full URLs only. See
+xref:main:reference/api/mapping.adoc#bundled[The bundled implementation].
 
-Your implementation may also answer `terraform_provider` and `scope_id`
-(the cloud subscription, project, account, compartment, or cluster).
-Both are optional and both are a promise: the wizard stops asking the
-user for any field your service fills in, so a value it cannot stand
-behind is a wrong answer nobody gets the chance to correct. Return
-`null` — meaning "I do not know" — whenever the catalogue is silent, and
-never infer a provider from the shape of the repository URL.
+To resolve business identifiers against a catalogue (CMDB, Backstage)
+instead, point `services.mapping.endpoint` at your own implementation
+of the contract and drop the bundled container. Once enabled, a slow or
+unreachable mapper makes the repository scan fail with `504`/`502`; set
+`services.mapping.enabled: false` to use what users type as the URL
+without any call. A session's providers and scopes come from the root
+module and its xref:main:reference/root-module-manifest.adoc[manifest],
+not from the mapper.
 
 === Notifications (optional, recommended)
 
@@ -438,27 +467,29 @@ failure is logged and never fails a session.
 [#authorization-optional]
 === Authorization (optional, bring your own)
 
-Kumoss ships no authorization implementation: the contract is an
-extension point for your own cloud-project policy. Leave it disabled
-until you provide your own implementation.
+Kumoss ships no PDP (policy decision point): the contract is an
+extension point for your organization's access policy. Leave it disabled
+until you deploy your own AuthZEN-compliant PDP.
 
 Understand what this integration is and is not:
 
-* It is consulted only by the wizard's preflight `POST
-  /api/v1/auth/authorize`, which sends the cloud, project name,
-  environment, and the caller's e-mail (or OIDC subject) to `POST
-  /v1/check`. It answers whether that user may work on that cloud
-  project.
+* It is consulted on *every write route* — IaC generation, drift,
+  import, apply, PR creation, and PR merge. The core sends an AuthZEN
+  Access Evaluation request (`POST /access/v1/evaluation`) with the
+  caller's identity, the action, and one provider scope of the
+  session's root module — one request per scope, all of which must
+  allow. On a first call it runs inside the session, after the `202`
+  and before the manifest setup saves anything.
 * It is *not* Kumoss's own access control. Who can log in, which
   operations a user may run, and who can see or act on a session are
   decided by OIDC plus the operation and panel roles stored in the core
   database (xref:main:guides/administer-users-and-locks.adoc[]).
-* While disabled, the core answers "authorized" without calling
-  anything. Once enabled, an unreachable sidecar produces a `502`/`504`
-  error in the wizard, not an allow.
+* While disabled, the core treats every operation as authorized without
+  calling anything. Once enabled, an unreachable PDP produces a
+  `502`/`504` error, not an allow — the core never fails open.
 
-Implement the contract in
-xref:main:reference/api/authz.adoc[`contracts/openapi/authz.v1.yaml`]
+Implement the
+xref:main:reference/api/authz.adoc[AuthZEN contract]
 against your entitlement source, point `services.authz.endpoint` at it,
 and enable it.
 
@@ -478,8 +509,9 @@ example].
 
 |`environment`
 |`production` (or `staging`). Decide before the first boot: it is the
-tag every prompt fetch uses, and changing it later requires re-tagging
-every prompt in Phoenix.
+label every prompt fetch uses, and changing it later means the label of
+every prompt you edited has to be moved in Langfuse (seeded prompts carry
+all three labels).
 
 |`oidc`
 |`issuer_url` and `client_id` set; `audience` for Auth0 and Okta;
@@ -517,9 +549,13 @@ contract with; `max_output_tokens` within the provider's limits.
 the Compose service name, so set `KUMOSS_REDIS_URL` when Redis lives
 elsewhere.
 
-|`telemetry.collector_url`
-|Your Phoenix base URL, ending in `/`. It is used both for OTLP export
-and for the prompt API.
+|`telemetry`
+|`langfuse_url`: the Langfuse base URL the core calls, used both for
+OTLP export and for the prompt API.
+The project's key pair goes in the env vars named by `public_key_env`
+and `secret_key_env` (`LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`);
+unset, the core falls back to the bundled stack's development keys,
+which any other Langfuse refuses at boot.
 
 |`http.cors_origins`
 |Your real origin, for example `\https://kumoss.example.invalid`.

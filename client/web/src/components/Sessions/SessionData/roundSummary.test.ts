@@ -252,7 +252,7 @@ function driftSession(): SessionDetail {
     uuid: "sess-1",
     username: "user@test.com",
     operation: "drift",
-    provider: "azure",
+    providers: [{ name: "azurerm", scope_id: "sub-123" }],
     first_query: "check for drift",
     workspace: {
       uri: "https://github.com/contoso/infra",
@@ -264,9 +264,8 @@ function driftSession(): SessionDetail {
     is_blocked: false,
     created_at: at(0),
     updated_at: at(60),
-    scope_id: "sub-123",
     rounds: [],
-    history: [],
+    chat_history: [],
   };
 }
 

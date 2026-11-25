@@ -26,7 +26,11 @@ spec:
           {{- if .Values.notifications.enabled }}
           check "http://{{ include "kumoss.component" (list . "notifications") }}:8080/healthz"
           {{- end }}
-          {{- if and .Values.phoenix.enabled .Values.phoenix.exposeViaProxy }}
-          check "http://{{ include "kumoss.component" (list . "proxy") }}:{{ .Values.proxy.service.httpPort }}/monitoring/"
+          {{- if .Values.mapping.enabled }}
+          check "http://{{ include "kumoss.component" (list . "mapping") }}:8081/healthz"
+          {{- end }}
+          {{- if .Values.langfuse.enabled }}
+          check "http://{{ include "kumoss.langfuseHost" . }}:3000/api/public/health"
+          check "http://{{ include "kumoss.component" (list . "proxy") }}:{{ .Values.proxy.service.langfusePort }}/api/public/health"
           {{- end }}
           echo OK

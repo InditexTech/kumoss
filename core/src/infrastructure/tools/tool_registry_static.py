@@ -5,13 +5,14 @@
 import json
 import inspect
 from pathlib import Path
-from typing import Any, Callable, override
+from typing import Any, Callable, cast, override
 
 from pydantic import ValidationError
 
 from src.domains.interfaces import IToolRegistry
 from src.domains.dto import (
     ComplianceCheckReport,
+    ComplianceViolation,
     TerraformDriftReport,
     ToolCallDTO,
     ToolResultDTO,
@@ -142,10 +143,16 @@ class ToolRegistryStatic(IToolRegistry):
 
         try:
             handler = self.__tool_handlers[tool_call.name]
+            parameters = tool_call.parameters
+            tool_def = self.__tool_definitions.get(tool_call.name)
+            if tool_def:
+                parameters = _decode_stringified(
+                    parameters, tool_def.parameters, tool_call.name, "$"
+                )
             if inspect.iscoroutinefunction(handler):
-                result = await handler(tool_call.parameters)
+                result = await handler(parameters)
             else:
-                result = handler(tool_call.parameters)
+                result = handler(parameters)
 
             return ToolResultDTO(
                 name=tool_call.name,
@@ -400,10 +407,15 @@ class ToolRegistryStatic(IToolRegistry):
         self, parameters: dict[str, Any]
     ) -> ComplianceCheckReport:
         try:
-            violations = parameters["violations"]
+            # The model reports its own findings only: it cannot label one
+            # as the policy engine's.
+            violations = [
+                {**v, "source": "llm"} if isinstance(v, dict) else v
+                for v in parameters["violations"]
+            ]
             return ComplianceCheckReport(
                 passed=not any(
-                    violation["severity"] in {"error", "critical"}
+                    violation["severity"] in ComplianceViolation.BLOCKING_SEVERITIES
                     for violation in violations
                 ),
                 violations=violations,
@@ -415,3 +427,41 @@ class ToolRegistryStatic(IToolRegistry):
                 message=e.json(),
                 error_code=400,
             )
+
+
+def _decode_stringified(
+    value: Any, schema: dict[str, Any], tool: str, path: str
+) -> Any:
+    """Undo a model's double encoding of structured arguments.
+
+    Models sometimes send a nested object or array as its JSON text (most
+    often on large report payloads), which fails validation and costs a full
+    regeneration. Only values the schema types as object or array are decoded,
+    and only when the decoded value has that type, so a string field never
+    changes meaning.
+    """
+    expected = schema.get("type")
+    if isinstance(value, str) and expected in ("object", "array"):
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            return value
+        if not isinstance(decoded, dict if expected == "object" else list):
+            return value
+        logging.warning(f"Tool {tool}: decoded stringified argument at {path}")
+        value = decoded
+
+    if isinstance(value, dict) and expected == "object":
+        properties: dict[str, Any] = schema.get("properties", {})
+        return {
+            key: _decode_stringified(item, properties[key], tool, f"{path}.{key}")
+            if key in properties
+            else item
+            for key, item in value.items()
+        }
+    if isinstance(value, list) and expected == "array" and "items" in schema:
+        return [
+            _decode_stringified(item, schema["items"], tool, f"{path}[{index}]")
+            for index, item in enumerate(cast(list[Any], value))
+        ]
+    return value

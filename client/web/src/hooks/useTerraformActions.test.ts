@@ -79,9 +79,7 @@ vi.mock("@/hooks/useBrowserNotification", () => ({
 const defaultParams: TerraformActionParams = {
   repoUri: "https://dev.azure.com/org/repo",
   query: "deploy a VM",
-  terraformProviders: "azure",
-  scopeId: "sub-123",
-  iacPath: "environments/dev",
+  rootModulePath: "environments/dev",
   mode: "generate",
 };
 
@@ -96,11 +94,16 @@ function sseEvent(status_msg: string, message = "") {
 
 describe("useTerraformActions", () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     vi.clearAllMocks();
     mockRunWorkflow.mockResolvedValue({ sessionId: "sess-abc" });
     mockResolveOutcome.mockResolvedValue(makeResultsOutcome());
     mockWaitForNewRound.mockResolvedValue(undefined);
     mockGetSessionDetail.mockResolvedValue({ rounds: [{}] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   // Need dynamic import because vi.mock hoists above imports
@@ -170,19 +173,14 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
     expect(mockSseConnection.close).toHaveBeenCalled();
-
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(mockResolveOutcome).toHaveBeenCalledWith("sess-abc");
-        expect(onOutcome).toHaveBeenCalledWith(
-          expect.objectContaining({ kind: "results" }),
-        );
-      });
-    });
-
+    expect(mockResolveOutcome).toHaveBeenCalledWith("sess-abc");
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "results" }),
+    );
     expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
     expect(mockNotifyIfHidden).toHaveBeenCalledWith("Pipeline completed", expect.anything());
   });
@@ -201,19 +199,15 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(onOutcome).toHaveBeenCalledWith(
-          expect.objectContaining({
-            kind: "failed",
-            message: "Completed, but results could not be loaded",
-          }),
-        );
-      });
-    });
-
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "failed",
+        message: "Completed, but results could not be loaded",
+      }),
+    );
     expect(result.current.state.status).toBe("error");
   });
 
@@ -236,18 +230,13 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
     expect(mockSseConnection.close).toHaveBeenCalled();
-
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(onOutcome).toHaveBeenCalledWith(
-          expect.objectContaining({ kind: "rejected" }),
-        );
-      });
-    });
-
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "rejected" }),
+    );
     expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
   });
 
@@ -269,18 +258,13 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("UNCOMPLETED", "Query is off-topic"));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
     expect(mockSseConnection.close).toHaveBeenCalled();
-
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(onOutcome).toHaveBeenCalledWith(
-          expect.objectContaining({ kind: "rejected", rationale: "Query is off-topic" }),
-        );
-      });
-    });
-
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "rejected", rationale: "Query is off-topic" }),
+    );
     expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
     expect(mockNotifyIfHidden).toHaveBeenCalledWith(
       "Request rejected",
@@ -310,16 +294,13 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(mockNotifyIfHidden).toHaveBeenCalledWith(
-          "Session blocked",
-          expect.objectContaining({ tag: "kumoss-session-blocked" }),
-        );
-      });
-    });
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+      "Session blocked",
+      expect.objectContaining({ tag: "kumoss-session-blocked" }),
+    );
   });
 
   it("an unblocked session does not trigger the blocked notification", async () => {
@@ -333,17 +314,13 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(mockNotifyIfHidden).toHaveBeenCalledWith(
-          "Pipeline completed",
-          expect.anything(),
-        );
-      });
-    });
-
+    expect(mockNotifyIfHidden).toHaveBeenCalledWith(
+      "Pipeline completed",
+      expect.anything(),
+    );
     expect(mockNotifyIfHidden).not.toHaveBeenCalledWith(
       "Session blocked",
       expect.anything(),
@@ -385,14 +362,10 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onerror?.();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
-      });
-    });
-
+    expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
     expect(mockSseConnection.close).toHaveBeenCalled();
   });
 
@@ -410,17 +383,13 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onerror?.();
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
-        expect(onOutcome).toHaveBeenCalledWith(
-          expect.objectContaining({ kind: "results" }),
-        );
-      });
-    });
-
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "results" }),
+    );
     expect(mockNotifyIfHidden).toHaveBeenCalledWith(
       "Pipeline completed",
       expect.objectContaining({ body: "Your infrastructure changes are ready for review." }),
@@ -446,16 +415,12 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onerror?.();
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(onOutcome).toHaveBeenCalledWith(
-          expect.objectContaining({ kind: "rejected" }),
-        );
-      });
-    });
-
+    expect(onOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "rejected" }),
+    );
     expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
   });
 
@@ -474,12 +439,7 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       firstConnection.onerror?.();
-    });
-
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(mockSubscribe).toHaveBeenCalledTimes(2);
-      });
+      await vi.advanceTimersByTimeAsync(0);
     });
 
     // Still streaming after reconnect
@@ -489,13 +449,10 @@ describe("useTerraformActions", () => {
     const secondConnection = mockSseConnection;
     await act(async () => {
       secondConnection.onmessage?.(sseEvent("COMPLETED", "Done."));
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
-      });
-    });
+    expect(result.current.state).toEqual({ status: "success", sessionId: "sess-abc" });
     // COMPLETED must close the reconnected connection, not the stale one
     expect(secondConnection.close).toHaveBeenCalled();
   });
@@ -518,14 +475,10 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onerror?.();
+      await vi.advanceTimersByTimeAsync(2_000);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(result.current.state).toEqual({ status: "error", message: "Process failed" });
-      });
-    });
-
+    expect(result.current.state).toEqual({ status: "error", message: "Process failed" });
     // No reconnect attempt for a terminal failed session
     expect(mockSubscribe).toHaveBeenCalledTimes(1);
     expect(mockNotifyIfHidden).toHaveBeenCalledWith(
@@ -547,13 +500,10 @@ describe("useTerraformActions", () => {
 
     await act(async () => {
       mockSseConnection.onerror?.();
+      await vi.advanceTimersByTimeAsync(0);
     });
 
-    await act(async () => {
-      await vi.waitFor(() => {
-        expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
-      });
-    });
+    expect(result.current.state).toEqual({ status: "error", message: "Connection to server lost" });
   });
 
   it("workflow error (runTerraformActionWorkflow throws) sets error state", async () => {

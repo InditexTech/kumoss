@@ -4,13 +4,14 @@
 
 import shutil
 import tempfile
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import ClassVar, final, override
-from uuid import UUID
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from src.domains.interfaces.workspace_interface import IWorkspace
-from src.infrastructure.exceptions import InvalidIacPath, RepositoryUnreachable
+from src.infrastructure.exceptions import InvalidRootModulePath, RepositoryUnreachable
 from src.infrastructure.filesystem.file_system import FileSystemUtils
 from src.infrastructure.filesystem.git.git_utils import GitUtils
 from src.shared.config import system_config
@@ -30,7 +31,7 @@ class WorkspaceService(IWorkspace):
     def _base(self) -> Path:
         return self._override_base or system_config.paths.upload_folder
 
-    def __add_terraform_gitignore(self, path: Path) -> bool:
+    def __add_terraform_gitignore(self, path: Path) -> None:
         utils = FileSystemUtils(path)
         with open(Path(__file__).resolve().parent / "terraform.gitignore", "r") as f:
             content = f.read()
@@ -38,9 +39,9 @@ class WorkspaceService(IWorkspace):
         if target.exists():
             existing = target.read_text(encoding="utf-8")
             if self._REUSE_MARKER in existing:
-                return True
+                return
             content = existing.rstrip("\n") + "\n\n" + content
-        return utils.write_file(
+        utils.write_file(
             target_file=".gitignore",
             content=content,
             is_safe=False,
@@ -83,8 +84,7 @@ class WorkspaceService(IWorkspace):
         if not ok:
             raise RepositoryUnreachable(500)
 
-        if not self.__add_terraform_gitignore(call_dir):
-            logging.warning("terraform gitignore couldn't be created")
+        self.__add_terraform_gitignore(call_dir)
 
         git = GitUtils(
             uri=repo_uri,
@@ -96,12 +96,28 @@ class WorkspaceService(IWorkspace):
         return call_dir
 
     @override
-    def iac_root(self, call_dir: Path, iac_path: str | None) -> Path:
+    @asynccontextmanager
+    async def default_branch_clone(self, repo_uri: str) -> AsyncGenerator[Path]:
+        parent = Path(tempfile.mkdtemp(prefix="kumoss-read-"))
+        try:
+            git = GitUtils(
+                uri=repo_uri,
+                git_provider=system_config.git.provider,
+                cwd=parent,
+            )
+            if not await git.clone_repository(repo_uri, "repo", timeout=120):
+                raise RepositoryUnreachable(502)
+            yield parent / "repo"
+        finally:
+            shutil.rmtree(parent, ignore_errors=True)
+
+    @override
+    def root_module_dir(self, call_dir: Path, root_module_path: str | None) -> Path:
         clone = call_dir.resolve()
-        root = (clone / (iac_path or "")).resolve()
+        root = (clone / (root_module_path or "")).resolve()
         if not root.is_relative_to(clone) or not root.is_dir():
-            raise InvalidIacPath(
-                message=f"iac_path '{iac_path}' is not a directory inside the repository",
+            raise InvalidRootModulePath(
+                message=f"Root module path '{root_module_path}' is not a directory inside the repository",
                 error_code=400,
             )
         return root

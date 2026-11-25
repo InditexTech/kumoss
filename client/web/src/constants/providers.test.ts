@@ -4,26 +4,36 @@
 
 import { describe, expect, it } from "vitest";
 
-import { TERRAFORM_PROVIDERS } from "@/types/api";
-import { PROVIDER_LABELS, providerLabel } from "./providers";
-import { STRINGS } from "./strings";
+import { PROVIDER_LABELS, providerLabel, scopeLabel, scopePlaceholder } from "./providers";
 
 describe("provider constants", () => {
-  it.each(TERRAFORM_PROVIDERS)("%s has a label and scope jargon", (provider) => {
-    expect(PROVIDER_LABELS[provider]).toBeTruthy();
-    const scope = STRINGS.wizard.scopeByProvider[provider];
-    expect(scope.label).toBeTruthy();
-    expect(scope.prompt).toBeTruthy();
-    expect(scope.placeholder).toBeTruthy();
+  it.each(["azurerm", "google", "aws", "oci", "kubernetes", "vsphere"])(
+    "%s has a label",
+    (provider) => {
+      expect(PROVIDER_LABELS[provider]).toBeTruthy();
+    },
+  );
+
+  it("labels known Terraform providers and shows any other by its type name", () => {
+    expect(providerLabel("vsphere")).toBe("VMware vSphere");
+    expect(providerLabel("azurerm")).toBe("Microsoft Azure");
+    expect(providerLabel("random")).toBe("random");
+    expect(providerLabel(null)).toBe("-");
   });
 
-  it("offers VMware vSphere, scoped by datacenter", () => {
-    expect(TERRAFORM_PROVIDERS).toContain("vmware");
-    expect(providerLabel("vmware")).toBe("VMware vSphere");
-    expect(STRINGS.wizard.scopeByProvider.vmware).toEqual({
-      label: "Datacenter",
-      prompt: "Which vSphere datacenter?",
-      placeholder: "dc-01",
-    });
+  it.each([
+    ["azurerm", "Subscription ID"],
+    ["google", "Project ID"],
+    ["aws", "Account ID"],
+    ["oci", "Compartment OCID"],
+    ["kubernetes", "Scope"],
+    ["random", "Scope"],
+  ])("%s scope is called %s", (provider, label) => {
+    expect(scopeLabel(provider)).toBe(label);
+  });
+
+  it("has a scope placeholder for scoped providers only", () => {
+    expect(scopePlaceholder("aws")).toBe("123456789012");
+    expect(scopePlaceholder("random")).toBe("");
   });
 });

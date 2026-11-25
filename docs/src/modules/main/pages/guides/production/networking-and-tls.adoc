@@ -36,10 +36,16 @@ reference uses 600 seconds).
 compression, read timeout long enough for a run (600 seconds in the
 reference; the stream itself lives up to three hours).
 
-|`/monitoring/`
-|Phoenix, port 6006, with `PHOENIX_HOST_ROOT_PATH=/monitoring`
-|*Restrict access* (identity-aware proxy, VPN, or network policy). The
-admin panel links to `/monitoring/projects`.
+|Langfuse UI (port 3000 on the reference proxy)
+|`langfuse-web`, port 3000
+|A port (or host) of its own: the stock Langfuse image cannot be served
+under a path prefix. Langfuse has its own login, but *restrict access*
+too (TLS, identity-aware proxy, VPN, or network policy) — its traces
+hold prompts and repository content. Langfuse's `NEXTAUTH_URL` must be
+the URL browsers use, for the login to redirect correctly; the admin
+panel's link goes to `/langfuse` on the proxy's main port, which
+redirects to that URL (`langfuse.publicUrl` in Helm; in Compose, port
+3000 of the host the browser used).
 
 |Object-storage public endpoint
 |The bucket's endpoint (`storage.public_endpoint_url`)
@@ -81,11 +87,12 @@ Other settings that follow from the origin:
   requests (repository descriptions, not file uploads) are small, but an
   unbounded body size is an easy denial-of-service vector.
 * Sidecars, databases, Redis, object storage's internal endpoint, and
-  Phoenix's OTLP port must *not* be exposed through the ingress. Use
+  Langfuse's ClickHouse, Redis and worker must *not* be exposed through
+  the ingress. Use
   network policies so that only the core reaches the sidecars.
 
 Outbound connections you must allow: the core to the LLM provider, the
-Git host, the identity provider, object storage, and Phoenix; the IaC
+Git host, the identity provider, object storage, and Langfuse; the IaC
 sidecar to the provider registry (`registry.opentofu.org` or
 `registry.terraform.io`) and to the cloud APIs; the notifications
 sidecar to `hooks.slack.com` (or your channel).

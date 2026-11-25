@@ -18,15 +18,11 @@ export {
   parseRepository,
 } from "./core/iac_code";
 
-export { authorizeUser } from "./core/authorization";
-
 export {
   listUserSessions,
   getSessionDetail,
   checkApplyAllowed,
 } from "./core/sessions";
-
-export { resolveProject } from "./mapper/mapper";
 
 export {
   getLocalItem,

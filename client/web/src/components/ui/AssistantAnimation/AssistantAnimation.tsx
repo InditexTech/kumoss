@@ -7,7 +7,7 @@ import { AssistantAnimatedIcon } from "./assistant-animated-icon/AssistantAnimat
 import styles from "./AssistantAnimation.module.css";
 
 interface Props {
-  type: "icon" | "listening" | "speaking" | "loading" | "standby" | "error";
+  type: "listening" | "speaking" | "standby" | "error";
   size: number;
   background?: boolean;
 }

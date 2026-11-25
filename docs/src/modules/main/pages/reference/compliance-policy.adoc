@@ -1,0 +1,220 @@
+= Compliance policy
+:description: The Rego policy OPA evaluates on every generate round's final plan: the input document, the decision contract, what happens when it fails, the shipped rule, and how to test a policy.
+
+The compliance check of a generate round has two parts. The first is
+deterministic: the core evaluates a Rego v1 policy with
+https://www.openpolicyagent.org[Open Policy Agent] against the round's
+final plan. The second is the LLM audit against the conventions and
+`general/compliance/report`. Both run when
+`orchestration.enable_compliance_checker` is `true`, the policy first,
+and their results are merged into one compliance report per round.
+Drift and import rounds have no compliance check.
+
+The policy is the Langfuse text prompt `general/policies/compliance`,
+seeded from `core/prompts/seed/general/policies/compliance.rego`. The
+core uses its raw text: Langfuse's `+{{variable}}+` templating is not
+applied, so the braces of Rego are safe. How it is
+seeded, edited and rolled out is covered in
+xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
+prompts]; this page is the contract a policy author writes against.
+
+== How it runs
+
+Each evaluation fetches the policy version carrying the `environment`
+label and runs one `opa` process (OPA 1.22.4, shipped in the core image):
+
+[source,bash]
+----
+opa eval --stdin-input --strict-builtin-errors --format json \
+  --data compliance.rego data.kumoss.compliance
+----
+
+Nothing stays running between rounds, and nothing is cached: moving the
+environment label to another version in Langfuse applies on the next
+generate round.
+
+[#input]
+== Input
+
+[source,json]
+----
+{
+  "plan": { ... },
+  "kumoss": {
+    "schema": "kumoss.compliance.input/v1",
+    "providers": ["azurerm", "kubernetes"]
+  }
+}
+----
+
+[cols="1,4",options="header"]
+|===
+|Field |Content
+
+|`input.plan`
+|The final plan's `terraform show -json` or `tofu show -json`
+document, unchanged. Rules usually walk `input.plan.resource_changes`.
+
+|`input.kumoss.schema`
+|`kumoss.compliance.input/v1`. Changes if the shape of `input` ever
+does.
+
+|`input.kumoss.providers`
+|The provider type names of the root module's `required_providers`
+(`azurerm` for `hashicorp/azurerm`). Use it to scope rules to the
+providers a module actually uses.
+|===
+
+The plan is a `-target` plan: it holds the session's targets only, not
+the whole workspace. A rule cannot see resources outside the targets,
+so it cannot reason about the rest of the estate.
+
+The plan JSON carries sensitive values unmasked. Never put attribute
+values in a finding's `message`: messages end up in the compliance
+report, the session's artifacts and the failure notification. Name the
+resource address and the attribute instead.
+
+== Decision
+
+The core queries `data.kumoss.compliance`. All keys are optional; a
+missing one counts as empty, and keys outside these three are ignored.
+
+[cols="1,2,3",options="header"]
+|===
+|Key |Type |Meaning
+
+|`deny`
+|set of `{rule_id, message, resource?, severity?}`
+|Blocking findings. `severity` is `error` (the default) or `critical`.
+
+|`warn`
+|set of `{rule_id, message, resource?}`
+|Non-blocking findings, reported with severity `warning`.
+
+|`rules`
+|set of strings
+|Every rule id the policy evaluates, so the report lists the rules
+that passed too. Rule ids of findings are added to it anyway.
+|===
+
+`rule_id` and `message` are non-empty strings; `resource`, when
+present, is a string, usually the resource address.
+
+In the merged report, each violation carries `source: "opa"` (LLM
+findings carry `"llm"`; reports stored before the policy existed have
+no `source` and are LLM findings), and the report's `policy_revision`
+is the version of the policy that ran, as the string
+`"<prompt name>@<version>"`, for example
+`general/policies/compliance@4` (`null` when no policy ran). The policy's findings come first. The report has `passed: false`
+when either source has an `error` or `critical` finding, and the
+session is locked exactly as for any failed compliance check. When the
+policy blocks, the summary starts with `Blocked by the compliance
+policy: N finding(s) (<rule ids>).` The web UI marks policy findings
+with a *policy* badge.
+
+[#failure]
+== When the policy cannot be evaluated
+
+The policy fails closed. Each of these means the policy could not be
+evaluated:
+
+* the policy could not be fetched from Langfuse: Langfuse is
+  unreachable, the prompt or a version carrying the `environment` label
+  does not exist, or that version is not a single text prompt;
+* a syntax or compile error;
+* no `package kumoss.compliance`, or `data.kumoss.compliance` is not an
+  object;
+* `deny`, `warn` or `rules` is not a set, a finding is not an object or
+  lacks `rule_id` or `message`, or a `deny` severity is neither `error`
+  nor `critical`;
+* a builtin error (the policy runs with `--strict-builtin-errors`, so
+  `to_number("x")` fails rather than being undefined);
+* the plan JSON could not be read;
+* `opa` did not finish within 30 seconds, or could not be run.
+
+The round then gets a blocking `policy_unavailable` finding (severity
+`error`) whose message gives the reason, so it is locked and the
+compliance failure notification is sent. The LLM audit still runs and
+its findings are in the same report.
+
+*Startup check.* When `enable_compliance_checker` is `true`, the core,
+after seeding the prompts, evaluates the current policy against an
+empty plan and refuses to start if that fails: a missing `opa` binary,
+a broken policy, or Langfuse unreachable. A broken version that gets
+the environment label while the core is running is not caught until it is evaluated, and then
+blocks every round.
+
+== The shipped rule
+
+The seed defines one rule, `critical_deletion` (severity `critical`): a
+managed resource whose plan actions are exactly `["delete"]` is denied,
+even when the user requested the deletion. A replacement
+(`["delete", "create"]` or `["create", "delete"]`), a `forget` (a
+`removed` block with `destroy = false`) and data sources are allowed.
+
+[source,rego]
+----
+package kumoss.compliance
+
+rules contains "critical_deletion"
+
+deny contains finding if {
+	some change in input.plan.resource_changes
+	change.mode == "managed"
+	change.change.actions == ["delete"]
+	finding := {
+		"rule_id": "critical_deletion",
+		"severity": "critical",
+		"resource": change.address,
+		"message": sprintf(
+			"%s is destroyed without being recreated; standalone deletions are never allowed, even when requested.",
+			[change.address],
+		),
+	}
+}
+----
+
+No prompt lists forbidden actions any more. Prohibitions for the
+providers your modules use (no public buckets, no IAM owner bindings,
+allowed regions...) are written as further rules in this module, each
+adding its id to `rules`. A rule scoped to one provider can check
+`"aws" in input.kumoss.providers`, or simply match on the resource
+`type`.
+
+[#testing]
+== Testing a policy
+
+The shipped rule's tests are in `core/tests/policies`. Their fixtures
+are real Terraform 1.16 and OpenTofu 1.13 plans,
+`fixtures/<engine>/data.json`, which `opa test` loads as
+`data.fixtures.<engine>`. From the repository root:
+
+[source,bash]
+----
+opa test core/prompts/seed/general/policies core/tests/policies
+----
+
+or, without a local `opa`:
+
+[source,bash]
+----
+docker run --rm -v "$PWD/core:/core:ro" -w /core \
+  openpolicyagent/opa:1.22.4-static \
+  test prompts/seed/general/policies tests/policies
+----
+
+To see the decision for a real plan, wrap its `show -json` in the
+input document and evaluate it:
+
+[source,bash]
+----
+terraform show -json tfplan > plan.json
+jq '{plan: ., kumoss: {schema: "kumoss.compliance.input/v1", providers: ["aws"]}}' \
+  plan.json | opa eval --stdin-input -d policy.rego data.kumoss.compliance
+----
+
+Add `--strict-builtin-errors` to match how the core evaluates it. To
+test an edited version before moving the environment label to it, copy
+its text from Langfuse into `policy.rego` and run the same commands; see
+xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
+prompts].

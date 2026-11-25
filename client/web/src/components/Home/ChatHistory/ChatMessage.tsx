@@ -13,15 +13,9 @@ interface ChatMessageProps {
 }
 
 export default function ChatMessage({ role, content }: ChatMessageProps) {
-  const styleClass =
-    role === "user"
-      ? styles.user
-      : role === "validation"
-        ? styles.validation
-        : styles.assistant;
+  const styleClass = role === "user" ? styles.user : styles.assistant;
 
-  const bullet =
-    role === "assistant" ? "○" : role === "validation" ? "◆" : null;
+  const bullet = role === "assistant" ? "○" : null;
 
   return (
     <div className={`${styles.message} ${styleClass}`}>

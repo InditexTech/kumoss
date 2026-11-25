@@ -27,13 +27,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from src.domains.dto import ToolCallDTO
 from src.domains.value_objects import SearchResult
-from src.infrastructure.exceptions import SearchEngineError
+from src.infrastructure.exceptions import PageSelectionError, SearchEngineError
 from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
 )
 from src.infrastructure.templates.template_adapter import TemplateAdapter
 from src.infrastructure.tools.tool_registry_workspace import ToolRegistryWorkspace
-from src.shared.constants import TerraformProvider
 
 
 def _results(*tuples: tuple[str, str, str]) -> list[SearchResult]:
@@ -58,7 +57,7 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         with self._tool_module_patch(provider, summarize_top):
             summarizer = SearchResultsSummarizer(
                 llm or MagicMock(inference=AsyncMock()),
-                TemplateAdapter(template_provider=TerraformProvider.AWS, cwd="."),
+                TemplateAdapter(providers=("aws",), cwd="."),
             )
             return ToolRegistryWorkspace(
                 filesystem=MagicMock(), git=MagicMock(), summarizer=summarizer
@@ -354,7 +353,11 @@ class TestWebSearchTool(unittest.IsolatedAsyncioTestCase):
         self.assertIn("First (https://one)", "".join(logs.output))
 
     async def test_summarizer_failure_falls_back_to_raw_results(self):
-        summarizer = MagicMock(best=AsyncMock(side_effect=RuntimeError("boom")))
+        summarizer = MagicMock(
+            best=AsyncMock(
+                side_effect=PageSelectionError(message="boom", error_code=502)
+            )
+        )
         with (
             self._tool_module_patch("searxng"),
             patch(

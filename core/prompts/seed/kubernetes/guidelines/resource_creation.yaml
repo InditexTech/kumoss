@@ -175,8 +175,6 @@ body: |
     asked for the replacement, and state every replacement and its
     consequence (data loss, restarted pods, lost access) explicitly
     in the summary.
-  - Standalone deletions (an object destroyed and not recreated) are
-    always rejected by the compliance check, even when requested.
 
   Replace this body with your organization's authoritative Kubernetes
   resource-creation standards.

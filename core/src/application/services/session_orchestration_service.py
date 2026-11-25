@@ -54,11 +54,11 @@ class SessionOrchestrationService:
             user_pk=user_pk,
             operation=operation,
             repo_uri=request.repo_uri,
-            terraform_prv=request.terraform_providers,
-            scope_id=request.scope_id,
             branch_name=self.__new_branch_name(),
             query=request.q,
-            iac_path=request.iac_path,
+            # Optional on the request, where it defaults to the repository
+            # root: stored as ".", the spelling the root-module detector uses.
+            root_module_path=request.root_module_path or ".",
         )
         return await DatabaseService.get_session_context(sid)
 

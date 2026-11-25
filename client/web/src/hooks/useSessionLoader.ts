@@ -8,8 +8,7 @@ import {
   resolveSessionOutcome,
   buildSessionPatch,
   buildApplyResults,
-  buildAssistantMessage,
-  appendAssistantMessage,
+  findSessionPr,
 } from "@/services/workflows/session_outcome";
 
 interface SessionLoaderResult {
@@ -52,24 +51,20 @@ export function useSessionLoader(
 
         if (outcome.kind === "apply-results") {
           updateSession({ ...patch, applyResults: buildApplyResults(outcome) });
-        } else if (outcome.kind === "rejected") {
-          updateSession({
-            ...patch,
-            history: appendAssistantMessage(
-              patch.history,
-              buildAssistantMessage(outcome),
-            ),
-          });
         } else {
           updateSession(patch);
-          // PR state is in-memory only; rebuild it from the round so a
-          // refresh keeps the View PR / Continue with PR affordances.
-          const lastRound =
-            outcome.detail.rounds[outcome.detail.rounds.length - 1];
-          const pr =
-            lastRound?.pull_requests[lastRound.pull_requests.length - 1];
-          if (pr) updatePrDetails({ number: pr.number, url: pr.url });
         }
+
+        // PR state is in-memory only; rebuild it from the session's single
+        // PR so a refresh / deep-link keeps the affordances, and clear every
+        // field explicitly so a previously loaded session's stale PR doesn't
+        // bleed through the shallow merge.
+        const pr = findSessionPr(outcome.detail);
+        updatePrDetails(
+          pr
+            ? { number: pr.number, url: pr.url, merged: undefined, lastPrStep: undefined }
+            : { number: undefined, url: undefined, merged: undefined, lastPrStep: undefined },
+        );
         setLoading(false);
       })
       .catch((err) => {

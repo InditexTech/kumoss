@@ -1,0 +1,332 @@
+= Upgrade notes
+:description: Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
+
+This page lists the changes that need action from an operator, an
+integrator or a custom sidecar implementation when upgrading. Read it
+before rolling out a new core image.
+
+== Compliance policy with OPA; `forbidden_actions` removed
+
+With `orchestration.enable_compliance_checker` on, generate rounds now
+also evaluate a Rego policy with OPA against the final plan, before the
+LLM audit, and both results go into one compliance report. The policy
+is the Langfuse text prompt `general/policies/compliance`, seeded on the
+next boot. See xref:main:reference/compliance-policy.adoc[Compliance
+policy].
+
+What that changes:
+
+* *`forbidden_actions` is gone.* The six
+  `<provider>/guidelines/forbidden_actions` seeds are deleted and no
+  agent reads that prompt any more: not the request filter, not the IaC
+  generator, not the compliance checker. The request filter no longer
+  declines requests as prohibited. Versions already in Langfuse
+  (including those the Phoenix migration script imported) stay there,
+  unused; the seeder never deletes. *This removes guardrails*: an
+  install that relied on those lists and writes no policy has no
+  replacement for them. Write the prohibitions you need as Rego rules in
+  `general/policies/compliance`; the shipped policy only denies
+  standalone deletions.
+* *`critical_deletion` moved to the policy.* The seed of
+  `general/compliance/report` no longer defines it; the policy does,
+  deterministically. If you customized that prompt, your version keeps
+  its `critical_deletion` section and standalone deletions are reported
+  twice, once by each source. Delete the section from your version.
+* *The core image ships `opa`* (OPA 1.22.4). A custom core image must
+  provide it on the `PATH`.
+* *Startup check.* With the checker on, the core evaluates the policy
+  against an empty plan after seeding and refuses to start if that
+  fails: no `opa` binary, a broken policy, or Langfuse unreachable.
+* *Fail closed.* A policy that cannot be evaluated during a round adds
+  a blocking `policy_unavailable` finding, so the session is locked and
+  the compliance failure notification is sent.
+* *Compliance reports.* Each violation has `source` (`llm` or `opa`;
+  absent on older reports, meaning `llm`) and the report has
+  `policy_revision`, the Langfuse prompt version of the policy that ran
+  as `"<prompt name>@<version>"`, for example
+  `general/policies/compliance@4` (null when no policy ran).
+
+[#phoenix-to-langfuse]
+== Langfuse replaces Phoenix
+
+Traces and prompts moved from Arize Phoenix to a self-hosted Langfuse
+v4. See xref:main:guides/monitor-with-langfuse.adoc[Monitor with
+Langfuse] and xref:main:guides/customize-prompts.adoc[Customize
+prompts].
+
+What changes:
+
+* *Stack.* `phoenix` and `phoenix-db` are gone. Langfuse brings
+  `langfuse-web`, `langfuse-worker`, `langfuse-db` (PostgreSQL),
+  `langfuse-clickhouse`, `langfuse-redis` and a `langfuse` bucket on the
+  object storage. Plan for the extra memory, mostly ClickHouse's.
+* *UI address.* Langfuse is served on its own port, `3000`
+  (`\http://localhost:3000` in Compose), not under `/monitoring/`: the
+  stock image cannot be served under a path. It has a login: the stack
+  provisions `admin@example.com` / `kumoss-admin-1` (Compose) or a
+  generated password (Helm, see
+  xref:main:guides/deploy-with-helm.adoc[Deploy with Helm]). The admin
+  panel's link now reads *Langfuse*; it goes to `/langfuse` on the
+  proxy, which redirects to the UI.
+* *Configuration.* `telemetry.collector_url` is replaced by
+  `telemetry.langfuse_url`, and the core
+  authenticates with a project key pair from `LANGFUSE_PUBLIC_KEY` /
+  `LANGFUSE_SECRET_KEY`. A `config.yaml` still carrying `collector_url`
+  is refused at boot. See
+  xref:main:reference/configuration.adoc#telemetry[the `telemetry`
+  section].
+* *Projects.* The nine Phoenix projects (`dev-terraform-day2`,
+  `pro-terraform-drift`, ...) become one Langfuse project. The
+  environment is Langfuse's environment field, and the operation and
+  providers are trace tags.
+* *Prompt tags are labels.* The seeder labels versions instead of
+  tagging them, with the same names (`development`, `staging`,
+  `production`, `seed`).
+* *Prompt names are folders.* `aws-guidelines-networking` is now
+  `aws/guidelines/networking`, which Langfuse shows as an `aws` folder
+  holding a `guidelines` one. The migration script below renames your
+  prompts accordingly.
+* *Helm.* `phoenix.*` and `postgres.phoenix` are replaced by `langfuse.*`
+  and `postgres.langfuse`; `secrets.phoenixDbPassword` by the
+  `secrets.langfuse*` values. A Secret given as `secrets.existingSecret`
+  must hold the new keys (see the Helm guide). The proxy gets a
+  `langfuse` port (3000) and the Ingress an optional
+  `ingress.langfuseHost`. `charts/kind-up.sh` maps Langfuse to host
+  port 3000; delete and recreate an existing kind cluster to get the
+  mapping.
+* *Local Compose overrides.* A `docker-compose.override.yml` that still
+  configures `phoenix` or `phoenix-db` makes Compose refuse the
+  project; remove those entries.
+
+=== Moving your prompts
+
+Traces are not migrated: Phoenix keeps them until you delete its volume.
+Prompts are moved with `core/scripts/migrate_phoenix_prompts.py`, which
+needs only Python 3.10 or later and runs in two steps, so the two
+stacks never have to run together:
+
+. *Before upgrading*, with Phoenix still running, export every prompt
+  version and its tags:
++
+[source,bash]
+----
+python3 core/scripts/migrate_phoenix_prompts.py export \
+    --phoenix-url http://localhost/monitoring/ --out phoenix-prompts.json
+----
+. Upgrade, and start Langfuse alone (in Compose, `docker compose up -d
+  langfuse-web langfuse-worker`; starting the whole stack is fine too).
+. Import the file. The key pair is the one the core uses
+  (`pk-lf-kumoss-dev` / `sk-lf-kumoss-dev` in the Compose stack):
++
+[source,bash]
+----
+LANGFUSE_PUBLIC_KEY=pk-lf-kumoss-dev LANGFUSE_SECRET_KEY=sk-lf-kumoss-dev \
+python3 core/scripts/migrate_phoenix_prompts.py import \
+    --langfuse-url http://localhost:3000/ --in phoenix-prompts.json
+----
++
+Each Phoenix version becomes a Langfuse version, oldest first, carrying
+its tags as labels, so every label ends up on the version its tag was
+on. A prompt with no `seed` tag (Phoenix installs older than that tag)
+gets `seed` on its oldest version, the one the seeder created, so the
+next core start never moves labels off your own versions. Versions that
+are not a single text are listed and skipped: the core cannot read them. `--dry-run` shows what would be created; running
+the import again skips what it already imported.
+. Start (or restart) the core. The seeder finds the `seed` label where
+  Phoenix had the `seed` tag and carries on as before: a seed changed
+  since reaches only the environments still on the seed.
+
+If the core started before the import, it seeded the shipped prompts
+first; the import then adds your versions on top and moves the labels
+to them, and the next core start brings the seeds up to date as above.
+
+When the prompts are in Langfuse, remove the old Phoenix volume
+(`docker volume rm kumoss_phoenix_db_data` for a Compose project named
+`kumoss`; with Helm, the PersistentVolumeClaim
+`data-<fullname>-phoenix-db-0`, `data-kumoss-phoenix-db-0` for a release
+named `kumoss`).
+
+== Database migrations with Alembic
+
+The core no longer builds its tables with `create_all`. It runs Alembic
+migrations at startup instead, in one transaction and under a
+PostgreSQL advisory lock.
+
+* *Existing databases.* The first start adopts them: it applies the
+  provider rename below if still pending, records the baseline revision
+  in a new `alembic_version` table, and runs the later revisions. The
+  first of those adds `histories.user_queries`. Nothing to do by hand,
+  but back the database up first.
+* *Pre-authentication volumes.* A database with sessions but no `users`
+  table is refused at startup; migrate it by hand or recreate it.
+* *Schema changes in forks.* Change the models and add a revision; see
+  xref:main:reference/database-schema.adoc#changing-the-schema[Changing
+  the schema].
+
+== Providers come from the root module
+
+Sessions no longer take a provider and a scope from the user. The core
+reads the providers from the root module's `required_providers` and
+keeps the scopes, variable answers and picked var files in a
+`kumoss.yaml` manifest committed in the module. See
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
+
+What that changes:
+
+* *Web application.* The wizard asks for the request, the repository
+  URL and the root module, then shows an inputs form only when the
+  module needs something. The provider and scope questions, the
+  permissions step and the call to the mapping service are gone.
+* *First session on each module.* The first session after the upgrade
+  sets the module's manifest up: the user answers its scopes (and any
+  required variable without a value) once, and the session commits
+  `kumoss.yaml` to its branch. Merge that pull request so later
+  sessions find the manifest on the default branch.
+* *Core API.* `generate`, `drift` and `import` no longer take
+  `terraform_providers` or `scope_id`. Unknown fields are ignored, so an
+  old client is not rejected, but what it sends has no effect. Probe the
+  module with `POST /api/v1/manifest/probe` and send the answers in
+  `manifest` on the first call. See
+  xref:main:reference/api/core.adoc[Core API].
+* *Session read models.* Session summaries and details expose
+  `providers: [{name, scope_id}]` instead of `provider` and `scope_id`.
+* *Tracing.* The span `metadata` carries `providers` (a list of
+  provider type names) instead of `cloud`.
+
+== Provider names are Terraform provider types
+
+Providers are named everywhere by their Terraform provider type, the
+last segment of the source address:
+
+[cols="1,1",options="header"]
+|===
+|Before |Now
+
+|`azure` |`azurerm`
+|`gcp` |`google`
+|`aws` |`aws`
+|`oci` |`oci`
+|`kubernetes` |`kubernetes`
+|`vmware` |`vsphere`
+|===
+
+Any other provider a module uses (`random`, `helm`...) is a session
+provider too, under its own type name.
+
+* *Database.* The `terraform_providers` table is migrated at startup:
+  the `provider` column becomes `varchar(64)` with the new names,
+  `scope_id` becomes nullable, and the old enum type is dropped.
+  Nothing to do by hand. See
+  xref:main:reference/database-schema.adoc[Database schema].
+* *Prompts.* Phoenix prompt names follow the provider type:
+  `azure-guidelines-*` is now `azurerm-guidelines-*`, `gcp-*` is
+  `google-*` and `vmware-*` is `vsphere-*`, and the seed folders under
+  `core/prompts/seed/` were renamed to match. The seeder creates the new
+  names on the next boot, with the shipped content. Versions you
+  curated under the old names are not moved and no longer read: copy
+  them to the new names in Phoenix and move the environment tag. See
+  xref:main:guides/customize-prompts.adoc[Customize prompts].
+* *Prompt selection.* A session uses the prompts of every provider of
+  its module that has them. A provider without prompts no longer
+  aborts a session with `Prompt not found`; it gets the `general-*`
+  prompts only.
+
+== Sidecar contracts 2.0.0
+
+The IaC, authorization and mapping contracts moved to 2.0.0 together.
+A custom implementation of any of them must be upgraded with the core.
+
+[cols="1,4",options="header"]
+|===
+|Contract |Breaking change
+
+|IaC (`iac.v1.yaml`)
+|The request is a plain CLI invocation. `init`, `plan`, `apply` and
+`import` drop the required `scope_id` + `terraform_provider` pair, and
+`plan` and `import` drop `variables`. Every engine command takes an
+optional `env` (environment variables it may add but never replace),
+and `plan` and `import` an optional `vars` (input variable values,
+passed as the last `-var-file`); `var_files` stays, with any path shape
+inside the workspace. The service knows no provider: the core sends
+each scope as `env` or `vars`, so a deployment must leave
+`ARM_SUBSCRIPTION_ID` and `GOOGLE_PROJECT` unset on the service. The
+bundled service no longer checks the AWS account with STS before each
+command: existing AWS modules that do not pass `var.aws_account_id` to
+the provider's `allowed_account_ids` run in whatever account the
+service's credentials belong to.
+`/v1/import/scope-resource-ids` takes `provider` (`azurerm`, `google`
+or `aws`) instead of `terraform_provider`, and rejects any other
+provider with `422` instead of answering exit code `2`. See
+xref:main:reference/api/iac.adoc#versioning[IaC sidecar API].
+
+|Authorization (`authz.v1.yaml`)
+|`resource.properties.provider` is any Terraform provider type name
+instead of an enum of the former names. The core sends one evaluation
+per provider scope of the session's root module, or one module-level
+evaluation with an empty `resource.id` and no provider when the module
+has no scoped provider. First calls are evaluated inside the session,
+after the `202`. Update PDP policies that match `azure`, `gcp` or
+`vmware`. See xref:main:reference/api/authz.adoc[Authorization sidecar
+API].
+
+|Mapping (`mapping.v1.yaml`)
+|The request takes `identifier` only and the response answers
+`repo_url` and `identifier` only: `terraform_provider`, `scope_id` and
+the `TerraformProvider` enum are gone, and a request that still sends
+`terraform_provider` is `422`. The core's `POST /api/v1/mapping/resolve`
+passthrough was removed; the core now calls the service from
+`POST /api/v1/repository/parse` instead (see below). A `404`'s
+`detail` is shown to the user. See
+xref:main:reference/api/mapping.adoc[Mapping sidecar API].
+|===
+
+== The mapping sidecar is bundled and on by default
+
+The wizard's repository step now resolves what the user types through
+the mapping sidecar, so a bare repository name works as well as a URL.
+Kumoss bundles a mapping service (`services/mapping`, image
+`kumoss-mapping`) that appends a name to `MAPPING_PREFIX_IDENTIFIER`
+with a `.git` suffix, and the shipped `config.yaml` enables it
+(`services.mapping.enabled: true`, `endpoint: "http://mapping:8081"`).
+
+What that changes:
+
+* *Core boot.* With mapping enabled, the core refuses to boot without
+  `KUMOSS_MAPPING_TOKEN`. Add it to `core/.env` (and the same value to
+  `services/mapping/.env`), or set `services.mapping.enabled: false`.
+  The Helm chart generates the token itself; a `secrets.existingSecret`
+  must now also hold `KUMOSS_MAPPING_TOKEN`.
+* *Compose.* Copy `services/mapping/env.sample` to
+  `services/mapping/.env` and set `MAPPING_PREFIX_IDENTIFIER` to your
+  organization's base URL (e.g. `\https://github.com/my-org/`). Left
+  empty, only full `https://` URLs resolve, as before.
+* *Your own mapping implementation.* Keep your `services.mapping.endpoint`
+  and remove the bundled `mapping` service from your deployment (Helm:
+  `mapping.enabled: false` disables both; set
+  `config.services.mapping` back on with your endpoint).
+* *Core API.* `POST /api/v1/repository/parse` accepts a repository name
+  as `repo_uri` and answers `repo_url` next to `roots`; send that
+  `repo_url` on later calls. It can now also answer `404` (name not
+  resolvable) and `504` (mapper timeout). See
+  xref:main:reference/api/core.adoc[Core API].
+
+== Kumoss-managed state keys changed
+
+With xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss-managed
+state] the state key is now the SHA-256 of the repository and the root
+module path only; earlier releases also hashed the cloud scope. *State
+written under the old keys is not migrated.* Left as is, the first
+session on each project plans against empty state and proposes
+creating resources that already exist.
+
+Before running sessions on an existing project, copy its state object
+in the state bucket from `<old_project_id>/terraform.tfstate` to
+`<project_id>/terraform.tfstate`. The old key appears in the
+`Terraform state: ... key=` log lines of the previous release; the new
+one in the same line the upgraded core logs on the project's first
+`init`. Do not apply a plan made before the copy. See
+xref:main:guides/state-backends/kumoss-managed.adoc#state-keys[State
+keys].
+
+Projects whose repository declares its own backend, or whose backend
+comes from the IaC sidecar, are not affected.

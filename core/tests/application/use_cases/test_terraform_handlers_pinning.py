@@ -18,7 +18,11 @@ import unittest
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from src.application.exceptions import SetLockError, TerraformValidationFailedError
+from src.application.exceptions import (
+    RequestFilterException,
+    SetLockError,
+    TerraformValidationFailedError,
+)
 from src.application.use_cases.terraform_crud_handler import TerraformCRUDHandler
 from src.application.use_cases.terraform_drift_handler import TerraformDriftHandler
 from src.domains.dto import TerraformDriftDTO, TerraformPlanDTO
@@ -77,7 +81,7 @@ class _HandlerTestCase(unittest.IsolatedAsyncioTestCase):
         self.validation_svc = AsyncMock()
         self.template_svc = AsyncMock()
         self.filter_svc = AsyncMock()
-        self.filter_svc.filter.return_value = (True, "")
+        self.filter_svc.filter.return_value = None
         self.report_svc = AsyncMock()
         self.target_svc = AsyncMock()
         self.drift_svc = AsyncMock()
@@ -149,13 +153,18 @@ class TestCrudHandlerPinning(_CrudHandlerTestCase):
         self.drift_svc.detect_and_resolve_drift.assert_not_awaited()
 
     async def test_rejected_request_does_not_pin(self):
-        self.filter_svc.filter.return_value = (False, "out of scope")
+        self.filter_svc.filter.side_effect = RequestFilterException(
+            message="not an IaC request", error_code=400
+        )
 
         task = await self._handler().handle("make me a sandwich")
-        await task()
+        with self.assertRaises(RequestFilterException):
+            await task()
 
         self.workspace_svc.pin_workspace.assert_not_called()
         self.validation_svc.generate_and_validate.assert_not_awaited()
+        # save() runs from the finally so the rejection reaches the chat.
+        self.session_svc.save.assert_awaited_once_with("make me a sandwich")
 
 
 class TestCrudHandlerBlocking(_CrudHandlerTestCase):
@@ -194,6 +203,22 @@ class TestCrudHandlerBlocking(_CrudHandlerTestCase):
             self.ctx.id, self.ctx.user_id, "rule NEB-001 violated"
         )
         self.notifications.notify_high_impact.assert_not_awaited()
+
+    async def test_compliance_audits_the_final_plan_text_and_json(self):
+        self.drift_svc.detect_and_resolve_drift.return_value = TerraformDriftDTO(
+            in_sync=True,
+            drift="",
+            feedback="",
+            stdout="final plan",
+            plan=None,
+            plan_json={"resource_changes": []},
+        )
+
+        await self._run()
+
+        kwargs = self.compliance_svc.check.await_args.kwargs
+        self.assertEqual(kwargs["plan"], "final plan")
+        self.assertEqual(kwargs["plan_json"], {"resource_changes": []})
 
     async def test_high_impact_locks_and_notifies_high_impact_only(self):
         self.report_svc.generate_report.return_value = _report("high")
@@ -292,13 +317,18 @@ class TestDriftHandlerFlow(_HandlerTestCase):
         )
 
     async def test_rejected_partial_request_skips_drift_resolution(self):
-        self.filter_svc.filter.return_value = (False, "out of scope")
+        self.filter_svc.filter.side_effect = RequestFilterException(
+            message="not an IaC request", error_code=400
+        )
 
         task = await self._handler().handle("make me a sandwich", is_partial=True)
-        await task()
+        with self.assertRaises(RequestFilterException):
+            await task()
 
         self.drift_svc.detect_and_resolve_drift.assert_not_awaited()
-        self.session_svc.save.assert_awaited_once()
+        self.target_svc.generate_drift.assert_not_awaited()
+        # save() runs from the finally so the rejection reaches the chat.
+        self.session_svc.save.assert_awaited_once_with("make me a sandwich")
 
 
 if __name__ == "__main__":

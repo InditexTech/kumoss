@@ -14,7 +14,6 @@ class ITemplate(ABC):
         operation_type: OperationType,
         resources: list[str],
         abbreviations: list[str],
-        include_forbidden_actions: bool,
     ) -> str:
         pass
 
@@ -88,6 +87,10 @@ class ITemplate(ABC):
 
     @abstractmethod
     def render_status_update(self) -> str:
+        pass
+
+    @abstractmethod
+    def render_chat_reply(self) -> str:
         pass
 
     @abstractmethod

@@ -6,15 +6,20 @@ from pathlib import Path
 from typing import Any, Callable, override
 
 from src.domains.interfaces import IFileSystem, IGit
-from src.domains.value_objects import SearchResult
+from src.domains.value_objects import SearchResult, TerraformDoc
 from src.infrastructure.exceptions import (
     CustomFileNotFoundError,
     SearchEngineError,
+    TerraformDocsNotFoundError,
+    TerraformRegistryError,
     ToolInferenceParamsError,
 )
 from src.infrastructure.external.search_service import SearchServiceClient
 from src.infrastructure.external.search_summarizer_service import (
     SearchResultsSummarizer,
+)
+from src.infrastructure.external.terraform_registry_service import (
+    TerraformRegistryClient,
 )
 from src.infrastructure.tools.tool_registry_static import ToolRegistryStatic
 from src.shared.config import system_config
@@ -58,6 +63,7 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
             "diff_history": self.__handle_diff_history,
             # External information
             "web_search": self.__handle_web_search,
+            "terraform_docs": self.__handle_terraform_docs,
         }
 
     def __handle_write_file(self, parameters: dict[str, Any]) -> dict[str, Any]:
@@ -290,3 +296,96 @@ class ToolRegistryWorkspace(ToolRegistryStatic):
                 error_code=403,
             )
         return relative.as_posix()
+
+    async def __handle_terraform_docs(
+        self, parameters: dict[str, Any]
+    ) -> dict[str, Any]:
+        provider = parameters["provider"]
+        resource_type = parameters["resource_type"]
+        focus = parameters["focus"]
+        version = parameters.get("version") or None
+        section = parameters.get("section") or "full"
+        kind = parameters.get("kind") or "resource"
+        if section not in ("full", "import") or kind not in ("resource", "data_source"):
+            raise ToolInferenceParamsError(
+                message="`section` must be 'full' or 'import' and `kind` must be "
+                + f"'resource' or 'data_source'. got section={section}, kind={kind}",
+                error_code=400,
+            )
+        if section == "import" and kind == "data_source":
+            raise ToolInferenceParamsError(
+                message="Data sources cannot be imported and have no Import "
+                + "section; use section 'full' for a data source.",
+                error_code=400,
+            )
+        if not isinstance(focus, str) or not focus.strip():
+            raise ToolInferenceParamsError(
+                message="`focus` must say what you need from the documentation.",
+                error_code=400,
+            )
+        answer: dict[str, Any] = {
+            "provider": provider,
+            "version": version,
+            "resource_type": resource_type,
+            "section": section,
+        }
+        try:
+            doc = await TerraformRegistryClient().fetch(
+                provider, resource_type, version, data_source=kind == "data_source"
+            )
+        except TerraformDocsNotFoundError as e:
+            return answer | {
+                "result": f"{e.message} Check the provider source, version and "
+                + "type name before calling terraform_docs again; do not repeat "
+                + "this call."
+            }
+        except TerraformRegistryError as e:
+            return answer | {
+                "result": f"Terraform documentation is unavailable: {e.message}. "
+                + "Do NOT retry terraform_docs; use web_search instead."
+            }
+        answer |= {"provider": doc.source, "version": doc.version, "url": doc.url}
+        content = doc.content
+        if section == "import":
+            content = TerraformRegistryClient.import_section(doc.content)
+            if content is None:
+                return answer | {
+                    "result": f"The documentation of {doc.resource_type} in "
+                    + f"{doc.source} {doc.version} has no Import section: the "
+                    + "resource type may not support import."
+                }
+        return answer | {
+            "result": await self.__condensed_docs(doc, content, focus.strip())
+        }
+
+    async def __condensed_docs(
+        self, doc: TerraformDoc, content: str, focus: str
+    ) -> str:
+        """``content`` of the page condensed to ``focus`` by the search summarizer.
+
+        A page is one resource's own documentation, so there is nothing
+        to rank: only the per-page summary runs. Any summarizer failure
+        degrades to the raw, truncated content, as for ``web_search``.
+        """
+        content = content[: TerraformRegistryClient.MAX_DOC_CHARS]
+        page = SearchResult(
+            title=f"{doc.resource_type} ({doc.source} {doc.version})",
+            url=doc.url,
+            content=content,
+        )
+        try:
+            summary = await self.__summarizer.condense(
+                f"{doc.resource_type}: {focus}", page
+            )
+        except ExceptionHandler as e:
+            logging.warning(
+                f"Terraform docs summarization failed, returning the raw page: {e!r}"
+            )
+            return content
+        if summary is None:
+            return (
+                f"The documentation of {doc.resource_type} in {doc.source} "
+                + f"{doc.version} has nothing on '{focus}'. Ask with a different "
+                + "focus; do not repeat this one."
+            )
+        return summary

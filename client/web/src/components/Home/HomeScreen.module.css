@@ -191,16 +191,6 @@
   cursor: pointer;
 }
 
-.providerOption {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.providerIcon {
-  font-size: 1.1em;
-}
-
 .selectContainer > li:hover {
   background-color: light-dark(#ACACACFF, #080a63);
 }

@@ -1,0 +1,5 @@
+Where a provider's resources live: the subscription of `azurerm`, the
+project of `google`, the account of `aws`, or the compartment of `oci`.
+Kept in the root module's manifest, sent to the IaC sidecar with each
+command, and evaluated by the authorization sidecar. Other providers
+have no scope.
