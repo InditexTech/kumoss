@@ -381,6 +381,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -1162,14 +1171,15 @@ session with the corrected request.</p>
 <p>Use a lock when a report looks risky but the automatic lock did not
 trigger, or when a change must wait for an out-of-band approval. Use an
 unlock after the automatic lock (failed compliance or <code>high</code> impact) has
-been reviewed and accepted. Editors receive the "Compliance check
-failed" and "High impact changes detected" notifications for every
-session when the notifications sidecar is enabled. Before unlocking,
-read the round&#8217;s compliance report: findings from the compliance policy
-carry a <strong>policy</strong> badge, the others come from the LLM audit. For what each
-cause means, see
-<a href="../merge-and-apply/#session-locked" class="xref page">If the session is
-locked</a>.</p>
+been reviewed and accepted.</p>
+</div>
+<div class="paragraph">
+<p>When the notifications sidecar is enabled, editors receive the lock
+notifications of every session. Before unlocking, read the round&#8217;s
+<strong>Compliance Check</strong> artifact: findings with a <strong>policy</strong> badge come from the
+compliance policy, the others from the LLM audit. For what each cause
+means, see <a href="../resolve-a-locked-session/#why" class="xref page">Why a
+session is locked</a>.</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
@@ -1180,6 +1190,12 @@ project, or session id).</p>
 <li>
 <p>Press <strong>Lock apply</strong> or <strong>Unlock apply</strong> in the Apply column, or open the
 detail panel and toggle <strong>Apply Open</strong> / <strong>Apply Locked</strong>.</p>
+<div class="imageblock">
+<div class="content">
+<a class="image" href="../../_images/admin-unlock-session.png"><img src="../../_images/admin-unlock-session.png" alt="Admin panel Sessions tab with the locked session&#8217;s detail panel open and the Apply Locked button highlighted"></a>
+</div>
+<div class="title">Figure 1. The detail panel of a locked session; pressing <strong>Apply Locked</strong> unlocks it and the button changes to <strong>Apply Open</strong></div>
+</div>
 </li>
 <li>
 <p>While locked, the owner receives <code>409</code> on apply and on pull-request

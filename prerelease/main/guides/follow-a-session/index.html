@@ -381,6 +381,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -1014,12 +1023,14 @@ behaviour and does not lower the outcome, so a report can say
 </ul>
 </div>
 <div class="paragraph">
-<p><strong>What you do not see.</strong> The compliance audit that runs after the report
-produces rule-level findings, but they are not displayed in the
-application. If the audit fails you see its consequence, the lock (see
-<a href="../merge-and-apply/#session-locked" class="xref page">If the session is
-locked</a>), and the reviewers who receive the notification see the summary.
-Ask your reviewer or platform team for the details.</p>
+<p><strong>Compliance findings.</strong> The compliance check that runs after the report
+stores its findings as the round&#8217;s <strong>Compliance Check</strong> artifact in the
+session details: a summary, each violation with its severity, rule id,
+and resource, and the rules that passed. Findings from the compliance
+policy carry a <strong>policy</strong> badge. When a finding locks the session, the
+same findings appear under <strong>Why</strong> on the <strong>Deployment Blocked</strong> screen; see
+<a href="../resolve-a-locked-session/" class="xref page">Resolve a locked
+session</a>.</p>
 </div>
 <div class="paragraph">
 <p><strong>Reading order that works.</strong> Impact level first, then the Deleted and

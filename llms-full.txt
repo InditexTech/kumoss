@@ -1069,7 +1069,7 @@ This glossary lists the terms, abbreviations, and phrases used across the Kumoss
 
 The check of a generated plan after a generate round: the compliance policy, a Rego policy evaluated by OPA, then an independent, second LLM agent that checks the plan against the organization’s compliance rules. Failing findings of either, or a policy that cannot be evaluated — and, optionally, a high-impact verdict — lock the session until a panel editor unlocks it or a later generate round passes clean.
 
-See [Session locks](../guides/administer-users-and-locks/#session-locks).
+See [Resolve a locked session](../guides/resolve-a-locked-session/) and [Session locks](../guides/administer-users-and-locks/#session-locks).
 
 ## Drift
 
@@ -1165,7 +1165,7 @@ See [Follow a session](../guides/follow-a-session/).
 
 A flag on the session that blocks apply and pull-request merge. It is set automatically at the end of a generate round when the compliance policy denies the plan (or cannot be evaluated), when the LLM compliance audit finds an `error` or `critical` violation such as `scope_exceeded`, or, where the deployment enables it, when the impact is High, and cleared either by an admin-panel editor or by a later generate round whose audit passes without a high-impact verdict. Some internal material calls this a plan lock.
 
-See [Session locks](../guides/administer-users-and-locks/#session-locks).
+See [Resolve a locked session](../guides/resolve-a-locked-session/) and [Session locks](../guides/administer-users-and-locks/#session-locks).
 
 ## Sidecar
 
@@ -1209,7 +1209,11 @@ Track progress and read the plan, code, and report.
 
 [Merge and apply](../guides/merge-and-apply/)
 
-Handle a session lock, then open, merge, and apply the pull request.
+Open, merge, and apply the pull request of a session.
+
+[Resolve a locked session](../guides/resolve-a-locked-session/)
+
+Find out why a session is locked and get it unlocked.
 
 [Remediate drift](../guides/remediate-drift/)
 
@@ -1680,7 +1684,7 @@ Kumoss will publish benchmark results showing how supported language models perf
 
 ### Policy as code with Open Policy Agent
 
-Kumoss evaluates the final plan of every generate round against a deterministic policy written in Rego with [Open Policy Agent](https://www.openpolicyagent.org), alongside the language-model compliance audit. The policy is stored in Langfuse, ships with one rule, `critical_deletion`, and locks the session whenever it denies the plan or cannot be evaluated; see [Compliance policy](../reference/compliance-policy/) and [If the session is locked](../guides/merge-and-apply/#session-locked).
+Kumoss evaluates the final plan of every generate round against a deterministic policy written in Rego with [Open Policy Agent](https://www.openpolicyagent.org), alongside the language-model compliance audit. The policy is stored in Langfuse, ships with one rule, `critical_deletion`, and locks the session whenever it denies the plan or cannot be evaluated; see [Compliance policy](../reference/compliance-policy/) and [Resolve a locked session](../guides/resolve-a-locked-session/).
 
 ### Policy bundles and self-repair
 
@@ -1768,7 +1772,7 @@ Your browser does not support the video tag.
 | 2:15 | **Live in the cloud.** The new resources appear in the cloud console, and every agent step is recorded as a trace. | [Monitor with Langfuse](../guides/monitor-with-langfuse/) |
 | 2:34 | **Rules defined once.** The platform team keeps its security and architecture rules as versioned prompts that apply to every request. | [Customize prompts](../guides/customize-prompts/) |
 | 2:46 | **A destructive request.** The same developer asks to delete the storage account. Kumoss flags the change as high impact. | [Generate infrastructure](../guides/generate-infrastructure/) |
-| 3:08 | **Deployment blocked.** The deletion breaks policy, so the session is locked and apply is refused, whoever asks. The platform team is notified. | [If the session is locked](../guides/merge-and-apply/#session-locked) |
+| 3:08 | **Deployment blocked.** The deletion breaks policy, so the session is locked and apply is refused, whoever asks. The platform team is notified. | [Resolve a locked session](../guides/resolve-a-locked-session/) |
 | 3:27 | **Humans approve.** An administrator with the editor role reviews the locked session in the admin panel and removes the lock. | [Session locks](../guides/administer-users-and-locks/#session-locks) |
 | 3:44 | **Reviewed, applied, recorded.** The developer applies the reviewed plan, and the resources are removed with a full audit trail. | [Merge and apply](../guides/merge-and-apply/) |
 
@@ -4334,10 +4338,12 @@ The lock is recomputed at the end of **every** generate round from that round’
 
 ### Locking or unlocking the apply of a session (panel `editor` or higher)
 
-Use a lock when a report looks risky but the automatic lock did not trigger, or when a change must wait for an out-of-band approval. Use an unlock after the automatic lock (failed compliance or `high` impact) has been reviewed and accepted. Editors receive the "Compliance check failed" and "High impact changes detected" notifications for every session when the notifications sidecar is enabled. Before unlocking, read the round’s compliance report: findings from the compliance policy carry a **policy** badge, the others come from the LLM audit. For what each cause means, see [If the session is locked](../merge-and-apply/#session-locked).
+Use a lock when a report looks risky but the automatic lock did not trigger, or when a change must wait for an out-of-band approval. Use an unlock after the automatic lock (failed compliance or `high` impact) has been reviewed and accepted.
+
+When the notifications sidecar is enabled, editors receive the lock notifications of every session. Before unlocking, read the round’s **Compliance Check** artifact: findings with a **policy** badge come from the compliance policy, the others from the LLM audit. For what each cause means, see [Why a session is locked](../resolve-a-locked-session/#why).
 
 1. Admin panel, Sessions tab. Find the session (search by user e-mail, project, or session id).
-2. Press **Lock apply** or **Unlock apply** in the Apply column, or open the detail panel and toggle **Apply Open** / **Apply Locked**.
+2. Press **Lock apply** or **Unlock apply** in the Apply column, or open the detail panel and toggle **Apply Open** / **Apply Locked**. [![Admin panel Sessions tab with the locked session’s detail panel open and the Apply Locked button highlighted](../../_images/admin-unlock-session.png)](../../_images/admin-unlock-session.png) Figure 1. The detail panel of a locked session; pressing **Apply Locked** unlocks it and the button changes to **Apply Open**
 3. While locked, the owner receives `409` on apply and on pull-request merge. Creating the pull request is still possible so that reviewers can read the diff.
 4. After unlocking, the owner can merge and apply from the results view of their session.
 
@@ -5707,7 +5713,7 @@ For drift sessions the report shows a **Drift Summary**, an outcome (Succeeded, 
 - **Drift Not Reconciled.** Drift Kumoss could **not** fix — the remediation ran out of iterations, or the drift could not be read at all. Each entry gives the reason and what still differs. This is what makes an outcome **Partial**; act on it.
 - **Left Alone by Exception Rules.** Drift Kumoss deliberately did not touch, because one of your platform’s drift exception rules covers it. Each entry names the change and quotes the rule. This is the intended behaviour and does not lower the outcome, so a report can say **Succeeded** and still list entries here.
 
-**What you do not see.** The compliance audit that runs after the report produces rule-level findings, but they are not displayed in the application. If the audit fails you see its consequence, the lock (see [If the session is locked](../merge-and-apply/#session-locked)), and the reviewers who receive the notification see the summary. Ask your reviewer or platform team for the details.
+**Compliance findings.** The compliance check that runs after the report stores its findings as the round’s **Compliance Check** artifact in the session details: a summary, each violation with its severity, rule id, and resource, and the rules that passed. Findings from the compliance policy carry a **policy** badge. When a finding locks the session, the same findings appear under **Why** on the **Deployment Blocked** screen; see [Resolve a locked session](../resolve-a-locked-session/).
 
 **Reading order that works.** Impact level first, then the Deleted and Recreated filters, then the plan for anything you do not expect, then the cost.
 
@@ -5907,7 +5913,7 @@ Practical rules:
 - **Name existing resources exactly** when you modify or delete them.
 - **Say what matters to you, not how to write HCL.** Size, tier, region, exposure, retention, and naming intent are useful. Kumoss applies your organization’s conventions for the rest.
 - **Do not paste secrets.** Request text, the files the agent reads, and the plan are sent to the configured language model and stored in the tracing system. Reference secrets by name or vault path.
-- **Prefer additive changes.** A standalone deletion is always denied by the compliance policy, even when you ask for it, and locks the session, see [If the session is locked](../merge-and-apply/#session-locked).
+- **Prefer additive changes.** A standalone deletion is always denied by the compliance policy, even when you ask for it, and locks the session, see [Resolve a locked session](../resolve-a-locked-session/).
 
 Examples that work well: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." "Open port 443 from the load balancer subnet to the web security group." "Upgrade the PostgreSQL flexible server in `envs/dev` to 16."
 
@@ -5921,52 +5927,44 @@ Examples that work well: "Create a private S3 bucket named `demo-platform-logs` 
 
 Source: https://inditextech.github.io/kumoss/prerelease/main/guides/merge-and-apply/
 
-Once you have reviewed a session’s results, this guide covers what a session lock means for you and how to open the pull request, merge it, and apply the reviewed plan.
+Once you have reviewed a session’s results, this guide takes you from the session branch to applied infrastructure: you open the pull request, get it reviewed, merge it, and apply exactly the plan you reviewed.
+
+> **Note**
+> If the **Deployment Blocked** screen opens when you continue to the
+> pull request, the session is locked and merge and apply are refused. See
+> [Resolve a locked session](../resolve-a-locked-session/)
+> for why, and for how to get it unlocked.
 
 ## Prerequisites
 
 - A session with results, reached by following [Follow a session](../follow-a-session/).
-- The `developer` role to open, merge, and apply; drift-remediation sessions end at the merge and never apply.
-
-## If the session is locked
-
-At the end of every generate round Kumoss decides whether the plan may be merged and applied. Three independent checks can lock the session:
-
-| Cause | What triggers it | Switch |
-| --- | --- | --- |
-| **Compliance policy** (deterministic) | The Rego policy, evaluated by Open Policy Agent on the plan JSON, returns a `deny` finding. The shipped rule, `critical_deletion`, denies any resource that is destroyed without being recreated, **even when you asked for the deletion**. A policy that cannot be evaluated also locks the session (`policy_unavailable`). These findings carry a **policy** badge. | `orchestration.enable_compliance_checker` |
-| **Compliance audit** (LLM) | A language-model agent compares the plan with your requests and your organization’s conventions. `scope_exceeded`: the plan changes something you did not ask for, for example it removes a block or sets an attribute to null. `scope_incomplete`: part of your request has no matching change in the plan. Any other `error` or `critical` finding comes from the conventions. Findings of severity `warning` are reported and never lock. | `orchestration.enable_compliance_checker` |
-| **High impact** | The report’s impact assessment rates the change `high`: destructive actions, restarts, service downtime, or critical networking changes. The impact banner is shown either way; the switch only decides whether it locks. | `orchestration.block_on_high_impact` |
-
-Both switches default to `false` in code, and the shipped `config.yaml` turns both on; see [Configuration](../../reference/configuration/). Drift and import rounds are never checked and never lock a session.
-
-**What you see.** When you continue to the pull request, the **Deployment Blocked** screen opens. Expand **Why** to see which cause applies: **High impact** with the impact summary, **Compliance** with each blocking finding (severity, rule id, and resource), or both. **Check again** reads the lock again, for example after a reviewer unlocked it; **Back to Report** returns to the report; **Contact Team** sends a support request.
-
-**Who is notified.** When the notifications sidecar is enabled, Kumoss sends a "Compliance check failed" notification, a "High impact changes detected" notification, or both, to you and to every user with the panel role `editor` or higher. If your browser tab is hidden when the round finishes, you also get a "Session blocked" browser notification.
-
-**While locked** you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. You cannot merge it or apply: the server answers `409` because the session is blocked. Your own sessions list shows the lock state in the **Apply** column.
-
-**Getting unlocked.** Either:
-
-- send a follow-up request whose round passes all three checks, which clears the lock; or
-- ask a reviewer with the panel role `editor` or `admin` to review the session in the admin panel and unlock it; see [Locking or unlocking the apply of a session](../administer-users-and-locks/#unlock-a-session).
-
-A manual unlock lasts only until your next generate round on the session, which runs the checks again and sets the lock afresh. To write your own policy rules, see [Compliance policy](../../reference/compliance-policy/).
+- The `developer` role; see [Roles and permissions](../../reference/roles-and-permissions/).
 
 ## Steps
 
-1. **Create PR.** In the results view choose **Create PR**. Kumoss writes the title and description and opens the pull request from the session branch on your Git provider. Creating it can take a minute.
-2. **Review.** "Here is your Pull Request." Use **View Pull Request** to open it (the button appears when the link points at a recognized host; otherwise copy the link from the session details). Your team’s normal review and CI apply. If reviewers ask for changes, type them as a follow-up request; the new round pushes to the same branch and updates the pull request.
-3. **Approve PR and Apply.** When the review is done, choose **Approve PR and Apply**. A confirmation asks you to confirm that you read and understood the report and the proposed changes; **Request Review** sends a support request instead, **Confirm and Apply** merges the pull request into the default branch and starts the apply. In a drift-remediation session the button only merges: the merge is the remediation, no apply follows, and you return to the report.
-4. **Apply.** The engine executes exactly the plan you reviewed; it is not re-planned. The report’s own status is `Success`, `Partial`, or `Failed`, shown on the apply-results screen as **Succeeded**, **Partially Applied**, or **Failed**, together with the execution summary, the resources created, updated, destroyed, or failed, and recommendations. A failed apply still closes the session normally — it is not retried and nothing is rolled back; read the error and start a new request.
+1. In the results view, choose **Create PR**. Kumoss writes the title and description and opens the pull request from the session branch on your Git provider. This can take a minute. When it is ready you see "Here is your Pull Request."
+2. Choose **View Pull Request** and review it with your team. The button appears when the link points at a recognized Git host; otherwise copy the link from the session details. Your team’s normal review and CI apply. To make changes, type them as a follow-up request: the new round pushes to the same branch and updates the pull request.
+3. When the review is done, choose **Approve PR and Apply**, then **Confirm and Apply**. The confirmation asks you to confirm that you read and understood the report and the proposed changes. **Confirm and Apply** merges the pull request into the default branch and starts the apply; to ask for help instead, choose **Request Review**, which sends a support request. The engine executes exactly the plan you reviewed; it is not re-planned. The apply-results screen shows **Succeeded**, **Partially Applied**, or **Failed**, with the execution summary, the resources created, updated, destroyed, or failed, and recommendations.
+
+> **Note**
+> In drift-remediation and import sessions the button reads **Approve and Merge PR** and only merges: the merge is the remediation, an import is
+> already in the state, and no apply follows. See
+> [Comparing the operating modes](../../reference/operating-modes/#compare-modes).
 
 ## Verify
 
-After an apply the reviewed plan is consumed. To change something else, send a new request; a fresh plan is produced and reviewed before the next apply. Drift and import sessions end at the merge instead: no apply follows, because the merge is the remediation and an import is already in the state. See [Comparing the operating modes](../../reference/operating-modes/#compare-modes).
+- The apply-results screen shows **Succeeded**.
+- The pull request shows as merged into the default branch on your Git provider.
+
+The session’s own status is not a reliable check: a failed apply also ends the session normally. A failed apply is not retried and nothing is rolled back; read the error on the apply-results screen and start a new request.
+
+After an apply the reviewed plan is consumed. To change anything else, send a new request; a fresh plan is produced and reviewed before the next apply.
 
 ## Next steps
 
 - [Make a request](../make-a-request/) to start a new session for the next change.
+- [Resolve a locked session](../resolve-a-locked-session/) if a later round locks the session.
+- [Remediate drift](../remediate-drift/) to bring changed infrastructure back in line with its code.
 
 ---
 
@@ -6191,6 +6189,90 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) to open and merge the pull request; a drift session ends there.
+
+---
+
+# Resolve a locked session
+
+Source: https://inditextech.github.io/kumoss/prerelease/main/guides/resolve-a-locked-session/
+
+Kumoss checks every generate round before it lets you merge and apply. When a check fails, the session is locked: you can keep working on it, but merge and apply are refused until the lock is cleared. This guide explains why a session gets locked, what you see, and the two ways to get it unlocked.
+
+## Prerequisites
+
+- A session whose latest generate round finished, reached by following [Follow a session](../follow-a-session/).
+- To unlock a session yourself, the panel role `editor` or `admin`; see [Roles and permissions](../../reference/roles-and-permissions/). Without it, you need a follow-up request or a reviewer who has it.
+
+## Why a session is locked
+
+Three independent checks run at the end of every generate round. Any one of them can lock the session. Drift and import rounds are never checked and never lock a session.
+
+### Compliance policy
+
+A deterministic check. Open Policy Agent evaluates your organization’s Rego policy against the plan, and any `deny` finding locks the session.
+
+- The shipped rule, `critical_deletion`, denies any resource that is destroyed without being recreated, **even when you asked for the deletion**. Replacements are allowed.
+- If the policy cannot be evaluated at all, the round gets a `policy_unavailable` finding and is locked too: the policy fails closed.
+
+Findings from this check carry a **policy** badge.
+
+### Compliance audit
+
+A language-model agent compares the plan with your requests and with your organization’s conventions. Two rules are always checked:
+
+- `scope_exceeded`: the plan changes something you did not ask for, for example it removes a block or sets an attribute to null.
+- `scope_incomplete`: part of your request has no matching change in the plan.
+
+Any other finding of severity `error` or `critical` comes from the conventions and locks the session as well. Findings of severity `warning` are reported and never lock.
+
+### High impact
+
+The report rates the impact of the change. When the rating is `high`, because of destructive actions, restarts, service downtime, or critical networking changes, the session is locked. The impact banner is shown on every report; only your deployment’s configuration decides whether a `high` rating locks.
+
+Your operator decides which of these checks run; see [Configuration](../../reference/configuration/) for the `orchestration` switches.
+
+## What you see
+
+When you continue to the pull request, the **Deployment Blocked** screen opens instead of the merge controls.
+
+[![Deployment Blocked screen listing the high-impact reason and two blocking compliance findings](../../_images/deployment-blocked.png)](../../_images/deployment-blocked.png)
+
+Figure 1. The Deployment Blocked screen with **Why** expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the compliance audit
+
+- Expand **Why** to see the cause: **High impact** with the impact summary, **Compliance** with each blocking finding (severity, rule id, and resource), or both. **Show all findings** adds the warnings and the suggested fixes.
+- **Check again** reads the lock state again, for example after a reviewer unlocked the session.
+- **Back to Report** returns to the report. **Contact Team** sends a support request.
+
+The full compliance report, including the rules that passed, is also in the session details, as the round’s **Compliance Check** artifact.
+
+While locked, you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. Merge and apply are refused with `409`. Your sessions list shows the lock in the **Apply** column.
+
+## Who is notified
+
+When the notifications sidecar is enabled, Kumoss sends a "Compliance check failed" notification, a "High impact changes detected" notification, or both. They go to you and to every user with the panel role `editor` or higher, so a reviewer usually knows about the lock before you ask.
+
+If your browser tab is hidden when the round finishes, you also get a "Session blocked" browser notification.
+
+## Unlock the session
+
+Choose one of the two ways:
+
+1. **Fix the request.** Read the findings under **Why**, then send a follow-up request that addresses them, for example "keep the existing bucket and only add the tag". When the new round passes all three checks, the lock clears and the merge controls return.
+2. **Ask a reviewer.** A user with the panel role `editor` or `admin` reviews the findings in the admin panel and unlocks the session; see [Lock or unlock the apply of a session](../administer-users-and-locks/#unlock-a-session). When they are done, choose **Check again**. [![Admin panel Sessions tab with the locked session’s detail panel open and the Apply Locked button highlighted](../../_images/admin-unlock-session.png)](../../_images/admin-unlock-session.png) Figure 2. A reviewer opens the locked session from the admin panel’s Sessions tab and presses **Apply Locked** to unlock it
+
+> **Note**
+> A reviewer’s unlock lasts only until your next generate round on
+> the session. That round runs the checks again and sets the lock afresh.
+
+## Verify
+
+The **Deployment Blocked** screen no longer opens when you continue to the pull request, the **Apply** column of your sessions list shows the session unlocked, and **Approve PR and Apply** is available. Continue with [Merge and apply](../merge-and-apply/).
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) to merge the pull request and apply the plan.
+- [Compliance policy](../../reference/compliance-policy/) to write your own policy rules.
+- [Customize prompts](../customize-prompts/) to change the conventions the compliance audit checks against.
 
 ---
 
@@ -12561,6 +12643,238 @@ Remember that granting a panel role does not change what the user can do to infr
 
 ---
 
+# Quickstart
+
+Source: https://inditextech.github.io/kumoss/stable/main/quickstart/
+
+In this quickstart, you install Kumoss on one machine with Docker Compose, using the bundled stack as shipped, and open the running web application. To see what a session looks like before you install anything, watch [Kumoss in action](../see-it-in-action/).
+
+> **Tip**
+> Prefer Kubernetes? Each release also publishes a Helm chart,
+> `oci://ghcr.io/inditextech/charts/kumoss`. To install it, or to try it on
+> a local kind cluster, see [Deploy with Helm](../guides/deploy-with-helm/).
+
+## Prerequisites
+
+Before you begin, make sure you meet the [prerequisites](../prerequisites/).
+
+## Step by step
+
+### 1. Clone the repository and create the environment files
+
+```
+git clone https://github.com/InditexTech/kumoss.git
+cd kumoss
+
+cp core/env.sample core/.env
+cp services/iac/env.sample services/iac/.env
+```
+
+Each `env.sample` documents its own variables and is the source of truth for their names. Every `.env` file is gitignored; never commit one.
+
+### 2. Write config.yaml
+
+`config.yaml` at the repository root is the single configuration file. Compose mounts it into the core container, and the core reads it at startup, so every edit needs `docker compose restart core`.
+
+#### What to Edit vs. Keep as Default
+
+- **Must Modify / Verify:** - `llm.model`: set your primary LLM provider model string. - `llm.small_model`: set your lightweight model string.
+
+The `llm` values below are only an example: replace both model strings with the models you prefer. Model strings per provider: [LLM providers and models](../reference/llm-providers/).
+
+```
+llm:
+  model: "vertex_ai/claude-sonnet-5-5"
+  small_model: "vertex_ai/gemini-3.8-flash"
+```
+
+- **Optional / Conditional:** - `git.provider`: only modify if you are using GitLab (`"GITLAB"`) or Azure DevOps (`"AZURE_DEVOPS"`). Defaults to `"GITHUB"`. Accepted values and the supported hosts: [`git` configuration](../reference/configuration/#config-git).
+
+```
+git:
+  provider: "GITHUB"  # or "AZURE_DEVOPS", "GITLAB"
+```
+
+- **Keep as Default:** - All unmentioned configuration fields automatically fall back to core code defaults.
+
+### 3. Fill in core/.env
+
+The `core/.env` passes mandatory runtime secrets such as LLM API keys and Git access tokens. The core will not run without them.
+
+> **Warning**
+> every `.env` file is gitignored by default. Never commit a `.env` file containing real credentials to version control.
+
+#### What to Edit vs. Keep as Default
+
+- **Variables you MUST set:** - **LLM provider credentials:** set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in `llm.model` and `llm.small_model`. See examples below. For more info see [provider credential variables](../reference/llm-providers/#provider-credentials). - `GIT_USER`, `GIT_TOKEN`: the account username and personal access token for the provider named by `git.provider` defined in `config.yaml`. See examples below.
+- **Variables to Keep as Default:** - **All other sample values in `core/env.sample`:** leave all pre-populated values intact (such as internal tokens, container URLs, and service connection details). These are pre-configured to match the bundled Docker Compose setup. For a complete reference of every variable, see [environment variables and secrets](../reference/environment-variables/).
+
+> **Tip**
+> if you modify `core/.env` after the stack is already running, recreate the container using `docker compose up -d core` to apply changes. Running `docker compose restart` will **not** reload `.env` variables.
+
+#### Brief core/.env examples
+
+**Anthropic example:**
+
+```
+ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+**Google Vertex AI example::**
+
+```
+VERTEXAI_PROJECT="your-gcp-project-id"
+VERTEXAI_LOCATION="us-central1"
+VERTEXAI_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'
+```
+
+**Azure OpenAI example:**
+
+```
+AZURE_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+AZURE_API_BASE="https://your-resource.openai.azure.com"
+AZURE_API_VERSION="2025-01-01-preview"
+```
+
+**Git Credentials example:**
+
+```
+GIT_USER="your-git-username"
+GIT_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxx"
+```
+
+### 4. Fill in services/iac/.env
+
+The `services/iac/.env` file passes your cloud provider access keys and execution engine settings directly to the IaC sidecar.
+
+> **Note**
+> missing or invalid cloud credentials in `services/iac/.env` do not stop the container. The engine runs anyway, but authentication errors will appear inside the session as a failed `init`, `plan`, or `apply` operation.
+
+#### What to Edit vs. Keep as Default
+
+- **Variables you MUST set:** - **Cloud provider credentials:** set the specific authentication variables required by your OpenTofu or Terraform providers. See [terraform providers](../reference/terraform-providers/) for the minimum set per cloud and authentication method.
+- **Optional / Conditional Settings:** - `IAC_BINARY`: the sidecar runs OpenTofu 1.12.6 by default. Set `IAC_BINARY=terraform` only if you explicitly want to use the bundled HashiCorp Terraform 1.16.0 instead (selecting Terraform makes your use subject to its BUSL-1.1 license).
+- **Variables to Keep as Default:** - **Internal service settings (e.g., `KUMOSS_IAC_TOKEN`):** leave these pre-populated values intact so they remain synchronized with `core/.env` and the container stack.
+
+> **Tip**
+> recreate the sidecar using `docker compose up -d iac` whenever you update `services/iac/.env`.
+
+#### Brief services/iac/.env examples
+
+**AWS Credentials Example:**
+
+```
+AWS_ACCESS_KEY_ID="AKIAXXXXXXXXXXXXXXXX"
+AWS_SECRET_ACCESS_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+AWS_REGION="us-east-1"
+```
+
+**GCP Credentials Example:**
+
+```
+GOOGLE_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'
+```
+
+**Azure Credentials Example:**
+
+```
+ARM_CLIENT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+ARM_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+ARM_TENANT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+```
+
+### 5. Start Kumoss
+
+```
+docker compose up
+```
+
+Add `-d` to run in the background. Compose pulls the Kumoss images for the checked-out release from `ghcr.io/inditextech/kumoss-*` (`linux/amd64` and `linux/arm64`). To run code changes from your checkout instead, add `--build`; the first build downloads the base images, installs the Python dependencies, downloads both IaC engines, and compiles the web application.
+
+After a later change to `config.yaml`, restart the core:
+
+```
+docker compose restart core
+```
+
+A change to a `.env` file needs the affected container recreated (`docker compose up -d core`, `docker compose up -d iac`); `docker compose restart` does not reload it.
+
+### 6. Verify the services
+
+```
+docker compose ps
+docker compose logs -f core
+```
+
+Wait for `Application startup complete` in the core log. Boot is strict: if a start-up step fails, the container exits with the reason in the log. A `notifications` container that has exited is expected while that optional sidecar is unconfigured.
+
+```
+curl http://localhost/api/v1/auth/config
+```
+
+With authentication disabled this returns a JSON document with an empty `issuer_url`.
+
+## Where Terraform state lives
+
+By default, Kumoss keeps Terraform state in the bundled RustFS object storage, in the `kumoss-terraform-state` bucket. Each project (repository, cloud scope, and root-module path) gets its own state file, which starts **empty** the first time Kumoss works on it. Any `backend` block in the repository is ignored.
+
+To use your own external state instead, new or already existing, in AWS S3, Azure Storage, or Google Cloud Storage, see [Configure state backends](../guides/configure-state-backends/).
+
+## See it working
+
+| URL | What it serves |
+| --- | --- |
+| `http://localhost` | Kumoss web application and the API under `/api/v1/…​` |
+| `http://localhost/monitoring/` | Phoenix: traces of every run and the prompt registry |
+
+Port 80 serves the unauthenticated Kumoss application by default, while port 9000 exposes presigned artifact downloads, on every interface of the host. Keep the stack on a machine only you can reach. The RustFS web console is disabled; to enable it, see [RustFS console](../guides/production/operations/#rustfs-console).
+
+> **Warning**
+> Use a **test repository and a sandbox cloud scope** for this first
+> run. Because every project starts with
+> [empty state](#default-state), a repository whose infrastructure already
+> exists gets a plan that creates it all again.
+
+Open `http://localhost`. With authentication disabled you land directly in the wizard as the local developer. Enter a repository your Git token can push to, choose the cloud and scope, describe the infrastructure you need, and follow the session. What each mode does is explained in [Guides](../guides-overview/); your sessions and the admin panel are described in [Administer users and locks](../guides/administer-users-and-locks/).
+
+Open `http://localhost/monitoring/` to see the traces of the run and the seeded prompts under **Prompts**. Phoenix receives prompts, plans, and generated code in clear text and has no authentication of its own in this stack; see [Monitor with Phoenix](../guides/monitor-with-phoenix/).
+
+## Stop or reset the stack
+
+```
+docker compose down            # stop; named volumes are kept
+docker compose down -v         # stop and delete all volumes
+```
+
+`down` keeps the databases, artifacts, and workspaces, so sessions and prompts survive a restart.
+
+**`down -v` deletes the session database, the artifacts, the Phoenix traces and prompts, any in-progress workspaces, and the Terraform state** kept in RustFS.
+
+## Next steps
+
+- Hand the [Make a request](../guides/make-a-request/) and [FAQ](../faq/) to the people who will make requests.
+- Review and adapt the seeded prompts; they encode a generic policy, not yours: [Customize prompts](../guides/customize-prompts/).
+- Try a real login flow with your identity provider: [Enable authentication](../guides/enable-authentication/).
+- Learn the role model and the admin panel: [Administer users and locks](../guides/administer-users-and-locks/).
+- Decide where Terraform state should live before you point Kumoss at anything real: [Configure state backends](../guides/configure-state-backends/).
+- Turn on the optional sidecars — Slack notifications, resource mapping, external authorization (the last two need an implementation you provide) — from [`services`](../reference/configuration/#config-services) and [Environment variables and secrets](../reference/environment-variables/).
+- Before sharing the instance with anyone, switch to the production deployment model: [Deploy to production](../guides/deploy-to-production/). On Kubernetes, the Helm chart does most of the work: [Deploy with Helm](../guides/deploy-with-helm/).
+
+## Troubleshooting
+
+- **The core exits during boot.** Boot is strict and the reason is in `docker compose logs core` — most often missing LLM credentials, an empty `KUMOSS_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not yet reachable. The stack has no healthchecks, so a dependency that was simply slower to start leaves the core stopped rather than retrying: run `docker compose up -d core` again.
+- **Every session fails at validation with a `401` from the IaC sidecar.** `KUMOSS_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
+- **A `config.yaml` change has no effect.** Restart the core with `docker compose restart core`; the file is read only at startup.
+- **`plan` or `apply` fails with a provider authentication error.** The cloud credentials in `services/iac/.env` are absent, invalid, or insufficient.
+- **`plan` fails with `permission denied` on a file in the workspace.** The `workspaces` volume predates the current non-root containers. Run `docker compose down`, then `docker run --rm -v kumoss_workspaces:/workspaces alpine chown -R 10001:10001 /workspaces`, and start again.
+- **`init` fails on the state backend, or every plan wants to recreate existing resources.** [Troubleshooting state backends](../guides/configure-state-backends/#state-troubleshooting).
+- **Push or pull-request creation fails.** Check `GIT_USER`, `GIT_TOKEN`, that `git.provider` matches the repository host, and the token’s permissions.
+- **A session aborts because a prompt is missing.** The prompt is absent from Phoenix or has no version tagged with the `environment` value. See [Customize prompts](../guides/customize-prompts/).
+- **The browser cannot download an artifact.** Port 9000 must be reachable from the browser under the host in `storage.public_endpoint_url`.
+- **LLM calls fail although the core booted.** Not every provider can be validated at boot. See [LiteLLM troubleshooting](../reference/llm-providers/#llm-troubleshooting).
+
+---
+
 # LLM providers and models
 
 Source: https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/
@@ -13004,238 +13318,6 @@ Do not confuse this with the authorization sidecar. An authorization service you
 
 - [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
 - [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
-
----
-
-# Quickstart
-
-Source: https://inditextech.github.io/kumoss/stable/main/quickstart/
-
-In this quickstart, you install Kumoss on one machine with Docker Compose, using the bundled stack as shipped, and open the running web application. To see what a session looks like before you install anything, watch [Kumoss in action](../see-it-in-action/).
-
-> **Tip**
-> Prefer Kubernetes? Each release also publishes a Helm chart,
-> `oci://ghcr.io/inditextech/charts/kumoss`. To install it, or to try it on
-> a local kind cluster, see [Deploy with Helm](../guides/deploy-with-helm/).
-
-## Prerequisites
-
-Before you begin, make sure you meet the [prerequisites](../prerequisites/).
-
-## Step by step
-
-### 1. Clone the repository and create the environment files
-
-```
-git clone https://github.com/InditexTech/kumoss.git
-cd kumoss
-
-cp core/env.sample core/.env
-cp services/iac/env.sample services/iac/.env
-```
-
-Each `env.sample` documents its own variables and is the source of truth for their names. Every `.env` file is gitignored; never commit one.
-
-### 2. Write config.yaml
-
-`config.yaml` at the repository root is the single configuration file. Compose mounts it into the core container, and the core reads it at startup, so every edit needs `docker compose restart core`.
-
-#### What to Edit vs. Keep as Default
-
-- **Must Modify / Verify:** - `llm.model`: set your primary LLM provider model string. - `llm.small_model`: set your lightweight model string.
-
-The `llm` values below are only an example: replace both model strings with the models you prefer. Model strings per provider: [LLM providers and models](../reference/llm-providers/).
-
-```
-llm:
-  model: "vertex_ai/claude-sonnet-5-5"
-  small_model: "vertex_ai/gemini-3.8-flash"
-```
-
-- **Optional / Conditional:** - `git.provider`: only modify if you are using GitLab (`"GITLAB"`) or Azure DevOps (`"AZURE_DEVOPS"`). Defaults to `"GITHUB"`. Accepted values and the supported hosts: [`git` configuration](../reference/configuration/#config-git).
-
-```
-git:
-  provider: "GITHUB"  # or "AZURE_DEVOPS", "GITLAB"
-```
-
-- **Keep as Default:** - All unmentioned configuration fields automatically fall back to core code defaults.
-
-### 3. Fill in core/.env
-
-The `core/.env` passes mandatory runtime secrets such as LLM API keys and Git access tokens. The core will not run without them.
-
-> **Warning**
-> every `.env` file is gitignored by default. Never commit a `.env` file containing real credentials to version control.
-
-#### What to Edit vs. Keep as Default
-
-- **Variables you MUST set:** - **LLM provider credentials:** set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in `llm.model` and `llm.small_model`. See examples below. For more info see [provider credential variables](../reference/llm-providers/#provider-credentials). - `GIT_USER`, `GIT_TOKEN`: the account username and personal access token for the provider named by `git.provider` defined in `config.yaml`. See examples below.
-- **Variables to Keep as Default:** - **All other sample values in `core/env.sample`:** leave all pre-populated values intact (such as internal tokens, container URLs, and service connection details). These are pre-configured to match the bundled Docker Compose setup. For a complete reference of every variable, see [environment variables and secrets](../reference/environment-variables/).
-
-> **Tip**
-> if you modify `core/.env` after the stack is already running, recreate the container using `docker compose up -d core` to apply changes. Running `docker compose restart` will **not** reload `.env` variables.
-
-#### Brief core/.env examples
-
-**Anthropic example:**
-
-```
-ANTHROPIC_API_KEY="sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx"
-```
-
-**Google Vertex AI example::**
-
-```
-VERTEXAI_PROJECT="your-gcp-project-id"
-VERTEXAI_LOCATION="us-central1"
-VERTEXAI_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'
-```
-
-**Azure OpenAI example:**
-
-```
-AZURE_API_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-AZURE_API_BASE="https://your-resource.openai.azure.com"
-AZURE_API_VERSION="2025-01-01-preview"
-```
-
-**Git Credentials example:**
-
-```
-GIT_USER="your-git-username"
-GIT_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxx"
-```
-
-### 4. Fill in services/iac/.env
-
-The `services/iac/.env` file passes your cloud provider access keys and execution engine settings directly to the IaC sidecar.
-
-> **Note**
-> missing or invalid cloud credentials in `services/iac/.env` do not stop the container. The engine runs anyway, but authentication errors will appear inside the session as a failed `init`, `plan`, or `apply` operation.
-
-#### What to Edit vs. Keep as Default
-
-- **Variables you MUST set:** - **Cloud provider credentials:** set the specific authentication variables required by your OpenTofu or Terraform providers. See [terraform providers](../reference/terraform-providers/) for the minimum set per cloud and authentication method.
-- **Optional / Conditional Settings:** - `IAC_BINARY`: the sidecar runs OpenTofu 1.12.6 by default. Set `IAC_BINARY=terraform` only if you explicitly want to use the bundled HashiCorp Terraform 1.16.0 instead (selecting Terraform makes your use subject to its BUSL-1.1 license).
-- **Variables to Keep as Default:** - **Internal service settings (e.g., `KUMOSS_IAC_TOKEN`):** leave these pre-populated values intact so they remain synchronized with `core/.env` and the container stack.
-
-> **Tip**
-> recreate the sidecar using `docker compose up -d iac` whenever you update `services/iac/.env`.
-
-#### Brief services/iac/.env examples
-
-**AWS Credentials Example:**
-
-```
-AWS_ACCESS_KEY_ID="AKIAXXXXXXXXXXXXXXXX"
-AWS_SECRET_ACCESS_KEY="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-AWS_REGION="us-east-1"
-```
-
-**GCP Credentials Example:**
-
-```
-GOOGLE_CREDENTIALS='{"type": "service_account", "project_id": "my-project", ...}'
-```
-
-**Azure Credentials Example:**
-
-```
-ARM_CLIENT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-ARM_CLIENT_SECRET="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-ARM_TENANT_ID="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-```
-
-### 5. Start Kumoss
-
-```
-docker compose up
-```
-
-Add `-d` to run in the background. Compose pulls the Kumoss images for the checked-out release from `ghcr.io/inditextech/kumoss-*` (`linux/amd64` and `linux/arm64`). To run code changes from your checkout instead, add `--build`; the first build downloads the base images, installs the Python dependencies, downloads both IaC engines, and compiles the web application.
-
-After a later change to `config.yaml`, restart the core:
-
-```
-docker compose restart core
-```
-
-A change to a `.env` file needs the affected container recreated (`docker compose up -d core`, `docker compose up -d iac`); `docker compose restart` does not reload it.
-
-### 6. Verify the services
-
-```
-docker compose ps
-docker compose logs -f core
-```
-
-Wait for `Application startup complete` in the core log. Boot is strict: if a start-up step fails, the container exits with the reason in the log. A `notifications` container that has exited is expected while that optional sidecar is unconfigured.
-
-```
-curl http://localhost/api/v1/auth/config
-```
-
-With authentication disabled this returns a JSON document with an empty `issuer_url`.
-
-## Where Terraform state lives
-
-By default, Kumoss keeps Terraform state in the bundled RustFS object storage, in the `kumoss-terraform-state` bucket. Each project (repository, cloud scope, and root-module path) gets its own state file, which starts **empty** the first time Kumoss works on it. Any `backend` block in the repository is ignored.
-
-To use your own external state instead, new or already existing, in AWS S3, Azure Storage, or Google Cloud Storage, see [Configure state backends](../guides/configure-state-backends/).
-
-## See it working
-
-| URL | What it serves |
-| --- | --- |
-| `http://localhost` | Kumoss web application and the API under `/api/v1/…​` |
-| `http://localhost/monitoring/` | Phoenix: traces of every run and the prompt registry |
-
-Port 80 serves the unauthenticated Kumoss application by default, while port 9000 exposes presigned artifact downloads, on every interface of the host. Keep the stack on a machine only you can reach. The RustFS web console is disabled; to enable it, see [RustFS console](../guides/production/operations/#rustfs-console).
-
-> **Warning**
-> Use a **test repository and a sandbox cloud scope** for this first
-> run. Because every project starts with
-> [empty state](#default-state), a repository whose infrastructure already
-> exists gets a plan that creates it all again.
-
-Open `http://localhost`. With authentication disabled you land directly in the wizard as the local developer. Enter a repository your Git token can push to, choose the cloud and scope, describe the infrastructure you need, and follow the session. What each mode does is explained in [Guides](../guides-overview/); your sessions and the admin panel are described in [Administer users and locks](../guides/administer-users-and-locks/).
-
-Open `http://localhost/monitoring/` to see the traces of the run and the seeded prompts under **Prompts**. Phoenix receives prompts, plans, and generated code in clear text and has no authentication of its own in this stack; see [Monitor with Phoenix](../guides/monitor-with-phoenix/).
-
-## Stop or reset the stack
-
-```
-docker compose down            # stop; named volumes are kept
-docker compose down -v         # stop and delete all volumes
-```
-
-`down` keeps the databases, artifacts, and workspaces, so sessions and prompts survive a restart.
-
-**`down -v` deletes the session database, the artifacts, the Phoenix traces and prompts, any in-progress workspaces, and the Terraform state** kept in RustFS.
-
-## Next steps
-
-- Hand the [Make a request](../guides/make-a-request/) and [FAQ](../faq/) to the people who will make requests.
-- Review and adapt the seeded prompts; they encode a generic policy, not yours: [Customize prompts](../guides/customize-prompts/).
-- Try a real login flow with your identity provider: [Enable authentication](../guides/enable-authentication/).
-- Learn the role model and the admin panel: [Administer users and locks](../guides/administer-users-and-locks/).
-- Decide where Terraform state should live before you point Kumoss at anything real: [Configure state backends](../guides/configure-state-backends/).
-- Turn on the optional sidecars — Slack notifications, resource mapping, external authorization (the last two need an implementation you provide) — from [`services`](../reference/configuration/#config-services) and [Environment variables and secrets](../reference/environment-variables/).
-- Before sharing the instance with anyone, switch to the production deployment model: [Deploy to production](../guides/deploy-to-production/). On Kubernetes, the Helm chart does most of the work: [Deploy with Helm](../guides/deploy-with-helm/).
-
-## Troubleshooting
-
-- **The core exits during boot.** Boot is strict and the reason is in `docker compose logs core` — most often missing LLM credentials, an empty `KUMOSS_IAC_TOKEN` or database URL in `core/.env`, or Phoenix not yet reachable. The stack has no healthchecks, so a dependency that was simply slower to start leaves the core stopped rather than retrying: run `docker compose up -d core` again.
-- **Every session fails at validation with a `401` from the IaC sidecar.** `KUMOSS_IAC_TOKEN` differs between `core/.env` and `services/iac/.env`.
-- **A `config.yaml` change has no effect.** Restart the core with `docker compose restart core`; the file is read only at startup.
-- **`plan` or `apply` fails with a provider authentication error.** The cloud credentials in `services/iac/.env` are absent, invalid, or insufficient.
-- **`plan` fails with `permission denied` on a file in the workspace.** The `workspaces` volume predates the current non-root containers. Run `docker compose down`, then `docker run --rm -v kumoss_workspaces:/workspaces alpine chown -R 10001:10001 /workspaces`, and start again.
-- **`init` fails on the state backend, or every plan wants to recreate existing resources.** [Troubleshooting state backends](../guides/configure-state-backends/#state-troubleshooting).
-- **Push or pull-request creation fails.** Check `GIT_USER`, `GIT_TOKEN`, that `git.provider` matches the repository host, and the token’s permissions.
-- **A session aborts because a prompt is missing.** The prompt is absent from Phoenix or has no version tagged with the `environment` value. See [Customize prompts](../guides/customize-prompts/).
-- **The browser cannot download an artifact.** Port 9000 must be reachable from the browser under the host in `storage.public_endpoint_url`.
-- **LLM calls fail although the core booted.** Not every provider can be validated at boot. See [LiteLLM troubleshooting](../reference/llm-providers/#llm-troubleshooting).
 
 ---
 
@@ -15346,59 +15428,6 @@ Everyone else is then managed from the admin panel’s Users tab.
 
 ---
 
-# Generate infrastructure
-
-Source: https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/
-
-Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
-
-## Prerequisites
-
-- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
-
-## Use case
-
-Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
-
-## Workflow
-
-1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
-2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
-3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
-4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
-5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
-6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
-7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
-8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
-
-## What generate produces
-
-- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
-- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
-- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
-- **Plan pinned.** Yes.
-
-## Apply, pull requests, and locks
-
-After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
-
-## Example
-
-Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
-
-## Limitations
-
-- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
-- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
-- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
-
----
-
 # Follow a session
 
 Source: https://inditextech.github.io/kumoss/stable/main/guides/follow-a-session/
@@ -15467,6 +15496,59 @@ Only you and reviewers with a panel role can see your sessions. Nobody else can 
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) once you are ready to act on the results.
+
+---
+
+# Generate infrastructure
+
+Source: https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/
+
+Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
+
+## Prerequisites
+
+- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
+
+## Use case
+
+Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
+
+## Workflow
+
+1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
+2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
+3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
+4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
+5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
+6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
+7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
+8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
+
+## What generate produces
+
+- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
+- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
+- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
+- **Plan pinned.** Yes.
+
+## Apply, pull requests, and locks
+
+After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
+
+## Example
+
+Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
+
+## Limitations
+
+- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
+- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
+- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
 
 ---
 
@@ -17782,161 +17864,6 @@ credentials must come from a secret store. See
 
 ---
 
-# Deploy to production
-
-Source: https://inditextech.github.io/kumoss/stable/main/guides/deploy-to-production/
-
-This guide is for teams deploying Kumoss for shared organizational use. It explains what a production deployment consists of, which decisions apply to each component, and which settings and secrets you must supply. It does not repeat the field-by-field references; it points at them:
-
-- [Configuration reference](../../reference/configuration/), for every `config.yaml` field.
-- [Environment variables and secrets](../../reference/environment-variables/), for every core and sidecar variable.
-- [LLM providers and models](../../reference/llm-providers/), for LLM providers and credentials.
-- [Enable authentication](../enable-authentication/) for authentication.
-- [Monitor with Phoenix](../monitor-with-phoenix/) for tracing.
-- [Customize prompts](../customize-prompts/) for the prompt registry.
-- [HTTP APIs](../../reference/api/) for the sidecar contracts in `contracts/openapi/` and their conformance suites in `contracts/conformance/`.
-
-Everything in this guide describes the implementation as it exists in the repository today. Where a capability is a recommendation rather than something the repository provides, it is labelled as such.
-
-This entry page covers what production means, the reference topology, the sidecars as integration boundaries, and the `config.yaml` checklist. The credentials, networking, hardening, and operational detail live on four child pages, each covering one step of the deployment sequence.
-
-## At a glance
-
-If you read nothing else, these are the production decisions this guide expands on:
-
-| # | Decision | Where |
-| --- | --- | --- |
-| 1 | Run one core replica, one IaC sidecar per shared workspace volume; there is no multi-replica mode | [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints) |
-| 2 | Enable OIDC; a blank issuer makes every caller a fully privileged user | [Authentication (OIDC)](../production/secrets-and-credentials/#authentication-oidc) |
-| 3 | Treat the four sidecars as integration boundaries: implement IaC to your requirements, implement mapping and authorization yourself or leave them disabled, integrate notifications | [Sidecars as production integration boundaries](#sidecars-as-production-integration-boundaries), below |
-| 4 | Move every secret to a secret store; keep the variable names | [Secrets inventory](../production/secrets-and-credentials/#secrets-inventory) |
-| 5 | Use managed PostgreSQL, Redis, object storage (S3, Azure, or S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is required at boot | [Data services and persistence](../production/operations/#data-and-persistence) |
-| 6 | Reproduce the ingress rules: SSE path unbuffered, `/monitoring/` restricted, public object-storage endpoint, CORS origin, IdP redirect URIs | [Networking and TLS](../production/networking-and-tls/) |
-| 7 | Give the IaC engine a scoped workload identity and container execution controls; decide who owns the Terraform state backend | [IaC (mandatory)](#iac-mandatory), below; [Cloud credentials for the IaC engine](../production/secrets-and-credentials/#cloud-credentials); [Configure state backends](../configure-state-backends/) |
-| 8 | Review the seeded prompts before the first user session; they encode a generic policy | [Hardening checklist](../production/hardening/#hardening-checklist) |
-| 9 | Plan upgrades by hand: no database migrations, seeds never overwrite curated prompts, `environment` is a prompt tag | [Backups and upgrades](../production/operations/#backups-and-upgrades) |
-
-The Compose file is the reference topology. On Kubernetes, the Helm chart in `charts/kumoss` ([Deploy with Helm](../deploy-with-helm/)) translates it for you; on any other platform you translate it yourself.
-
-## What production means for Kumoss
-
-Kumoss plans and applies infrastructure with real cloud credentials, pushes to your repositories, and sends every prompt, plan, and generated file to a tracing backend. A production deployment therefore has to control who can reach it, which cloud identity it acts with, where its data lives, and how it is operated.
-
-Production is **not** the local Compose stack with `environment: production`. That field only selects the Phoenix project prefix and the prompt tag. It enables no authentication, no authorization, and no stricter default.
-
-The differences from [Quickstart](../../quickstart/), in one table:
-
-| Area | Local/non-production | Production |
-| --- | --- | --- |
-| Platform | Docker Compose on one host | A production platform such as Kubernetes, with the bundled Helm chart or expressed by you from the reference topology below |
-| Authentication | May stay disabled | **OIDC enabled**; nothing else is acceptable because a blank issuer makes every caller a `devops` + panel `admin` user |
-| Sidecars | Bundled IaC, optionally bundled notifications | All four treated as integration boundaries: reviewed, configured, hardened, replaced or implemented where needed |
-| Secrets | Gitignored `.env` files | Kubernetes Secrets or an equivalent secret manager, injected as environment variables |
-| Data services | Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the well-known default credentials the samples ship | Managed or operated services with persistence, backups, access control, and credentials from your secret store |
-| Terraform state | Kumoss-managed state in the bundled RustFS by default, or each repository’s own backend if you set `storage.terraform_state_bucket` to `""` | A deliberate choice of owner: the repositories' own backends, a Kumoss-managed bucket on `S3`/`STORAGE_ACCOUNT`, or one central backend file mounted into the sidecar ([Configure state backends](../configure-state-backends/)) |
-| Networking | Plain HTTP on `localhost` | TLS, a real origin, an ingress that handles server-sent events, a protected Phoenix, a public object-storage endpoint |
-
-The repository provides the container images, `docker-compose.yml` as the reference topology, a Helm chart for Kubernetes ([Deploy with Helm](../deploy-with-helm/)), and the OpenAPI contracts and conformance suites for the sidecars. It does not provide Kustomize overlays, Terraform modules for the platform itself, database migrations, or a multi-replica execution model. The chart wires the stack together, but the production decisions on this page (managed data services, identity, TLS, hardening) remain yours to make through its values.
-
-## Reference topology
-
-The Compose stack defines nine services on one network. In production each row below is a deployment decision; the mapping and authorization rows are services you provide yourself, because Kumoss ships only their contracts. Every image built from a Dockerfile in this repository is also published for each release as `ghcr.io/inditextech/kumoss-<image>` (`core`, `iac`, `notifications`, `proxy`, `searxng`); see [Images and configuration delivery](../production/networking-and-tls/#images-and-config-delivery).
-
-| Component | Reference image | Must be reachable by | Persistence | Production decision |
-| --- | --- | --- | --- | --- |
-| Core API | `core/Dockerfile` (Python 3.14, port 8000, user `kumoss` 10001) | Ingress (`/api`), nothing else | Shared workspace volume | Run **one replica** (see [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints)). Inject `config.yaml` at build time or mount it at `KUMOSS_CONFIG`. |
-| Web application and edge | `nginx/Dockerfile` builds the React app and serves it; forwards `/api`, the SSE path, `/monitoring/`, and port 9000 | Users | none | Keep it, or serve the built bundle from your own ingress. Reproduce its routing rules ([Networking and TLS](../production/networking-and-tls/)). |
-| PostgreSQL (core) | `postgres:17` | Core | **Required** | Managed PostgreSQL recommended. Set `KUMOSS_SQL_DATABASE_URL`. |
-| Redis | `redis:8.8` | Core | Not required (cache) | Managed Redis or in-cluster. Must be reachable when the core boots. |
-| Object storage | `rustfs/rustfs:latest` | Core (SDK) and **browsers** (presigned URLs) | **Required** | Prefer AWS S3 or an Azure Storage Account through `storage.provider`; RustFS or another S3-compatible store is also supported. |
-| Phoenix | `arizephoenix/phoenix:20.12.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring` | Core (traces and prompt API), operators (UI) | **Required** (through its PostgreSQL) | Operate it with persistence and access control. It is required at core start-up. |
-| PostgreSQL (Phoenix) | `postgres:17` | Phoenix | **Required** | Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on Phoenix. |
-| IaC sidecar | `services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port 8082; user `kumoss` 10001) | Core only | Shared workspace volume | **Mandatory.** **As a starting point** — harden the image and container, or implement the contract yourself to your organization’s requirements. |
-| Mapping sidecar | None bundled; your implementation of the mapping contract | Core only | Up to your implementation | Implement it against your catalogue, or leave it disabled. |
-| Notifications sidecar | `services/notifications/Dockerfile` (port 8080, user `kumoss` 10001) | Core only | none | Use the bundled Slack implementation with a production webhook, or replace it. |
-| Authorization sidecar | None bundled; your implementation of the authorization contract | Core only | Up to your implementation | Implement it against your entitlement source, or leave it disabled. |
-
-The Kumoss-built core, iac, and notifications images run as the unprivileged `kumoss` user, uid/gid 10001. The `nginx/Dockerfile` proxy image is the exception: it has no `USER` directive and starts as root, dropping privileges only for its worker processes; give it a non-root base image or a Kubernetes `runAsNonRoot`/`securityContext` treatment if your policy requires the master process itself to be non-root.
-
-Two volumes matter beyond databases:
-
-- **The shared workspace** (`/workspaces` in both the core and IaC containers, `paths.upload_folder`). The core clones repositories there and the IaC sidecar runs the engine against the same paths. It must be **one filesystem mounted read-write by both containers at the same path**, owned by uid/gid `10001`. On Kubernetes that means a `ReadWriteMany` volume or the two containers on one node sharing a `ReadWriteOnce` volume, with a matching `fsGroup`/`runAsUser`; the Helm chart sets both up (`workspaces.*`). Contents are ephemeral (each run’s directory is deleted afterwards), but the pinned plan of every session lives there between a generate round and its apply, so the volume must survive pod restarts.
-- **Phoenix’s database**, which holds your curated prompts as well as traces. Losing it means re-seeding from the repository defaults and losing every prompt edit.
-
-## Sidecars as production integration boundaries
-
-Each sidecar is an OpenAPI contract. The core calls it with a bearer token from the environment variable named by `services.<name>.token_env`, and the sidecar validates that token. Any implementation of the contract can be used by changing `services.<name>.endpoint`. Use the conformance suites in `contracts/conformance/` to verify a replacement; every page under [HTTP APIs](../../reference/api/) carries the command for its own sidecar.
-
-Common rules for every **enabled** sidecar:
-
-- Set a distinct, random bearer token (for example `openssl rand -hex 32`) on **both** sides. The core refuses to boot when the IaC sidecar’s or an enabled optional sidecar’s token variable is empty, or when an optional sidecar has `enabled: true` but a blank `endpoint`. On the sidecar side, an empty token disables the check entirely, which is never acceptable in production.
-- The bundled IaC and notifications sidecars compare tokens in constant time, but they remain simple reference services. Keep every sidecar on a private network segment reachable only by the core, and never expose one through the ingress.
-- The `services.<name>.timeout` field is honoured by the IaC and notifications clients; the mapping and authorization clients use fixed budgets of 10 and 15 seconds.
-- Every sidecar exposes `GET /healthz` for liveness probes.
-
-### IaC (mandatory)
-
-The bundled executor is **a starting point, not production-ready**: harden the image and container (the checked-in compose applies no hardening), review the credential pass-through, or implement the contract yourself. It is functionally complete (it runs every command the core needs), but it encodes no organizational policy: it executes provider plugins from generated HCL with whatever identity is in its environment, on a shared filesystem, with no approval step, no engine timeout, and in-memory job state.
-
-For production the recommendation is to **implement the IaC contract ([`contracts/openapi/iac.v1.yaml`](../../reference/api/iac/)) according to your organization’s requirements**, not only to harden the bundled image. Typical reasons: running the engine on your existing Terraform or OpenTofu execution platform, using a workspace and state strategy other than a shared volume, enforcing per-project cloud identities, adding policy or approval hooks around `plan` and `apply`, auditing every command, or supporting clouds and CLIs the bundled image does not include. The contract is small (one command per asynchronous job, polled by the core), and the [conformance suite](../../reference/api/iac/#conformance) in `contracts/conformance/iac/` verifies a replacement.
-
-If you nevertheless start from the bundled image, its **identity and execution environment** are the security decisions you must make:
-
-- **Cloud identity.** The engine reads whatever credentials the provider supports from the container environment (`ARM_*`, `GOOGLE_*`, `AWS_*`, mounted files). Use a workload identity (Kubernetes service account federation, pod identity, instance roles) scoped to the projects Kumoss may change, rather than static keys. Missing credentials do not stop the container; the engine fails at `plan` or `apply` with its own error.
-- **Execution controls.** The image already runs as an unprivileged user. The checked-in Compose file applies nothing else. For production, run the container with all Linux capabilities dropped, `no-new-privileges`, a read-only root filesystem with writable `/tmp` and `/home/kumoss`, and CPU, memory, and process limits. These were validated on a feature branch of this repository but are **not** part of the checked-in Compose file; treat them as a requirement you implement on your platform.
-- **No engine timeout.** The sidecar does not bound the engine process itself; `services.iac.job_timeout` in the core (default one hour per job) is the only bound. Set it deliberately.
-- **Egress.** `init` downloads providers from `registry.opentofu.org` (or `registry.terraform.io` when `IAC_BINARY=terraform`), and `plan`/`apply` reach your cloud APIs. Corporate TLS inspection of the registry host breaks provider downloads unless the CA is mounted into the container.
-- **Jobs are in memory.** A restart forgets queued and finished jobs; run one instance per shared workspace and do not scale it horizontally.
-- **Engine choice.** `IAC_BINARY=tofu` (default) runs OpenTofu; `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed and makes your use subject to its terms.
-- **State backend.** The sidecar is always the process that *executes* the backend, so it always needs reach to it and credentials for it — whichever model you pick. By default (`storage.terraform_state_bucket` set to `kumoss-terraform-state`, as shipped) the core configures it: state goes to that bucket in the same object store as artifacts, keyed per project, and the sidecar needs network reach to `storage.endpoint_url` plus, where the rendered block omits static keys, its own credentials for the bucket. Set `storage.terraform_state_bucket` to `""` to leave the backend to each target repository instead, with no Kumoss configuration involved. For one central backend defined outside Kumoss, mount a file and point `IAC_BACKEND_CONFIG` at it. All three models: [Configure state backends](../configure-state-backends/).
-- **Blast radius of the sidecar’s environment.** `KUMOSS_IAC_TOKEN` and every other variable in the IaC sidecar’s environment are reachable by the provider plugins the generated HCL invokes, and by any `local-exec` provisioner in that HCL — generated code runs with the same privileges as the sidecar process. The seeded `general-guidelines-terraform` prompt tells the generator never to emit `null_resource`, `provisioner` blocks, or `data "external"`, and the compliance auditor receives the same rule, but this is a prompt instruction: neither the core nor the sidecar inspects the generated HCL, and no allowlist restricts provider sources. Repository code is not covered by the prompt at all. The job’s `workspace_path` is not restricted to `/workspaces` by the sidecar itself. Treat the sidecar as reachable only from the core and give it nothing more than the cloud identity it needs.
-
-### Mapping (optional)
-
-Kumoss ships no mapping implementation. While the integration is disabled, the core echoes every identifier: the value the user types is used as the repository URL. Enable it only with an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue) against the canonical IaC repository. Once enabled, a slow or unreachable sidecar makes the wizard’s resolve step fail with `504`/`502`.
-
-Your implementation may also answer `terraform_provider` and `scope_id` (the cloud subscription, project, account, compartment, or cluster). Both are optional and both are a promise: the wizard stops asking the user for any field your service fills in, so a value it cannot stand behind is a wrong answer nobody gets the chance to correct. Return `null` — meaning "I do not know" — whenever the catalogue is silent, and never infer a provider from the shape of the repository URL.
-
-### Notifications (optional, recommended)
-
-The bundled implementation posts to one Slack incoming webhook and is suitable for production once the webhook and token come from your secret store. The core emits `iac.compliance.failed`, `iac.impact.high`, `iac.apply.failure`, and `system.exception.failure`, plus user-originated support requests from the web application; the audience is the session owner (or caller) plus every user with panel role `editor` or higher. If your operational channel is not Slack (Teams, e-mail, PagerDuty, an ITSM tool), implement the contract in [`contracts/openapi/notifications.v1.yaml`](../../reference/api/notifications/). Delivery is best-effort: a failure is logged and never fails a session.
-
-### Authorization (optional, bring your own)
-
-Kumoss ships no authorization implementation: the contract is an extension point for your own cloud-project policy. Leave it disabled until you provide your own implementation.
-
-Understand what this integration is and is not:
-
-- It is consulted only by the wizard’s preflight `POST /api/v1/auth/authorize`, which sends the cloud, project name, environment, and the caller’s e-mail (or OIDC subject) to `POST /v1/check`. It answers whether that user may work on that cloud project.
-- It is **not** Kumoss’s own access control. Who can log in, which operations a user may run, and who can see or act on a session are decided by OIDC plus the operation and panel roles stored in the core database ([Administer users and locks](../administer-users-and-locks/)).
-- While disabled, the core answers "authorized" without calling anything. Once enabled, an unreachable sidecar produces a `502`/`504` error in the wizard, not an allow.
-
-Implement the contract in [`contracts/openapi/authz.v1.yaml`](../../reference/api/authz/) against your entitlement source, point `services.authz.endpoint` at it, and enable it.
-
-## Configuration checklist (`config.yaml`)
-
-`config.yaml` is baked into the core image at build time, or mounted at the path in `KUMOSS_CONFIG`. It contains no secrets and can live in version control. Review every section; the [configuration reference](../../reference/configuration/) has the fields and a [production-shaped example](../../reference/configuration/#example-production).
-
-| Section | Production requirement |
-| --- | --- |
-| `environment` | `production` (or `staging`). Decide before the first boot: it is the tag every prompt fetch uses, and changing it later requires re-tagging every prompt in Phoenix. |
-| `oidc` | `issuer_url` and `client_id` set; `audience` for Auth0 and Okta; `scope` when the default does not fit. |
-| `admin` | `default_root_email` for identity providers that emit `email_verified`; otherwise plan the one-off SQL grant ([Grant the first administrator access](../enable-authentication/#bootstrap-admin)). |
-| `services.iac` | Endpoint of your IaC sidecar, token variable name, `job_timeout` chosen for your largest plans. There is no `enabled` flag; the sidecar is always called. |
-| `services.notifications`, `services.mapping`, `services.authz` | Enabled only with a production-grade implementation behind `endpoint`; each with its own token variable. |
-| `orchestration` | Keep `enable_compliance_checker: true` and `block_on_high_impact: true` unless you have another approval gate; the code defaults are `false`. Review the iteration limits, which bound the cost of a runaway session. |
-| `llm` | Two model strings (or `model_list` aliases) for the provider you contract with; `max_output_tokens` within the provider’s limits. |
-| `paths` | `upload_folder` identical in the core and IaC containers. |
-| `database`, `redis` | Variable names only; values are secrets. `redis.default_url` points at the Compose service name, so set `KUMOSS_REDIS_URL` when Redis lives elsewhere. |
-| `telemetry.collector_url` | Your Phoenix base URL, ending in `/`. It is used both for OTLP export and for the prompt API. |
-| `http.cors_origins` | Your real origin, for example `https://kumoss.example.invalid`. |
-| `storage` | Provider, artifacts bucket or container, the endpoint the core calls, and the **public** endpoint browsers reach. Also `terraform_state_bucket`: set to `kumoss-terraform-state` as shipped, which puts Kumoss in charge of state; set it to `""` to leave state to each repository’s own backend instead ([Configure state backends](../configure-state-backends/)). |
-| `git` | Provider matching your repository host, author identity. |
-
-Changing any of these means rebuilding the core image (or updating the mounted file) and restarting the core.
-
----
-
 # Deploy with Helm
 
 Source: https://inditextech.github.io/kumoss/stable/main/guides/deploy-with-helm/
@@ -18102,6 +18029,161 @@ Then delete the crashed pods so they restart immediately, for example `kubectl -
 - `config.yaml` changes roll the core automatically (the pod carries a checksum of the rendered file). Changes to `secrets.*`, the external service URLs, or a component’s `secretEnv` roll every pod that reads them the same way. A Secret you reference through `existingSecret` is managed outside the chart: after rotating it, restart its readers (`kubectl rollout restart deploy/<release>-kumoss-core`). The same goes for `caBundle.existingConfigMap`; inline `caBundle.certificates` roll the pods on change.
 - Generated passwords and tokens are read back from the existing Secret on every upgrade. Changing a database password in values after the first install does not change it inside an initialised database.
 - `helm uninstall` keeps the data: the `workspaces` claim, the StatefulSets' data claims, and the `<release>-kumoss-internal` Secret holding the passwords that data was initialised with (both carry `helm.sh/resource-policy: keep`). Reinstalling the same release in the same namespace picks all three up again. To start from scratch, delete them explicitly: ``` kubectl -n kumoss delete pvc -l app.kubernetes.io/instance=kumoss kubectl -n kumoss delete secret kumoss-internal ```
+
+---
+
+# Deploy to production
+
+Source: https://inditextech.github.io/kumoss/stable/main/guides/deploy-to-production/
+
+This guide is for teams deploying Kumoss for shared organizational use. It explains what a production deployment consists of, which decisions apply to each component, and which settings and secrets you must supply. It does not repeat the field-by-field references; it points at them:
+
+- [Configuration reference](../../reference/configuration/), for every `config.yaml` field.
+- [Environment variables and secrets](../../reference/environment-variables/), for every core and sidecar variable.
+- [LLM providers and models](../../reference/llm-providers/), for LLM providers and credentials.
+- [Enable authentication](../enable-authentication/) for authentication.
+- [Monitor with Phoenix](../monitor-with-phoenix/) for tracing.
+- [Customize prompts](../customize-prompts/) for the prompt registry.
+- [HTTP APIs](../../reference/api/) for the sidecar contracts in `contracts/openapi/` and their conformance suites in `contracts/conformance/`.
+
+Everything in this guide describes the implementation as it exists in the repository today. Where a capability is a recommendation rather than something the repository provides, it is labelled as such.
+
+This entry page covers what production means, the reference topology, the sidecars as integration boundaries, and the `config.yaml` checklist. The credentials, networking, hardening, and operational detail live on four child pages, each covering one step of the deployment sequence.
+
+## At a glance
+
+If you read nothing else, these are the production decisions this guide expands on:
+
+| # | Decision | Where |
+| --- | --- | --- |
+| 1 | Run one core replica, one IaC sidecar per shared workspace volume; there is no multi-replica mode | [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints) |
+| 2 | Enable OIDC; a blank issuer makes every caller a fully privileged user | [Authentication (OIDC)](../production/secrets-and-credentials/#authentication-oidc) |
+| 3 | Treat the four sidecars as integration boundaries: implement IaC to your requirements, implement mapping and authorization yourself or leave them disabled, integrate notifications | [Sidecars as production integration boundaries](#sidecars-as-production-integration-boundaries), below |
+| 4 | Move every secret to a secret store; keep the variable names | [Secrets inventory](../production/secrets-and-credentials/#secrets-inventory) |
+| 5 | Use managed PostgreSQL, Redis, object storage (S3, Azure, or S3-compatible), and a persistent, access-controlled Phoenix; Phoenix is required at boot | [Data services and persistence](../production/operations/#data-and-persistence) |
+| 6 | Reproduce the ingress rules: SSE path unbuffered, `/monitoring/` restricted, public object-storage endpoint, CORS origin, IdP redirect URIs | [Networking and TLS](../production/networking-and-tls/) |
+| 7 | Give the IaC engine a scoped workload identity and container execution controls; decide who owns the Terraform state backend | [IaC (mandatory)](#iac-mandatory), below; [Cloud credentials for the IaC engine](../production/secrets-and-credentials/#cloud-credentials); [Configure state backends](../configure-state-backends/) |
+| 8 | Review the seeded prompts before the first user session; they encode a generic policy | [Hardening checklist](../production/hardening/#hardening-checklist) |
+| 9 | Plan upgrades by hand: no database migrations, seeds never overwrite curated prompts, `environment` is a prompt tag | [Backups and upgrades](../production/operations/#backups-and-upgrades) |
+
+The Compose file is the reference topology. On Kubernetes, the Helm chart in `charts/kumoss` ([Deploy with Helm](../deploy-with-helm/)) translates it for you; on any other platform you translate it yourself.
+
+## What production means for Kumoss
+
+Kumoss plans and applies infrastructure with real cloud credentials, pushes to your repositories, and sends every prompt, plan, and generated file to a tracing backend. A production deployment therefore has to control who can reach it, which cloud identity it acts with, where its data lives, and how it is operated.
+
+Production is **not** the local Compose stack with `environment: production`. That field only selects the Phoenix project prefix and the prompt tag. It enables no authentication, no authorization, and no stricter default.
+
+The differences from [Quickstart](../../quickstart/), in one table:
+
+| Area | Local/non-production | Production |
+| --- | --- | --- |
+| Platform | Docker Compose on one host | A production platform such as Kubernetes, with the bundled Helm chart or expressed by you from the reference topology below |
+| Authentication | May stay disabled | **OIDC enabled**; nothing else is acceptable because a blank issuer makes every caller a `devops` + panel `admin` user |
+| Sidecars | Bundled IaC, optionally bundled notifications | All four treated as integration boundaries: reviewed, configured, hardened, replaced or implemented where needed |
+| Secrets | Gitignored `.env` files | Kubernetes Secrets or an equivalent secret manager, injected as environment variables |
+| Data services | Bundled PostgreSQL, Redis, RustFS, Phoenix on local volumes, with the well-known default credentials the samples ship | Managed or operated services with persistence, backups, access control, and credentials from your secret store |
+| Terraform state | Kumoss-managed state in the bundled RustFS by default, or each repository’s own backend if you set `storage.terraform_state_bucket` to `""` | A deliberate choice of owner: the repositories' own backends, a Kumoss-managed bucket on `S3`/`STORAGE_ACCOUNT`, or one central backend file mounted into the sidecar ([Configure state backends](../configure-state-backends/)) |
+| Networking | Plain HTTP on `localhost` | TLS, a real origin, an ingress that handles server-sent events, a protected Phoenix, a public object-storage endpoint |
+
+The repository provides the container images, `docker-compose.yml` as the reference topology, a Helm chart for Kubernetes ([Deploy with Helm](../deploy-with-helm/)), and the OpenAPI contracts and conformance suites for the sidecars. It does not provide Kustomize overlays, Terraform modules for the platform itself, database migrations, or a multi-replica execution model. The chart wires the stack together, but the production decisions on this page (managed data services, identity, TLS, hardening) remain yours to make through its values.
+
+## Reference topology
+
+The Compose stack defines nine services on one network. In production each row below is a deployment decision; the mapping and authorization rows are services you provide yourself, because Kumoss ships only their contracts. Every image built from a Dockerfile in this repository is also published for each release as `ghcr.io/inditextech/kumoss-<image>` (`core`, `iac`, `notifications`, `proxy`, `searxng`); see [Images and configuration delivery](../production/networking-and-tls/#images-and-config-delivery).
+
+| Component | Reference image | Must be reachable by | Persistence | Production decision |
+| --- | --- | --- | --- | --- |
+| Core API | `core/Dockerfile` (Python 3.14, port 8000, user `kumoss` 10001) | Ingress (`/api`), nothing else | Shared workspace volume | Run **one replica** (see [Runtime and scaling constraints](../production/hardening/#runtime-and-scaling-constraints)). Inject `config.yaml` at build time or mount it at `KUMOSS_CONFIG`. |
+| Web application and edge | `nginx/Dockerfile` builds the React app and serves it; forwards `/api`, the SSE path, `/monitoring/`, and port 9000 | Users | none | Keep it, or serve the built bundle from your own ingress. Reproduce its routing rules ([Networking and TLS](../production/networking-and-tls/)). |
+| PostgreSQL (core) | `postgres:17` | Core | **Required** | Managed PostgreSQL recommended. Set `KUMOSS_SQL_DATABASE_URL`. |
+| Redis | `redis:8.8` | Core | Not required (cache) | Managed Redis or in-cluster. Must be reachable when the core boots. |
+| Object storage | `rustfs/rustfs:latest` | Core (SDK) and **browsers** (presigned URLs) | **Required** | Prefer AWS S3 or an Azure Storage Account through `storage.provider`; RustFS or another S3-compatible store is also supported. |
+| Phoenix | `arizephoenix/phoenix:20.12.0` behind `PHOENIX_HOST_ROOT_PATH=/monitoring` | Core (traces and prompt API), operators (UI) | **Required** (through its PostgreSQL) | Operate it with persistence and access control. It is required at core start-up. |
+| PostgreSQL (Phoenix) | `postgres:17` | Phoenix | **Required** | Managed PostgreSQL recommended; set `PHOENIX_SQL_DATABASE_URL` on Phoenix. |
+| IaC sidecar | `services/iac/Dockerfile` (OpenTofu 1.12.6, Terraform 1.16.0; port 8082; user `kumoss` 10001) | Core only | Shared workspace volume | **Mandatory.** **As a starting point** — harden the image and container, or implement the contract yourself to your organization’s requirements. |
+| Mapping sidecar | None bundled; your implementation of the mapping contract | Core only | Up to your implementation | Implement it against your catalogue, or leave it disabled. |
+| Notifications sidecar | `services/notifications/Dockerfile` (port 8080, user `kumoss` 10001) | Core only | none | Use the bundled Slack implementation with a production webhook, or replace it. |
+| Authorization sidecar | None bundled; your implementation of the authorization contract | Core only | Up to your implementation | Implement it against your entitlement source, or leave it disabled. |
+
+The Kumoss-built core, iac, and notifications images run as the unprivileged `kumoss` user, uid/gid 10001. The `nginx/Dockerfile` proxy image is the exception: it has no `USER` directive and starts as root, dropping privileges only for its worker processes; give it a non-root base image or a Kubernetes `runAsNonRoot`/`securityContext` treatment if your policy requires the master process itself to be non-root.
+
+Two volumes matter beyond databases:
+
+- **The shared workspace** (`/workspaces` in both the core and IaC containers, `paths.upload_folder`). The core clones repositories there and the IaC sidecar runs the engine against the same paths. It must be **one filesystem mounted read-write by both containers at the same path**, owned by uid/gid `10001`. On Kubernetes that means a `ReadWriteMany` volume or the two containers on one node sharing a `ReadWriteOnce` volume, with a matching `fsGroup`/`runAsUser`; the Helm chart sets both up (`workspaces.*`). Contents are ephemeral (each run’s directory is deleted afterwards), but the pinned plan of every session lives there between a generate round and its apply, so the volume must survive pod restarts.
+- **Phoenix’s database**, which holds your curated prompts as well as traces. Losing it means re-seeding from the repository defaults and losing every prompt edit.
+
+## Sidecars as production integration boundaries
+
+Each sidecar is an OpenAPI contract. The core calls it with a bearer token from the environment variable named by `services.<name>.token_env`, and the sidecar validates that token. Any implementation of the contract can be used by changing `services.<name>.endpoint`. Use the conformance suites in `contracts/conformance/` to verify a replacement; every page under [HTTP APIs](../../reference/api/) carries the command for its own sidecar.
+
+Common rules for every **enabled** sidecar:
+
+- Set a distinct, random bearer token (for example `openssl rand -hex 32`) on **both** sides. The core refuses to boot when the IaC sidecar’s or an enabled optional sidecar’s token variable is empty, or when an optional sidecar has `enabled: true` but a blank `endpoint`. On the sidecar side, an empty token disables the check entirely, which is never acceptable in production.
+- The bundled IaC and notifications sidecars compare tokens in constant time, but they remain simple reference services. Keep every sidecar on a private network segment reachable only by the core, and never expose one through the ingress.
+- The `services.<name>.timeout` field is honoured by the IaC and notifications clients; the mapping and authorization clients use fixed budgets of 10 and 15 seconds.
+- Every sidecar exposes `GET /healthz` for liveness probes.
+
+### IaC (mandatory)
+
+The bundled executor is **a starting point, not production-ready**: harden the image and container (the checked-in compose applies no hardening), review the credential pass-through, or implement the contract yourself. It is functionally complete (it runs every command the core needs), but it encodes no organizational policy: it executes provider plugins from generated HCL with whatever identity is in its environment, on a shared filesystem, with no approval step, no engine timeout, and in-memory job state.
+
+For production the recommendation is to **implement the IaC contract ([`contracts/openapi/iac.v1.yaml`](../../reference/api/iac/)) according to your organization’s requirements**, not only to harden the bundled image. Typical reasons: running the engine on your existing Terraform or OpenTofu execution platform, using a workspace and state strategy other than a shared volume, enforcing per-project cloud identities, adding policy or approval hooks around `plan` and `apply`, auditing every command, or supporting clouds and CLIs the bundled image does not include. The contract is small (one command per asynchronous job, polled by the core), and the [conformance suite](../../reference/api/iac/#conformance) in `contracts/conformance/iac/` verifies a replacement.
+
+If you nevertheless start from the bundled image, its **identity and execution environment** are the security decisions you must make:
+
+- **Cloud identity.** The engine reads whatever credentials the provider supports from the container environment (`ARM_*`, `GOOGLE_*`, `AWS_*`, mounted files). Use a workload identity (Kubernetes service account federation, pod identity, instance roles) scoped to the projects Kumoss may change, rather than static keys. Missing credentials do not stop the container; the engine fails at `plan` or `apply` with its own error.
+- **Execution controls.** The image already runs as an unprivileged user. The checked-in Compose file applies nothing else. For production, run the container with all Linux capabilities dropped, `no-new-privileges`, a read-only root filesystem with writable `/tmp` and `/home/kumoss`, and CPU, memory, and process limits. These were validated on a feature branch of this repository but are **not** part of the checked-in Compose file; treat them as a requirement you implement on your platform.
+- **No engine timeout.** The sidecar does not bound the engine process itself; `services.iac.job_timeout` in the core (default one hour per job) is the only bound. Set it deliberately.
+- **Egress.** `init` downloads providers from `registry.opentofu.org` (or `registry.terraform.io` when `IAC_BINARY=terraform`), and `plan`/`apply` reach your cloud APIs. Corporate TLS inspection of the registry host breaks provider downloads unless the CA is mounted into the container.
+- **Jobs are in memory.** A restart forgets queued and finished jobs; run one instance per shared workspace and do not scale it horizontally.
+- **Engine choice.** `IAC_BINARY=tofu` (default) runs OpenTofu; `terraform` runs the bundled HashiCorp Terraform 1.16.0, which is BUSL-1.1 licensed and makes your use subject to its terms.
+- **State backend.** The sidecar is always the process that *executes* the backend, so it always needs reach to it and credentials for it — whichever model you pick. By default (`storage.terraform_state_bucket` set to `kumoss-terraform-state`, as shipped) the core configures it: state goes to that bucket in the same object store as artifacts, keyed per project, and the sidecar needs network reach to `storage.endpoint_url` plus, where the rendered block omits static keys, its own credentials for the bucket. Set `storage.terraform_state_bucket` to `""` to leave the backend to each target repository instead, with no Kumoss configuration involved. For one central backend defined outside Kumoss, mount a file and point `IAC_BACKEND_CONFIG` at it. All three models: [Configure state backends](../configure-state-backends/).
+- **Blast radius of the sidecar’s environment.** `KUMOSS_IAC_TOKEN` and every other variable in the IaC sidecar’s environment are reachable by the provider plugins the generated HCL invokes, and by any `local-exec` provisioner in that HCL — generated code runs with the same privileges as the sidecar process. The seeded `general-guidelines-terraform` prompt tells the generator never to emit `null_resource`, `provisioner` blocks, or `data "external"`, and the compliance auditor receives the same rule, but this is a prompt instruction: neither the core nor the sidecar inspects the generated HCL, and no allowlist restricts provider sources. Repository code is not covered by the prompt at all. The job’s `workspace_path` is not restricted to `/workspaces` by the sidecar itself. Treat the sidecar as reachable only from the core and give it nothing more than the cloud identity it needs.
+
+### Mapping (optional)
+
+Kumoss ships no mapping implementation. While the integration is disabled, the core echoes every identifier: the value the user types is used as the repository URL. Enable it only with an implementation that resolves your business identifiers (CMDB, Backstage, a catalogue) against the canonical IaC repository. Once enabled, a slow or unreachable sidecar makes the wizard’s resolve step fail with `504`/`502`.
+
+Your implementation may also answer `terraform_provider` and `scope_id` (the cloud subscription, project, account, compartment, or cluster). Both are optional and both are a promise: the wizard stops asking the user for any field your service fills in, so a value it cannot stand behind is a wrong answer nobody gets the chance to correct. Return `null` — meaning "I do not know" — whenever the catalogue is silent, and never infer a provider from the shape of the repository URL.
+
+### Notifications (optional, recommended)
+
+The bundled implementation posts to one Slack incoming webhook and is suitable for production once the webhook and token come from your secret store. The core emits `iac.compliance.failed`, `iac.impact.high`, `iac.apply.failure`, and `system.exception.failure`, plus user-originated support requests from the web application; the audience is the session owner (or caller) plus every user with panel role `editor` or higher. If your operational channel is not Slack (Teams, e-mail, PagerDuty, an ITSM tool), implement the contract in [`contracts/openapi/notifications.v1.yaml`](../../reference/api/notifications/). Delivery is best-effort: a failure is logged and never fails a session.
+
+### Authorization (optional, bring your own)
+
+Kumoss ships no authorization implementation: the contract is an extension point for your own cloud-project policy. Leave it disabled until you provide your own implementation.
+
+Understand what this integration is and is not:
+
+- It is consulted only by the wizard’s preflight `POST /api/v1/auth/authorize`, which sends the cloud, project name, environment, and the caller’s e-mail (or OIDC subject) to `POST /v1/check`. It answers whether that user may work on that cloud project.
+- It is **not** Kumoss’s own access control. Who can log in, which operations a user may run, and who can see or act on a session are decided by OIDC plus the operation and panel roles stored in the core database ([Administer users and locks](../administer-users-and-locks/)).
+- While disabled, the core answers "authorized" without calling anything. Once enabled, an unreachable sidecar produces a `502`/`504` error in the wizard, not an allow.
+
+Implement the contract in [`contracts/openapi/authz.v1.yaml`](../../reference/api/authz/) against your entitlement source, point `services.authz.endpoint` at it, and enable it.
+
+## Configuration checklist (`config.yaml`)
+
+`config.yaml` is baked into the core image at build time, or mounted at the path in `KUMOSS_CONFIG`. It contains no secrets and can live in version control. Review every section; the [configuration reference](../../reference/configuration/) has the fields and a [production-shaped example](../../reference/configuration/#example-production).
+
+| Section | Production requirement |
+| --- | --- |
+| `environment` | `production` (or `staging`). Decide before the first boot: it is the tag every prompt fetch uses, and changing it later requires re-tagging every prompt in Phoenix. |
+| `oidc` | `issuer_url` and `client_id` set; `audience` for Auth0 and Okta; `scope` when the default does not fit. |
+| `admin` | `default_root_email` for identity providers that emit `email_verified`; otherwise plan the one-off SQL grant ([Grant the first administrator access](../enable-authentication/#bootstrap-admin)). |
+| `services.iac` | Endpoint of your IaC sidecar, token variable name, `job_timeout` chosen for your largest plans. There is no `enabled` flag; the sidecar is always called. |
+| `services.notifications`, `services.mapping`, `services.authz` | Enabled only with a production-grade implementation behind `endpoint`; each with its own token variable. |
+| `orchestration` | Keep `enable_compliance_checker: true` and `block_on_high_impact: true` unless you have another approval gate; the code defaults are `false`. Review the iteration limits, which bound the cost of a runaway session. |
+| `llm` | Two model strings (or `model_list` aliases) for the provider you contract with; `max_output_tokens` within the provider’s limits. |
+| `paths` | `upload_folder` identical in the core and IaC containers. |
+| `database`, `redis` | Variable names only; values are secrets. `redis.default_url` points at the Compose service name, so set `KUMOSS_REDIS_URL` when Redis lives elsewhere. |
+| `telemetry.collector_url` | Your Phoenix base URL, ending in `/`. It is used both for OTLP export and for the prompt API. |
+| `http.cors_origins` | Your real origin, for example `https://kumoss.example.invalid`. |
+| `storage` | Provider, artifacts bucket or container, the endpoint the core calls, and the **public** endpoint browsers reach. Also `terraform_state_bucket`: set to `kumoss-terraform-state` as shipped, which puts Kumoss in charge of state; set it to `""` to leave state to each repository’s own backend instead ([Configure state backends](../configure-state-backends/)). |
+| `git` | Provider matching your repository host, author identity. |
+
+Changing any of these means rebuilding the core image (or updating the mounted file) and restarting the core.
 
 ---
 
@@ -18950,6 +19032,48 @@ AWS_DEFAULT_REGION=us-east-1 \
 
 ---
 
+# Hardening
+
+Source: https://inditextech.github.io/kumoss/stable/main/guides/production/hardening/
+
+This is the third of four pages that expand [Deploy to production](../../deploy-to-production/): with networking and TLS reproduced, this page covers the constraints the current implementation places on runtime and scaling, then the hardening checklist the platform must apply. The checked-in `docker-compose.yml` applies no `cap_drop`, `read_only`, or resource limits to the iac container, or to any other container. Everything below is a recommendation for your platform, never a description of what the stack ships hardened with.
+
+## Runtime and scaling constraints
+
+These are properties of the current implementation, not tuning options:
+
+**Run one core replica.** Sessions execute as in-process background tasks of the API process; the only concurrency control is a compare-and-set flag on the session row; the SSE endpoint polls the database of the same process. A second replica would not share in-flight work and would leave sessions half-run when a pod is replaced. Size the single pod for your expected parallel sessions (each holds a repository clone and several model calls).
+
+**Run one IaC sidecar per workspace volume.** Jobs and their results are held in memory and serialized per workspace path.
+
+**Restarts interrupt runs.** A session that was running when the core restarted keeps its last status; its in-flight flag is released only by the process that set it. Expect to inspect such sessions in the admin panel after a rolling restart.
+
+**Start-up is strict** and ordered: database, Redis, the object-storage artifacts bucket, the Terraform state bucket (created by default, since `storage.terraform_state_bucket` ships non-blank; skipped only if you blank it explicitly to `""`), Phoenix prompt seeding, then git credentials — the last only logs a warning on failure; every other step exits the process. Readiness should be derived from the API answering `GET /api/v1/auth/config`; the core has no dedicated health route.
+
+**The checked-in compose has no healthchecks and no restart policies** for `core`, its dependencies, or the sidecars (only `proxy` sets `restart: on-failure`); the core’s own DB connection has no retry, Redis retry is under a second, and Phoenix-seeding retry is only about 27.5 seconds. A core that loses a start-up race exits and **stays down** under Compose. On your platform, give the core: a restart policy, a startup probe with a generous failure threshold (allow for the ~30-second Phoenix wait), and a liveness probe on `GET /api/v1/auth/config` — otherwise a transient dependency race at boot becomes a permanent outage.
+
+**A remote state backend is mandatory, and by default Kumoss provides it.** The workspace is deleted after each run and the pinned workspace
+after apply, and the seeded `.gitignore` excludes **.tfstate, so local state would be lost otherwise. `storage.terraform_state_bucket` ships set to `kumoss-terraform-state`, so the core writes a `backend_override.tf` into each workspace pointing at that bucket under a per-project key. Set the key to `""` to make it yours to provide instead: every repository you onboard must then declare its own remote backend and the sidecar must be able to authenticate to it — verify this before the first real session. Either way, *Kumoss never migrates state** between backends — `init` always runs
+`-reconfigure`. See [Configure state backends](../../configure-state-backends/).
+
+## Hardening checklist
+
+Items the repository leaves to the platform. Apply them; none is optional for a shared deployment.
+
+- OIDC enabled; `GET /api/v1/auth/config` shows a non-empty issuer.
+- Distinct random bearer tokens on every enabled sidecar, sidecars unreachable except from the core.
+- IaC container: dropped capabilities, `no-new-privileges`, read-only root filesystem, resource limits, workload identity instead of static cloud keys, egress limited to registries and cloud APIs.
+- IaC sidecar implemented to your organization’s requirements, or the bundled reference consciously accepted for production after review.
+- The bundled notifications container already runs as the unprivileged `kumoss` user (10001); give your own mapping and authorization services the same treatment. The `proxy` (nginx) image starts as root and drops privileges only for its workers — give it a non-root image or a Kubernetes `runAsNonRoot` treatment if your policy requires it.
+- Phoenix behind authentication or network isolation; retention policy for traces.
+- TLS everywhere users and browsers connect; managed database and storage endpoints with TLS.
+- Artifacts bucket private except for presigned reads; lifecycle rules.
+- State bucket private with no public path at all, versioning and soft delete enabled, no lifecycle expiry, access limited to the core (bucket creation) and the IaC sidecar (read/write).
+- Git token scoped to the repositories in scope; LLM provider configured under acceptable data-handling terms.
+- Seeded prompts reviewed and adapted before the first user session; they encode a generic policy, including the compliance rules and forbidden actions ([Customize prompts](../../customize-prompts/)).
+
+---
+
 # About Kumoss
 
 Source: https://inditextech.github.io/kumoss/stable/main/about/
@@ -19335,48 +19459,6 @@ The React single-page application is the user-facing portal, served by the `prox
 - **IaC executor** — your own Terraform or OpenTofu runtime, version, and environment, by implementing the IaC OpenAPI contract. The bundled `iac` sidecar runs OpenTofu by default, with HashiCorp Terraform selectable via `IAC_BINARY`.
 
 Kumoss’s runtime components, internal layering, and end-to-end request flow are covered in [Architecture](../architecture/). To run the bundled stack locally, see [Quickstart](../quickstart/). From there, [Guides](../guides-overview/) walks through each task the web application supports, and [Reference](../reference-overview/) holds the configuration, environment-variable, role, and API details those guides point at.
-
----
-
-# Hardening
-
-Source: https://inditextech.github.io/kumoss/stable/main/guides/production/hardening/
-
-This is the third of four pages that expand [Deploy to production](../../deploy-to-production/): with networking and TLS reproduced, this page covers the constraints the current implementation places on runtime and scaling, then the hardening checklist the platform must apply. The checked-in `docker-compose.yml` applies no `cap_drop`, `read_only`, or resource limits to the iac container, or to any other container. Everything below is a recommendation for your platform, never a description of what the stack ships hardened with.
-
-## Runtime and scaling constraints
-
-These are properties of the current implementation, not tuning options:
-
-**Run one core replica.** Sessions execute as in-process background tasks of the API process; the only concurrency control is a compare-and-set flag on the session row; the SSE endpoint polls the database of the same process. A second replica would not share in-flight work and would leave sessions half-run when a pod is replaced. Size the single pod for your expected parallel sessions (each holds a repository clone and several model calls).
-
-**Run one IaC sidecar per workspace volume.** Jobs and their results are held in memory and serialized per workspace path.
-
-**Restarts interrupt runs.** A session that was running when the core restarted keeps its last status; its in-flight flag is released only by the process that set it. Expect to inspect such sessions in the admin panel after a rolling restart.
-
-**Start-up is strict** and ordered: database, Redis, the object-storage artifacts bucket, the Terraform state bucket (created by default, since `storage.terraform_state_bucket` ships non-blank; skipped only if you blank it explicitly to `""`), Phoenix prompt seeding, then git credentials — the last only logs a warning on failure; every other step exits the process. Readiness should be derived from the API answering `GET /api/v1/auth/config`; the core has no dedicated health route.
-
-**The checked-in compose has no healthchecks and no restart policies** for `core`, its dependencies, or the sidecars (only `proxy` sets `restart: on-failure`); the core’s own DB connection has no retry, Redis retry is under a second, and Phoenix-seeding retry is only about 27.5 seconds. A core that loses a start-up race exits and **stays down** under Compose. On your platform, give the core: a restart policy, a startup probe with a generous failure threshold (allow for the ~30-second Phoenix wait), and a liveness probe on `GET /api/v1/auth/config` — otherwise a transient dependency race at boot becomes a permanent outage.
-
-**A remote state backend is mandatory, and by default Kumoss provides it.** The workspace is deleted after each run and the pinned workspace
-after apply, and the seeded `.gitignore` excludes **.tfstate, so local state would be lost otherwise. `storage.terraform_state_bucket` ships set to `kumoss-terraform-state`, so the core writes a `backend_override.tf` into each workspace pointing at that bucket under a per-project key. Set the key to `""` to make it yours to provide instead: every repository you onboard must then declare its own remote backend and the sidecar must be able to authenticate to it — verify this before the first real session. Either way, *Kumoss never migrates state** between backends — `init` always runs
-`-reconfigure`. See [Configure state backends](../../configure-state-backends/).
-
-## Hardening checklist
-
-Items the repository leaves to the platform. Apply them; none is optional for a shared deployment.
-
-- OIDC enabled; `GET /api/v1/auth/config` shows a non-empty issuer.
-- Distinct random bearer tokens on every enabled sidecar, sidecars unreachable except from the core.
-- IaC container: dropped capabilities, `no-new-privileges`, read-only root filesystem, resource limits, workload identity instead of static cloud keys, egress limited to registries and cloud APIs.
-- IaC sidecar implemented to your organization’s requirements, or the bundled reference consciously accepted for production after review.
-- The bundled notifications container already runs as the unprivileged `kumoss` user (10001); give your own mapping and authorization services the same treatment. The `proxy` (nginx) image starts as root and drops privileges only for its workers — give it a non-root image or a Kubernetes `runAsNonRoot` treatment if your policy requires it.
-- Phoenix behind authentication or network isolation; retention policy for traces.
-- TLS everywhere users and browsers connect; managed database and storage endpoints with TLS.
-- Artifacts bucket private except for presigned reads; lifecycle rules.
-- State bucket private with no public path at all, versioning and soft delete enabled, no lifecycle expiry, access limited to the core (bucket creation) and the IaC sidecar (read/write).
-- Git token scoped to the repositories in scope; LLM provider configured under acceptable data-handling terms.
-- Seeded prompts reviewed and adapted before the first user session; they encode a generic policy, including the compliance rules and forbidden actions ([Customize prompts](../../customize-prompts/)).
 
 ---
 

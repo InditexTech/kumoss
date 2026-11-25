@@ -74,8 +74,8 @@
 
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/merge-and-apply/">
     <link rel="prev" href="../follow-a-session/">
-    <link rel="next" href="../remediate-drift/">
-    <meta name="description" content="Handle a locked session, then open, merge, and apply a Kumoss pull request.">
+    <link rel="next" href="../resolve-a-locked-session/">
+    <meta name="description" content="Open the pull request for a Kumoss session, merge it, and apply the reviewed plan.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -374,6 +374,15 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="./" aria-current="page">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
       </a>
     </div>
 
@@ -817,7 +826,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Merge and apply</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Merge and apply</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Handle a locked session, then open, merge, and apply a Kumoss pull request.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Open the pull request for a Kumoss session, merge it, and apply the reviewed plan.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -839,9 +848,24 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>Once you have reviewed a session&#8217;s results, this guide covers what a
-session lock means for you and how to open the pull request, merge it,
-and apply the reviewed plan.</p>
+<p>Once you have reviewed a session&#8217;s results, this guide takes you from the
+session branch to applied infrastructure: you open the pull request, get
+it reviewed, merge it, and apply exactly the plan you reviewed.</p>
+</div>
+<div id="session-locked" class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+If the <strong>Deployment Blocked</strong> screen opens when you continue to the
+pull request, the session is locked and merge and apply are refused. See
+<a href="../resolve-a-locked-session/" class="xref page">Resolve a locked session</a>
+for why, and for how to get it unlocked.
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
@@ -855,114 +879,10 @@ and apply the reviewed plan.</p>
 <a href="../follow-a-session/" class="xref page">Follow a session</a>.</p>
 </li>
 <li>
-<p>The <code>developer</code> role to open, merge, and apply; drift-remediation
-sessions end at the merge and never apply.</p>
+<p>The <code>developer</code> role; see
+<a href="../../reference/roles-and-permissions/" class="xref page">Roles and permissions</a>.</p>
 </li>
 </ul>
-</div>
-</div>
-</div>
-<div class="sect1">
-<h2 id="session-locked"><a class="anchor" href="#session-locked"></a>If the session is locked</h2>
-<div class="sectionbody">
-<div class="paragraph">
-<p>At the end of every generate round Kumoss decides whether the plan may be
-merged and applied. Three independent checks can lock the session:</p>
-</div>
-<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
-<colgroup>
-<col style="width: 16.6666%;">
-<col style="width: 50%;">
-<col style="width: 33.3334%;">
-</colgroup>
-<thead>
-<tr>
-<th class="tableblock halign-left valign-top">Cause</th>
-<th class="tableblock halign-left valign-top">What triggers it</th>
-<th class="tableblock halign-left valign-top">Switch</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Compliance policy</strong> (deterministic)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The Rego policy, evaluated by Open Policy Agent on the plan JSON,
-returns a <code>deny</code> finding. The shipped rule, <code>critical_deletion</code>, denies
-any resource that is destroyed without being recreated, <strong>even when you
-asked for the deletion</strong>. A policy that cannot be evaluated also locks
-the session (<code>policy_unavailable</code>). These findings carry a <strong>policy</strong>
-badge.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.enable_compliance_checker</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Compliance audit</strong> (LLM)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A language-model agent compares the plan with your requests and your
-organization&#8217;s conventions. <code>scope_exceeded</code>: the plan changes something
-you did not ask for, for example it removes a block or sets an attribute
-to null. <code>scope_incomplete</code>: part of your request has no matching change
-in the plan. Any other <code>error</code> or <code>critical</code> finding comes from the
-conventions. Findings of severity <code>warning</code> are reported and never lock.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.enable_compliance_checker</code></p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>High impact</strong></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The report&#8217;s impact assessment rates the change <code>high</code>: destructive
-actions, restarts, service downtime, or critical networking changes. The
-impact banner is shown either way; the switch only decides whether it
-locks.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>orchestration.block_on_high_impact</code></p></td>
-</tr>
-</tbody>
-</table></div></div>
-<div class="paragraph">
-<p>Both switches default to <code>false</code> in code, and the shipped <code>config.yaml</code>
-turns both on; see
-<a href="../../reference/configuration/" class="xref page">Configuration</a>. Drift and import
-rounds are never checked and never lock a session.</p>
-</div>
-<div class="paragraph">
-<p><strong>What you see.</strong> When you continue to the pull request, the <strong>Deployment
-Blocked</strong> screen opens. Expand <strong>Why</strong> to see which cause applies: <strong>High
-impact</strong> with the impact summary, <strong>Compliance</strong> with each blocking finding
-(severity, rule id, and resource), or both. <strong>Check again</strong> reads the lock
-again, for example after a reviewer unlocked it; <strong>Back to Report</strong>
-returns to the report; <strong>Contact Team</strong> sends a support request.</p>
-</div>
-<div class="paragraph">
-<p><strong>Who is notified.</strong> When the notifications sidecar is enabled, Kumoss
-sends a "Compliance check failed" notification, a "High impact changes
-detected" notification, or both, to you and to every user with the panel
-role <code>editor</code> or higher. If your browser tab is hidden when the round
-finishes, you also get a "Session blocked" browser notification.</p>
-</div>
-<div class="paragraph">
-<p><strong>While locked</strong> you can still read everything, continue the conversation,
-and create the pull request so reviewers can read the diff. You cannot
-merge it or apply: the server answers <code>409</code> because the session is
-blocked. Your own sessions list shows the lock state in the <strong>Apply</strong>
-column.</p>
-</div>
-<div class="paragraph">
-<p><strong>Getting unlocked.</strong> Either:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p>send a follow-up request whose round passes all three checks, which
-clears the lock; or</p>
-</li>
-<li>
-<p>ask a reviewer with the panel role <code>editor</code> or <code>admin</code> to review the
-session in the admin panel and unlock it; see
-<a href="../administer-users-and-locks/#unlock-a-session" class="xref page">Locking
-or unlocking the apply of a session</a>.</p>
-</li>
-</ul>
-</div>
-<div class="paragraph">
-<p>A manual unlock lasts only until your next generate round on the
-session, which runs the checks again and sets the lock afresh. To write
-your own policy rules, see
-<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
 </div>
 </div>
 </div>
@@ -972,50 +892,81 @@ your own policy rules, see
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p><strong>Create PR.</strong> In the results view choose <strong>Create PR</strong>. Kumoss writes the
-title and description and opens the pull request from the session
-branch on your Git provider. Creating it can take a minute.</p>
+<p>In the results view, choose <strong>Create PR</strong>.</p>
+<div class="paragraph">
+<p>Kumoss writes the title and description and opens the pull request from
+the session branch on your Git provider. This can take a minute. When it
+is ready you see "Here is your Pull Request."</p>
+</div>
 </li>
 <li>
-<p><strong>Review.</strong> "Here is your Pull Request." Use <strong>View Pull Request</strong> to open
-it (the button appears when the link points at a recognized host;
-otherwise copy the link from the session details). Your team&#8217;s normal
-review and CI apply. If reviewers ask for changes, type them as a
-follow-up request; the new round pushes to the same branch and updates
-the pull request.</p>
+<p>Choose <strong>View Pull Request</strong> and review it with your team.</p>
+<div class="paragraph">
+<p>The button appears when the link points at a recognized Git host;
+otherwise copy the link from the session details. Your team&#8217;s normal
+review and CI apply. To make changes, type them as a follow-up request:
+the new round pushes to the same branch and updates the pull request.</p>
+</div>
 </li>
 <li>
-<p><strong>Approve PR and Apply.</strong> When the review is done, choose <strong>Approve PR and
-Apply</strong>. A confirmation asks you to confirm that you read and understood
-the report and the proposed changes; <strong>Request Review</strong> sends a support
-request instead, <strong>Confirm and Apply</strong> merges the pull request into the
-default branch and starts the apply. In a drift-remediation session the
-button only merges: the merge is the remediation, no apply follows, and
-you return to the report.</p>
-</li>
-<li>
-<p><strong>Apply.</strong> The engine executes exactly the plan you reviewed; it is not
-re-planned. The report&#8217;s own status is <code>Success</code>, <code>Partial</code>, or
-<code>Failed</code>, shown on the apply-results screen as <strong>Succeeded</strong>, <strong>Partially
-Applied</strong>, or <strong>Failed</strong>, together with the execution summary, the
-resources created, updated, destroyed, or failed, and recommendations. A
-failed apply still closes the session normally — it is not retried and
-nothing is rolled back; read the error and start a new request.</p>
+<p>When the review is done, choose <strong>Approve PR and Apply</strong>, then <strong>Confirm
+and Apply</strong>.</p>
+<div class="paragraph">
+<p>The confirmation asks you to confirm that you read and understood the
+report and the proposed changes. <strong>Confirm and Apply</strong> merges the pull
+request into the default branch and starts the apply; to ask for help
+instead, choose <strong>Request Review</strong>, which sends a support request.</p>
+</div>
+<div class="paragraph">
+<p>The engine executes exactly the plan you reviewed; it is not re-planned.
+The apply-results screen shows <strong>Succeeded</strong>, <strong>Partially Applied</strong>, or
+<strong>Failed</strong>, with the execution summary, the resources created, updated,
+destroyed, or failed, and recommendations.</p>
+</div>
 </li>
 </ol>
+</div>
+<div class="admonitionblock note">
+<table>
+<tr>
+<td class="icon">
+<i class="fa icon-note" title="Note"></i>
+</td>
+<td class="content">
+In drift-remediation and import sessions the button reads <strong>Approve
+and Merge PR</strong> and only merges: the merge is the remediation, an import is
+already in the state, and no apply follows. See
+<a href="../../reference/operating-modes/#compare-modes" class="xref page">Comparing the operating modes</a>.
+</td>
+</tr>
+</table>
 </div>
 </div>
 </div>
 <div class="sect1">
 <h2 id="verify"><a class="anchor" href="#verify"></a>Verify</h2>
 <div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p>The apply-results screen shows <strong>Succeeded</strong>.</p>
+</li>
+<li>
+<p>The pull request shows as merged into the default branch on your Git
+provider.</p>
+</li>
+</ul>
+</div>
 <div class="paragraph">
-<p>After an apply the reviewed plan is consumed. To change something else,
-send a new request; a fresh plan is produced and reviewed before the next
-apply. Drift and import sessions end at the merge instead: no apply
-follows, because the merge is the remediation and an import is already
-in the state. See
-<a href="../../reference/operating-modes/#compare-modes" class="xref page">Comparing the operating modes</a>.</p>
+<p>The session&#8217;s own status is not a reliable check: a failed apply also
+ends the session normally. A failed apply is not retried and nothing is
+rolled back; read the error on the apply-results screen and start a new
+request.</p>
+</div>
+<div class="paragraph">
+<p>After an apply the reviewed plan is consumed. To change anything else,
+send a new request; a fresh plan is produced and reviewed before the
+next apply.</p>
 </div>
 </div>
 </div>
@@ -1027,6 +978,14 @@ in the state. See
 <li>
 <p><a href="../make-a-request/" class="xref page">Make a request</a> to start a new
 session for the next change.</p>
+</li>
+<li>
+<p><a href="../resolve-a-locked-session/" class="xref page">Resolve a locked
+session</a> if a later round locks the session.</p>
+</li>
+<li>
+<p><a href="../remediate-drift/" class="xref page">Remediate drift</a> to bring
+changed infrastructure back in line with its code.</p>
 </li>
 </ul>
 </div>
@@ -1051,9 +1010,9 @@ session for the next change.</p>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../remediate-drift/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../resolve-a-locked-session/">
       <span class="dt-button__content">
-        <span class="pagination__label-full">Remediate drift</span>
+        <span class="pagination__label-full">Resolve a locked session</span>
         <span class="pagination__label-short">Next</span>
         <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
       </span>
