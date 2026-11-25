@@ -301,6 +301,34 @@ class TestTerraformPlan(_TerraformTestCase):
             self.assertNotIn("env", body, f"{name} body")
             self.assertNotIn("vars", body, f"{name} body")
 
+    async def test_the_project_identifier_rides_as_a_header_on_every_call(self):
+        self._use_config()
+        terraform = tv.Terraform(
+            workspace_path=WORKSPACE,
+            git=self.git,
+            scopes=SCOPES,
+            backend=self.backend,
+            project_identifier="sistemas-kumoss-rsg-esc1-dev",
+        )
+        submit_mocks, poll = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
+
+        _ = await terraform.plan(targets=[])
+
+        calls = [m.await_args for m in submit_mocks.values() if m.await_args]
+        calls.append(poll.await_args)
+        for call in calls:
+            headers = call.kwargs["client"].get_async_httpx_client().headers
+            self.assertEqual(headers["Kumoss-Project"], "sistemas-kumoss-rsg-esc1-dev")
+
+    async def test_without_a_project_identifier_no_header_is_sent(self):
+        self._use_config()
+        submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())
+
+        _ = await self.terraform.plan(targets=[])
+
+        client = submit_mocks["plan"].await_args.kwargs["client"]
+        self.assertNotIn("Kumoss-Project", client.get_async_httpx_client().headers)
+
     async def test_without_inputs_the_plan_carries_no_variables(self):
         self._use_config()
         submit_mocks, _ = self._patch_ops(init=_ok(), validate=_ok(), plan=_ok())

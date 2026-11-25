@@ -93,7 +93,7 @@ async def lifespan(_app: FastAPI):
 
 app = FastAPI(
     title="Kumoss IaC Service",
-    version="2.0.0",
+    version="2.1.0",
     description="Reference implementation of contracts/openapi/iac.v1.yaml.",
     lifespan=lifespan,
 )

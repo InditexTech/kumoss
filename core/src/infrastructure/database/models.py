@@ -120,6 +120,9 @@ class Workspace(Base):
     uri: Mapped[str] = mapped_column(Text)
     branch: Mapped[str] = mapped_column(String(254))
     root_path: Mapped[str] = mapped_column(Text)
+    # What the user named the repository, when not by its URL: the IaC
+    # service may pick the credentials commands run with by it.
+    project_identifier: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     @override
     def __repr__(self) -> str:

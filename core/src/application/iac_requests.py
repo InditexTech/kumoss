@@ -191,6 +191,24 @@ class BaseIacRequest(BaseModel):
         ),
     ] = None
 
+    project_identifier: Annotated[
+        str | None,
+        Field(
+            min_length=1,
+            max_length=1024,
+            description=(
+                "What the user named the repository before it was resolved: the "
+                "`project_identifier` `POST /v1/repository/parse` returned (first "
+                "call only). It must resolve to `repo_uri` through the mapping "
+                "service. Ignored when it is `repo_uri` itself; otherwise recorded "
+                "in the root module's manifest and on the session, and sent to the "
+                "IaC service, which may pick the credentials commands run with by "
+                "it. Must not embed a password or token."
+            ),
+            examples=["iac-repo"],
+        ),
+    ] = None
+
     manifest: Annotated[
         ManifestAnswers | None,
         Field(
@@ -213,6 +231,14 @@ class BaseIacRequest(BaseModel):
             )
         return v
 
+    @field_validator("project_identifier", mode="after")
+    @classmethod
+    def _validate_project_identifier(cls, v: str | None):
+        # It is committed to the repository with the manifest.
+        if v is not None and embeds_password(v):
+            raise ValueError(EMBEDDED_PASSWORD_MESSAGE)
+        return v.strip() or None if v is not None else None
+
     @model_validator(mode="after")
     def _exactly_one_of_uri_or_session(self):
         has_uri = self.repo_uri is not None
@@ -225,10 +251,17 @@ class BaseIacRequest(BaseModel):
             raise ValueError(
                 "root_module_path is set only on the first call; iteration calls inherit it from the session."
             )
+        if has_sid and self.project_identifier is not None:
+            raise ValueError(
+                "project_identifier is set only on the first call; iteration calls inherit it from the session."
+            )
         if has_sid and self.manifest is not None:
             raise ValueError(
                 "manifest is set only on the first call; iteration calls reuse the session's."
             )
+        # A repository given by its URL has no other name to record.
+        if self.project_identifier == self.repo_uri:
+            self.project_identifier = None
         return self
 
 

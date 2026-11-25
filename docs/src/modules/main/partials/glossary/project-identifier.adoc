@@ -1,0 +1,6 @@
+What the user named a repository by when it is not its URL, such as
+`sistemas-kumoss-rsg-esc1-dev`, which the mapping sidecar resolves to
+the repository. Checked against the repository when a session starts,
+recorded on the session and in the root module's manifest, and sent to
+the IaC sidecar with each command, so an IaC service implementation can
+pick the credentials the command runs with. Never a credential itself.

@@ -6,7 +6,7 @@ openapi: 3.1.0
 
 info:
   title: Kumoss IaC Service
-  version: "2.0.0"
+  version: "2.1.0"
   summary: Run individual terraform operations as asynchronous jobs against a checked-out workspace.
   description: |
     The IaC service is a raw executor for the Terraform CLI. Each POST
@@ -86,7 +86,22 @@ info:
     appears on a request only where the operation acts on it, and
     sending another one is a `422`.
 
+    ## Project
+
+    Every request may carry a `Kumoss-Project` header naming the
+    project the workspace belongs to, as the user identified it (e.g.
+    `sistemas-kumoss-rsg-esc1-dev`). The caller has already checked that
+    it names the repository the workspace was checked out from. An
+    implementation may pick the credentials the command runs with by it
+    (for instance, reading them from the project's own secret store) and
+    reject a project it cannot serve with `403`; it MUST NOT echo the
+    credentials back. Without the header, or in an implementation that
+    ignores it, commands run with the implementation's own environment.
+    The header is never a credential itself.
+
     ## Versioning
+
+    2.1.0 (additive) added the optional `Kumoss-Project` request header.
 
     2.0.0 (breaking) made the request a plain description of a CLI
     invocation: the `scope_id` / `terraform_provider` pair on `init`,

@@ -24,6 +24,7 @@ function captureIacCalls() {
 const firstCall = {
   query: "import the storage account staweu1001",
   repoUri: "https://github.com/org/repo",
+  projectIdentifier: "sistemas-kumoss-rsg-esc1-dev",
   rootModulePath: "environments/dev",
 };
 
@@ -48,6 +49,7 @@ describe("runTerraformActionWorkflow", () => {
       repo_uri: firstCall.repoUri,
       q: firstCall.query,
       root_module_path: "environments/dev",
+      project_identifier: "sistemas-kumoss-rsg-esc1-dev",
       ...(isPartial === undefined ? {} : { is_partial: isPartial }),
     });
   });
@@ -65,6 +67,7 @@ describe("runTerraformActionWorkflow", () => {
       repo_uri: firstCall.repoUri,
       q: firstCall.query,
       root_module_path: "environments/dev",
+      project_identifier: "sistemas-kumoss-rsg-esc1-dev",
       manifest,
     });
     expect(calls[0].body).not.toHaveProperty("terraform_providers");

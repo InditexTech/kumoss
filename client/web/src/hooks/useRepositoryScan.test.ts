@@ -26,6 +26,7 @@ describe("useRepositoryScan", () => {
         requested.push(body.repo_uri);
         return HttpResponse.json({
           repo_url: body.repo_uri,
+          project_identifier: body.repo_uri,
           roots: ["environments/dev", "environments/pro"],
         });
       }),
@@ -33,7 +34,7 @@ describe("useRepositoryScan", () => {
 
     const { result } = renderHook(() => useRepositoryScan());
 
-    let scanned: RepositoryScan = { repoUrl: "", roots: [] };
+    let scanned: RepositoryScan = { repoUrl: "", projectIdentifier: "", roots: [] };
     await act(async () => {
       scanned = await result.current.scan("https://dev.azure.com/org/project/_git/repo");
     });
@@ -41,6 +42,7 @@ describe("useRepositoryScan", () => {
     expect(requested).toEqual(["https://dev.azure.com/org/project/_git/repo"]);
     expect(scanned).toEqual({
       repoUrl: "https://dev.azure.com/org/project/_git/repo",
+      projectIdentifier: "https://dev.azure.com/org/project/_git/repo",
       roots: ["environments/dev", "environments/pro"],
     });
     expect(result.current.scanPaths).toEqual(["environments/dev", "environments/pro"]);
@@ -55,6 +57,7 @@ describe("useRepositoryScan", () => {
         requested.push(body.repo_uri);
         return HttpResponse.json({
           repo_url: "https://github.com/MySuperOrg/foo.git",
+          project_identifier: "foo",
           roots: ["infra"],
         });
       }),
@@ -62,7 +65,7 @@ describe("useRepositoryScan", () => {
 
     const { result } = renderHook(() => useRepositoryScan());
 
-    let scanned: RepositoryScan = { repoUrl: "", roots: [] };
+    let scanned: RepositoryScan = { repoUrl: "", projectIdentifier: "", roots: [] };
     await act(async () => {
       scanned = await result.current.scan("foo");
     });
@@ -70,6 +73,7 @@ describe("useRepositoryScan", () => {
     expect(requested).toEqual(["foo"]);
     expect(scanned).toEqual({
       repoUrl: "https://github.com/MySuperOrg/foo.git",
+      projectIdentifier: "foo",
       roots: ["infra"],
     });
   });
@@ -77,13 +81,17 @@ describe("useRepositoryScan", () => {
   it("scan returns empty paths when the repo has no IaC", async () => {
     server.use(
       http.post("/api/v1/repository/parse", () =>
-        HttpResponse.json({ repo_url: "https://example.com/repo", roots: [] }),
+        HttpResponse.json({
+          repo_url: "https://example.com/repo",
+          project_identifier: "https://example.com/repo",
+          roots: [],
+        }),
       ),
     );
 
     const { result } = renderHook(() => useRepositoryScan());
 
-    let scanned: RepositoryScan = { repoUrl: "", roots: ["x"] };
+    let scanned: RepositoryScan = { repoUrl: "", projectIdentifier: "", roots: ["x"] };
     await act(async () => {
       scanned = await result.current.scan("https://example.com/repo");
     });

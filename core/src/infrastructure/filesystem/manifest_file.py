@@ -7,6 +7,7 @@
 Layout (version 1)::
 
     version: "1"
+    project_identifier: infra   # only when the user named the repo otherwise
     fingerprint: sha256:<hex>
     providers:
       - name: azurerm
@@ -22,8 +23,11 @@ Layout (version 1)::
       - provider: azurerm
         scope_id: 00000000-0000-0000-0000-000000000000
 
-Reading is strict: anything off-layout is reported rather than guessed,
-since the file is committed and may have been edited by hand.
+Only ``version`` and ``fingerprint`` are required. Every other known key
+is optional, but strict when present: a wrong type or shape is reported
+rather than guessed, since the file is committed and may have been edited
+by hand. Unknown keys, at any level, are ignored, so a newer layout can
+add keys without breaking older readers; they are not kept on save.
 """
 
 import os
@@ -106,8 +110,10 @@ class ManifestFile(IManifestRepository):
 
 
 def _to_dict(manifest: Manifest) -> dict[str, Any]:
-    return {
-        "version": _VERSION,
+    data: dict[str, Any] = {"version": _VERSION}
+    if manifest.project_identifier is not None:
+        data["project_identifier"] = manifest.project_identifier
+    return data | {
         "fingerprint": manifest.fingerprint,
         "providers": [
             {
@@ -191,6 +197,11 @@ def _from_dict(data: Any) -> Manifest:
         var_files=var_files,
         variables=tuple(variables),
         scopes=tuple(scopes),
+        project_identifier=(
+            _string(data, "project_identifier")
+            if data.get("project_identifier") is not None
+            else None
+        ),
     )
 
 

@@ -47,7 +47,10 @@ Numbers restart at each session.
 |`workspaces`
 |`sessions`
 |The repository the session works against: `uri`, `branch`, and the
-`root_path` within it.
+`root_path` within it, plus the nullable `project_identifier` the
+session's first call named the repository by, sent to the IaC sidecar
+on every command (migration `0003`; null for sessions without one and
+for those created before it).
 
 |`terraform_providers`
 |`sessions`
