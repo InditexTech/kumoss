@@ -192,8 +192,9 @@ cd kumoss/client/cli
 go build -o ~/.local/bin/kumoss .
 ```
 
-A build from source reports `kumoss dev (stack main)` and fetches the stack files
-from `main`; set `KUMOSS_TAG=v1.2.3` to pin another tag.
+A build from source reports `kumoss dev (stack develop)` and fetches the stack
+files from `develop`, so they match the code it was built from rather than the
+last release; set `KUMOSS_TAG=v1.2.3` to pin another ref.
 
 ### Requirements
 
@@ -283,7 +284,9 @@ Stops the stack and deletes the managed home. See [Uninstalling](#uninstalling).
 Prints `kumoss <cli-version> (stack <tag>)`. The version is also the tag the CLI
 fetches the stack from, so a released binary always matches its stack: 1.2.3
 reports `kumoss 1.2.3 (stack 1.2.3)`, and a source build reports `dev` with the
-tag from `KUMOSS_TAG`, else `main`.
+tag from `KUMOSS_TAG`, else `develop`. Only a semantic version counts as a
+release, so any other value — `dev`, a branch name, a commit sha — is treated
+as a source build.
 
 ### `kumoss self-install`
 
