@@ -134,6 +134,9 @@ to be found.
 
 |`general/policies/compliance.rego`
 |`general/policies/compliance`
+
+|`aws/policies/compliance.rego`
+|`aws/policies/compliance`
 |===
 
 Two files that would produce the same qualified name abort the boot
@@ -357,7 +360,7 @@ session.
 |Report generator, generate reports only
 |===
 
-=== Compliance policy (`general/policies/compliance`)
+=== Compliance policies (`<scope>/policies/compliance`)
 
 [cols="1,3,2",options="header"]
 |===
@@ -365,8 +368,18 @@ session.
 
 |`general/policies/compliance`
 |Rego v1 policy that OPA evaluates against the final plan of every
-generate round. The shipped seed defines `critical_deletion`. A deny
-locks the session. See <<compliance-policy>>.
+generate round. The shipped seed defines `critical_deletion`,
+`customer_managed_key_removed`, `command_execution` and the warning
+`unprotected_credential_output`. A deny locks the session. See <<compliance-policy>>.
+|Compliance check (when `orchestration.enable_compliance_checker` is
+`true`), not a model
+
+|`<provider>/policies/compliance`
+|Rego v1 policy for one provider, evaluated with the general policy
+when the root module declares that provider; a provider without one
+is skipped. Each shipped provider seed defines three rules, such as
+`aws_public_ingress` or `k8s_cluster_admin_sa`. A deny locks the
+session. See <<compliance-policy>>.
 |Compliance check (when `orchestration.enable_compliance_checker` is
 `true`), not a model
 |===
@@ -383,8 +396,9 @@ today: `aws/resources/s3_bucket`, `azurerm/resources/storage_account`,
 
 The `aws`, `azurerm`, `google` and `oci` scopes ship the same seven
 guideline prompts; `kubernetes` and `vsphere` ship six, without
-`import_exceptions`. The resource prompts differ per provider. The
-`general` scope also ships the one policy, `policies/compliance.rego`.
+`import_exceptions`. The resource prompts differ per provider. Every
+scope, `general` included, also ships one policy,
+`policies/compliance.rego`.
 
 [cols="1,3,4,1",options="header"]
 |===
@@ -667,20 +681,47 @@ bullets.
 [#compliance-policy]
 == Compliance policy
 
-`general/policies/compliance` is a Rego v1 module, `package
-kumoss.compliance`, seeded from
-`core/prompts/seed/general/policies/compliance.rego`. It is not read by
-a model: when `orchestration.enable_compliance_checker` is `true`, the
-core runs it with the `opa` binary against the final plan of every
+The compliance policies are Rego v1 modules, seeded from
+`core/prompts/seed/<scope>/policies/compliance.rego`:
+
+* `general/policies/compliance`, `package kumoss.compliance`, runs on
+  every generate round and must exist;
+* `<provider>/policies/compliance`, `package
+  kumoss.providers.<provider>`, runs on the rounds whose root module
+  declares that provider. A provider without one, such as `random`, is
+  skipped. Kumoss ships one for `aws`, `azurerm`, `google`,
+  `kubernetes`, `oci` and `vsphere`; give another provider a policy by
+  creating its prompt in Langfuse.
+
+They are not read by a model: when
+`orchestration.enable_compliance_checker` is `true`, the core runs the
+general policy and those of the session's providers together, in one
+evaluation with the `opa` binary, against the final plan of every
 generate round, before the LLM compliance audit, and merges both
 results into one compliance report. A deny, or a policy that cannot be
-evaluated, locks the session. The input, the decision the policy must
-return and the failure semantics are in
+evaluated, locks the session. The input, the decision a policy must
+return, the shipped rules and the failure semantics are in
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
-Like every other prompt, it is a Langfuse text prompt, fetched on each
-evaluation from the version carrying the `environment` label, and
-seeded the same way: a release that changes the seed moves only the
+What a policy enforces is not restated in the guideline and resource
+prompts. Those prompts feed both the IaC generator and the LLM
+compliance audit, so a ban written there would also be enforced by the
+model, possibly differently from the policy. The shipped prompts keep
+positive defaults (`allow_privilege_escalation = false`, S3 Block
+Public Access fully enabled, outputs carrying secrets marked
+`sensitive = true`) and leave the bans to Rego: they no longer tell
+the generator to avoid `null_resource`, provisioners and
+`data "external"`, internet-open ingress, basic roles or service
+account keys, `cluster-admin` or `Allow any-user` grants, or
+`allow_unverified_ssl`. A round that generates one of those is locked
+by the policy rather than written correctly in the first place. If you
+add a rule to a policy, do not also write it into a prompt; if you
+would rather the generator avoid a pattern up front, phrase the prompt
+as the default to produce, not as a prohibition.
+
+Like every other prompt, each policy is a Langfuse text prompt, fetched
+on each evaluation from the version carrying the `environment` label,
+and seeded the same way: a release that changes a seed moves only the
 labels still on the `seed` version, and a policy you customized is
 kept. The core reads the raw text of the version: Langfuse's
 `+{{variable}}+` templating is not applied, so the braces of Rego are
@@ -688,39 +729,44 @@ safe.
 
 === Changing the policy
 
-. In Langfuse, open `general/policies/compliance` under *Prompts* and
-  create a new version with the edited Rego. Do not set the environment
+. In Langfuse, open the policy (`general/policies/compliance` or
+  `<provider>/policies/compliance`) under *Prompts* and create a new
+  version with the edited Rego. Do not set the environment
   label on it yet.
 . Test that version first (below).
 . Set the environment label on it. The next generate round of that
   environment runs it; moving the label back to the previous version is
   the rollback.
 
-One version serves *every* generate session of the environment. A
+One version serves *every* generate session of the environment that
+the policy applies to: every session for the general policy, every
+session whose module declares the provider for a provider policy. A
 syntax error, a wrong type in the decision or a rule that errors does
-not skip the policy: it blocks every round with `policy_unavailable`
-until the label is on a working version. The startup check catches a
-broken policy only when the core restarts.
+not skip the policy: it blocks each of those rounds with
+`policy_unavailable` until the label is on a working version. The
+startup check catches a broken general policy, or a broken policy of a
+provider that ships a seed, only when the core restarts.
 
 === Testing a version before labelling it
 
-Copy the version's text from Langfuse into a file named
-`compliance.rego` and run OPA 1.22.4, the version in the core image,
-on it:
+Copy the version's text from Langfuse into a file, for example
+`aws.rego`, and run OPA 1.22.4, the version in the core image, on it
+together with the other policies a round would run (here the general
+policy in `general.rego`):
 
 [source,bash]
 ----
-opa check compliance.rego
-opa test compliance.rego my_tests/
-opa eval --stdin-input --strict-builtin-errors -d compliance.rego \
-  data.kumoss.compliance < input.json
+opa check general.rego aws.rego
+opa test general.rego aws.rego my_tests/
+opa eval --stdin-input --strict-builtin-errors -d general.rego \
+  -d aws.rego data.kumoss < input.json
 ----
 
 `input.json` is a document as described in
 xref:main:reference/compliance-policy.adoc#input[the input reference],
 for example a plan's `terraform show -json` wrapped in `{"plan": ...,
 "kumoss": ...}`. The tests in `core/tests/policies` show how to write
-`opa test` cases against the shipped rule.
+`opa test` cases against the shipped rules.
 
 == How prompts are composed into a system prompt
 
@@ -911,16 +957,27 @@ deployment reads: leave it unticked to try the version out under
 * Review every shipped prompt before relying on a deployment: naming
   conventions, security defaults, and compliance rules encode a policy,
   not yours.
-* Write the prohibitions your organization needs as Rego rules in
-  `general/policies/compliance`. No prompt lists forbidden actions any
-  more, and the shipped policy only denies standalone deletions.
+* Write the prohibitions your organization needs as Rego rules in the
+  compliance policies: `<provider>/policies/compliance` for a
+  provider's resources, `general/policies/compliance` for rules that
+  span providers. No prompt lists forbidden actions any more; the
+  shipped policies deny standalone deletions, removed customer-managed
+  keys and command execution, and three critical misconfigurations per
+  shipped provider (public ingress, admin grants and the like), nothing
+  else. Review them before relying on them.
 * Keep Langfuse reachable during core startups; seeding is part of the
   boot.
-* Keep the "No arbitrary command execution" section when you replace
-  the body of `general/guidelines/terraform`. It is the only instruction
-  that keeps `null_resource`, `provisioner` blocks, and
-  `data "external"` out of generated code, and nothing enforces it
-  outside the prompt, see
+* Do not restate a policy rule in a prompt; see <<compliance-policy>>.
+  Guidance the shipped prompts dropped along with those bans, and that
+  no policy checks (no secrets in user data, Owner or User Access
+  Administrator at narrower scopes, scoping other ingress to known
+  CIDRs, tags or security groups, the alternatives to service account
+  keys, credentials in the `vsphere` provider block, locking down the
+  OCI default security list, OCI delete-protection defaults), is now
+  checked by nothing: write it back into your own prompts, as a
+  default, if you need it. `null_resource`, provisioners and
+  `data "external"` are denied by the general policy's
+  `command_execution` rule only when the compliance check is on, see
   xref:main:guides/deploy-to-production.adoc[Deploy to production].
 * Decide who may edit prompts. Anyone with a role that can edit prompts
   in the Langfuse project can change what the agents generate; give

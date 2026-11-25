@@ -159,9 +159,9 @@ export interface ComplianceReport {
   violations?: ComplianceViolation[];
   summary?: string;
   checked_rules?: string[];
-  /** The Langfuse prompt version ("<name>@<version>") of the policy that
-   *  produced the OPA findings. */
-  policy_revision?: string | null;
+  /** The Langfuse prompt versions ("<name>@<version>") of the policies
+   *  that produced the OPA findings, the general policy first. */
+  policy_revisions?: string[];
 }
 
 // ─── Events ─────────────────────────────────────────────────

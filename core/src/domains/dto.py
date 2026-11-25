@@ -4,10 +4,10 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, ClassVar, Literal, Protocol
+from typing import Any, ClassVar, Literal, Protocol, cast
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from src.domains.value_objects.plan_ref import PlanRef
 from src.shared.constants import (
@@ -587,11 +587,12 @@ class ComplianceViolation(BaseModel):
 @dataclass(frozen=True)
 class PolicyDecision:
     """What the policy engine returned for one plan: its findings, every
-    rule it evaluated, and the policy version that produced them."""
+    rule it evaluated, and the versions of the policies that produced
+    them."""
 
     violations: list[ComplianceViolation]
     checked_rules: list[str]
-    revision: str | None
+    revisions: list[str]
 
 
 class ComplianceCheckReport(BaseModel):
@@ -599,9 +600,22 @@ class ComplianceCheckReport(BaseModel):
     violations: list[ComplianceViolation]
     summary: str
     checked_rules: list[str]
-    # The policy version the OPA findings came from, as Langfuse's
-    # "<prompt name>@<version>"; None when no policy ran.
-    policy_revision: str | None = None
+    # The policy versions the OPA findings came from, as Langfuse's
+    # "<prompt name>@<version>", the general policy first; empty when no
+    # policy ran.
+    policy_revisions: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _single_revision(cls, data: Any) -> Any:
+        """Reports stored when only the general policy existed carry one
+        ``policy_revision``."""
+        if isinstance(data, dict) and "policy_revisions" not in data:
+            fields = cast(dict[str, Any], data)
+            revision = fields.get("policy_revision")
+            if isinstance(revision, str):
+                return {**fields, "policy_revisions": [revision]}
+        return data
 
     @classmethod
     def empty(cls):
@@ -638,7 +652,7 @@ class ComplianceCheckReport(BaseModel):
             checked_rules=list(
                 dict.fromkeys([*policy.checked_rules, *audit.checked_rules])
             ),
-            policy_revision=policy.revision,
+            policy_revisions=policy.revisions,
         )
 
 

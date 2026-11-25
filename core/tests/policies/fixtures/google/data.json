@@ -1,0 +1,379 @@
+{
+  "plan": {
+    "format_version": "1.2",
+    "resource_changes": [
+      {
+        "address": "google_compute_firewall.ssh",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "allow": [
+              {
+                "ports": [
+                  "22",
+                  "443"
+                ],
+                "protocol": "tcp"
+              }
+            ],
+            "deletion_policy": "DELETE",
+            "deny": [],
+            "description": null,
+            "disabled": null,
+            "log_config": [],
+            "name": "ssh",
+            "network": "n",
+            "params": [],
+            "priority": 1000,
+            "project": "p",
+            "source_ranges": [
+              "0.0.0.0/0"
+            ],
+            "source_service_accounts": null,
+            "source_tags": null,
+            "target_service_accounts": null,
+            "target_tags": null,
+            "timeouts": null
+          },
+          "after_identity": {
+            "name": null,
+            "project": null
+          },
+          "after_sensitive": {
+            "allow": [
+              {
+                "ports": [
+                  false,
+                  false
+                ]
+              }
+            ],
+            "deny": [],
+            "destination_ranges": [],
+            "log_config": [],
+            "params": [],
+            "source_ranges": [
+              false
+            ]
+          },
+          "after_unknown": {
+            "allow": [
+              {
+                "ports": [
+                  false,
+                  false
+                ]
+              }
+            ],
+            "creation_timestamp": true,
+            "deny": [],
+            "destination_ranges": true,
+            "direction": true,
+            "enable_logging": true,
+            "id": true,
+            "log_config": [],
+            "params": [],
+            "self_link": true,
+            "source_ranges": [
+              false
+            ]
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "ssh",
+        "provider_name": "registry.terraform.io/hashicorp/google",
+        "type": "google_compute_firewall"
+      },
+      {
+        "address": "google_compute_firewall.web",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "allow": [
+              {
+                "ports": [
+                  "80",
+                  "443"
+                ],
+                "protocol": "tcp"
+              }
+            ],
+            "deletion_policy": "DELETE",
+            "deny": [],
+            "description": null,
+            "direction": "INGRESS",
+            "disabled": null,
+            "log_config": [],
+            "name": "web",
+            "network": "n",
+            "params": [],
+            "priority": 1000,
+            "project": "p",
+            "source_ranges": [
+              "0.0.0.0/0"
+            ],
+            "source_service_accounts": null,
+            "source_tags": null,
+            "target_service_accounts": null,
+            "target_tags": null,
+            "timeouts": null
+          },
+          "after_identity": {
+            "name": null,
+            "project": null
+          },
+          "after_sensitive": {
+            "allow": [
+              {
+                "ports": [
+                  false,
+                  false
+                ]
+              }
+            ],
+            "deny": [],
+            "destination_ranges": [],
+            "log_config": [],
+            "params": [],
+            "source_ranges": [
+              false
+            ]
+          },
+          "after_unknown": {
+            "allow": [
+              {
+                "ports": [
+                  false,
+                  false
+                ]
+              }
+            ],
+            "creation_timestamp": true,
+            "deny": [],
+            "destination_ranges": true,
+            "enable_logging": true,
+            "id": true,
+            "log_config": [],
+            "params": [],
+            "self_link": true,
+            "source_ranges": [
+              false
+            ]
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "web",
+        "provider_name": "registry.terraform.io/hashicorp/google",
+        "type": "google_compute_firewall"
+      },
+      {
+        "address": "google_compute_network_firewall_policy_rule.any",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "action": "allow",
+            "deletion_policy": "DELETE",
+            "description": null,
+            "direction": "INGRESS",
+            "disabled": null,
+            "enable_logging": null,
+            "firewall_policy": "fp",
+            "match": [
+              {
+                "dest_address_groups": null,
+                "dest_fqdns": null,
+                "dest_ip_ranges": null,
+                "dest_region_codes": null,
+                "dest_threat_intelligences": null,
+                "layer4_configs": [
+                  {
+                    "ip_protocol": "all",
+                    "ports": null
+                  }
+                ],
+                "src_address_groups": null,
+                "src_fqdns": null,
+                "src_ip_ranges": [
+                  "0.0.0.0/0"
+                ],
+                "src_networks": null,
+                "src_region_codes": null,
+                "src_secure_tags": [],
+                "src_threat_intelligences": null
+              }
+            ],
+            "priority": 1000,
+            "project": "p",
+            "rule_name": null,
+            "security_profile_group": null,
+            "target_forwarding_rules": null,
+            "target_secure_tags": [],
+            "target_service_accounts": null,
+            "timeouts": null,
+            "tls_inspect": null
+          },
+          "after_identity": {
+            "firewall_policy": null,
+            "priority": null,
+            "project": null
+          },
+          "after_sensitive": {
+            "match": [
+              {
+                "layer4_configs": [
+                  {}
+                ],
+                "src_ip_ranges": [
+                  false
+                ],
+                "src_secure_tags": []
+              }
+            ],
+            "target_secure_tags": []
+          },
+          "after_unknown": {
+            "creation_timestamp": true,
+            "id": true,
+            "kind": true,
+            "match": [
+              {
+                "dest_network_context": true,
+                "layer4_configs": [
+                  {}
+                ],
+                "src_ip_ranges": [
+                  false
+                ],
+                "src_network_context": true,
+                "src_secure_tags": []
+              }
+            ],
+            "rule_tuple_count": true,
+            "target_secure_tags": [],
+            "target_type": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "any",
+        "provider_name": "registry.terraform.io/hashicorp/google",
+        "type": "google_compute_network_firewall_policy_rule"
+      },
+      {
+        "address": "google_project_iam_binding.owner",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "condition": [],
+            "members": [
+              "serviceAccount:sa@p.iam.gserviceaccount.com",
+              "user:a@example.com"
+            ],
+            "project": "p",
+            "role": "roles/owner"
+          },
+          "after_sensitive": {
+            "condition": [],
+            "members": [
+              false,
+              false
+            ]
+          },
+          "after_unknown": {
+            "condition": [],
+            "etag": true,
+            "id": true,
+            "members": [
+              false,
+              false
+            ]
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "owner",
+        "provider_name": "registry.terraform.io/hashicorp/google",
+        "type": "google_project_iam_binding"
+      },
+      {
+        "address": "google_project_iam_member.editor",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "condition": [],
+            "member": "serviceAccount:sa@p.iam.gserviceaccount.com",
+            "project": "p",
+            "role": "roles/editor"
+          },
+          "after_sensitive": {
+            "condition": []
+          },
+          "after_unknown": {
+            "condition": [],
+            "etag": true,
+            "id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "editor",
+        "provider_name": "registry.terraform.io/hashicorp/google",
+        "type": "google_project_iam_member"
+      },
+      {
+        "address": "google_service_account_key.key",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "deletion_policy": "DELETE",
+            "keepers": null,
+            "private_key_type": "TYPE_GOOGLE_CREDENTIALS_FILE",
+            "public_key_data": null,
+            "public_key_type": "TYPE_X509_PEM_FILE",
+            "service_account_id": "projects/p/serviceAccounts/sa@p.iam.gserviceaccount.com"
+          },
+          "after_identity": {
+            "name": null
+          },
+          "after_sensitive": {
+            "private_key": true
+          },
+          "after_unknown": {
+            "id": true,
+            "name": true,
+            "private_key": true,
+            "public_key": true,
+            "valid_after": true,
+            "valid_before": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "key",
+        "provider_name": "registry.terraform.io/hashicorp/google",
+        "type": "google_service_account_key"
+      }
+    ],
+    "terraform_version": "1.16.0"
+  }
+}

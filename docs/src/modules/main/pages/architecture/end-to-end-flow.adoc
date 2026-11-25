@@ -232,8 +232,11 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.
 
 |Compliance policy
 |With `orchestration.enable_compliance_checker` on, the core first
-evaluates the Rego policy `general/policies/compliance` from Langfuse
-with OPA against the final plan's `show -json`, deterministically. Its
+evaluates the Rego policies from Langfuse with OPA against the final
+plan's `show -json`, deterministically: `general/policies/compliance`
+and the `<provider>/policies/compliance` of every provider the root
+module declares (a provider without one is skipped), in one
+evaluation. Its
 `deny` findings block; `warn` findings do not. A policy that cannot be
 evaluated yields a blocking `policy_unavailable` finding: the check
 fails closed. Contract:
@@ -542,7 +545,7 @@ fixed at two iterations).
 routers and use-case handlers; PostgreSQL session, ownership, status,
 `in_flight` and `is_blocked` controls; the git workspace service and the
 GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
-calculation (`plan_to_drift`, DeepDiff); the OPA compliance policy and
+calculation (`plan_to_drift`, DeepDiff); the OPA compliance policies and
 the code-computed compliance verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.
 
@@ -1051,14 +1054,17 @@ short-circuits to an empty passing report and stores nothing. The gate has
 no progress status of its own.
 
 |Policy
-|First, the core evaluates the Rego policy `general/policies/compliance`
-(fetched from Langfuse with the `environment` label) with the `opa` binary
-against the final plan's `show -json`. `deny` findings have severity
+|First, the core evaluates the Rego policies (fetched from Langfuse with
+the `environment` label) with one run of the `opa` binary against the
+final plan's `show -json`: `general/policies/compliance`, plus the
+`<provider>/policies/compliance` of each provider the root module
+declares that has one. `deny` findings have severity
 `error` or `critical`, `warn` findings `warning`. A policy that cannot be
 evaluated — fetch failure, broken policy, malformed decision, timeout —
 adds a blocking `policy_unavailable` finding instead, and the LLM audit
 still runs. With the checker on, the core refuses to start if the
-policy fails against an empty plan. Contract:
+general policy or the policy of a provider that ships a seed fails
+against an empty plan. Contract:
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
 |How it audits
@@ -1071,9 +1077,10 @@ sentinel `report_compliance_findings`, whose arguments — `rule_id`,
 parsed into a typed report. The rules are applied by the model; only the
 verdict is computed in code. The policy decision and the audit are then
 merged into one report: policy findings first (`source: "opa"`), then the
-model's (`source: "llm"`), with `policy_revision` naming the policy
-version that ran as `"<prompt name>@<version>"`, for example
-`general/policies/compliance@4`.
+model's (`source: "llm"`), with `policy_revisions` listing the policy
+versions that ran as `"<prompt name>@<version>"`, the general policy
+first, for example `["general/policies/compliance@3",
+"aws/policies/compliance@1"]`.
 
 |Persistence
 |The report is stored in object storage under the round, as

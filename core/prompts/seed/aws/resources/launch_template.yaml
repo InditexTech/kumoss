@@ -40,10 +40,6 @@ body: |
     (provider v6 validation), and never set the removed
     `elastic_gpu_specifications` or `elastic_inference_accelerator`
     blocks.
-  - Guest configuration only through `user_data`
-    (`base64encode(...)` of a script or cloud-init document); never
-    provisioners and never secrets in it. Read secrets from Secrets
-    Manager or SSM Parameter Store at boot.
   - `tag_specifications` for `instance` and `volume` with the
     standard tags plus a `Name` (`tags = merge(local.standard_tags,
     { Name = ... })`): provider `default_tags` do not reach instances

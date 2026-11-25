@@ -162,5 +162,15 @@ class TestSeedLoader(unittest.TestCase):
         self.assertIn("is empty", ctx.exception.message)
 
 
+class TestSeededPolicyProviders(unittest.TestCase):
+    def test_every_shipped_provider_policy_is_listed(self):
+        from src.infrastructure.templates.prompt_seeder import seeded_policy_providers
+
+        self.assertEqual(
+            seeded_policy_providers(),
+            ["aws", "azurerm", "google", "kubernetes", "oci", "vsphere"],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()

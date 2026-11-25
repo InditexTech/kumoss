@@ -29,9 +29,10 @@ class IPolicyEngine(ABC):
         """
 
     @abstractmethod
-    async def verify(self) -> None:
-        """Check that the engine and the current policy work, by evaluating
-        the policy against an empty plan.
+    async def verify(self, providers: Sequence[str]) -> None:
+        """Check that the engine and the current policies work, the general
+        one and those of ``providers``, by evaluating them against an empty
+        plan.
 
         Raises:
             PolicyEvaluationError: they do not.

@@ -48,6 +48,16 @@ def _body(scope: str, type_: str, name: str) -> str:
     return yaml.safe_load(path.read_text(encoding="utf-8"))["body"]
 
 
+def _policy_rules() -> dict[str, set[str]]:
+    """Each seeded policy's rule ids, read from the findings it builds."""
+    return {
+        path.parts[-3]: set(
+            re.findall(r'"rule_id": "([a-z0-9_]+)"', path.read_text(encoding="utf-8"))
+        )
+        for path in SEED_DIR.glob("*/policies/compliance.rego")
+    }
+
+
 def _names(scope: str, type_: str) -> set[str]:
     return {p.stem for p in (SEED_DIR / scope / type_).glob("*.yaml")}
 
@@ -88,12 +98,8 @@ class TestSeedCatalog(unittest.TestCase):
                 self.assertNotRegex(body, r"(?i)forbidden actions?\b")
 
     def test_policy_and_llm_rules_do_not_overlap(self):
-        # A rule enforced by the policy and audited by the LLM would be
-        # reported twice, possibly with different verdicts.
-        policy = (SEED_DIR / "general" / "policies" / "compliance.rego").read_text(
-            encoding="utf-8"
-        )
-        policy_rules = set(re.findall(r'^rules contains "([a-z0-9_]+)"', policy, re.M))
+        # A rule enforced by a policy and audited by the LLM, or by two
+        # policies, would be reported twice, possibly with different verdicts.
         llm_rules = set(
             re.findall(
                 r"^## ([a-z0-9_]+) \(severity:",
@@ -101,9 +107,34 @@ class TestSeedCatalog(unittest.TestCase):
                 re.M,
             )
         )
-        self.assertIn("critical_deletion", policy_rules)
         self.assertTrue(llm_rules)
-        self.assertEqual(policy_rules & llm_rules, set())
+        seen: dict[str, str] = {}
+        for scope, rules in _policy_rules().items():
+            with self.subTest(policy=scope):
+                self.assertTrue(rules)
+                self.assertEqual(rules & llm_rules, set())
+                for rule in rules:
+                    self.assertNotIn(rule, seen, f"also in {seen.get(rule)}")
+                    seen[rule] = scope
+        self.assertIn("critical_deletion", seen)
+
+    def test_provider_policies_use_their_provider_package(self):
+        policies = sorted((SEED_DIR).glob("*/policies/compliance.rego"))
+        self.assertEqual(
+            {p.parts[-3] for p in policies}, {"general", *SEEDED_PROVIDERS}
+        )
+        for path in policies:
+            scope = path.parts[-3]
+            expected = (
+                "kumoss.compliance"
+                if scope == "general"
+                else f"kumoss.providers.{scope}"
+            )
+            with self.subTest(policy=scope):
+                packages = re.findall(
+                    r"^package (\S+)$", path.read_text(encoding="utf-8"), re.M
+                )
+                self.assertEqual(packages, [expected])
 
     def test_existing_provider_pins_are_kept(self):
         # The seeds pin newer majors than earlier releases did, and `init`

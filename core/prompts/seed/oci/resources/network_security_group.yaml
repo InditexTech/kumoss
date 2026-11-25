@@ -23,5 +23,4 @@ body: |
     restrictive egress.
   - Ingress: deny all by default. Only open specific ports from
     specific sources.
-  - Never open 0.0.0.0/0 ingress on ports other than 80 and 443.
   - Maximum 5 NSGs per VNIC — plan grouping carefully.

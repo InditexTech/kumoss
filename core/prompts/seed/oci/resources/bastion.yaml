@@ -16,8 +16,6 @@ body: |
   - Create an `oci_bastion_bastion` with `bastion_type =
     "standard"` and `target_subnet_id` = the private subnet of the
     targets. No public subnet or public IP is needed.
-  - `client_cidr_block_allow_list`: only the corporate or VPN egress
-    CIDRs, passed as a variable. Never `0.0.0.0/0`.
   - `max_session_ttl_in_seconds`: 3600 for production, at most
     10800 (the service maximum).
   - Allow SSH (TCP 22) to the targets only from the bastion's

@@ -27,9 +27,6 @@ body: |
     the endpoint to `0.0.0.0/0`.
   - Release channel `REGULAR` (balanced between stability and
     features). Use `RAPID` for non-production only on request.
-  - Workload Identity Federation for GKE is always on in Autopilot:
-    pods authenticate to Google Cloud APIs through Kubernetes service
-    accounts — never mount service account keys.
   - Run nodes as a dedicated, minimal service account with
     `roles/container.defaultNodeServiceAccount`, set through
     `cluster_autoscaling.auto_provisioning_defaults.service_account`
