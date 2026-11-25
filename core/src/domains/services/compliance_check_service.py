@@ -114,5 +114,5 @@ class ComplianceCheckService:
                 )
             ],
             checked_rules=[],
-            revision=None,
+            revisions=[],
         )

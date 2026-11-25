@@ -24,7 +24,10 @@ from src.infrastructure.redis import redis_client
 from src.infrastructure.filesystem import configure_git_credentials
 from src.infrastructure.storage import default_object_storage, terraform_state_storage
 from src.infrastructure.telemetry._initializer import shutdown_tracer_provider
-from src.infrastructure.templates.prompt_seeder import build_default_seeder
+from src.infrastructure.templates.prompt_seeder import (
+    build_default_seeder,
+    seeded_policy_providers,
+)
 from src.infrastructure.policy import OpaPolicyEngine
 from src.shared.config.system_config import system_config
 from src.shared.logger import logging
@@ -70,8 +73,11 @@ async def lifespan(app: FastAPI):
         # Every generate round evaluates the policy: refuse to start rather
         # than block each round on a missing binary or a broken policy.
         try:
-            await OpaPolicyEngine().verify()
-            logging.info("Compliance policy verified")
+            providers = seeded_policy_providers()
+            await OpaPolicyEngine().verify(providers)
+            logging.info(
+                f"Compliance policies verified (general, {', '.join(providers)})"
+            )
         except Exception as e:
             logging.error(f"Compliance policy check failed: {e}")
             raise

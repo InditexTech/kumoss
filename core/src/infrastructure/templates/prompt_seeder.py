@@ -253,11 +253,23 @@ def _refusal(e: httpx.HTTPStatusError) -> str:
     return f"Langfuse probe failed: {e}"
 
 
-def build_default_seeder() -> PromptSeeder:
-    """Factory for the application-default seeder.
+def default_seed_dir() -> Path:
+    """The shipped seed directory, resolved relative to this file so the
+    path is stable regardless of the process's current working directory."""
+    return Path(__file__).resolve().parents[3] / "prompts" / "seed"
 
-    Resolves the seed directory relative to this file so the path is stable
-    regardless of the process's current working directory.
-    """
-    seed_dir = Path(__file__).resolve().parents[3] / "prompts" / "seed"
-    return PromptSeeder(seed_dir=seed_dir, prompts=default_client())
+
+def build_default_seeder() -> PromptSeeder:
+    """Factory for the application-default seeder."""
+    return PromptSeeder(seed_dir=default_seed_dir(), prompts=default_client())
+
+
+def seeded_policy_providers() -> list[str]:
+    """The providers that ship a compliance policy seed."""
+    return sorted(
+        {
+            entry.scope
+            for entry in SeedLoader(default_seed_dir()).load()
+            if entry.type == "policies" and entry.scope != "general"
+        }
+    )
