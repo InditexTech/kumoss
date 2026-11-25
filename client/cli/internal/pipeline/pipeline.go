@@ -120,6 +120,13 @@ func RunPipeline(ctx context.Context, opts Options) error {
 	// reason to stop: the fields just stay blank.
 	opts.UI.SetDefaults(configDoc(opts.Home.ConfigYAML()))
 
+	// Seed the secrets a form asks for from the files an earlier run wrote,
+	// before the forms open. Fill below does this for the generated tokens,
+	// but it runs after the wizard: the storage console keys are typed, so
+	// their boxes would open on the container default and re-confirming one
+	// would reset a key that was already changed.
+	seedAskedSecrets(s, envPaths(opts.Home))
+
 	// Collect answers. ModeKeep skips the forms entirely.
 	if err := opts.UI.Configure(mode, s); err != nil {
 		return err
@@ -188,6 +195,14 @@ func RunPipeline(ctx context.Context, opts Options) error {
 				return err
 			}
 		}
+		// The console block hands object-storage its own credential file, so
+		// write it whenever the console is on — even if the override above was
+		// kept, since a hand-edited override may still reference it.
+		if s.Storage.ConsoleEnabled {
+			if err := render.WriteObjectStorageEnv(opts.Home.ObjectStorageEnv(), s); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Pull and start. The recreate is what makes a reconfigure take effect:
@@ -211,7 +226,7 @@ func RunPipeline(ctx context.Context, opts Options) error {
 		// In the foreground the logs own the terminal until Ctrl-C, so there is
 		// no moment to print the URLs.
 		if !opts.Foreground {
-			fmt.Fprint(out, stackURLs)
+			fmt.Fprint(out, stackURLs(s))
 		}
 	}
 
@@ -221,11 +236,31 @@ func RunPipeline(ctx context.Context, opts Options) error {
 // stackURLs are where a browser reaches the stack once `up` returns. Host
 // paths, because the containers expose their ports only inside the compose
 // network; the proxy publishes them.
-var stackURLs = `Kumoss is up:
-  app        http://localhost/
-  RustFS API http://localhost:9000
-  Phoenix    http://localhost/monitoring/
-`
+//
+// The S3 API on 9000 is not listed: it is what the core talks to, not
+// something to open in a browser. The console is, when it is enabled.
+func stackURLs(s *state.State) string {
+	out := "Kumoss is up:\n  app            http://localhost/\n"
+	if s.Storage.ConsoleEnabled {
+		out += "  RustFS console http://localhost:9001/rustfs/console/\n"
+	}
+	return out + "  Phoenix        http://localhost/monitoring/\n"
+}
+
+// seedAskedSecrets pre-fills the secrets the wizard asks for rather than
+// generates, so their forms open on what is already installed.
+func seedAskedSecrets(s *state.State, paths render.EnvPaths) {
+	existing, found := render.LoadSecrets(paths)
+	if !found {
+		return
+	}
+	if s.Secrets.RustFSAccessKey == "" {
+		s.Secrets.RustFSAccessKey = existing.RustFSAccessKey
+	}
+	if s.Secrets.RustFSSecretKey == "" {
+		s.Secrets.RustFSSecretKey = existing.RustFSSecretKey
+	}
+}
 
 // configDoc parses the installed config.yaml for the wizard's defaults, or nil
 // when it is missing or unreadable.
@@ -336,7 +371,14 @@ func dryRun(ctx context.Context, opts Options) error {
 			return err
 		}
 	}
-	return printSection(out, opts.Home.ComposeOverride(), override)
+	if err := printSection(out, opts.Home.ComposeOverride(), override); err != nil {
+		return err
+	}
+	if !s.Storage.ConsoleEnabled {
+		return nil
+	}
+	return printSection(out, opts.Home.ObjectStorageEnv(),
+		render.RenderEnvFile(render.ObjectStorageEnvVars(s)))
 }
 
 // printSection prints one would-be file, its content indented so a multi-line
@@ -394,6 +436,7 @@ func renderCompose(h home.Home, s *state.State, hostCerts bool) ([]byte, error) 
 		ConfigPath: "../config/config.yaml",
 		HostCerts:  hostCerts,
 		Mounts:     iacMounts(h, s),
+		Console:    s.Storage.ConsoleEnabled,
 	}).Render()
 }
 

@@ -168,6 +168,13 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	if err := env.Write(paths, s); err != nil {
 		return err
 	}
+	// The console block in the override points at this file, so it has to
+	// exist before the containers come back up.
+	if s.Storage.ConsoleEnabled {
+		if err := render.WriteObjectStorageEnv(opts.Home.ObjectStorageEnv(), s); err != nil {
+			return err
+		}
+	}
 	if string(overrideBefore) != string(overrideAfter) {
 		// Only when the mounts changed: the override may hold host-certs
 		// wiring this command never asked about, and rewriting it wholesale

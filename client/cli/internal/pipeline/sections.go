@@ -42,7 +42,9 @@ var Sections = []Section{
 	{Name: "git", Services: []string{"core"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Git(s) }},
 	{Name: "cloud", Services: []string{"iac"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Cloud(s) }},
 	{Name: "engine", Services: []string{"iac"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Engine(s) }},
-	{Name: "state", Services: []string{"core", "iac"}, Ask: func(ui SectionUI, s *state.State) error { return ui.State(s) }},
+	// object-storage too: the console answer changes that service's own
+	// definition, not just what core and iac read.
+	{Name: "state", Services: []string{"core", "iac", "object-storage"}, Ask: func(ui SectionUI, s *state.State) error { return ui.State(s) }},
 	{Name: "notifications", Services: []string{"core", "notifications"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Notifications(s) }},
 	{Name: "secrets", Services: []string{"core", "iac", "notifications"}, Ask: rotateSecrets},
 }

@@ -6,6 +6,7 @@ package pipeline
 
 import (
 	"context"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -349,10 +350,39 @@ func TestRunPipelinePrintsTheURLsAfterStarting(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("RunPipeline: %v", err)
 	}
-	for _, want := range []string{"http://localhost/", "http://localhost:9000", "http://localhost/monitoring/"} {
+	for _, want := range []string{"http://localhost/", "http://localhost/monitoring/"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %s:\n%s", want, out.String())
 		}
+	}
+	// The S3 API is what the core talks to, not an address to open: listing it
+	// only ever sent people to a page that means nothing to them.
+	if strings.Contains(out.String(), "localhost:9000") {
+		t.Errorf("output still advertises the S3 API:\n%s", out.String())
+	}
+	// The console is off in this state, so its line must not appear either.
+	if strings.Contains(out.String(), "console") {
+		t.Errorf("output advertises a console that is not enabled:\n%s", out.String())
+	}
+}
+
+// With the console on, its address is the one worth printing.
+func TestRunPipelinePrintsTheConsoleWhenEnabled(t *testing.T) {
+	h, st := configured(t)
+	st.Storage.ConsoleEnabled = true
+	if err := state.Save(h.StateFile(), st); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	out := &strings.Builder{}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep, run: true}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if !strings.Contains(out.String(), "http://localhost:9001/rustfs/console/") {
+		t.Errorf("output lacks the console address:\n%s", out.String())
 	}
 }
 
@@ -392,4 +422,63 @@ func TestIACMountsResolveAgainstTheComposeProjectDir(t *testing.T) {
 	if got := filepath.Clean(filepath.Join(h.SrcDir(), mounts[0].Source)); got != filepath.Join(keyDir, "sa.json") {
 		t.Errorf("mount %q resolves to %s, want the key file", mounts[0].Source, got)
 	}
+}
+
+// A console key set on an earlier run must survive a reconfigure where the
+// user just walks past the form: it is seeded from the existing .env, so
+// pressing enter re-confirms it rather than resetting it to the default.
+func TestRunPipelineKeepsACustomConsoleKeyOnReconfigure(t *testing.T) {
+	h, st := configured(t)
+	st.Storage.Model = "bundled"
+	st.Storage.ConsoleEnabled = true
+	if err := state.Save(h.StateFile(), st); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	// What a previous run left behind.
+	write(t, h.CoreEnv(), "RUSTFS_ACCESS_KEY=mine\nRUSTFS_SECRET_KEY=mysecret\nKUMOSS_IAC_TOKEN=shared-iac\n")
+
+	// The wizard accepts whatever it was seeded with, as pressing enter does.
+	ui := &seedEchoUI{stubUI: stubUI{mode: tui.ModeReconfigure, run: false}}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: ui, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      io.Discard, Warn: io.Discard,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	raw, err := os.ReadFile(h.ObjectStorageEnv())
+	if err != nil {
+		t.Fatalf("object-storage.env: %v", err)
+	}
+	if !strings.Contains(string(raw), "RUSTFS_ACCESS_KEY=mine") {
+		t.Errorf("the custom access key was reset:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "RUSTFS_SECRET_KEY=mysecret") {
+		t.Errorf("the custom secret key was reset:\n%s", raw)
+	}
+}
+
+// seedEchoUI leaves the secrets exactly as the pipeline seeded them, which is
+// what the real forms do when the user presses enter on a pre-filled box.
+type seedEchoUI struct {
+	stubUI
+	seeded state.Secrets
+}
+
+func (u *seedEchoUI) Configure(_ tui.Mode, s *state.State) error {
+	u.seeded = s.Secrets
+	s.Storage.Model = "bundled"
+	s.Storage.ConsoleEnabled = true
+	// What storageConsoleKeysStep does: seed the box from the state, fall back
+	// to the container default, and commit whatever the box ends up holding.
+	seed := func(v string) string {
+		if v == "" {
+			return "rustfsadmin"
+		}
+		return v
+	}
+	s.Secrets.RustFSAccessKey = seed(s.Secrets.RustFSAccessKey)
+	s.Secrets.RustFSSecretKey = seed(s.Secrets.RustFSSecretKey)
+	return nil
 }

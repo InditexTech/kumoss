@@ -303,11 +303,12 @@ func TestDiffReportNamesUnchangedFiles(t *testing.T) {
 // service name would silently recreate nothing.
 func TestSectionsMapToTheContainersThatReadThem(t *testing.T) {
 	want := map[string]string{
-		"llm":           "core",
-		"git":           "core",
-		"cloud":         "iac",
-		"engine":        "iac",
-		"state":         "core iac",
+		"llm":    "core",
+		"git":    "core",
+		"cloud":  "iac",
+		"engine": "iac",
+		// object-storage: the console answer changes its own definition.
+		"state":         "core iac object-storage",
 		"notifications": "core notifications",
 		"secrets":       "core iac notifications",
 	}
@@ -434,4 +435,39 @@ func TestConfigSkipsRecreateWithoutAComposeFile(t *testing.T) {
 	if !strings.Contains(out.String(), "recreated") {
 		t.Errorf("RunConfig did not report the write: %q", out.String())
 	}
+}
+
+// Enabling the console from `kumoss config state` has to write the container's
+// credential file too, or the override references a file that is not there.
+func TestRunConfigWritesTheObjectStorageEnv(t *testing.T) {
+	h, st := configured(t)
+	if err := state.Save(h.StateFile(), st); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	ui := &consoleSection{}
+	if err := RunConfig(context.Background(), ConfigOptions{
+		Home: h, Section: "state", UI: ui, Docker: &stubDocker{},
+		Out: io.Discard, Warn: io.Discard,
+	}); err != nil {
+		t.Fatalf("RunConfig: %v", err)
+	}
+
+	raw, err := os.ReadFile(h.ObjectStorageEnv())
+	if err != nil {
+		t.Fatalf("object-storage.env was not written: %v", err)
+	}
+	if !strings.Contains(string(raw), "RUSTFS_ACCESS_KEY=ak") {
+		t.Errorf("object-storage.env lacks the console key:\n%s", raw)
+	}
+}
+
+// consoleSection is a UI whose state section turns the console on.
+type consoleSection struct{ stubSection }
+
+func (consoleSection) State(s *state.State) error {
+	s.Storage.Model = "bundled"
+	s.Storage.ConsoleEnabled = true
+	s.Secrets.RustFSAccessKey = "ak"
+	s.Secrets.RustFSSecretKey = "sk"
+	return nil
 }
