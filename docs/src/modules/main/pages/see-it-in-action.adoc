@@ -95,7 +95,7 @@ storage account. Kumoss flags the change as high impact.
 |**Deployment blocked.** The deletion breaks policy, so the session is
 locked and apply is refused, whoever asks. The platform team is
 notified.
-|xref:main:guides/merge-and-apply.adoc#session-locked[If the session is locked]
+|xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked session]
 
 |3:27
 |**Humans approve.** An administrator with the editor role reviews the

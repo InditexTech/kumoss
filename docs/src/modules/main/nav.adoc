@@ -15,6 +15,7 @@
 * xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
 * xref:main:guides/follow-a-session.adoc[Follow a session]
 * xref:main:guides/merge-and-apply.adoc[Merge and apply]
+* xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked session]
 * xref:main:guides/remediate-drift.adoc[Remediate drift]
 * xref:main:guides/import-infrastructure.adoc[Import infrastructure]
 * xref:main:guides/enable-authentication.adoc[Enable authentication]

@@ -27,7 +27,11 @@ Track progress and read the plan, code, and report.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc[Merge and apply]
-Handle a session lock, then open, merge, and apply the pull request.
+Open, merge, and apply the pull request of a session.
+
+[card]
+.xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked session]
+Find out why a session is locked and get it unlocked.
 
 [card]
 .xref:main:guides/remediate-drift.adoc[Remediate drift]

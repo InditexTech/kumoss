@@ -19,8 +19,10 @@ Kumoss does today.
 == How to read the roadmap
 
 The initiatives are grouped into seven themes. Each initiative carries
-one of two statuses:
+one of three statuses:
 
+* label:green[Done]: the initiative has shipped and is documented; the
+  section links to its documentation.
 * label:blue[In progress]: active development is under way.
 * label:grey[Planned]: the initiative is accepted into the roadmap, and
   work has not started.
@@ -55,7 +57,7 @@ indicate priority.
 |<<multiproject,Multiproject requests>>
 |label:grey[Planned]
 
-.4+|<<quality-and-governance,Quality and governance>>
+.5+|<<quality-and-governance,Quality and governance>>
 |<<evaluation-harness,Evaluation harness and automated testing>>
 |label:grey[Planned]
 
@@ -63,7 +65,10 @@ indicate priority.
 |label:grey[Planned]
 
 |<<opa,Policy as code with Open Policy Agent>>
-|label:blue[In progress]
+|label:green[Done]
+
+|<<policy-bundles,Policy bundles and self-repair>>
+|label:grey[Planned]
 
 |<<governance-overview,Multicloud governance overview>>
 |label:grey[Planned]
@@ -87,7 +92,7 @@ indicate priority.
 
 .2+|<<deployment-and-adoption,Deployment and adoption>>
 |<<helm-chart,Helm chart for Kubernetes>>
-|label:blue[In progress]
+|label:green[Done]
 
 |<<installation-wizard,Installation wizard>>
 |label:blue[In progress]
@@ -211,13 +216,19 @@ removed customer-managed keys, command execution) and one warning
 (credential outputs not marked sensitive), and one
 per provider, evaluated when a module declares that provider and
 shipped for AWS, Azure, Google Cloud, Kubernetes, OCI and vSphere with
-three rules each; see
-xref:main:reference/compliance-policy.adoc[Compliance policy].
+three rules each. A deny, or a policy that cannot be evaluated, locks
+the session; see
+xref:main:reference/compliance-policy.adoc[Compliance policy] and
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session].
 
-Still to come: loading policy bundles an organization already maintains
-outside Kumoss, and feeding denies back into
-the generate-and-validate loop so the model can repair the code before
-the round is locked.
+[#policy-bundles]
+=== Policy bundles and self-repair
+
+Kumoss will load the policy bundles an organization already maintains
+outside Kumoss, and feed policy denies back into the
+generate-and-validate loop, so the model can repair the code before the
+round is locked.
 
 [#governance-overview]
 === Multicloud governance overview

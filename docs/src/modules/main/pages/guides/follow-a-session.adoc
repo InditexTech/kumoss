@@ -1,151 +1,184 @@
 = Follow a session
-:description: Track a Kumoss session's progress and read the results it produces.
+:description: Track a Kumoss session's progress, read the report, plan, and code it produces, and come back to it later.
 
-After you submit a request, Kumoss takes you to the progress screen. This
-guide covers what happens while a session runs, what a declined or
-answered round looks like, how to read the results, and how to come back
-to a session later.
+After you submit a request, Kumoss takes you to the progress screen and,
+when the round finishes, to the results. This guide shows what each
+stage means, how to read the results, and how to return to a session.
 
 == Prerequisites
 
 * A session opened by following xref:main:guides/make-a-request.adoc[Make
   a request].
 
-== Progress stages
+[#progress]
+== Watch the progress
 
-The progress screen shows an assistant animation, a progress bar, and one
-short first-person status sentence at a time, such as what is being
-generated or which validation error is being fixed. Progress moves through
-these stages:
+The progress screen shows an assistant animation, a progress bar, and
+one short status sentence at a time, such as what is being generated or
+which validation error is being fixed. A round moves through these
+stages:
 
 [cols="1,3,1",options="header"]
 |===
 |Stage |What Kumoss is doing |Typical duration
 
 |Filtering
-|Reading and classifying your request
+|Reading and classifying your request.
 |Seconds
 
 |Generating
-|Writing or editing Terraform files and pushing them to the session branch
+|Writing or editing Terraform files and pushing them to the session
+branch.
 |Minutes
 
 |Validating
-|Running `init`, `validate`, and `plan` in the engine; feeding errors back
-to the generator (up to eight attempts). The drift pre-check on the touched
-to the generator (up to eight attempts). The drift pre-check on the touched
-Generating and Validating stages again, before the report starts
+|Running `init`, `validate`, and `plan` in the engine, and feeding any
+errors back to the generator. A drift check on the touched resources
+runs here too, which can cycle through Generating and Validating again.
 |Minutes; longer for large roots
 
 |Report
-|Writing the report and, when enabled, running the compliance audit
+|Writing the report and, when enabled, running the compliance check.
 |Minutes
 |===
 
-A session is bounded: eight generate-and-validate attempts, then a drift
-check of at most two passes, then the report.
-("Pipeline completed", "Request rejected", "Session blocked", "Pipeline
-failed") can be enabled from the *Configuration* icon in the header.
+You can close the tab: the session continues on the server, and you can
+reopen it later as described in <<return>>. To be told when a round
+ends, turn on browser notifications from the *Configuration* icon in the
+header.
 
-You can close the tab. The session continues on the server; reopen it from
-the *Sessions* panel in the footer or from your user page.
+NOTE: The number of generate-and-validate attempts is limited by
+`orchestration.max_validation_iteration`, five in the shipped
+`config.yaml`. See xref:main:reference/configuration.adoc[Configuration].
 
-*If it fails.* The round is marked failed with a reason: most often
-"runner failed: Validation loop exceeded." when the engine kept rejecting
-the code after eight attempts, or an engine or repository error. A failed
-session cannot be resumed ("This session failed and can't be resumed");
-start a new one, usually with a more specific request. Long inactivity
-shows "Connection timed out — no response from server"; reload the page
-and open the session from the footer.
+[#results]
+== Read the results
 
-*If your login expires* you see "Your session has expired. Please sign in
-again." The Kumoss session keeps running; sign in and reopen it.
+The results screen has the chat on the left and three tabs on the
+right: *Plan*, *Code*, and *Report*. It opens on *Report*.
 
-== When the request is declined or answered
+A reading order that works: the impact level first, then the *Deleted*
+and *Recreated* filters of the changes table, then the plan for anything
+you do not expect, and the cost last.
 
-You are taken to the results screen with the chat on the left. The
-filter's explanation, or the answer to your question, is the last
-assistant message. Nothing was changed and no branch was pushed for that
-round. Type a new request in "Ask a follow-up question..." to continue in
-the same session; earlier rounds' results stay visible on the right.
+[#report-tab]
+=== Report tab
 
-== Reading the results
+Kumoss's summary of the plan, in four parts:
 
-The results screen has the chat on the left and a panel with three tabs on
-the right.
+* *Execution Summary*: a paragraph describing the change.
+* *Potential Impact*: *Low Impact*, *Medium Impact*, or *High Impact*,
+  with a description. Choose the card for the status, the description,
+  and detail bullets. With the default criteria, high means destructive
+  actions, restarts, downtime, or critical networking changes; medium
+  means configuration updates that change behavior without guaranteed
+  downtime; low means isolated new resources or non-disruptive updates
+  such as tags or locks. Depending on your deployment, a high impact
+  locks the session; see
+  xref:main:guides/resolve-a-locked-session.adoc#high-impact[High impact].
+* *Estimated Cost*: a monthly figure, and the derived hourly one, for
+  resources with a fixed price. Usage-based and free resources appear in
+  the breakdown as "Usage-based" or "Free" and are left out of the total.
+  Treat the figure as an approximation for comparison, not as a quote.
+* *Changes table*: filter by *All*, *Created*, *Updated*, *Deleted*, or
+  *Recreated*. Each row names a resource with a short note; choose it
+  for the description and the raw plan detail.
 
-*Plan tab.* The engine's plan text as produced by `plan`. This is the
-authoritative description of what would change.
+.The Report tab of a generate round that adds a private storage account: a medium impact, an estimated fixed cost of $7.30 a month, three created resources, and one updated subnet
+image::session-report.png[Report tab with the Execution Summary, a Medium Impact card, an Estimated Cost of $7.30 per month, and a changes table listing three Create rows and one Update row,width=640,link=self]
 
-*Code tab.* Every file the session has created or modified so far,
-across rounds, as diffs.
+Drift and import rounds produce a different report; see
+xref:main:guides/remediate-drift.adoc#drift-report[Read the drift report]
+and xref:main:guides/import-infrastructure.adoc[Import infrastructure].
 
-*Report tab.* Kumoss's summary of the plan:
+[#plan-tab]
+=== Plan tab
 
-* *Execution Summary.* A paragraph describing the change.
-* *Potential Impact.* One of *Low Impact*, *Medium Impact*, or *High
-  Impact*, with a description. With the default criteria, high means
-  destructive actions, restarts, downtime, or critical networking changes;
-  medium means significant configuration updates that change behavior
-  without guaranteed downtime; low means isolated new resources or
-  non-disruptive updates such as tags or locks. Click the card for the
-  status, description, and detail bullets.
-* *Estimated Cost.* A monthly figure (and the derived hourly figure) for
-  resources with a *fixed* price. Usage-based and free resources are
-  listed in the breakdown as "Usage-based" or "Free" and are not included
-  in the total. Treat the figure as an approximation for comparison, not
-  as a quote; prices come from public pricing pages at generation time.
-* *Changes table.* Filter by *All*, *Created*, *Updated*, *Deleted*,
-  *Recreated*. Each row names the resource with a short note; click it for
-  the description and the raw plan detail.
+The plan text exactly as the engine produced it. This is the
+authoritative description of what would change: when the report and the
+plan disagree, the plan is right.
 
-For drift sessions the report shows a *Drift Summary*, an outcome
-(Succeeded, Partial, Failed), and a *Remediated Resources* list with the
-file, the change, and the reason for each. Two further sections appear
-only when the round left drift behind, and they mean different things:
+[#code-tab]
+=== Code tab
 
-* *Drift Not Reconciled.* Drift Kumoss could *not* fix — the remediation
-  ran out of iterations, or the drift could not be read at all. Each
-  entry gives the reason and what still differs. This is what makes an
-  outcome *Partial*; act on it.
-* *Left Alone by Exception Rules.* Drift Kumoss deliberately did not
-  touch, because one of your platform's drift exception rules covers it.
-  Each entry names the change and quotes the rule. This is the intended
-  behaviour and does not lower the outcome, so a report can say
-  *Succeeded* and still list entries here.
+Every file the session has created or modified so far, across rounds,
+as diffs.
 
-*What you do not see.* The compliance audit that runs after the report
-produces rule-level findings, but they are not displayed in the
-application. If the audit fails you see its consequence, the lock (see
-xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
-locked]), and the reviewers who receive the notification see the summary.
-Ask your reviewer or platform team for the details.
+[#compliance-findings]
+=== Compliance findings
 
-*Reading order that works.* Impact level first, then the Deleted and
-Recreated filters, then the plan for anything you do not expect, then the
-cost.
+When the compliance check runs, its findings are stored as the round's
+*Compliance Check* artifact in the session details: a summary, each
+violation with its severity, rule id, and resource, and the rules that
+passed. Findings from the compliance policy carry a *policy* badge. When
+a finding locks the session, the same findings appear under *Why* on the
+*Deployment Blocked* screen; see
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session].
 
+[#return]
 == Return to a session later
 
-* *Footer.* On the start screen, the *Sessions* panel lists your most
+You can reopen a session from three places:
+
+* *Footer*: on the start screen, the *Sessions* panel lists your most
   recent sessions with date, request, and project. *View all* opens the
   full list.
-* *User page* (the user icon in the header). *Profile* (name, e-mail, *Log
-  out*), *Session History* with *View all sessions*, and, for reviewers,
+* *User page*: the user icon in the header shows your profile, your
+  *Session History* with *View all sessions*, and, for reviewers, the
   *Admin Panel*.
-* *Your sessions list.* Search by project, request text, or session id;
-  filter by type and status. Open a row for the timeline of rounds, the
-  statuses, the artifacts (report, plan, changed files, viewed inline),
-  the session id, path, the root module's providers and their scopes,
-  the repository link, and pull request links.
-  *Reload Session* reopens it in the wizard so you can create the pull
-  request, apply, or continue the conversation. Failed sessions cannot be
-  reloaded.
+* *Your sessions list*: search by project, request text, or session id,
+  and filter by type and status.
 
-Only you and reviewers with a panel role can see your sessions. Nobody
-else can act on them.
+Open a row in the sessions list for the session's details: the timeline
+of rounds and statuses, the artifacts (report, plan, compliance check,
+and changed files, viewed inline), the session id, path, providers and
+their scopes, and the repository and pull request links.
+
+To continue, choose *Reload Session*. It reopens the session in the
+wizard, where you can create the pull request, apply, or send a
+follow-up request. Failed sessions cannot be reloaded.
+
+Only you and reviewers with a panel role can see your sessions, and
+nobody else can act on them.
+
+[#troubleshooting]
+== If something goes wrong
+
+[#declined]
+=== The request is declined or answered
+
+You are taken to the results screen, and the filter's explanation, or
+the answer to your question, is the last message in the chat. Nothing
+was changed and nothing was pushed for that round. To continue in the
+same session, type a new request in "Ask a follow-up question...";
+earlier rounds' results stay visible on the right.
+
+[#failed]
+=== The session fails
+
+The round is marked failed with a reason. The most common is "runner
+failed: Validation loop exceeded.": the engine kept rejecting the code
+after the last attempt. Other reasons name an engine or repository
+error. A failed session cannot be resumed ("This session failed and
+can't be resumed"); start a new one, usually with a more specific
+request.
+
+=== The connection times out
+
+After long inactivity you see "Connection timed out — no response from
+server". Reload the page and reopen the session from the footer.
+
+=== Your login expires
+
+You see "Your session has expired. Please sign in again." Your Kumoss
+session keeps running on the server; sign in and reopen it.
 
 == Next steps
 
 * xref:main:guides/merge-and-apply.adoc[Merge and apply] once you are
   ready to act on the results.
+* xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+  session] if the round locked the session.
+* xref:main:guides/make-a-request.adoc[Make a request] to phrase a
+  follow-up request that the filter accepts.
