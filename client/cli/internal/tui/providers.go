@@ -12,11 +12,15 @@ import (
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
 )
 
-// credential is one masked field. Name is the ENV-VAR NAME it is written
-// under — the credential maps are keyed by variable, not by provider.
+// credential is one field of a provider's form. Name is the ENV-VAR NAME it is
+// written under — the credential maps are keyed by variable, not by provider.
+//
+// Secret masks the input. Only a real credential is masked: a project id, a
+// region or an API base must stay readable while it is typed.
 type credential struct {
-	Name  string
-	Title string
+	Name   string
+	Title  string
+	Secret bool
 }
 
 // optionalCredentials are the variables whose own Title above calls a blank
@@ -57,75 +61,75 @@ var llmProviders = []llmProvider{
 	{
 		Name: "Anthropic", Prefix: "anthropic",
 		DefaultModel: "anthropic/claude-sonnet-5-5", DefaultSmallModel: "anthropic/claude-haiku-5-5",
-		Credentials: []credential{{"ANTHROPIC_API_KEY", "Anthropic API key"}},
+		Credentials: []credential{{"ANTHROPIC_API_KEY", "Anthropic API key", true}},
 	},
 	{
 		Name: "Google Vertex AI", Prefix: "vertex_ai",
 		DefaultModel: "vertex_ai/claude-sonnet-5-5", DefaultSmallModel: "vertex_ai/gemini-3.8-flash",
 		Credentials: []credential{
-			{"VERTEXAI_PROJECT", "Vertex AI project id"},
-			{"VERTEXAI_LOCATION", "Vertex AI region (e.g. europe-west1)"},
-			{"VERTEXAI_CREDENTIALS", "Service-account key JSON (blank = Application Default Credentials)"},
+			{"VERTEXAI_PROJECT", "Vertex AI project id", false},
+			{"VERTEXAI_LOCATION", "Vertex AI region (e.g. europe-west1)", false},
+			{"VERTEXAI_CREDENTIALS", "Service-account key JSON (blank = Application Default Credentials)", true},
 		},
 	},
 	{
 		Name: "Google AI Studio", Prefix: "gemini",
 		DefaultModel: "gemini/gemini-3.7-pro", DefaultSmallModel: "gemini/gemini-3.7-flash",
-		Credentials: []credential{{"GEMINI_API_KEY", "Gemini API key"}},
+		Credentials: []credential{{"GEMINI_API_KEY", "Gemini API key", true}},
 	},
 	{
 		Name: "OpenAI", Prefix: "openai",
 		DefaultModel: "openai/gpt-5", DefaultSmallModel: "openai/gpt-5-mini",
 		Credentials: []credential{
-			{"OPENAI_API_KEY", "OpenAI API key"},
-			{"OPENAI_API_BASE", "API base; blank means the default https://api.openai.com/v1. Point it at your server for LM Studio/LocalAI."},
+			{"OPENAI_API_KEY", "OpenAI API key", true},
+			{"OPENAI_API_BASE", "API base; blank means the default https://api.openai.com/v1. Point it at your server for LM Studio/LocalAI.", false},
 		},
 	},
 	{
 		Name: "Azure OpenAI", Prefix: "azure",
 		DefaultModel: "azure/your-deployment", DefaultSmallModel: "azure/your-small-deployment",
 		Credentials: []credential{
-			{"AZURE_API_KEY", "Azure API key"},
-			{"AZURE_API_BASE", "Resource endpoint (https://<resource>.openai.azure.com)"},
-			{"AZURE_API_VERSION", "API version"},
+			{"AZURE_API_KEY", "Azure API key", true},
+			{"AZURE_API_BASE", "Resource endpoint (https://<resource>.openai.azure.com)", false},
+			{"AZURE_API_VERSION", "API version", false},
 		},
 	},
 	{
 		Name: "Azure AI Foundry", Prefix: "azure_ai",
 		DefaultModel: "azure_ai/claude-sonnet-4-5", DefaultSmallModel: "azure_ai/claude-haiku-4-5",
 		Credentials: []credential{
-			{"AZURE_AI_API_KEY", "Azure AI API key"},
-			{"AZURE_AI_API_BASE", "Azure AI endpoint"},
+			{"AZURE_AI_API_KEY", "Azure AI API key", true},
+			{"AZURE_AI_API_BASE", "Azure AI endpoint", false},
 		},
 	},
 	{
 		Name: "AWS Bedrock", Prefix: "bedrock",
 		DefaultModel: "bedrock/anthropic.claude-sonnet-4-5", DefaultSmallModel: "bedrock/anthropic.claude-haiku-4-5",
 		Credentials: []credential{
-			{"AWS_ACCESS_KEY_ID", "AWS access key id"},
-			{"AWS_SECRET_ACCESS_KEY", "AWS secret access key"},
-			{"AWS_REGION_NAME", "AWS region"},
+			{"AWS_ACCESS_KEY_ID", "AWS access key id", false},
+			{"AWS_SECRET_ACCESS_KEY", "AWS secret access key", true},
+			{"AWS_REGION_NAME", "AWS region", false},
 		},
 	},
 	{
 		Name: "Ollama (self-hosted)", Prefix: "ollama",
 		DefaultModel: "ollama/llama3.3", DefaultSmallModel: "ollama/llama3.3",
-		Credentials: []credential{{"OLLAMA_API_BASE", "Ollama base URL (not localhost inside the compose network)"}},
+		Credentials: []credential{{"OLLAMA_API_BASE", "Ollama base URL (not localhost inside the compose network)", false}},
 	},
 	{
 		Name: "vLLM (OpenAI-compatible, self-hosted)", Prefix: "hosted_vllm",
 		DefaultModel: "hosted_vllm/your-model", DefaultSmallModel: "hosted_vllm/your-small-model",
 		Credentials: []credential{
-			{"HOSTED_VLLM_API_BASE", "vLLM server base URL (http://<host>:<port>)"},
-			{"HOSTED_VLLM_API_KEY", "API key (blank if the server needs none)"},
+			{"HOSTED_VLLM_API_BASE", "vLLM server base URL (http://<host>:<port>)", false},
+			{"HOSTED_VLLM_API_KEY", "API key (blank if the server needs none)", true},
 		},
 	},
 	{
 		Name: "OpenAI-compatible (LM Studio, LocalAI…)", Prefix: "openai",
 		DefaultModel: "openai/your-model", DefaultSmallModel: "openai/your-small-model",
 		Credentials: []credential{
-			{"OPENAI_API_KEY", "API key (use a placeholder such as `none` if the server ignores it)"},
-			{"OPENAI_API_BASE", "Server base URL, e.g. http://<host>:<port>/v1. Reconfiguring an openai/ model reopens this as OpenAI; the same variable."},
+			{"OPENAI_API_KEY", "API key (use a placeholder such as `none` if the server ignores it)", true},
+			{"OPENAI_API_BASE", "Server base URL, e.g. http://<host>:<port>/v1. Reconfiguring an openai/ model reopens this as OpenAI; the same variable.", false},
 		},
 	},
 }
@@ -194,7 +198,7 @@ var storageModels = []storageModel{
 	},
 	{
 		Name: "Azure Storage Account", Model: "external_azure", Provider: "STORAGE_ACCOUNT", Managed: true,
-		Credentials: []credential{{"STORAGE_ACCOUNT_KEY", "Storage account shared key"}},
+		Credentials: []credential{{"STORAGE_ACCOUNT_KEY", "Storage account shared key", true}},
 	},
 	{
 		Name: "Repository-declared state", Model: "repository", Provider: "S3", Managed: false, Region: true,

@@ -298,8 +298,10 @@ func (w *Wizard) llmProviderForm(s *state.State, provider llmProvider, complex b
 		field := huh.NewInput().
 			Title(titled(c.Title, optional)).
 			Description(c.Name).
-			EchoMode(huh.EchoModePassword).
 			Value(&values[i])
+		if c.Secret {
+			field.EchoMode(huh.EchoModePassword)
+		}
 		// A blank key is a stack that cannot call the model: block it here
 		// rather than at `kumoss run`. Only the optional ones may stay empty.
 		if !optional {
@@ -514,12 +516,15 @@ func (w *Wizard) storageStep(s *state.State) (*huh.Form, func()) {
 	)
 	for i, c := range model.Credentials {
 		values[i] = s.Storage.Credentials[c.Name]
-		fields = append(fields, huh.NewInput().
+		field := huh.NewInput().
 			Title(titled(c.Title, false)).
 			Description(c.Name).
-			EchoMode(huh.EchoModePassword).
 			Value(&values[i]).
-			Validate(required))
+			Validate(required)
+		if c.Secret {
+			field.EchoMode(huh.EchoModePassword)
+		}
+		fields = append(fields, field)
 	}
 
 	form := huh.NewForm(huh.NewGroup(fields...).Title("Storage — " + model.Name))

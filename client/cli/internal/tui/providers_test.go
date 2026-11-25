@@ -6,6 +6,7 @@ package tui
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/InditexTech/kumoss/client/cli/internal/state"
@@ -98,6 +99,31 @@ func TestSharedOpenAIPrefixRowsAreInterchangeable(t *testing.T) {
 	}
 	if !slices.Equal(names[0], names[1]) {
 		t.Errorf("openai rows write different variables: %v vs %v", names[0], names[1])
+	}
+}
+
+// Only a credential is masked. A project id, a region or an API base must stay
+// readable while it is typed, so anything not named like a secret is visible.
+func TestOnlyCredentialsAreMasked(t *testing.T) {
+	all := func() []credential {
+		var out []credential
+		for _, p := range llmProviders {
+			out = append(out, p.Credentials...)
+		}
+		for _, m := range storageModels {
+			out = append(out, m.Credentials...)
+		}
+		return out
+	}
+	for _, c := range all() {
+		secretName := strings.Contains(c.Name, "API_KEY") ||
+			strings.Contains(c.Name, "_KEY") ||
+			strings.Contains(c.Name, "SECRET") ||
+			strings.Contains(c.Name, "_TOKEN") ||
+			strings.Contains(c.Name, "CREDENTIALS")
+		if c.Secret != secretName {
+			t.Errorf("%s: Secret = %v, want %v", c.Name, c.Secret, secretName)
+		}
 	}
 }
 
