@@ -11,8 +11,7 @@ from pydantic import ValidationError
 
 from src.domains.interfaces import IToolRegistry
 from src.domains.dto import (
-    ComplianceCheckReport,
-    ComplianceViolation,
+    IntentCheck,
     TerraformDriftReport,
     ToolCallDTO,
     ToolResultDTO,
@@ -54,7 +53,7 @@ class ToolRegistryStatic(IToolRegistry):
             "external_information.json": ToolContext.EXTERNAL_INFORMATION,
             "task_completion.json": ToolContext.GENERAL_TASK_COMPLETION,
             "iac_import.json": ToolContext.IMPORT_ADDRESSES,
-            "compliance_checker.json": ToolContext.COMPLIANCE_CHECK,
+            "intent_checker.json": ToolContext.INTENT_CHECK,
         }
 
     def __load_tools(self):
@@ -98,7 +97,7 @@ class ToolRegistryStatic(IToolRegistry):
             "report_reconciliation_verdicts": self.__handle_reconciliation_verdicts,
             "task_complete": self.__handle_task_completion,
             "import_addresses": self.__handle_import_addresses,
-            "report_compliance_findings": self._handle_compliance_findings,
+            "report_intent_findings": self._handle_intent_findings,
         }
 
     @override
@@ -403,21 +402,15 @@ class ToolRegistryStatic(IToolRegistry):
             )
         return {"summary": summary, "imports": imports}
 
-    def _handle_compliance_findings(
-        self, parameters: dict[str, Any]
-    ) -> ComplianceCheckReport:
+    def _handle_intent_findings(self, parameters: dict[str, Any]) -> IntentCheck:
         try:
             # The model reports its own findings only: it cannot label one
             # as the policy engine's.
             violations = [
-                {**v, "source": "llm"} if isinstance(v, dict) else v
+                {**v, "source": "intent"} if isinstance(v, dict) else v
                 for v in parameters["violations"]
             ]
-            return ComplianceCheckReport(
-                passed=not any(
-                    violation["severity"] in ComplianceViolation.BLOCKING_SEVERITIES
-                    for violation in violations
-                ),
+            return IntentCheck(
                 violations=violations,
                 summary=parameters["summary"],
                 checked_rules=parameters["checked_rules"],

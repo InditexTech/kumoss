@@ -202,7 +202,7 @@ existing plan safe: xref:#drift[Drift detection and remediation].
 == Phase 7: report and artifacts
 
 :diagram-name: flow-phases-7-8
-:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
+:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -227,7 +227,7 @@ are `reports/<report type>-<token>.json`, `plans/plan-<token>.txt`,
 Metadata goes to PostgreSQL; the UI receives presigned URLs.
 |===
 
-== Phase 8: compliance audit
+== Phase 8: compliance check
 
 [cols="1,3",options="header"]
 |===
@@ -245,22 +245,24 @@ evaluated yields a blocking `policy_unavailable` finding: the check
 fails closed. Contract:
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
-|Compliance Auditor
+|Intent check
 |Then a second,
-independent small-model agent reads the session's first request and the
+independent small-model agent reads every request of the session and the
 raw plan output — not the report JSON — alongside the
-`general/compliance/report` rules and the cloud guidelines. It has no
+`general/intent/rules` rules. It judges only whether the plan does what
+the requests ask (`scope_exceeded`, `scope_incomplete`), not the
+conventions. It has no
 repository tools and must answer through its only tool,
-`report_compliance_findings`: rule id, severity, resource, message,
+`report_intent_findings`: rule id, severity, resource, message,
 suggested fix. Both parts' findings, each tagged with its `source`
-(`opa` or `llm`), are merged into one report, stored like any other artifact, at
+(`opa` or `intent`), are merged into one report, stored like any other artifact, at
 `compliance/check-<token>.json` with a `compliance_checks` row holding
 the verdict, so the session detail and the portal can show them.
 
 |Verdict in code
-|The tool handler recomputes `passed` from the severities: any `error`
-or `critical` finding fails the audit regardless of the model's own
-claim. The merged report fails when either part has one.
+|The model reports findings only, never a verdict: the merged report
+computes `passed` from the severities, and fails when either part has
+an `error` or `critical` finding.
 
 |Lock or release, then pin
 |The handler first writes `is_blocked`, which decides whether apply and
@@ -523,11 +525,11 @@ call `diff_history`)
 |`report_decomposed_task_operations`
 |Phase 6 and dedicated drift sessions, after the reconciliation filter
 
-|Compliance Auditor Agent
+|Intent Checker Agent
 |small
-|none besides its sentinel; input is the first request and the raw plan
-output
-|`report_compliance_findings`
+|none besides its sentinel; input is every request of the session and
+the raw plan output
+|`report_intent_findings`
 |Phase 8, generate rounds, when the checker is enabled
 
 |PR Title & Description Agent
@@ -675,7 +677,7 @@ removed; in-flight guard released.
 |Outcome |Reached when |Side effects
 
 |*Validated, unlocked* — phase 8
-|The audit passed or the checker is off, and the report's impact banner is
+|The compliance check passed or the checker is off, and the report's impact banner is
 not `high` or `orchestration.block_on_high_impact` is off
 |`is_blocked = false`, plan pinned. Apply and pull-request merge are
 available.
@@ -875,7 +877,7 @@ splitting
 
 |`llm.small_model` (small)
 |Request filtering, prompt composition, status messages, pull-request text,
-the reconciliation filter, the drift exception filter, the compliance audit
+the reconciliation filter, the drift exception filter, the intent check
 |===
 
 === IaC and mapping sidecars
@@ -998,7 +1000,7 @@ filter.
 |Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
-lock, does not run the compliance audit and does not pin the workspace —
+lock, does not run the compliance check and does not pin the workspace —
 drift never pins — so an apply after a drift-only round fails until a
 generate round pins a plan.
 |===
@@ -1073,23 +1075,27 @@ final plan's `show -json`: `general/policies/compliance`, plus the
 declares that has one. `deny` findings have severity
 `error` or `critical`, `warn` findings `warning`. A policy that cannot be
 evaluated — fetch failure, broken policy, malformed decision, timeout —
-adds a blocking `policy_unavailable` finding instead, and the LLM audit
-still runs. With the checker on, the core refuses to start if the
+adds a blocking `policy_unavailable` finding instead, and the intent
+check still runs. With the checker on, the core refuses to start if the
 general policy or the policy of a provider that ships a seed fails
 against an empty plan. Contract:
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
-|How it audits
-|Then a second, independent small-model agent loop. Its query is the session's
-first user request plus the raw plan output, rendered into the local
-compliance-checker layout with the `general/compliance/report` rules and the
-cloud guidelines from Langfuse. It has no repository access and one tool, the
-sentinel `report_compliance_findings`, whose arguments — `rule_id`,
-`severity`, `resource`, `message` and `suggested_fix` per violation — are
-parsed into a typed report. The rules are applied by the model; only the
-verdict is computed in code. The policy decision and the audit are then
-merged into one report: policy findings first (`source: "opa"`), then the
-model's (`source: "llm"`), with `policy_revisions` listing the policy
+|Intent check
+|Then a second, independent small-model agent loop. Its query is every user
+request of the session plus the raw plan output, against the local
+intent-checker layout with the `general/intent/rules` rules from Langfuse.
+It judges only whether the plan does what the requests ask
+(`scope_exceeded`, `scope_incomplete`); it receives no conventions, so
+nothing audits the plan against them beyond the policies. It has no
+repository access and one tool, the sentinel `report_intent_findings`, whose
+arguments — `rule_id`, `severity`, `resource`, `message` and
+`suggested_fix` per violation — are parsed into a typed intent check with no
+verdict of its own. The rules are applied by the model; only the verdict is
+computed in code. The policy decision and the intent check are then merged
+into one report: policy findings first (`source: "opa"`), then the model's
+(`source: "intent"`; stored reports with the former `"llm"` load as
+`"intent"`), with `policy_revisions` listing the policy
 versions that ran as `"<prompt name>@<version>"`, the general policy
 first, for example `["general/policies/compliance@3",
 "aws/policies/compliance@1"]`.
@@ -1102,18 +1108,17 @@ first, for example `["general/policies/compliance@3",
 when the session is locked, in the blocked pull-request view.
 
 |Verdict in code
-|The tool handler recomputes `passed` from the reported severities: any
-`error` or `critical` violation fails the check regardless of the model's
-own claim. The merged report fails if either source has such a
-violation.
+|The model reports findings only: the merged report computes `passed`
+from the severities, and fails if either source has an `error` or
+`critical` violation.
 
 |Effect
-|Every generate round writes `is_blocked = (audit failed) or (high
+|Every generate round writes `is_blocked = (check failed) or (high
 impact)`, high impact meaning `orchestration.block_on_high_impact` is on and
 the report's banner is `high`. Failure sends `iac.compliance.failed`, or
 `iac.impact.high`, to the notifications sidecar. Apply and pull-request
 merge refuse blocked sessions with `409`; pull-request *creation* is not
-lock-checked, and the audited code is already on the working branch, so the
+lock-checked, and the checked code is already on the working branch, so the
 lock guards the apply boundary specifically. A later passing generate round
 with a non-high impact clears the lock, drift rounds leave it untouched, and
 a panel `editor` can toggle it from the admin panel.

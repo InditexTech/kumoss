@@ -1,5 +1,4 @@
-|Write or change rules in Rego; see
-xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]= Resolve a locked session
+= Resolve a locked session
 :description: Find out why Kumoss locked your session, who was notified, and how to get it unlocked so you can merge and apply.
 
 Kumoss checks every generate round before it lets you merge and apply.
@@ -39,11 +38,10 @@ Drift and import rounds are never checked and never lock a session.
 |Write or change rules in Rego; see
 xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]
 
-|<<compliance-audit,Compliance audit>>
+|<<intent-check,Intent check>>
 |No
-|Prompt `general/compliance/report` and your convention prompts, read
-by a model
-|Edit the rules and conventions in prose; see
+|Prompt `general/intent/rules`, read by a model
+|Edit the intent rules in prose; see
 xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
 prompts]
 
@@ -106,14 +104,14 @@ xref:main:reference/compliance-policy.adoc[Compliance policy].
 Use the policies for every rule you can state as a condition on the
 plan: they are the only check that cannot miss a case or flag one by mistake.
 
-[#compliance-audit]
-=== Compliance audit (not deterministic)
+[#intent-check]
+=== Intent check (not deterministic)
 
-*What locks.* A language-model agent compares the plan with every
-request of the session and with your organization's conventions, and
-reports violations with a rule id and a severity. A finding of severity
-`error` or `critical` locks the session; `warning` is reported only. The
-shipped rules are:
+*What locks.* A language-model agent judges only whether the plan does
+what the requests of the session ask, every request and not just the
+first. It reports violations with a rule id and a severity; a finding of
+severity `error` or `critical` locks the session, and `warning` is
+reported only. The shipped rules, both of severity `error`, are:
 
 * `scope_exceeded`: the plan changes something you did not ask for, for
   example it removes a block or sets an attribute to null. A removal is
@@ -121,37 +119,30 @@ shipped rules are:
 * `scope_incomplete`: part of your request has no matching change in
   the plan.
 
-Other findings come from the conventions the model checks the plan
-against, for example a missing mandatory tag.
+The intent check does not judge safety, conventions, deletions, or
+versions, and a change you asked for is never an intent violation. Your
+organization's conventions only guide generation: nothing checks a plan
+against them afterwards except the rules of the compliance policy.
+
+Findings from this check carry an *intent* badge.
 
 *Why it is not deterministic.* Whether a change is "what you asked for"
 depends on the meaning of your request, written in natural language;
-there is no attribute in the plan to test. The same holds for
-conventions written as prose. A model can read both, but two runs on the
-same plan can disagree, so a finding can be wrong. When you think it is,
-rephrase the request to be explicit about what must change and what must
-stay, or ask a reviewer to check it.
+there is no attribute in the plan to test. A model can read it, but two
+runs on the same plan can disagree, so a finding can be wrong. When you
+think it is, rephrase the request to be explicit about what must change
+and what must stay, or ask a reviewer to check it.
 
-*Where to adapt it.* Two kinds of prompts drive the audit:
+*Where to adapt it.* The prompt `general/intent/rules` defines the
+rules, each with a `rule_id` and a severity. Edit `scope_exceeded` and
+`scope_incomplete` to match how strict your organization wants to be,
+or add your own rules about intent in the same format; see
+xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
+prompts].
 
-* `general/compliance/report` defines the business rules, each with a
-  `rule_id` and a severity. Edit `scope_exceeded` and `scope_incomplete`
-  to match how strict your organization wants to be, or add your own
-  rules in the same format; see
-  xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
-  prompts].
-* The convention prompts are the standards the plan is checked against:
-  `general/guidelines/terraform` and, per provider, `resource_creation`,
-  `networking`, and `permissions`; see
-  xref:main:guides/customize-prompts.adoc#general-guidelines[General
-  cross-provider prompts] and
-  xref:main:guides/customize-prompts.adoc#provider-guidelines[Provider-wide
-  guidelines]. The same prompts guide the generator, so a standard written
-  there is followed when code is written and checked when it is audited.
-
-If a convention can be stated as a condition on the plan, write it as a
-rule of the xref:main:reference/compliance-policy.adoc[compliance
-policy] instead: it then always holds, without depending on the model.
+To enforce a convention, such as a mandatory tag, write it as a rule of
+the xref:main:reference/compliance-policy.adoc[compliance policy]: it
+then always holds, without depending on the model.
 
 [#high-impact]
 === High impact (not deterministic)
@@ -192,9 +183,9 @@ opens instead of the merge controls; see the screenshot in
 xref:main:guides/merge-and-apply.adoc#session-locked[Merge and apply].
 
 * Expand *Why* to see the cause: *High impact* with the impact summary,
-  *Compliance* with each blocking finding (severity, rule id, and
-  resource), or both. *Show all findings* adds the warnings and the
-  suggested fixes.
+  *Compliance* with each blocking finding (severity, rule id, resource,
+  and a *policy* or *intent* badge), or both. *Show all findings* adds
+  the warnings and the suggested fixes.
 * *Check again* reads the lock state again, for example after a
   reviewer unlocked the session.
 * *Back to Report* returns to the report. *Contact Team* sends a support
@@ -255,4 +246,4 @@ xref:main:guides/merge-and-apply.adoc[Merge and apply].
 * xref:main:reference/compliance-policy.adoc[Compliance policy] to
   write your own policy rules.
 * xref:main:guides/customize-prompts.adoc[Customize prompts] to change
-  the conventions the compliance audit checks against.
+  the conventions that guide generation, or the intent rules.

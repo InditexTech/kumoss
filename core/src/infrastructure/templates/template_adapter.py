@@ -205,20 +205,15 @@ class TemplateAdapter(ITemplate):
         )
 
     @override
-    async def render_compliance_checker(
-        self,
-        resources: list[str],
-        abbreviations: list[str],
-    ) -> str:
-        context = await self._compose_conventions_context(resources, abbreviations)
-        context["REPORT_COMPLIANCE_RULES"] = await remote_fetcher.fetch(
-            prompt_name="report",
+    async def render_intent_checker(self) -> str:
+        rules = await remote_fetcher.fetch(
+            prompt_name="rules",
             scope="general",
-            type="compliance",
+            type="intent",
             tag=system_config.environment,
         )
-        t = self._get_template(self._core + "compliance_checker.jinja")
-        return t.render(**context)
+        t = self._get_template(self._core + "intent_checker.jinja")
+        return t.render(INTENT_RULES=rules)
 
     async def _compose_conventions_context(
         self,

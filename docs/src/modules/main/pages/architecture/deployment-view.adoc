@@ -164,14 +164,15 @@ to plan for before running more than one:
   it on an exception. Failures are
   therefore visible in the logs and the session status, not as error
   spans, and the sidecars are not instrumented at all.
-* *LLM audits LLM, code decides.* The compliance auditor is a separate
+* *LLM checks LLM, code decides.* The intent check is a separate
   agent loop with no repository access at all — its only tool is the
-  sentinel `report_compliance_findings`; the
+  sentinel `report_intent_findings`, and it judges only whether the
+  plan does what the session's requests ask; the
   pass/fail verdict is computed deterministically from the structured
   violations it reports, and the resulting database lock is what
   actually stops a non-compliant plan from being applied. The compliance
-  policy, evaluated by OPA before the auditor, adds findings that do not
-  depend on a model at all.
+  policy, evaluated by OPA before the intent check, adds findings that do
+  not depend on a model at all.
 * *Stateless, local identity.* The core trusts only a signed JWT from
   the single configured issuer, validates it on every request without
   an introspection round-trip, and keeps users, roles, and session

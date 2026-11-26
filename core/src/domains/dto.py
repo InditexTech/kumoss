@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Any, ClassVar, Literal, Protocol, cast
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from src.domains.value_objects.plan_ref import PlanRef
 from src.shared.constants import (
@@ -567,8 +567,10 @@ Reports = (
 
 
 class ComplianceViolation(BaseModel):
-    """One finding. ``source`` defaults to the LLM so reports stored before
-    the policy engine existed still load."""
+    """One finding: from the intent check (``intent``) or the policy engine
+    (``opa``). ``source`` defaults to the intent check so reports stored
+    before the policy engine existed still load, and the intent check's
+    former name, ``llm``, is read as ``intent``."""
 
     BLOCKING_SEVERITIES: ClassVar[frozenset[str]] = frozenset({"error", "critical"})
 
@@ -577,7 +579,12 @@ class ComplianceViolation(BaseModel):
     resource: str | None = None
     message: str
     suggested_fix: str | None = None
-    source: Literal["llm", "opa"] = "llm"
+    source: Literal["intent", "opa"] = "intent"
+
+    @field_validator("source", mode="before")
+    @classmethod
+    def _legacy_source(cls, value: Any) -> Any:
+        return "intent" if value == "llm" else value
 
     @property
     def blocking(self) -> bool:
@@ -595,7 +602,21 @@ class PolicyDecision:
     revisions: list[str]
 
 
+class IntentCheck(BaseModel):
+    """The intent check's findings: whether the plan does what the session's
+    requests ask, no more and no less. Only one half of a compliance check;
+    ``ComplianceCheckReport.merge`` combines it with the policy decision
+    into the verdict."""
+
+    violations: list[ComplianceViolation]
+    summary: str
+    checked_rules: list[str]
+
+
 class ComplianceCheckReport(BaseModel):
+    """A round's compliance verdict: the policy decision and the intent
+    check, merged."""
+
     passed: bool
     violations: list[ComplianceViolation]
     summary: str
@@ -628,16 +649,17 @@ class ComplianceCheckReport(BaseModel):
 
     @classmethod
     def merge(
-        cls, audit: "ComplianceCheckReport", policy: PolicyDecision
+        cls, intent: IntentCheck, policy: PolicyDecision
     ) -> "ComplianceCheckReport":
-        """One report out of the LLM audit and the policy decision.
+        """One report out of the intent check and the policy decision. It
+        passes only when neither has a blocking finding.
 
         The policy's findings come first: they are the deterministic ones.
         The summary leads with them, since it is the body of the compliance
-        failure notice and the LLM's summary knows nothing of them.
+        failure notice and the intent check's summary knows nothing of them.
         """
         blocking = [v for v in policy.violations if v.blocking]
-        summary = audit.summary
+        summary = intent.summary
         if blocking:
             rules = ", ".join(sorted({v.rule_id for v in blocking}))
             noun = "finding" if len(blocking) == 1 else "findings"
@@ -646,11 +668,13 @@ class ComplianceCheckReport(BaseModel):
             )
             summary = f"{lead} {summary}" if summary else lead
         return cls(
-            passed=audit.passed and not blocking,
-            violations=[*policy.violations, *audit.violations],
+            passed=not any(
+                v.blocking for v in [*policy.violations, *intent.violations]
+            ),
+            violations=[*policy.violations, *intent.violations],
             summary=summary,
             checked_rules=list(
-                dict.fromkeys([*policy.checked_rules, *audit.checked_rules])
+                dict.fromkeys([*policy.checked_rules, *intent.checked_rules])
             ),
             policy_revisions=policy.revisions,
         )

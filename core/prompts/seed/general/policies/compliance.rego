@@ -24,6 +24,7 @@ rules contains rule if some rule in {
 	"customer_managed_key_removed",
 	"command_execution",
 	"unprotected_credential_output",
+	"provider_version_pin",
 }
 
 # A resource may only be destroyed as part of a replace (the same address
@@ -181,3 +182,30 @@ warn contains finding if {
 		"message": sprintf("Output %q looks like a credential; mark it sensitive = true.", [name]),
 	}
 }
+
+# --- provider_version_pin ----------------------------------------------------
+# A root module provider without a pessimistic constraint on its major
+# (`~> X.0`) or minor (`~> X.Y`) version: none at all, an exact pin, or an
+# open range. A warning: an existing pin is never changed as a side effect,
+# so a workspace may keep one on purpose. Child modules pin for themselves.
+
+_pinned(constraint) if regex.match(`^~>\s*[0-9]+\.[0-9]+$`, trim_space(constraint))
+
+warn contains finding if {
+	some provider in object.get(object.get(input.plan, "configuration", {}), "provider_config", {})
+	not provider.module_address
+	not startswith(provider.full_name, "terraform.io/builtin/")
+	constraint := object.get(provider, "version_constraint", "")
+	not _pinned(constraint)
+	finding := {
+		"rule_id": "provider_version_pin",
+		"message": _pin_message(provider.full_name, constraint),
+	}
+}
+
+_pin_message(name, "") := sprintf("Provider %s has no version constraint; pin its major version with `~> X.0`.", [name])
+
+_pin_message(name, constraint) := sprintf(
+	"Provider %s is constrained to %q; pin its major version with `~> X.0` (or `~> X.Y`).",
+	[name, constraint],
+) if constraint != ""

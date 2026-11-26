@@ -63,7 +63,7 @@ builds a fresh object graph per run.
 |Domain layer (`core/src/domains`)
 |Entities, value objects and ports, and the services holding the behavior:
 the agent loop, session and user management, validation, targeting, the
-compliance audit, artifact storage, persistence and tracing.
+compliance check, artifact storage, persistence and tracing.
 |Depends only on interfaces
 
 |Infrastructure layer (`core/src/infrastructure`)
