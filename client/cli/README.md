@@ -107,7 +107,7 @@ kumoss init
 
 ### 🏢 Designed to fit the stack you already run
 
-- **Works with what you already have.** GitHub, Azure DevOps or GitLab; OpenTofu or Terraform; the bundled RustFS, an external S3-compatible store, an Azure Storage Account, or repository-declared state.
+- **Works with what you already have.** GitHub, Azure DevOps or GitLab; OpenTofu or Terraform; the bundled RustFS, an external S3-compatible store (AWS, Google Cloud or any S3 API), or an Azure Storage Account.
 - **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure and Kubernetes, with only the methods that work inside the Compose stack.
 - **Your rules, your definition of critical.** OIDC, the bootstrap administrator, the mapping and authorization sidecars and `llm.model_list` routing stay hand-edited in `config.yaml`; the CLI preserves the keys it does not own.
 - **Nothing hidden.** Every generated file is plain text under `~/.kumoss`, readable, diffable and reviewable before the stack starts.

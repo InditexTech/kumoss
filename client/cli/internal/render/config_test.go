@@ -99,7 +99,7 @@ func TestRenderOverlaysAnswersAndKeepsTheRest(t *testing.T) {
 		Storage: state.Storage{
 			Provider:             "S3",
 			Bucket:               "my-artifacts",
-			TerraformStateBucket: "", // repository-declared state
+			TerraformStateBucket: "", // a repo-declared backend, kept empty
 			Region:               "eu-west-1",
 		},
 	}
@@ -259,10 +259,10 @@ func TestConfigKeepsTheFetchedStorageProvider(t *testing.T) {
 	}
 }
 
-// The picked model wins over the fetched one, and an empty state bucket is the
-// repository-declared answer: it must be written as "", never dropped.
+// The picked model wins over the fetched one, and an empty state bucket must
+// be written as "", never dropped, since a repo-declared backend still reads it.
 func TestConfigWritesThePickedStorageModel(t *testing.T) {
-	s := &state.State{Storage: state.Storage{Model: "repository", Provider: "S3", Bucket: "mine", TerraformStateBucket: ""}}
+	s := &state.State{Storage: state.Storage{Model: "external_s3", Provider: "S3", Bucket: "mine", TerraformStateBucket: ""}}
 	out, err := RenderConfig([]byte(repoDefault), s)
 	if err != nil {
 		t.Fatalf("RenderConfig: %v", err)
