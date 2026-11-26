@@ -107,9 +107,9 @@ Operational effect: it is the Langfuse *environment* every trace is
 recorded under (see xref:main:guides/monitor-with-langfuse.adoc[Monitor
 with Langfuse]) and the *label* used when fetching prompts from
 Langfuse at runtime (see
-xref:main:guides/customize-prompts.adoc[Customize prompts]). The
+xref:main:reference/prompt-registry.adoc#runtime-lookup[Runtime lookup]). The
 seeder labels every prompt it creates with all three values, so switching
-between them finds the seeded prompts without relabelling. It
+between them finds the seeded prompts without relabeling. It
 does *not* enable any security control: setting `production` does not
 turn on authentication, authorization, or stricter defaults. A prompt
 created or re-versioned by hand in Langfuse is found only if one of its
@@ -284,7 +284,7 @@ enabled: false (services.iac cannot — it is mandatory).`
 |Optional
 |Per-request HTTP budget. Every sidecar call returns promptly (long
 work runs as jobs the core polls), so this covers one round trip only.
-Honoured by the IaC, notifications, and authorization clients; the
+Honored by the IaC, notifications, and authorization clients; the
 mapping client uses a fixed budget of 10 seconds.
 |===
 
@@ -328,7 +328,7 @@ Requires restart: yes.
 [#config-orchestration]
 == `orchestration`
 
-Iteration limits and behaviour switches for the core's agent loops.
+Iteration limits and behavior switches for the core's agent loops.
 Raise the limits carefully: they bound the cost of a runaway session.
 
 [cols="2,1,1,1,1,4",options="header"]
@@ -483,7 +483,7 @@ report generator chains.
 |`small` (an `llm.model_list` alias)
 |Optional (credentials mandatory)
 |Cheaper model used by every other chain and by tool-internal LLM
-calls, including the `web_search` summarisation.
+calls, including the `web_search` summarization.
 
 |`llm.temperature`
 |float
@@ -588,7 +588,7 @@ environment variables instead and usually need no endpoint.
 |`10000`
 |Optional
 |Truncates the readable text extracted from each result page. That
-product — `max_results × max_page_chars` — is the summarising
+product — `max_results × max_page_chars` — is the summarizing
 inferences' input; the agent sees only the summaries.
 
 |`web_search.timeout`
@@ -635,7 +635,7 @@ context cost at `summarize_top × summarize_max_chars` instead of the
 The reduction degrades in layers and never fails a search: a page whose
 summary inference fails keeps a truncated raw excerpt, a ranking that
 cannot be parsed falls back to every summary in engine order, and any
-other summariser error falls back to the raw, unfiltered results.
+other summarizer error falls back to the raw, unfiltered results.
 Selecting *nothing* is a verdict rather than a failure — every page
 irrelevant, or a ranking that explicitly picks none — and the tool
 answers with the reason and a nudge to rephrase the query. What caps a
@@ -729,7 +729,7 @@ Requires restart: yes.
 |Name of the environment variable that holds the actual PostgreSQL
 connection URL. URLs embed credentials, which is why the URL itself is
 not in this file. Boot fails with `Missing env variable for kumoss
-database` when the variable is empty, and database initialisation
+database` when the variable is empty, and database initialization
 fails when it is unreachable. A `postgresql://` scheme is rewritten to
 `postgresql+asyncpg://`, and a `sslmode=` query parameter to asyncpg's
 `ssl=`, so URLs copied from a managed PostgreSQL service work as-is.
@@ -791,7 +791,7 @@ points at the compose service, so the stack needs no Redis variable.
 |How long a request may wait for a free pooled connection.
 |===
 
-Boot fails if Redis cannot be reached during initialisation. Requires
+Boot fails if Redis cannot be reached during initialization. Requires
 restart: yes.
 
 [#telemetry]
@@ -800,7 +800,7 @@ restart: yes.
 Langfuse: where traces are exported (OTLP/HTTP) and where prompts are
 read from. Both use the same base URL and the same project key pair. See
 xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] and
-xref:main:guides/customize-prompts.adoc[Customize prompts].
+xref:main:reference/prompt-registry.adoc[Prompt registry].
 
 [cols="2,2,1,1,1,4",options="header"]
 |===
@@ -1232,7 +1232,7 @@ git:
 Points that this example relies on but that the file cannot express:
 the authz endpoint must be your own implementation of its contract
 (Kumoss bundles none), and the mapping endpoint either the bundled
-service or your own catalogue-backed one;
+service or your own catalog-backed one;
 Langfuse must be reachable at `langfuse_url` for prompt seeding, with
 its project key pair in `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`;
 access to the Langfuse UI must be restricted because it holds prompts

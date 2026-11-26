@@ -360,5 +360,5 @@ and artifacts.
 *Traces from a different environment are mixed in.* The environment
 comes from `environment` in the core's `config.yaml`; restart the core
 after changing it. Prompt labels follow the same value, so also read
-xref:main:guides/customize-prompts.adoc[Customize prompts] before
-changing it on an existing deployment.
+xref:main:guides/customize-prompts.adoc#session-stops[A session stops
+without an error] before changing it on an existing deployment.

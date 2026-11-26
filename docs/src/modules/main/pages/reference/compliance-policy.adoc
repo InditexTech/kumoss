@@ -1,40 +1,61 @@
 = Compliance policy
-:description: The Rego policy OPA evaluates on every generate round's final plan: the input document, the decision contract, what happens when it fails, the shipped rule, and how to test a policy.
+:description: The contract of the Rego compliance policy: how and where it runs, its input and decision, how its findings are reported, and when it fails.
 
-The compliance check of a generate round has two parts. The first is
-deterministic: the core evaluates a Rego v1 policy with
-https://www.openpolicyagent.org[Open Policy Agent] against the round's
-final plan. The second is the LLM audit against the conventions and
-`general/compliance/report`. Both run when
-`orchestration.enable_compliance_checker` is `true`, the policy first,
-and their results are merged into one compliance report per round.
-Drift and import rounds have no compliance check.
+The compliance policy is the deterministic part of Kumoss's compliance
+check: a https://www.openpolicyagent.org/docs/policy-language[Rego]
+module that https://www.openpolicyagent.org[Open Policy Agent] (OPA)
+evaluates against the plan of every generate round. No language model is
+involved, so the same plan always gets the same verdict. A `deny`
+finding locks the session.
 
-The policy is the Langfuse text prompt `general/policies/compliance`,
-seeded from `core/prompts/seed/general/policies/compliance.rego`. The
-core uses its raw text: Langfuse's `+{{variable}}+` templating is not
-applied, so the braces of Rego are safe. How it is
-seeded, edited and rolled out is covered in
-xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
-prompts]; this page is the contract a policy author writes against.
+This page is the contract a policy follows. To add a rule step by step,
+see xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]. For
+how the policy relates to the other checks that can lock a session, see
+xref:main:architecture/compliance.adoc[How compliance works].
 
-== How it runs
+[#how-it-runs]
+== How the policy runs
 
-Each evaluation fetches the policy version carrying the `environment`
-label and runs one `opa` process (OPA 1.22.4, shipped in the core image):
+At the end of every generate round, when
+`orchestration.enable_compliance_checker` is `true`:
 
+. The core fetches the version of the policy that carries your
+  environment's label in Langfuse. Nothing is cached, so a label moved in
+  Langfuse applies to the next round.
+. It builds the <<input,input document>> from the round's final plan and
+  the root module's providers, and runs one `opa` process on it (OPA
+  1.22.4, shipped in the core image):
++
 [source,bash]
 ----
 opa eval --stdin-input --strict-builtin-errors --format json \
   --data compliance.rego data.kumoss.compliance
 ----
+. It reads the <<decision,decision>>: blocking `deny` findings,
+  non-blocking `warn` findings, and the list of rules checked.
+. The language-model audit runs next, and both results are merged into
+  one compliance report for the round; see <<report>>.
+. If either part has an `error` or `critical` finding, the session is
+  locked and the compliance failure notification is sent.
 
-Nothing stays running between rounds, and nothing is cached: moving the
-environment label to another version in Langfuse applies on the next
-generate round.
+Drift and import rounds are never checked.
+
+[#where-it-lives]
+== Where the policy lives
+
+The policy is the Langfuse text prompt `general/policies/compliance`,
+seeded from `core/prompts/seed/general/policies/compliance.rego`. The
+core uses the raw text of the version: Langfuse's `+{{variable}}+`
+templating is not applied, so the braces of Rego are safe. A version
+you customized is never overwritten by a Kumoss upgrade. How versions,
+labels, and seeding work is in
+xref:main:reference/prompt-registry.adoc#how-seeding-works[How seeding
+works].
 
 [#input]
 == Input
+
+The document the policy receives as `input`:
 
 [source,json]
 ----
@@ -62,22 +83,27 @@ does.
 |`input.kumoss.providers`
 |The provider type names of the root module's `required_providers`
 (`azurerm` for `hashicorp/azurerm`). Use it to scope rules to the
-providers a module actually uses.
+providers a module actually uses; see
+xref:main:reference/root-module-manifest.adoc[Root module manifest].
 |===
 
-The plan is a `-target` plan: it holds the session's targets only, not
-the whole workspace. A rule cannot see resources outside the targets,
-so it cannot reason about the rest of the estate.
+Three properties of the plan limit what a rule can check:
 
-The plan JSON carries sensitive values unmasked. Never put attribute
-values in a finding's `message`: messages end up in the compliance
-report, the session's artifacts and the failure notification. Name the
-resource address and the attribute instead.
+* It is a `-target` plan: it holds the session's targets only, so a rule
+  cannot see resources outside them.
+* Values known only after apply are absent from `after` and listed in
+  `after_unknown`.
+* It carries sensitive values unmasked. Never put attribute values in a
+  finding's `message`, which ends up in the compliance report, the
+  session's artifacts, and the notification; name the resource address
+  and the attribute instead.
 
+[#decision]
 == Decision
 
-The core queries `data.kumoss.compliance`. All keys are optional; a
-missing one counts as empty, and keys outside these three are ignored.
+The core queries `data.kumoss.compliance`, so the module must declare
+`package kumoss.compliance`. All keys are optional; a missing one counts
+as empty, and keys outside these three are ignored.
 
 [cols="1,2,3",options="header"]
 |===
@@ -100,102 +126,93 @@ that passed too. Rule ids of findings are added to it anyway.
 `rule_id` and `message` are non-empty strings; `resource`, when
 present, is a string, usually the resource address.
 
-In the merged report, each violation carries `source: "opa"` (LLM
-findings carry `"llm"`; reports stored before the policy existed have
-no `source` and are LLM findings), and the report's `policy_revision`
-is the version of the policy that ran, as the string
-`"<prompt name>@<version>"`, for example
-`general/policies/compliance@4` (`null` when no policy ran). The
-policy's findings come first. The report has `passed: false`
-when either source has an `error` or `critical` finding, and the
-session is locked exactly as for any failed compliance check. When the
-policy blocks, the summary starts with `Blocked by the compliance
-policy: N finding(s) (<rule ids>).` The web UI marks policy findings
-with a *policy* badge.
+[#report]
+== How findings appear in the report
+
+The policy's decision and the language-model audit are merged into one
+compliance report per round:
+
+* Each policy violation carries `source: "opa"`; findings of the audit
+  carry `"llm"`, and reports stored before the policy existed have no
+  `source`. The web application marks policy findings with a *policy*
+  badge.
+* The policy's findings come first.
+* `policy_revision` is the version that ran, as
+  `"<prompt name>@<version>"`, for example
+  `general/policies/compliance@4`, or `null` when no policy ran.
+* `passed` is `false` when either source has an `error` or `critical`
+  finding, and the session is then locked as for any failed compliance
+  check. When the policy is what blocks, the summary starts with
+  `Blocked by the compliance policy: N finding(s) (<rule ids>).`
 
 [#failure]
 == When the policy cannot be evaluated
 
-The policy fails closed. Each of these means the policy could not be
-evaluated:
+The policy fails closed. If it cannot be evaluated, the round gets a
+blocking `policy_unavailable` finding (severity `error`) whose message
+gives the reason, so the session is locked and the compliance failure
+notification is sent. The language-model audit still runs, and its
+findings are in the same report.
 
-* the policy could not be fetched from Langfuse: Langfuse is
-  unreachable, the prompt or a version carrying the `environment` label
-  does not exist, or that version is not a single text prompt;
-* a syntax or compile error;
-* no `package kumoss.compliance`, or `data.kumoss.compliance` is not an
-  object;
-* `deny`, `warn` or `rules` is not a set, a finding is not an object or
-  lacks `rule_id` or `message`, or a `deny` severity is neither `error`
-  nor `critical`;
-* a builtin error (the policy runs with `--strict-builtin-errors`, so
-  `to_number("x")` fails rather than being undefined);
-* the plan JSON could not be read;
-* `opa` did not finish within 30 seconds, or could not be run.
+=== Problems in the policy
 
-The round then gets a blocking `policy_unavailable` finding (severity
-`error`) whose message gives the reason, so it is locked and the
-compliance failure notification is sent. The LLM audit still runs and
-its findings are in the same report.
+Fix these in a new version of the policy:
 
-*Startup check.* When `enable_compliance_checker` is `true`, the core,
-after seeding the prompts, evaluates the current policy against an
-empty plan and refuses to start if that fails: a missing `opa` binary,
-a broken policy, or Langfuse unreachable. A broken version that gets
-the environment label while the core is running is not caught until it is evaluated, and then
-blocks every round.
+* A syntax or compile error.
+* No `package kumoss.compliance`, or `data.kumoss.compliance` is not an
+  object.
+* `deny`, `warn`, or `rules` is not a set; a finding is not an object or
+  lacks `rule_id` or `message`; or a `deny` severity is neither `error`
+  nor `critical`.
+* A builtin error. The policy runs with `--strict-builtin-errors`, so
+  `to_number("x")` fails rather than being undefined.
+* The evaluation did not finish within 30 seconds.
 
+=== Problems around the policy
+
+These need your operator:
+
+* The policy could not be fetched from Langfuse: Langfuse is
+  unreachable, the prompt or a version carrying the environment label
+  does not exist, or that version is not a single text prompt.
+* The plan JSON could not be read.
+* `opa` could not be run.
+
+=== Startup check
+
+When `enable_compliance_checker` is `true`, the core evaluates the
+current policy against an empty plan after seeding the prompts, and
+refuses to start if that fails: a missing `opa` binary, a broken policy,
+or Langfuse unreachable. A broken version that gets the environment
+label while the core is running is caught only when it is evaluated,
+and then blocks every round.
+
+[#shipped-rule]
 == The shipped rule
 
 The seed defines one rule, `critical_deletion` (severity `critical`): a
 managed resource whose plan actions are exactly `["delete"]` is denied,
 even when the user requested the deletion. A replacement
 (`["delete", "create"]` or `["create", "delete"]`), a `forget` (a
-`removed` block with `destroy = false`) and data sources are allowed.
+`removed` block with `destroy = false`), and data sources are allowed.
+Its code, explained line by line, is in
+xref:main:guides/write-a-policy-rule.adoc#how-a-rule-works[How a rule
+works].
 
-[source,rego]
-----
-package kumoss.compliance
+[#write-a-rule]
+== Write your own rules
 
-rules contains "critical_deletion"
-
-deny contains finding if {
-	some change in input.plan.resource_changes
-	change.mode == "managed"
-	change.change.actions == ["delete"]
-	finding := {
-		"rule_id": "critical_deletion",
-		"severity": "critical",
-		"resource": change.address,
-		"message": sprintf(
-			"%s is destroyed without being recreated; standalone deletions are never allowed, even when requested.",
-			[change.address],
-		),
-	}
-}
-----
-
-No prompt lists forbidden actions any more. Prohibitions for the
-providers your modules use (no public buckets, no IAM owner bindings,
-allowed regions...) are written as further rules in this module, each
-adding its id to `rules`. A rule scoped to one provider can check
-`"aws" in input.kumoss.providers`, or simply match on the resource
-`type`.
+Rules for the providers your modules use (no public storage, no owner
+role assignments, allowed regions) are added to the same module. See
+xref:main:guides/write-a-policy-rule.adoc[Write a policy rule].
 
 [#testing]
-== Testing a policy
+== Testing commands
 
-The shipped rule's tests are in `core/tests/policies`. Their fixtures
-are real Terraform 1.16 and OpenTofu 1.13 plans,
-`fixtures/<engine>/data.json`, which `opa test` loads as
-`data.fixtures.<engine>`. From the repository root:
+All commands use the OPA image at the version the core ships. With OPA
+1.22.4 installed locally, run `opa` with the same arguments instead.
 
-[source,bash]
-----
-opa test core/prompts/seed/general/policies core/tests/policies
-----
-
-or, without a local `opa`:
+Run the shipped rule's tests, from the repository root:
 
 [source,bash]
 ----
@@ -204,18 +221,38 @@ docker run --rm -v "$PWD/core:/core:ro" -w /core \
   test prompts/seed/general/policies tests/policies
 ----
 
-To see the decision for a real plan, wrap its `show -json` in the
-input document and evaluate it:
+The fixtures in `core/tests/policies` are real Terraform 1.16 and
+OpenTofu 1.13 plans, `fixtures/<engine>/data.json`, which `opa test`
+loads as `data.fixtures.<engine>`.
+
+Check that a policy compiles, from the folder that holds
+`compliance.rego`:
 
 [source,bash]
 ----
-terraform show -json tfplan > plan.json
-jq '{plan: ., kumoss: {schema: "kumoss.compliance.input/v1", providers: ["aws"]}}' \
-  plan.json | opa eval --stdin-input -d policy.rego data.kumoss.compliance
+docker run --rm -v "$PWD:/w:ro" -w /w \
+  openpolicyagent/opa:1.22.4-static check compliance.rego
 ----
 
-Add `--strict-builtin-errors` to match how the core evaluates it. To
-test an edited version before moving the environment label to it, copy
-its text from Langfuse into `policy.rego` and run the same commands; see
-xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
-prompts].
+Evaluate a policy against an input document, as the core does:
+
+[source,bash]
+----
+docker run --rm -i -v "$PWD:/w:ro" -w /w openpolicyagent/opa:1.22.4-static \
+  eval --stdin-input --strict-builtin-errors --format pretty \
+  -d compliance.rego data.kumoss.compliance < input.json
+----
+
+How to build `input.json` from a plan is shown in
+xref:main:guides/write-a-policy-rule.adoc#steps[Write a policy rule].
+
+== Related pages
+
+* xref:main:guides/write-a-policy-rule.adoc[Write a policy rule] to add
+  a rule, test it, and publish it.
+* xref:main:reference/prompt-registry.adoc[Prompt registry] for how
+  the policy is seeded, versioned, and labeled in Langfuse.
+* xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+  session] for what users see when the policy denies a plan.
+* xref:main:reference/configuration.adoc[Configuration] for
+  `orchestration.enable_compliance_checker`.

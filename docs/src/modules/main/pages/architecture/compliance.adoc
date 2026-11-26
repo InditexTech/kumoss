@@ -1,0 +1,127 @@
+= How compliance works
+:description: How Kumoss decides whether a generate round may be merged and applied: the three checks, which are deterministic, how their results become a lock, and where each audience goes next.
+
+Kumoss lets a change be merged and applied only after it has been
+checked against your organization's rules. This page explains the
+mechanism as a whole: when the checks run, what each one is, how their
+results become a session lock, and how a lock is cleared. The pages it
+links to cover each part in detail.
+
+[#when]
+== When the checks run
+
+The checks run at the end of every *generate* round, after the plan has
+been validated and the report written, and before the plan is pinned for
+apply. Drift and import rounds are never checked and never lock a
+session: drift remediation ends at the merge, and an import changes no
+infrastructure.
+
+Two switches in `config.yaml` decide which checks run; both default to
+`false` in code, and the shipped `config.yaml` turns both on:
+
+* `orchestration.enable_compliance_checker` runs the compliance policy
+  and the compliance audit.
+* `orchestration.block_on_high_impact` lets a high-impact verdict lock
+  the session.
+
+See xref:main:reference/configuration.adoc[Configuration].
+
+[#three-checks]
+== The three checks
+
+[cols="2,1,4,3",options="header"]
+|===
+|Check |Deterministic |What it does |Defined in
+
+|*Compliance policy*
+|Yes
+|Open Policy Agent evaluates a Rego policy against the plan's JSON.
+Fails closed: a policy that cannot be evaluated locks the round too.
+|Prompt `general/policies/compliance`
+
+|*Compliance audit*
+|No
+|A language model compares the plan with every request of the session
+and with your conventions: `scope_exceeded`, `scope_incomplete`, and
+convention findings.
+|Prompts `general/compliance/report` and the convention prompts
+
+|*High impact*
+|No
+|The report model rates the change `low`, `medium`, or `high` from
+written criteria.
+|Prompt `general/compliance/impact`
+|===
+
+Only the policy is deterministic: it reads attributes of the plan, so
+the same plan always gets the same verdict. The audit and the impact
+rating depend on what the request means and on what a change implies,
+which only a model can judge, so their verdicts can vary between runs.
+Rules that can be stated as a condition on the plan therefore belong in
+the policy. For what each check looks for, why, and where to adapt it,
+see xref:main:guides/resolve-a-locked-session.adoc#why[Why a session is
+locked].
+
+[#flow]
+== From findings to a lock
+
+. The core evaluates the policy, then runs the audit, and merges both
+  into one *compliance report* for the round. Each finding carries its
+  source (`opa` for the policy, `llm` for the audit), a rule id, a
+  severity, and the resource it concerns.
+. The report fails when either source has a finding of severity `error`
+  or `critical`. Findings of severity `warning` are reported only.
+. The core sets the session's lock from that round alone: locked when
+  the report failed, or when the impact is `high` and
+  `block_on_high_impact` is on; unlocked otherwise. A later clean round
+  therefore clears an earlier lock.
+. When the report failed, or a high impact locked the session, the
+  notifications sidecar, if enabled, alerts the session owner and every
+  user with the panel role `editor` or higher.
+
+The compliance report is stored as the round's *Compliance Check*
+artifact, and the lock as the session's `is_blocked` flag in core-db;
+see xref:main:architecture/data-and-state.adoc[Data and state].
+
+[#lock]
+== What a lock does
+
+While a session is locked, its owner can still read everything,
+continue the conversation, and create the pull request, but merging the
+pull request and applying the plan are refused with `409`. The web
+application shows the *Deployment Blocked* screen with the findings that
+caused the lock.
+
+A lock is cleared in one of two ways:
+
+* The owner sends a follow-up request whose round passes every check.
+* A reviewer with the panel role `editor` or `admin` unlocks the session
+  from the admin panel. That unlock lasts until the owner's next
+  generate round, which sets the lock again from its own results.
+
+See xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
+locks].
+
+[#next]
+== Where to go next
+
+[cols="1,3",options="header"]
+|===
+|If you are |Read
+
+|A user whose session is locked
+|xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session]
+
+|A reviewer deciding whether to unlock
+|xref:main:guides/administer-users-and-locks.adoc#unlock-a-session[Lock
+or unlock the apply of a session]
+
+|Adapting the rules to your organization
+|xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
+prompts] and xref:main:guides/write-a-policy-rule.adoc[Write a policy
+rule]
+
+|Looking for the exact policy contract
+|xref:main:reference/compliance-policy.adoc[Compliance policy]
+|===
