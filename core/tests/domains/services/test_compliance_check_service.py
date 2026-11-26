@@ -63,7 +63,7 @@ def _deletion() -> ComplianceViolation:
 def _clean_policy() -> AsyncMock:
     engine = AsyncMock()
     engine.evaluate.return_value = PolicyDecision(
-        violations=[], checked_rules=["critical_deletion"], revision="v1"
+        violations=[], checked_rules=["critical_deletion"], revisions=["v1"]
     )
     return engine
 
@@ -120,7 +120,7 @@ class TestComplianceReportMerge(unittest.TestCase):
         policy = PolicyDecision(
             violations=[_deletion()],
             checked_rules=["critical_deletion"],
-            revision="v7",
+            revisions=["v7"],
         )
 
         report = ComplianceCheckReport.merge(_audit(), policy)
@@ -136,13 +136,13 @@ class TestComplianceReportMerge(unittest.TestCase):
             report.checked_rules,
             ["critical_deletion", "scope_exceeded", "scope_incomplete"],
         )
-        self.assertEqual(report.policy_revision, "v7")
+        self.assertEqual(report.policy_revisions, ["v7"])
 
     def test_policy_warnings_do_not_fail_the_report(self):
         policy = PolicyDecision(
             violations=[_violation("public_ip", "warning", source="opa")],
             checked_rules=["public_ip"],
-            revision="v7",
+            revisions=["v7"],
         )
 
         report = ComplianceCheckReport.merge(_audit(), policy)
@@ -153,7 +153,7 @@ class TestComplianceReportMerge(unittest.TestCase):
 
     def test_a_failing_audit_stays_failed_with_a_clean_policy(self):
         audit = _audit(_violation("scope_exceeded", "error"), summary="Too much.")
-        policy = PolicyDecision(violations=[], checked_rules=["x"], revision=None)
+        policy = PolicyDecision(violations=[], checked_rules=["x"], revisions=[])
 
         report = ComplianceCheckReport.merge(audit, policy)
 
@@ -181,7 +181,23 @@ class TestComplianceReportMerge(unittest.TestCase):
         report = ComplianceCheckReport.model_validate_json(stored)
 
         self.assertEqual(report.violations[0].source, "llm")
-        self.assertIsNone(report.policy_revision)
+        self.assertEqual(report.policy_revisions, [])
+
+    def test_a_report_with_a_single_policy_revision_still_loads(self):
+        stored = json.dumps(
+            {
+                "passed": True,
+                "violations": [],
+                "summary": "s",
+                "checked_rules": ["critical_deletion"],
+                "policy_revision": "general/policies/compliance@3",
+            }
+        )
+
+        report = ComplianceCheckReport.model_validate_json(stored)
+
+        self.assertEqual(report.policy_revisions, ["general/policies/compliance@3"])
+        self.assertNotIn("policy_revision", report.model_dump())
 
 
 class TestComplianceCheckService(unittest.IsolatedAsyncioTestCase):
@@ -225,14 +241,14 @@ class TestComplianceCheckService(unittest.IsolatedAsyncioTestCase):
 
         self.engine.evaluate.assert_awaited_once_with(PLAN_JSON, ("azurerm",))
         self.assertTrue(report.passed)
-        self.assertEqual(report.policy_revision, "v1")
+        self.assertEqual(report.policy_revisions, ["v1"])
         self.assertIn("critical_deletion", report.checked_rules)
 
     async def test_a_deny_fails_the_check_and_one_merged_report_is_stored(self):
         self.engine.evaluate.return_value = PolicyDecision(
             violations=[_deletion()],
             checked_rules=["critical_deletion"],
-            revision="v1",
+            revisions=["v1"],
         )
 
         report = await self._check()
@@ -254,7 +270,7 @@ class TestComplianceCheckService(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(unavailable.rule_id, "policy_unavailable")
         self.assertEqual(unavailable.severity, "error")
         self.assertIn("timed out", unavailable.message)
-        self.assertIsNone(report.policy_revision)
+        self.assertEqual(report.policy_revisions, [])
         self.llm.generate.assert_awaited_once()
         self.assertEqual(self._stored(), report)
 

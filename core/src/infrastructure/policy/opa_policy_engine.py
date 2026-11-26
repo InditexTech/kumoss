@@ -2,15 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-"""Evaluates the compliance policy with the ``opa`` binary.
+"""Evaluates the compliance policies with the ``opa`` binary.
 
-The policy is the ``general/policies/compliance`` Langfuse prompt: a single
-Rego v1 module, ``package kumoss.compliance``, fetched on every evaluation
-so moving the environment label in Langfuse applies to the next session. Each evaluation
-is one ``opa eval`` process reading the input on stdin; nothing stays
-running between sessions.
+Two kinds of Langfuse prompt hold Rego v1 policies, fetched on every
+evaluation so moving the environment label applies to the next session:
 
-Decision contract (all optional, a missing one counts as empty):
+- ``general/policies/compliance``, ``package kumoss.compliance``: always
+  evaluated; a missing one is an error.
+- ``<provider>/policies/compliance``, ``package kumoss.providers.<provider>``:
+  evaluated when the root module declares that provider; a provider
+  without one is skipped.
+
+All of them run in one ``opa eval`` process reading the input on stdin,
+querying ``data.kumoss``; nothing stays running between sessions.
+
+Decision contract of every package (all optional, a missing one counts as
+empty):
 
 - ``deny``: blocking findings, ``{"rule_id", "message", "resource"?,
   "severity"?}`` with severity ``error`` (the default) or ``critical``.
@@ -18,16 +25,17 @@ Decision contract (all optional, a missing one counts as empty):
   reported as ``warning``.
 - ``rules``: every rule id the policy evaluates, passed or not.
 
-Keys outside the contract are ignored. Anything else that is off — no
-such package, a wrong type, a deny severity outside the two — is a
-PolicyEvaluationError, never an empty decision.
+Keys outside the contract are ignored. Anything else that is off — a
+package a fetched policy does not define, a wrong type, a deny severity
+outside the two — is a PolicyEvaluationError, never an empty decision.
 """
 
 import asyncio
 import json
 import tempfile
 from collections.abc import Sequence
-from pathlib import Path
+from dataclasses import dataclass
+from pathlib import Path, PurePath
 from typing import Any, Literal, cast, final, override
 
 from src.domains.dto import ComplianceViolation, PolicyDecision
@@ -39,67 +47,121 @@ from src.shared.config import system_config
 from src.shared.logger import logging
 
 
+@dataclass(frozen=True)
+class _Policy:
+    """One fetched policy: ``general`` or a provider type name."""
+
+    scope: str
+    text: str
+    revision: str
+
+    @property
+    def prompt(self) -> str:
+        return f"{self.scope}/policies/compliance"
+
+    @property
+    def file(self) -> str:
+        """The file name OPA reports this policy's errors against."""
+        return f"{self.scope}.rego"
+
+    @property
+    def package(self) -> str:
+        if self.scope == OpaPolicyEngine.GENERAL_SCOPE:
+            return "kumoss.compliance"
+        return f"kumoss.providers.{self.scope}"
+
+    def decision(self, kumoss: dict[str, Any]) -> Any:
+        """This policy's package in the value of ``data.kumoss``."""
+        if self.scope == OpaPolicyEngine.GENERAL_SCOPE:
+            return kumoss.get("compliance")
+        providers = kumoss.get("providers")
+        return providers.get(self.scope) if isinstance(providers, dict) else None
+
+
+def _where(location: Any, prompts: dict[str, str]) -> str:
+    """``<prompt>:<row>: `` for an OPA error location, else nothing."""
+    if not isinstance(location, dict):
+        return ""
+    fields = cast(dict[str, Any], location)
+    if not fields.get("row"):
+        return ""
+    file = PurePath(str(fields.get("file") or "")).name
+    return f"{prompts.get(file, file)}:{fields.get('row')}: "
+
+
 @final
 class OpaPolicyEngine(IPolicyEngine):
+    GENERAL_SCOPE: str = "general"
     _BINARY: str = "opa"
-    _QUERY: str = "data.kumoss.compliance"
+    _QUERY: str = "data.kumoss"
     _INPUT_SCHEMA: str = "kumoss.compliance.input/v1"
-    # The Langfuse prompt `general/policies/compliance`.
-    _POLICY_SCOPE: str = "general"
     _POLICY_NAME: str = "compliance"
-    # The file name OPA reports policy errors against.
-    _POLICY_FILE: str = "compliance.rego"
     _TIMEOUT_SECONDS: float = 30.0
 
     @override
     async def evaluate(
         self, plan_json: dict[str, Any], providers: Sequence[str]
     ) -> PolicyDecision:
-        policy, revision = await self.__fetch_policy()
+        policies = [await self.__fetch(self.GENERAL_SCOPE)]
+        for provider in dict.fromkeys(providers):
+            policy = await self.__fetch(provider)
+            if policy is not None:
+                policies.append(policy)
         document = {
             "plan": plan_json,
             "kumoss": {"schema": self._INPUT_SCHEMA, "providers": list(providers)},
         }
-        value = await self.__eval(policy, json.dumps(document).encode())
-        decision = self.__decision(value, revision)
+        kumoss = await self.__eval(policies, json.dumps(document).encode())
+        decision = self.__decision(kumoss, policies)
         logging.info(
-            f"Compliance policy {revision}: "
+            f"Compliance policies {', '.join(decision.revisions)}: "
             + f"{sum(v.blocking for v in decision.violations)} denied, "
             + f"{sum(not v.blocking for v in decision.violations)} warned"
         )
         return decision
 
     @override
-    async def verify(self) -> None:
-        _ = await self.evaluate({"resource_changes": []}, [])
+    async def verify(self, providers: Sequence[str]) -> None:
+        _ = await self.evaluate({"resource_changes": []}, providers)
 
-    async def __fetch_policy(self) -> tuple[str, str]:
+    async def __fetch(self, scope: str) -> _Policy | None:
+        """The policy of ``scope``; None for a provider without one."""
         try:
-            return await remote_fetcher.fetch_versioned(
+            text, revision = await remote_fetcher.fetch_versioned(
                 prompt_name=self._POLICY_NAME,
-                scope=self._POLICY_SCOPE,
+                scope=scope,
                 type="policies",
                 tag=system_config.environment,
             )
         except PromptFetchError as e:
+            if e.error_code == 404 and scope != self.GENERAL_SCOPE:
+                return None
             raise PolicyEvaluationError(
-                message=f"the policy could not be fetched from Langfuse: {e.message}",
+                message=(
+                    f"the policy {scope}/policies/compliance could not be "
+                    + f"fetched from Langfuse: {e.message}"
+                ),
                 error_code=502,
             ) from e
+        return _Policy(scope=scope, text=text, revision=revision)
 
-    async def __eval(self, policy: str, document: bytes) -> dict[str, Any]:
-        """The value of the decision query; raises when there is none."""
+    async def __eval(
+        self, policies: Sequence[_Policy], document: bytes
+    ) -> dict[str, Any]:
+        """The value of ``data.kumoss``; raises when there is none."""
         with tempfile.TemporaryDirectory(prefix="kumoss-policy-") as tmp:
-            policy_path = Path(tmp) / self._POLICY_FILE
-            _ = policy_path.write_text(policy, encoding="utf-8")
+            data: list[str] = []
+            for policy in policies:
+                path = Path(tmp) / policy.file
+                _ = path.write_text(policy.text, encoding="utf-8")
+                data += ["--data", path.as_posix()]
             exit_code, stdout, stderr = await self.__run(
                 "eval",
                 "--stdin-input",
                 "--strict-builtin-errors",
                 "--format",
                 "json",
-                "--data",
-                policy_path.as_posix(),
+                *data,
                 self._QUERY,
                 stdin=document,
             )
@@ -110,7 +172,7 @@ class OpaPolicyEngine(IPolicyEngine):
             output = None
         if exit_code != 0:
             raise PolicyEvaluationError(
-                message=f"opa eval failed: {self.__errors(output, stderr)}",
+                message=f"opa eval failed: {self.__errors(output, stderr, policies)}",
                 error_code=502,
             )
         if not isinstance(output, dict):
@@ -122,7 +184,7 @@ class OpaPolicyEngine(IPolicyEngine):
             value = output["result"][0]["expressions"][0]["value"]
         except (KeyError, IndexError, TypeError) as e:
             raise PolicyEvaluationError(
-                message="the policy defines no `package kumoss.compliance`",
+                message="the policies define no package under `kumoss`",
                 error_code=502,
             ) from e
         if not isinstance(value, dict):
@@ -130,7 +192,7 @@ class OpaPolicyEngine(IPolicyEngine):
                 message=f"{self._QUERY} is not an object",
                 error_code=502,
             )
-        return value
+        return cast(dict[str, Any], value)
 
     async def __run(self, *args: str, stdin: bytes) -> tuple[int, str, str]:
         try:
@@ -163,9 +225,9 @@ class OpaPolicyEngine(IPolicyEngine):
             stderr.decode(errors="replace"),
         )
 
-    @classmethod
-    def __errors(cls, output: Any, stderr: str) -> str:
-        """OPA's errors, one ``file:row: message`` each, else its stderr.
+    @staticmethod
+    def __errors(output: Any, stderr: str, policies: Sequence[_Policy]) -> str:
+        """OPA's errors, one ``<prompt>:row: message`` each, else its stderr.
 
         Runtime (``eval_*``) errors give only their code: their message may
         quote input values, and the plan carries secrets unmasked. Parse,
@@ -174,16 +236,12 @@ class OpaPolicyEngine(IPolicyEngine):
         errors = output.get("errors") if isinstance(output, dict) else None
         if not isinstance(errors, list) or not errors:
             return stderr.strip() or "no error output"
+        prompts = {policy.file: policy.prompt for policy in policies}
         lines: list[str] = []
         for err in errors:
             if not isinstance(err, dict):
                 continue
-            location = err.get("location") or {}
-            where = (
-                f"{cls._POLICY_FILE}:{location.get('row')}: "
-                if isinstance(location, dict) and location.get("row")
-                else ""
-            )
+            where = _where(err.get("location"), prompts)
             code = err.get("code")
             if isinstance(code, str) and code.startswith("eval_"):
                 lines.append(f"{where}{code}")
@@ -192,23 +250,36 @@ class OpaPolicyEngine(IPolicyEngine):
         return "; ".join(lines)
 
     @classmethod
-    def __decision(cls, value: dict[str, Any], revision: str | None) -> PolicyDecision:
-        violations = [
-            *(cls.__finding(f, "deny") for f in cls.__set(value, "deny")),
-            *(cls.__finding(f, "warn") for f in cls.__set(value, "warn")),
-        ]
+    def __decision(
+        cls, kumoss: dict[str, Any], policies: Sequence[_Policy]
+    ) -> PolicyDecision:
+        violations: list[ComplianceViolation] = []
+        rules: set[str] = set()
+        for policy in policies:
+            value = policy.decision(kumoss)
+            if not isinstance(value, dict):
+                raise PolicyEvaluationError(
+                    message=f"{policy.prompt} defines no `package {policy.package}`",
+                    error_code=502,
+                )
+            package = cast(dict[str, Any], value)
+            violations += [
+                *(cls.__finding(f, "deny") for f in cls.__set(package, "deny")),
+                *(cls.__finding(f, "warn") for f in cls.__set(package, "warn")),
+            ]
+            declared = cls.__set(package, "rules")
+            if not all(isinstance(r, str) and r for r in declared):
+                raise PolicyEvaluationError(
+                    message=f"`rules` of {policy.prompt} must hold non-empty strings only",
+                    error_code=502,
+                )
+            rules.update(cast(list[str], declared))
         # Rego sets have no order: sort so equal plans give equal reports.
         violations.sort(key=lambda v: (v.rule_id, v.resource or "", v.message))
-        rules = cls.__set(value, "rules")
-        if not all(isinstance(r, str) and r for r in rules):
-            raise PolicyEvaluationError(
-                message="`rules` must hold non-empty strings only",
-                error_code=502,
-            )
         return PolicyDecision(
             violations=violations,
             checked_rules=sorted({*rules, *(v.rule_id for v in violations)}),
-            revision=revision,
+            revisions=[policy.revision for policy in policies],
         )
 
     @staticmethod

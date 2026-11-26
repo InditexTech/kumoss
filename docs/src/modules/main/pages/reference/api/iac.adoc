@@ -1,11 +1,11 @@
 = IaC sidecar API
-:description: The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, import discovery, state backends, and engine selection in the bundled implementation.
+:description: The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, the optional project header, import discovery, state backends, and engine selection in the bundled implementation.
 
 The IaC service is a *raw executor* for an IaC engine's command-line
 interface. It is the one mandatory sidecar: without it the core cannot
 validate or apply anything, so `services.iac` has no `enabled` flag.
 
-Contract: `contracts/openapi/iac.v1.yaml`, version 2.0.0. Default endpoint:
+Contract: `contracts/openapi/iac.v1.yaml`, version 2.1.0. Default endpoint:
 `\http://iac:8082`. Bearer token: the value of the variable named by
 `services.iac.token_env`, `KUMOSS_IAC_TOKEN` by default, which the
 bundled implementation reads from the variable of the same name.
@@ -435,8 +435,34 @@ subprocess. Its `scope_id` is the argument of the inventory query
 itself — the subscription, project, or account whose contents are
 listed.
 
+[#project]
+== Project
+
+Every request may carry a `Kumoss-Project` header naming the project
+the workspace belongs to, as the user identified it (for example
+`sistemas-kumoss-rsg-esc1-dev`). The core has already checked, through
+the xref:main:reference/api/mapping.adoc[mapping sidecar], that it
+names the repository the workspace was checked out from. An IaC
+service implementation may pick the credentials the command runs with
+by it (for instance, reading them from the project's own secret store)
+and reject a project it cannot serve with `403`; it must not echo the
+credentials back. Without the header, or in an implementation that
+ignores it, commands run with the implementation's own environment. The
+header is never a credential itself.
+
+The core sends it on every call of a session whose first call carried
+a `project_identifier` (see
+xref:main:reference/api/core.adoc#infrastructure-as-code[Core API]):
+`init`, `validate`, `plan`, `show`, `apply`, `import`, both import
+discovery endpoints and job polling. Sessions without one send no
+header. The bundled implementation ignores it.
+
 [#versioning]
 == Versioning
+
+Contract 2.1.0 is additive: it adds the optional `Kumoss-Project`
+request header (see <<project>>). Implementations of 2.0.0 keep
+working unchanged.
 
 Contract 2.0.0 is a breaking change from 1.x:
 

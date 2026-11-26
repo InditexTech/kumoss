@@ -85,6 +85,7 @@ in the root module's directory:
 # Managed by Kumoss: the inputs this Terraform root module is configured with.
 # Sensitive values are never stored here, only their names.
 version: "1"
+project_identifier: sistemas-kumoss-rsg-esc1-dev
 fingerprint: sha256:<hex>
 providers:
   - name: azurerm
@@ -104,6 +105,17 @@ scopes:
 [cols="1,4",options="header"]
 |===
 |Key |Meaning
+
+|`version`
+|The layout version, `"1"`.
+
+|`project_identifier`
+|Optional. What the user named the repository when it was not its URL
+(a name the xref:main:reference/api/mapping.adoc[mapping sidecar]
+resolved), as recorded by the latest session that saved the manifest.
+Written only when the session has one. Informational: it is refreshed
+on every save and never makes the manifest drift. See
+<<project-identifier>>.
 
 |`fingerprint`
 |A digest of what the user answers for: the providers and their
@@ -129,10 +141,29 @@ elsewhere (see <<where-values-live>>).
 
 The file is committed by a session on its branch, together with the
 session's other changes, and reaches the default branch when the
-session's pull request is merged. Reading is strict: the file may be
-edited by hand, so anything off the layout is reported (`422`) rather
-than guessed, and a sensitive variable written with a value is refused
-with an instruction to remove it and rotate the secret.
+session's pull request is merged. Only `version` and `fingerprint` are
+required; every other key is optional. Reading is strict about what is
+there: the file may be edited by hand, so a known key with the wrong
+type or shape is reported (`422`) rather than guessed, and a sensitive
+variable written with a value is refused with an instruction to remove
+it and rotate the secret. Unknown keys, at any level, are ignored, so a
+newer layout can add keys without breaking older readers; they are not
+kept when Kumoss saves the file.
+
+[#project-identifier]
+=== Project identifier
+
+A repository can be named by a *project identifier*, such as
+`sistemas-kumoss-rsg-esc1-dev`, that the mapping sidecar resolves to
+its URL. When the session's first call carries one (the
+`project_identifier` field of the
+xref:main:reference/api/core.adoc#infrastructure-as-code[Core API]),
+the session writes it to the manifest. Every session's first call
+records its own identifier: when it differs from the manifest's, or the
+session has none and the manifest does, the manifest is saved even if
+nothing else changed, and a session without one removes the key. It is
+not part of the `fingerprint`, so the probe never reports `drifted` or
+`needs_input` because of it.
 
 [#where-values-live]
 == Where values and secrets live
@@ -167,7 +198,8 @@ inputs form (`sensitive: true` in the API). Probe responses and session
 read models never contain values.
 
 Provider *credentials* are not manifest inputs: they stay in the IaC
-sidecar's environment.
+sidecar's environment, or an IaC service implementation picks them by
+the session's <<project-identifier,project identifier>>.
 
 == Before a session: the probe
 

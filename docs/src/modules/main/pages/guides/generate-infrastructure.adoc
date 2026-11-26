@@ -55,10 +55,16 @@ bucket for application logs", "open port 443 on the web security group",
   impact banner (`low`, `medium`, `high`), and cost estimates.
 . *Compliance check* (when `orchestration.enable_compliance_checker` is
   `true`). Two checks, merged into one compliance report. First, OPA
-  evaluates the compliance policy (the Rego prompt
-  `general/policies/compliance`) against the plan; the shipped policy
-  denies standalone deletions. A policy that cannot be evaluated adds a
-  blocking `policy_unavailable` finding. Then a small-model auditor
+  evaluates the compliance policies (the Rego prompts
+  `general/policies/compliance` and the
+  `<provider>/policies/compliance` of each provider of the root
+  module) against the plan; the shipped policies deny standalone
+  deletions, removed customer-managed encryption keys and command
+  execution (`null_resource`, provisioners, `data "external"`), warn
+  about credential outputs not marked sensitive, and deny, per
+  provider, critical misconfigurations such as ingress open to the
+  internet. A policy that cannot be evaluated adds
+  a blocking `policy_unavailable` finding. Then a small-model auditor
   checks the plan against the rules in the `general/compliance/report`
   prompt. See xref:main:reference/compliance-policy.adoc[Compliance
   policy]. The auditor judges the plan against

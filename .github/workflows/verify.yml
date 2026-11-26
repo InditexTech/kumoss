@@ -81,13 +81,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Format
-        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" fmt --diff --fail prompts/seed/general/policies tests/policies
+        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" fmt --diff --fail prompts/seed/*/policies tests/policies
 
       - name: Check
-        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" check prompts/seed/general/policies tests/policies
+        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" check prompts/seed/*/policies tests/policies
 
       - name: Tests
-        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" test --verbose prompts/seed/general/policies tests/policies
+        run: docker run --rm -v "$PWD:/core:ro" -w /core "$OPA_IMAGE" test --verbose prompts/seed/*/policies tests/policies
 
   lockfiles:
     name: lockfile/${{ matrix.project }}

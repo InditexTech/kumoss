@@ -1,18 +1,56 @@
 = Upgrade notes
-:description: Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
+:description: Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
 
 This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.
 
+== Project identifier; IaC contract 2.1.0
+
+A repository can be named by a *project identifier*, such as
+`sistemas-kumoss-rsg-esc1-dev`, that the mapping sidecar resolves to
+its URL. A session now keeps that name and sends it to the IaC sidecar,
+so an IaC service implementation can pick the credentials a command
+runs with by it. Nothing is required of an operator; what changes:
+
+* *Database.* Migration `0003` adds the nullable
+  `workspaces.project_identifier` column. The core applies it at
+  startup, like the others; existing sessions get null. See
+  xref:main:reference/database-schema.adoc[Database schema].
+* *Core API.* `POST /api/v1/repository/parse` also answers
+  `project_identifier`, the input echoed. The first `generate`, `drift`
+  or `import` call may send it back as `project_identifier`, as the web
+  application does; the core then checks through the mapping sidecar
+  that it resolves to `repo_uri` and answers `422` otherwise, before
+  any session is created. It is optional: clients that do not send it
+  behave as before. See
+  xref:main:reference/api/core.adoc#infrastructure-as-code[Core API].
+* *Manifest.* `kumoss.yaml` gains an optional top-level
+  `project_identifier`, written only when the session has one. It never
+  makes the manifest drift, but a first call saves the manifest when
+  only the identifier changed. The layout version stays `"1"`; earlier
+  cores ignore the key when reading and drop it when they save. See
+  xref:main:reference/root-module-manifest.adoc#project-identifier[Root
+  module manifest].
+* *IaC contract 2.1.0 (additive).* Every IaC call of such a session
+  carries the optional `Kumoss-Project` header. An implementation may
+  ignore it, as the bundled one does, so 2.0.0 implementations keep
+  working unchanged. See
+  xref:main:reference/api/iac.adoc#project[IaC sidecar API].
+* *Session cache.* The cached session context moved to a new key
+  version; entries in the old shape are rebuilt from the database on
+  first use. Nothing to flush.
+
 == Compliance policy with OPA; `forbidden_actions` removed
 
 With `orchestration.enable_compliance_checker` on, generate rounds now
-also evaluate a Rego policy with OPA against the final plan, before the
-LLM audit, and both results go into one compliance report. The policy
-is the Langfuse text prompt `general/policies/compliance`, seeded on the
-next boot. See xref:main:reference/compliance-policy.adoc[Compliance
-policy].
+also evaluate Rego policies with OPA against the final plan, before the
+LLM audit, and all results go into one compliance report. The policies
+are the Langfuse text prompts `general/policies/compliance`, evaluated
+on every round, and `<provider>/policies/compliance`, evaluated when
+the root module declares that provider (skipped for a provider without
+one), all seeded on the next boot. See
+xref:main:reference/compliance-policy.adoc[Compliance policy].
 
 What that changes:
 
@@ -24,27 +62,76 @@ What that changes:
   (including those the Phoenix migration script imported) stay there,
   unused; the seeder never deletes. *This removes guardrails*: an
   install that relied on those lists and writes no policy has no
-  replacement for them. Write the prohibitions you need as Rego rules in
-  `general/policies/compliance`; the shipped policy only denies
-  standalone deletions.
+  replacement for them beyond the shipped policies. Those deny
+  standalone deletions, removed customer-managed keys and command
+  execution (general policy) and, per provider, three of
+  the most critical prohibitions the lists held that can be decided
+  from the plan alone, such as security groups open to the internet or
+  `cluster-admin` bound to a ServiceAccount. Rules that allowed an
+  exception on an explicit user request were not translated. Write the
+  other prohibitions you need as Rego rules in
+  `<provider>/policies/compliance` or `general/policies/compliance`.
 * *`critical_deletion` moved to the policy.* The seed of
   `general/compliance/report` no longer defines it; the policy does,
   deterministically. If you customized that prompt, your version keeps
   its `critical_deletion` section and standalone deletions are reported
   twice, once by each source. Delete the section from your version.
+* *Three more general rules.* The general policy also denies
+  `customer_managed_key_removed` (a resource the plan updates or
+  replaces losing its customer-managed encryption key) and
+  `command_execution` (a `null_resource` or a provisioner on a resource
+  the plan creates or updates, or any `data "external"` in the
+  configuration, repository code included), and warns with
+  `unprotected_credential_output` (a root module output named like a
+  credential and not marked `sensitive = true`). A round that updates a
+  repository resource carrying a provisioner, or whose configuration
+  holds a `data "external"`, is now locked.
+  The OCI policy's `oci_public_ingress` now also checks
+  `oci_core_default_security_list`. See
+  xref:main:reference/compliance-policy.adoc[Compliance policy].
+* *Bans removed from the prompts.* What a policy enforces is no longer
+  restated in the guideline and resource prompts, which feed both the
+  IaC generator and the LLM audit. The seeds lost the "No arbitrary
+  command execution" section of `general/guidelines/terraform`, the
+  "guest configuration only through user data or cloud-init" bullets
+  of the compute resource prompts and `vsphere/guidelines/resource_creation`,
+  the bans on internet-open ingress (security groups, NSGs, firewalls,
+  OCI security lists, the OCI default security list, bastions), on
+  basic roles and service account keys (`google`), `cluster-admin`
+  (`kubernetes`), `Allow any-user` (`oci`) and Owner and similar
+  assignments (`azurerm`), the `vsphere` provider-block and TLS
+  bullets, and the deletion safeguards bullet of
+  `oci/guidelines/resource_creation`. Bullets were removed whole, so
+  the generator is no longer told to avoid these patterns: a round that
+  generates one is locked by the policy instead of being written
+  correctly. The parts of those bullets no policy checks (no secrets in
+  user data, Owner or User Access Administrator at narrower scopes, the
+  alternatives to service account keys, locking down the OCI default
+  security list, OCI delete-protection defaults...) are now checked by
+  nothing; restore them in your own prompts if you need them. Prompts
+  you customized keep your text, bans included. See
+  xref:main:guides/customize-prompts.adoc#compliance-policy[Customize
+  prompts].
 * *The core image ships `opa`* (OPA 1.22.4). A custom core image must
   provide it on the `PATH`.
-* *Startup check.* With the checker on, the core evaluates the policy
-  against an empty plan after seeding and refuses to start if that
-  fails: no `opa` binary, a broken policy, or Langfuse unreachable.
+* *Startup check.* With the checker on, the core evaluates the general
+  policy and the policy of every provider that ships a seed (`aws`,
+  `azurerm`, `google`, `kubernetes`, `oci`, `vsphere`) against an empty
+  plan after seeding, and refuses to start if that fails: no `opa`
+  binary, a broken policy, or Langfuse unreachable. A provider policy
+  missing from Langfuse is skipped.
 * *Fail closed.* A policy that cannot be evaluated during a round adds
   a blocking `policy_unavailable` finding, so the session is locked and
   the compliance failure notification is sent.
 * *Compliance reports.* Each violation has `source` (`llm` or `opa`;
   absent on older reports, meaning `llm`) and the report has
-  `policy_revision`, the Langfuse prompt version of the policy that ran
-  as `"<prompt name>@<version>"`, for example
-  `general/policies/compliance@4` (null when no policy ran).
+  `policy_revisions`, the Langfuse prompt versions of the policies that
+  ran, each as `"<prompt name>@<version>"`, the general policy first,
+  for example `["general/policies/compliance@3",
+  "aws/policies/compliance@1"]` (empty when no policy ran). It replaces
+  the single `policy_revision` string of earlier builds; reports stored
+  with `policy_revision` are still read, into the list. Consumers of
+  the report JSON must read the new field.
 
 [#phoenix-to-langfuse]
 == Langfuse replaces Phoenix
@@ -320,8 +407,8 @@ session on each project plans against empty state and proposes
 creating resources that already exist.
 
 Before running sessions on an existing project, copy its state object
-in the state bucket from `<old_project_id>/terraform.tfstate` to
-`<project_id>/terraform.tfstate`. The old key appears in the
+in the state bucket from `<old_state_id>/terraform.tfstate` to
+`<state_id>/terraform.tfstate`. The old key appears in the
 `Terraform state: ... key=` log lines of the previous release; the new
 one in the same line the upgraded core logs on the project's first
 `init`. Do not apply a plan made before the copy. See

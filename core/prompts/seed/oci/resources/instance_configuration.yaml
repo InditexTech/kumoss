@@ -32,10 +32,6 @@ body: |
     and enable in-transit encryption for the boot volume.
   - Enable the Oracle Cloud Agent monitoring plugins, and the
     Bastion plugin when access goes through the `bastion` service.
-  - Configure the guest only through cloud-init in
-    `metadata.user_data` (base64-encoded) — never provisioners.
-    Never put secrets in user data; instances read them from OCI
-    Vault at boot through an instance principal (`dynamic_group`).
   - Instance configurations are immutable: any change to
     `instance_details` creates a new configuration. Add
     `lifecycle { create_before_destroy = true }` so the pool can

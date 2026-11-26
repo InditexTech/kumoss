@@ -71,7 +71,7 @@ committed HCL. The core logs the target on every `init`:
 
 [source]
 ----
-Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
+Terraform state: rustfs bucket=kumoss-terraform-state key=<state_id>/terraform.tfstate
 ----
 
 == Per-provider configuration
@@ -104,7 +104,7 @@ Rendered into each workspace as `backend_override.tf`:
 terraform {
   backend "s3" {
     bucket = "kumoss-terraform-state"
-    key    = "<project_id>/terraform.tfstate"
+    key    = "<state_id>/terraform.tfstate"
     region = "us-east-1"
 
     access_key = "rustfsadmin"
@@ -154,7 +154,7 @@ configured:
 terraform {
   backend "s3" {
     bucket = "acme-kumoss-tfstate"
-    key    = "<project_id>/terraform.tfstate"
+    key    = "<state_id>/terraform.tfstate"
     region = "eu-west-1"
 
     access_key = "AKIAEXAMPLE"
@@ -175,7 +175,7 @@ or a workload identity on the *IaC sidecar's* container:
 terraform {
   backend "s3" {
     bucket = "acme-kumoss-tfstate"
-    key    = "<project_id>/terraform.tfstate"
+    key    = "<state_id>/terraform.tfstate"
     region = "eu-west-1"
 
     use_lockfile = true
@@ -213,7 +213,7 @@ terraform {
   backend "azurerm" {
     storage_account_name = "acmekumoss"
     container_name       = "kumoss-terraform-state"
-    key                  = "<project_id>/terraform.tfstate"
+    key                  = "<state_id>/terraform.tfstate"
     access_key           = "azure-shared-key"
   }
 }
@@ -296,10 +296,10 @@ State is keyed by *project*, not by session or directory:
 
 [source]
 ----
-<state_bucket>/<project_id>/terraform.tfstate
+<state_bucket>/<state_id>/terraform.tfstate
 ----
 
-`project_id` is the SHA-256 hex digest of two newline-joined values:
+`state_id` is the SHA-256 hex digest of two newline-joined values:
 
 . the *normalized repository URI*, as `host/path`
 . the *normalized root-module path* within the repository (`root_module_path`)
@@ -314,8 +314,8 @@ Earlier releases hashed the cloud scope (`scope_id`) between the two
 values, so state written by them sits under a different key. It is
 *not* migrated: after upgrading, the first session on a project plans
 against empty state. Before running it, copy each project's
-`<old_project_id>/terraform.tfstate` object to
-`<project_id>/terraform.tfstate` in the state bucket — the old key is
+`<old_state_id>/terraform.tfstate` object to
+`<state_id>/terraform.tfstate` in the state bucket — the old key is
 in the `Terraform state: ... key=` lines an earlier release logged, and
 the new one in the line the upgraded core logs on its first `init` —
 or move it with `tofu state pull`/`state push` as described in
@@ -389,7 +389,7 @@ docker compose logs core | grep "Terraform state:"
 +
 [source]
 ----
-Terraform state: rustfs bucket=kumoss-terraform-state key=<project_id>/terraform.tfstate
+Terraform state: rustfs bucket=kumoss-terraform-state key=<state_id>/terraform.tfstate
 ----
 
 . List the state bucket and check that the logged key exists after the

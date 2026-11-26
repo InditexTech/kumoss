@@ -1,0 +1,358 @@
+{
+  "plan": {
+    "format_version": "1.2",
+    "resource_changes": [
+      {
+        "address": "aws_iam_policy.admin",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "delay_after_policy_creation_in_ms": null,
+            "description": null,
+            "name": "admin",
+            "path": "/",
+            "policy": "{\"Statement\":[{\"Action\":\"*\",\"Effect\":\"Allow\",\"Resource\":\"*\"}],\"Version\":\"2012-10-17\"}",
+            "tags": null
+          },
+          "after_identity": {
+            "arn": null
+          },
+          "after_sensitive": {
+            "tags_all": {}
+          },
+          "after_unknown": {
+            "arn": true,
+            "attachment_count": true,
+            "id": true,
+            "name_prefix": true,
+            "policy_id": true,
+            "tags_all": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "admin",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_iam_policy"
+      },
+      {
+        "address": "aws_iam_role_policy.scoped",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "policy": "{\"Version\":\"2012-10-17\",\"Statement\":{\"Action\":[\"s3:GetObject\"],\"Effect\":\"Allow\",\"Resource\":\"*\"}}",
+            "role": "r"
+          },
+          "after_identity": {
+            "account_id": null,
+            "name": null,
+            "role": null
+          },
+          "after_sensitive": {},
+          "after_unknown": {
+            "id": true,
+            "name": true,
+            "name_prefix": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "scoped",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_iam_role_policy"
+      },
+      {
+        "address": "aws_s3_bucket_acl.public",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "acl": "public-read",
+            "bucket": "b",
+            "expected_bucket_owner": null,
+            "region": "eu-west-1"
+          },
+          "after_identity": {
+            "account_id": null,
+            "bucket": null,
+            "region": null
+          },
+          "after_sensitive": {
+            "access_control_policy": []
+          },
+          "after_unknown": {
+            "access_control_policy": true,
+            "id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "public",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_s3_bucket_acl"
+      },
+      {
+        "address": "aws_s3_bucket_public_access_block.off",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "block_public_acls": true,
+            "block_public_policy": false,
+            "bucket": "b",
+            "ignore_public_acls": true,
+            "region": "eu-west-1",
+            "restrict_public_buckets": true,
+            "skip_destroy": null
+          },
+          "after_identity": {
+            "account_id": null,
+            "bucket": null,
+            "region": null
+          },
+          "after_sensitive": {},
+          "after_unknown": {
+            "id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "off",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_s3_bucket_public_access_block"
+      },
+      {
+        "address": "aws_security_group.inline",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "description": "Managed by Terraform",
+            "ingress": [
+              {
+                "cidr_blocks": [
+                  "0.0.0.0/0"
+                ],
+                "description": "",
+                "from_port": 22,
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "protocol": "tcp",
+                "security_groups": [],
+                "self": false,
+                "to_port": 22
+              },
+              {
+                "cidr_blocks": [
+                  "0.0.0.0/0"
+                ],
+                "description": "",
+                "from_port": 443,
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "protocol": "tcp",
+                "security_groups": [],
+                "self": false,
+                "to_port": 443
+              }
+            ],
+            "name": "inline",
+            "region": "eu-west-1",
+            "revoke_rules_on_delete": false,
+            "tags": null,
+            "timeouts": null
+          },
+          "after_identity": {
+            "account_id": null,
+            "id": null,
+            "region": null
+          },
+          "after_sensitive": {
+            "egress": [],
+            "ingress": [
+              {
+                "cidr_blocks": [
+                  false
+                ],
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "security_groups": []
+              },
+              {
+                "cidr_blocks": [
+                  false
+                ],
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "security_groups": []
+              }
+            ],
+            "tags_all": {}
+          },
+          "after_unknown": {
+            "arn": true,
+            "egress": true,
+            "id": true,
+            "ingress": [
+              {
+                "cidr_blocks": [
+                  false
+                ],
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "security_groups": []
+              },
+              {
+                "cidr_blocks": [
+                  false
+                ],
+                "ipv6_cidr_blocks": [],
+                "prefix_list_ids": [],
+                "security_groups": []
+              }
+            ],
+            "name_prefix": true,
+            "owner_id": true,
+            "tags_all": true,
+            "vpc_id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "inline",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_security_group"
+      },
+      {
+        "address": "aws_security_group_rule.ssh",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "cidr_blocks": null,
+            "description": null,
+            "from_port": 0,
+            "ipv6_cidr_blocks": [
+              "::/0"
+            ],
+            "prefix_list_ids": null,
+            "protocol": "-1",
+            "region": "eu-west-1",
+            "security_group_id": "sg-123",
+            "self": false,
+            "timeouts": null,
+            "to_port": 65535,
+            "type": "ingress"
+          },
+          "after_sensitive": {
+            "ipv6_cidr_blocks": [
+              false
+            ]
+          },
+          "after_unknown": {
+            "id": true,
+            "ipv6_cidr_blocks": [
+              false
+            ],
+            "security_group_rule_id": true,
+            "source_security_group_id": true
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "ssh",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_security_group_rule"
+      },
+      {
+        "address": "aws_vpc_security_group_ingress_rule.https",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "cidr_ipv4": "0.0.0.0/0",
+            "cidr_ipv6": null,
+            "description": null,
+            "from_port": 443,
+            "ip_protocol": "tcp",
+            "prefix_list_id": null,
+            "referenced_security_group_id": null,
+            "region": "eu-west-1",
+            "security_group_id": "sg-123",
+            "tags": null,
+            "tags_all": {},
+            "to_port": 443
+          },
+          "after_sensitive": {
+            "tags_all": {}
+          },
+          "after_unknown": {
+            "arn": true,
+            "id": true,
+            "security_group_rule_id": true,
+            "tags_all": {}
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "https",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_vpc_security_group_ingress_rule"
+      },
+      {
+        "address": "aws_vpc_security_group_ingress_rule.rdp",
+        "change": {
+          "actions": [
+            "create"
+          ],
+          "after": {
+            "cidr_ipv4": "0.0.0.0/0",
+            "cidr_ipv6": null,
+            "description": null,
+            "from_port": 3389,
+            "ip_protocol": "tcp",
+            "prefix_list_id": null,
+            "referenced_security_group_id": null,
+            "region": "eu-west-1",
+            "security_group_id": "sg-123",
+            "tags": null,
+            "tags_all": {},
+            "to_port": 3389
+          },
+          "after_sensitive": {
+            "tags_all": {}
+          },
+          "after_unknown": {
+            "arn": true,
+            "id": true,
+            "security_group_rule_id": true,
+            "tags_all": {}
+          },
+          "before": null,
+          "before_sensitive": false
+        },
+        "mode": "managed",
+        "name": "rdp",
+        "provider_name": "registry.terraform.io/hashicorp/aws",
+        "type": "aws_vpc_security_group_ingress_rule"
+      }
+    ],
+    "terraform_version": "1.16.0"
+  }
+}

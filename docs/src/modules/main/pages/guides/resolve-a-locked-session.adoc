@@ -34,8 +34,8 @@ Drift and import rounds are never checked and never lock a session.
 
 |<<compliance-policy,Compliance policy>>
 |Yes
-|Rego policy `general/policies/compliance`, evaluated by Open Policy
-Agent
+|Rego policies `general/policies/compliance` and
+`<provider>/policies/compliance`, evaluated by Open Policy Agent
 |Write or change rules in Rego; see
 xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]
 
@@ -56,7 +56,8 @@ prompts]
 |===
 
 All three are prompts in Langfuse, seeded from
-`core/prompts/seed/general/`. A change takes effect on the next generate
+`core/prompts/seed/general/` (and, for the provider policies, from
+`core/prompts/seed/<provider>/`). A change takes effect on the next generate
 round once its new version carries your environment's label. Which
 checks run at all is set by your operator with the `orchestration`
 switches; see xref:main:reference/configuration.adoc[Configuration].
@@ -64,16 +65,24 @@ switches; see xref:main:reference/configuration.adoc[Configuration].
 [#compliance-policy]
 === Compliance policy (deterministic)
 
-*What locks.* Open Policy Agent evaluates the
-xref:main:reference/compliance-policy.adoc[compliance policy], a Rego
-module, against the plan's JSON. Any `deny` finding locks the session.
+*What locks.* Open Policy Agent evaluates your organization's
+xref:main:reference/compliance-policy.adoc[compliance policies], Rego
+modules, against the plan's JSON: the general policy, and one policy
+for each provider the module declares. Any `deny` finding locks the
+session; `warn` findings are reported but do not.
 
-* The shipped rule, `critical_deletion`, denies any resource that is
-  destroyed without being recreated, *even when you asked for the
-  deletion*. Replacements are allowed.
-* If the policy cannot be evaluated at all, the round gets a
-  `policy_unavailable` finding and is locked too: the policy
-  xref:main:reference/compliance-policy.adoc#failure[fails closed].
+* The general policy's `critical_deletion` rule denies any resource
+  that is destroyed without being recreated, *even when you asked for
+  the deletion*. Replacements are allowed.
+* The other shipped rules deny removing a customer-managed key, having
+  Terraform run commands (provisioners, `null_resource`, external data
+  sources), and provider-specific risks such as public ingress or
+  wildcard admin roles; see
+  xref:main:reference/compliance-policy.adoc#shipped-rules[The
+  shipped rules].
+* If a policy cannot be evaluated at all, the round gets a
+  `policy_unavailable` finding and is locked too: the policies
+  xref:main:reference/compliance-policy.adoc#failure[fail closed].
 
 Findings from this check carry a *policy* badge.
 
@@ -82,17 +91,20 @@ reads resource types, actions, and attribute values from the plan. The
 same plan always gets the same verdict, and every rule can be tested
 with `opa test` before it is rolled out.
 
-*Where to change it.* The policy is the Langfuse prompt
-`general/policies/compliance`, seeded from
-`core/prompts/seed/general/policies/compliance.rego`. To add a rule, such
+*Where to change it.* The general policy is the Langfuse prompt
+`general/policies/compliance`, and each provider's is
+`<provider>/policies/compliance`, seeded from
+`core/prompts/seed/<scope>/policies/compliance.rego`. To add a rule, such
 as allowed regions, no public storage, or no owner role assignments,
-write it, test it, and publish it as a new version in Langfuse; see
+write it in the policy of the provider it concerns (or in the general
+policy when it spans providers), test it, and publish it as a new
+version in Langfuse; see
 xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]. The
-input the policy receives and the decision it must return are in
+input a policy receives and the decision it must return are in
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
-Use the policy for every rule you can state as a condition on the plan:
-it is the only check that cannot miss a case or flag one by mistake.
+Use the policies for every rule you can state as a condition on the
+plan: they are the only check that cannot miss a case or flag one by mistake.
 
 [#compliance-audit]
 === Compliance audit (not deterministic)

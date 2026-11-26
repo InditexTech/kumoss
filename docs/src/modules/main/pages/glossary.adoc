@@ -87,6 +87,13 @@ include::partial$glossary/pinned-plan.adoc[]
 
 See xref:main:guides/merge-and-apply.adoc[Merge and apply].
 
+== Project identifier
+
+include::partial$glossary/project-identifier.adoc[]
+
+See xref:main:reference/root-module-manifest.adoc#project-identifier[Root
+module manifest].
+
 == Prompt
 
 include::partial$glossary/prompt.adoc[]

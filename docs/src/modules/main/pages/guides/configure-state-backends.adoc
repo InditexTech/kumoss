@@ -148,7 +148,7 @@ terraform {
   backend "azurerm" {
     storage_account_name = "acmekumoss"
     container_name       = "kumoss-terraform-state"
-    key                  = "<project_id>/terraform.tfstate"
+    key                  = "<state_id>/terraform.tfstate"
     access_key           = "..."
   }
 }
@@ -327,8 +327,8 @@ Read the results together:
 
 |`<unset>`
 |`ON`
-|`<bucket>/<project_id>/terraform.tfstate` in the store at `endpoint`.
-Get the `project_id` from the core log (see below).
+|`<bucket>/<state_id>/terraform.tfstate` in the store at `endpoint`.
+Get the `state_id` from the core log (see below).
 
 |`<unset>`
 |`OFF`
@@ -346,7 +346,7 @@ the repository's value.
 <<precedence,Which value wins>>).
 |===
 
-*Get the `project_id` under managed state.* The core logs the bucket and
+*Get the `state_id` under managed state.* The core logs the bucket and
 key each time it writes the override, before every `init`:
 
 [source,bash]

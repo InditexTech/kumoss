@@ -107,6 +107,9 @@ to be found.
 
 |`general/policies/compliance.rego`
 |`general/policies/compliance`
+
+|`aws/policies/compliance.rego`
+|`aws/policies/compliance`
 |===
 
 Two files that would produce the same qualified name abort the boot
@@ -265,8 +268,9 @@ and abbreviations
 `orchestration.enable_compliance_checker` is `true`)
 |The same as the IaC generator, plus `general/compliance/report`
 
-|Compliance policy (same condition; evaluated by OPA, not a model)
-|`general/policies/compliance`
+|Compliance policies (same condition; evaluated by OPA, not a model)
+|`general/policies/compliance`, and `<provider>/policies/compliance`
+for each provider the root module declares that has one
 
 |Report generator (generate reports)
 |`general/compliance/impact`
@@ -311,8 +315,9 @@ style of the file you edit.
 
 The `aws`, `azurerm`, `google`, and `oci` scopes ship the same seven
 guideline prompts; `kubernetes` and `vsphere` ship six, without
-`import_exceptions`. The resource prompts differ per provider. The
-`general` scope also ships the one policy, `policies/compliance.rego`.
+`import_exceptions`. The resource prompts differ per provider. Every
+scope, `general` included, also ships one policy,
+`policies/compliance.rego`.
 
 [cols="1,3,4,1",options="header"]
 |===
@@ -457,6 +462,7 @@ body: |
 * xref:main:guides/customize-prompts.adoc[Customize prompts] to change
   a prompt, add a resource prompt, or write exception lists.
 * xref:main:reference/compliance-policy.adoc[Compliance policy] for
-  the contract of `general/policies/compliance`.
+  the contract of `general/policies/compliance` and the provider
+  policies.
 * xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] for
   where Langfuse runs and how to log in.

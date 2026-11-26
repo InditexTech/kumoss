@@ -35,9 +35,12 @@ See xref:main:reference/configuration.adoc[Configuration].
 
 |*Compliance policy*
 |Yes
-|Open Policy Agent evaluates a Rego policy against the plan's JSON.
-Fails closed: a policy that cannot be evaluated locks the round too.
-|Prompt `general/policies/compliance`
+|Open Policy Agent evaluates Rego policies against the plan's JSON: the
+general policy, and the policy of each provider the root module
+declares. Fails closed: a policy that cannot be evaluated locks the
+round too.
+|Prompts `general/policies/compliance` and
+`<provider>/policies/compliance`
 
 |*Compliance audit*
 |No
@@ -53,21 +56,21 @@ written criteria.
 |Prompt `general/compliance/impact`
 |===
 
-Only the policy is deterministic: it reads attributes of the plan, so
+Only the policy check is deterministic: it reads attributes of the plan, so
 the same plan always gets the same verdict. The audit and the impact
 rating depend on what the request means and on what a change implies,
 which only a model can judge, so their verdicts can vary between runs.
 Rules that can be stated as a condition on the plan therefore belong in
-the policy. For what each check looks for, why, and where to adapt it,
+the policies, and are not restated in the prompts the audit reads. For what each check looks for, why, and where to adapt it,
 see xref:main:guides/resolve-a-locked-session.adoc#why[Why a session is
 locked].
 
 [#flow]
 == From findings to a lock
 
-. The core evaluates the policy, then runs the audit, and merges both
+. The core evaluates the policies, then runs the audit, and merges both
   into one *compliance report* for the round. Each finding carries its
-  source (`opa` for the policy, `llm` for the audit), a rule id, a
+  source (`opa` for the policies, `llm` for the audit), a rule id, a
   severity, and the resource it concerns.
 . The report fails when either source has a finding of severity `error`
   or `critical`. Findings of severity `warning` are reported only.

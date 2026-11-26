@@ -25,8 +25,6 @@ body: |
     public IPs, and `boot_diagnostics {}` follow the
     `virtual_machine` template. Do not set a fixed instance count
     when an autoscale setting owns the capacity.
-  - Configure the guest only through `custom_data` (cloud-init);
-    never the CustomScript extension, run commands, or provisioners.
 
   ## Health and upgrades
   - Report health with the Application Health extension (or a load

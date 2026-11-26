@@ -78,7 +78,7 @@ Langfuse.
 
 [card]
 .xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]
-Add a deterministic rule to the compliance policy, test it, and publish
+Add a deterministic rule to a compliance policy, test it, and publish
 it.
 ====
 

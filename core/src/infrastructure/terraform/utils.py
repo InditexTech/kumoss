@@ -15,7 +15,7 @@ from src.shared.exceptions import ExceptionHandler
 
 class TerraformUtils:
     @staticmethod
-    def project_id(repo_uri: str, root_module_path: str) -> str:
+    def state_id(repo_uri: str, root_module_path: str) -> str:
         """Identify the Terraform project a session operates on.
 
         Digest over what decides which state a run belongs to: the

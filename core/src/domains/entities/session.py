@@ -27,6 +27,7 @@ class SessionContext:
         history: list[dict[str, str]],
         chat_history: list[dict[str, str]],
         user_queries: list[str] | None = None,
+        project_identifier: str | None = None,
     ):
         self.__id = id
         self.__user_id = user_id
@@ -35,6 +36,7 @@ class SessionContext:
         self.__providers = tuple(providers)
         self.__branch_name = branch_name
         self.__root_module_path = root_module_path
+        self.__project_identifier = project_identifier
         self.__operation = operation_type
         self.__history: History = History(history, user_queries)
         self.__chat_history: History = History(chat_history)
@@ -88,6 +90,15 @@ class SessionContext:
     @property
     def root_module_path(self) -> str:
         return self.__root_module_path
+
+    @property
+    def project_identifier(self) -> str | None:
+        """What the user named the repository, when not by ``repo_uri`` itself.
+
+        Checked against the mapping service when the session was created;
+        the IaC service may pick the credentials commands run with by it.
+        """
+        return self.__project_identifier
 
     @property
     def operation(self) -> OperationType:

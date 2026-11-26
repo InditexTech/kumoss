@@ -36,6 +36,7 @@ from src.domains.value_objects.provider_scope import ProviderScope
 from src.domains.services.database_service import DatabaseService
 from src.domains.services.tracer_service import tracer
 from src.domains.value_objects.token_claims import TokenClaims
+from src.infrastructure.external.mapping_service import MappingServiceClient
 from src.infrastructure.external.notification_service import NotificationServiceClient
 from src.infrastructure.filesystem import WorkspaceService
 from src.infrastructure.telemetry.langfuse_tracer import LangfuseTracer
@@ -70,8 +71,9 @@ async def _resolve_or_raise(
 ) -> SessionContext:
     """Validate URI, authorize via PDP, and resolve to a SessionContext.
 
-    First-call (has ``repo_uri``): URI validation → session creation, so
-    an unreachable repository leaves no session behind. The providers and
+    First-call (has ``repo_uri``): URI validation → project identifier
+    check → session creation, so an unreachable repository or a mismatched
+    identifier leaves no session behind. The providers and
     scopes to authorize come from the root module's manifest, so authz runs
     in the session itself, before its setup saves anything (see
     ``_Inputs``). Iteration / session-only (has ``session_id``): ownership
@@ -82,6 +84,7 @@ async def _resolve_or_raise(
     try:
         if isinstance(request, BaseIacRequest) and request.session_id is None:
             await _workspace.validate_uri(request.repo_uri)
+            await _check_project_identifier(request)
             return await _orchestration.resolve(request, operation, user.id)
 
         await assert_session_access(user, request.session_id, write=True)
@@ -101,6 +104,27 @@ async def _resolve_or_raise(
         return ctx
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
+
+
+async def _check_project_identifier(request: BaseIacRequest) -> None:
+    """Reject a project identifier that does not resolve to ``repo_uri``.
+
+    The IaC service may pick the credentials a command runs with by the
+    identifier, so it must name the repository the session works on: the
+    mapping service decides, not the client.
+
+    Raises:
+        ExceptionHandler: 422 when it resolves elsewhere; whatever the
+            mapping service raises when it cannot resolve it.
+    """
+    if request.project_identifier is None:
+        return
+    resolved = await MappingServiceClient().resolve(request.project_identifier)
+    if resolved.repo_url.strip() != request.repo_uri:
+        raise ExceptionHandler(
+            f"Project {request.project_identifier!r} does not resolve to repo_uri.",
+            422,
+        )
 
 
 async def _check_access(

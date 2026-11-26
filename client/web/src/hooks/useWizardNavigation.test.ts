@@ -15,6 +15,7 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
+      projectIdentifier: "",
       rootModulePath: "",
       inputsChecked: false,
       inputs: null,
@@ -136,6 +137,7 @@ describe("useWizardNavigation", () => {
     expect(result.current.data).toEqual({
       query: "",
       repositoryUrl: "",
+      projectIdentifier: "",
       rootModulePath: "",
       inputsChecked: false,
       inputs: null,

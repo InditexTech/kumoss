@@ -730,7 +730,7 @@ describe("ArtifactContent compliance checks", () => {
       passed: false,
       summary: "Blocked by the compliance policy: 1 finding (critical_deletion).",
       checked_rules: ["critical_deletion", "scope_exceeded"],
-      policy_revision: "general/policies/compliance@3",
+      policy_revisions: ["general/policies/compliance@3", "aws/policies/compliance@1"],
       violations: [
         {
           rule_id: "critical_deletion",

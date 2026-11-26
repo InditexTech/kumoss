@@ -112,11 +112,13 @@ class TestMigrations(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_pre_alembic_database_is_adopted(self):
         # The shape create_all and the old startup steps left behind: no
-        # alembic_version, no user_queries, providers still a native enum.
+        # alembic_version, no user_queries nor project_identifier, providers
+        # still a native enum.
         await self._run(Base.metadata.create_all)
         async with self.engine.begin() as conn:
             for statement in (
                 "ALTER TABLE histories DROP COLUMN user_queries",
+                "ALTER TABLE workspaces DROP COLUMN project_identifier",
                 "CREATE TYPE terraformprovider AS ENUM ('AZURE', 'GCP')",
                 "ALTER TABLE terraform_providers ALTER COLUMN provider"
                 + " TYPE terraformprovider USING provider::terraformprovider",

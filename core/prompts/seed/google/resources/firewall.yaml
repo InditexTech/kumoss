@@ -11,10 +11,6 @@ body: |
 
   - Naming convention: `fw-<network>-<ingress|egress>-<purpose>`
     (e.g. fw-vpc-shop-prod-ingress-https-lb).
-  - Never use source ranges `0.0.0.0/0` for ingress rules unless the
-    port is 80 or 443 and the target is explicitly public-facing.
-    Always scope to known CIDRs, source service accounts, or source
-    tags.
   - Scope the rule with `target_service_accounts` (preferred) or
     `target_tags`. Avoid network-wide rules. Service accounts give
     stronger identity guarantees than tags, which anyone with

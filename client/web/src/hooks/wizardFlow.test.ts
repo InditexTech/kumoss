@@ -9,6 +9,7 @@ import type { WizardData } from "./useWizardNavigation";
 const EMPTY: WizardData = {
   query: "",
   repositoryUrl: "",
+  projectIdentifier: "",
   rootModulePath: "",
   inputsChecked: false,
   inputs: null,

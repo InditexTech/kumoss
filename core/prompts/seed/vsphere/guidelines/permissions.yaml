@@ -42,11 +42,6 @@ body: |
   - Guest OS passwords are generated with `random_password` (the
     value lands in the state; outputs carrying it are
     `sensitive = true`); never declare a required variable for them.
-  - TLS verification is controlled by the engine environment
-    (`VSPHERE_ALLOW_UNVERIFIED_SSL`, set only in labs); never set
-    `allow_unverified_ssl` in code. Outside labs verification stays
-    on and the vCenter certificate is trusted through the system CA
-    store.
 
   Replace this body with your organization's authoritative access
   standards.

@@ -38,8 +38,8 @@ reads which prompt].
 |`general/guidelines/terraform`
 |Organization-wide Terraform standards: structure, providers, state,
 and style. Followed by the code generator and checked by the compliance
-audit. Keep its "No arbitrary command execution" section; see the
-<<checklist,checklist>>.
+audit. Do not write into it bans a compliance policy enforces; see
+<<compliance-policy>>.
 
 |`general/guidelines/requests`
 |Which requests the request filter accepts, declines, or answers.
@@ -112,11 +112,16 @@ with a rule id and a severity. Ships with `scope_exceeded` and
 locks the session when `orchestration.block_on_high_impact` is `true`.
 
 |`general/policies/compliance`
-|The deterministic compliance policy, in Rego; see
+|The general deterministic compliance policy, in Rego, evaluated on
+every generate round; see <<compliance-policy>>.
+
+|`<provider>/policies/compliance`
+|A provider's compliance policy, in Rego, evaluated with the general
+policy when the root module declares that provider; see
 <<compliance-policy>>.
 |===
 
-For how these three decide whether a session is locked, see
+For how these checks decide whether a session is locked, see
 xref:main:architecture/compliance.adoc[How compliance works]; for what
 each one looks for, see
 xref:main:guides/resolve-a-locked-session.adoc#why[Why a session is
@@ -324,16 +329,38 @@ as they were, and any ID not written as a bullet is ignored. Rewrite
 such lists as bullets.
 
 [#compliance-policy]
-== Change the compliance policy
+== Change a compliance policy
 
-`general/policies/compliance` is a Rego module evaluated by Open Policy
-Agent, not read by a model. Change it like any other prompt, with the
-steps in <<change-a-prompt>>, but test every version before you move
-the label: a broken version locks every generate round until the label
-is on a working one. To write, test, and publish a rule, see
+The compliance policies are Rego modules evaluated by Open Policy
+Agent, not read by a model: `general/policies/compliance` on every
+generate round, and `<provider>/policies/compliance` on the rounds whose
+root module declares that provider. Kumoss ships one for `aws`,
+`azurerm`, `google`, `kubernetes`, `oci`, and `vsphere`; give another
+provider a policy by creating its prompt in Langfuse. Change a policy
+like any other prompt, with the steps in <<change-a-prompt>>, but test
+every version before you move the label: a broken version locks every
+generate round it applies to (every round for the general policy, every
+round of a module declaring the provider for a provider policy) until
+the label is on a working one. To write, test, and publish a rule, see
 xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]; the
-input and decision a policy works with are in
+input and decision a policy works with, and the shipped rules, are in
 xref:main:reference/compliance-policy.adoc[Compliance policy].
+
+What a policy enforces is not restated in the guideline and resource
+prompts. Those prompts feed both the IaC generator and the compliance
+audit, so a ban written there would also be enforced by the model,
+possibly differently from the policy. The shipped prompts keep positive
+defaults (`allow_privilege_escalation = false`, S3 Block Public Access
+fully enabled, outputs carrying secrets marked `sensitive = true`) and
+leave the bans to Rego: they no longer tell the generator to avoid
+`null_resource`, provisioners and `data "external"`, internet-open
+ingress, basic roles or service account keys, `cluster-admin` or
+`Allow any-user` grants, or `allow_unverified_ssl`. A round that
+generates one of those is locked by a policy rather than written
+correctly in the first place. If you add a rule to a policy, do not also
+write it into a prompt; if you would rather the generator avoid a
+pattern up front, phrase the prompt as the default to produce, not as a
+prohibition.
 
 [#troubleshooting]
 == If something goes wrong
@@ -371,13 +398,24 @@ match the `<name>` part of the prompt exactly. See
   naming conventions, security defaults, and compliance rules encode a
   policy, not yours.
 * Write the prohibitions your organization needs as rules in the
-  compliance policy; the shipped policy only denies standalone
-  deletions.
-* Keep the "No arbitrary command execution" section when you replace the
-  body of `general/guidelines/terraform`. It is the only instruction
-  that keeps `null_resource`, `provisioner` blocks, and
-  `data "external"` out of generated code, and nothing enforces it
-  outside the prompt; see
+  compliance policies: `<provider>/policies/compliance` for a
+  provider's resources, `general/policies/compliance` for rules that
+  span providers. No prompt lists forbidden actions any more; the
+  shipped policies deny standalone deletions, removed customer-managed
+  keys and command execution, and three critical misconfigurations per
+  shipped provider (public ingress, admin grants and the like), nothing
+  else. Review them before relying on them.
+* Do not restate a policy rule in a prompt; see <<compliance-policy>>.
+  Guidance the shipped prompts dropped along with those bans, and that
+  no policy checks (no secrets in user data, Owner or User Access
+  Administrator at narrower scopes, scoping other ingress to known
+  CIDRs, tags or security groups, the alternatives to service account
+  keys, credentials in the `vsphere` provider block, locking down the
+  OCI default security list, OCI delete-protection defaults), is now
+  checked by nothing: write it back into your own prompts, as a
+  default, if you need it. `null_resource`, provisioners and
+  `data "external"` are denied by the general policy's
+  `command_execution` rule only when the compliance check is on; see
   xref:main:guides/deploy-to-production.adoc[Deploy to production].
 * Decide who may edit prompts. Anyone who can edit prompts in the
   Langfuse project can change what the agents generate; give others a

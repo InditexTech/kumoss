@@ -184,15 +184,19 @@ class TestParseResolvesThroughMapping(unittest.IsolatedAsyncioTestCase):
         resolve = AsyncMock(return_value=ResolvedRef(repo_url=url, identifier="foo"))
         resp, svc = self._post("foo", resolve=resolve, roots=["infra/dev"])
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.json(), {"repo_url": url, "roots": ["infra/dev"]})
+        self.assertEqual(
+            resp.json(),
+            {"repo_url": url, "project_identifier": "foo", "roots": ["infra/dev"]},
+        )
         resolve.assert_awaited_once_with("foo")
         svc.detect_roots.assert_awaited_once_with(url)
 
     def test_input_is_stripped_before_resolving(self):
         url = "https://github.com/MySuperOrg/foo.git"
         resolve = AsyncMock(return_value=ResolvedRef(repo_url=url, identifier="foo"))
-        _ = self._post("  foo  ", resolve=resolve, roots=[])
+        resp, _ = self._post("  foo  ", resolve=resolve, roots=[])
         resolve.assert_awaited_once_with("foo")
+        self.assertEqual(resp.json()["project_identifier"], "foo")
 
     def test_unresolvable_identifier_is_404_with_the_mappers_reason(self):
         resolve = AsyncMock(
