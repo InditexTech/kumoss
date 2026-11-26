@@ -1,0 +1,54 @@
+[
+  {
+    "name": "report_intent_findings",
+    "description": "Report every intent finding: changes in the plan the requests did not ask for, and parts of the requests the plan does not address. Call it exactly once; it ends the check. If the plan matches the requests, report an empty violations list.",
+    "single_use": false,
+    "mutates_workspace": false,
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "violations": {
+          "type": "array",
+          "description": "Every intent violation found, one per rule and resource. Empty when the plan does exactly what the requests ask.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule_id": {
+                "type": "string",
+                "description": "The declared id of the rule that was broken."
+              },
+              "severity": {
+                "type": "string",
+                "enum": ["info", "warning", "error", "critical"],
+                "description": "The severity the rule declares."
+              },
+              "resource": {
+                "type": ["string", "null"],
+                "description": "Terraform resource address the finding is about (e.g. azurerm_storage_account.main), or null when it concerns no single resource."
+              },
+              "message": {
+                "type": "string",
+                "description": "Human-readable explanation of the change or the missing part of the request, and why it breaks the rule."
+              },
+              "suggested_fix": {
+                "type": ["string", "null"],
+                "description": "How to fix the violation, or null if no specific fix is suggested."
+              }
+            },
+            "required": ["rule_id", "severity", "message"]
+          }
+        },
+        "summary": {
+          "type": "string",
+          "description": "One or two sentences, at most 300 characters, stating whether the plan matches the requests and the main reason. Do not list the change inventory here; each problem belongs in violations."
+        },
+        "checked_rules": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Every rule_id evaluated, including the ones that passed."
+        }
+      },
+      "required": ["violations", "summary", "checked_rules"]
+    }
+  }
+]
