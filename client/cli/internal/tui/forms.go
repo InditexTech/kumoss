@@ -716,6 +716,15 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 	return form, commit
 }
 
+// oneCloud rejects an empty cloud selection: without one the IaC engine gets
+// no credentials, and every module that targets a cloud fails.
+func oneCloud(picked []string) error {
+	if len(picked) == 0 {
+		return errors.New("pick at least one cloud")
+	}
+	return nil
+}
+
 // cloudStep opens one credential group per picked cloud; the rest stay hidden
 // and their structs stay nil.
 func (w *Wizard) cloudStep(s *state.State) (*stepForm, func()) {
@@ -730,11 +739,12 @@ func (w *Wizard) cloudStep(s *state.State) (*stepForm, func()) {
 		newStepGroup(
 			huh.NewMultiSelect[string]().
 				Title("Cloud providers").
-				Description("Pick the clouds your Terraform code deploys to. Next, you enter the credentials each one needs: AWS profile or access key, Azure service principal, GCP service-account file. Skip if none.").
+				Description("Pick the clouds your Terraform code deploys to. Next, you enter the credentials each one needs: AWS profile or access key, Azure service principal, GCP service-account file.").
 				Options(cloudOptions()...).
 				// One line per cloud, plus title, description and help bar.
 				Height(len(clouds) + 5).
-				Value(&picked),
+				Value(&picked).
+				Validate(oneCloud),
 		).Title("Clouds"),
 	}
 	for _, c := range clouds {

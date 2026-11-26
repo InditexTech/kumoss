@@ -251,6 +251,15 @@ func TestAzureAccountValidator(t *testing.T) {
 	}
 }
 
+func TestOneCloudRejectsAnEmptySelection(t *testing.T) {
+	if err := oneCloud(nil); err == nil {
+		t.Fatal("an empty cloud selection was accepted")
+	}
+	if err := oneCloud([]string{"aws"}); err != nil {
+		t.Errorf("oneCloud(aws) = %v, want nil", err)
+	}
+}
+
 func TestConsoleDefaultsToEnabled(t *testing.T) {
 	w, _ := stubWizard()
 	s := &state.State{Storage: state.Storage{Model: "bundled", Credentials: map[string]string{}}}

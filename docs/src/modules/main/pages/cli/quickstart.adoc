@@ -102,7 +102,8 @@ The wizard asks, in order:
 . *Storage* - the bundled RustFS, with its web console on or off. The other
   storage models (an external S3-compatible store and an Azure Storage Account)
   are not offered by the wizard yet.
-. *Cloud* - the clouds the IaC engine will target, with credentials.
+. *Cloud* - the clouds the IaC engine will target, with credentials. At least
+  one cloud is required.
 . *Engine* - OpenTofu (the default) or Terraform.
 . *Notifications* - whether to enable the Slack sidecar, and its webhook.
 
