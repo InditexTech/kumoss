@@ -22,7 +22,7 @@ them:
 
 Everything in this guide describes the implementation as it exists in
 the repository today. Where a capability is a recommendation rather
-than something the repository provides, it is labelled as such.
+than something the repository provides, it is labeled as such.
 
 This entry page covers what production means, the reference topology,
 the sidecars as integration boundaries, and the `config.yaml`
@@ -277,7 +277,7 @@ the mapping contract
 |Core only
 |None: it holds no data and calls nothing
 |Set `MAPPING_PREFIX_IDENTIFIER`, or replace it with an implementation
-backed by your catalogue.
+backed by your catalog.
 
 |Notifications sidecar
 |`services/notifications/Dockerfile` (port 8080, user `kumoss` 10001)
@@ -342,7 +342,7 @@ Common rules for every *enabled* sidecar:
   time, but they remain simple reference services. Keep every sidecar on
   a private network segment reachable only by the core, and never expose
   one through the ingress.
-* The `services.<name>.timeout` field is honoured by the IaC,
+* The `services.<name>.timeout` field is honored by the IaC,
   notifications, and authorization clients; the mapping client uses a
   fixed budget of 10 seconds.
 * Every sidecar exposes `GET /healthz` for liveness probes.
@@ -441,7 +441,7 @@ appends a bare name to `MAPPING_PREFIX_IDENTIFIER` with a `.git` suffix
 URL, or leave it empty to accept full URLs only. See
 xref:main:reference/api/mapping.adoc#bundled[The bundled implementation].
 
-To resolve business identifiers against a catalogue (CMDB, Backstage)
+To resolve business identifiers against a catalog (CMDB, Backstage)
 instead, point `services.mapping.endpoint` at your own implementation
 of the contract and drop the bundled container. Once enabled, a slow or
 unreachable mapper makes the repository scan fail with `504`/`502`; set

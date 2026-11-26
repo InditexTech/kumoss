@@ -19,7 +19,7 @@ ID, Auth0, or Okta without changing a line of code.
 
 [cols="2,3,2,4",options="header"]
 |===
-|Component |Role |Licence |Notes
+|Component |Role |License |Notes
 
 |Kumoss (core, sidecars, SPA, contracts)
 |The platform
@@ -32,7 +32,7 @@ ID, Auth0, or Okta without changing a line of code.
 |Digest-pinned. The same image also bundles HashiCorp Terraform {terraform-version}
 (BUSL-1.1, not OSI), downloaded and checksum-verified at build time and
 selectable via `IAC_BINARY=terraform`; running it makes your use
-subject to its licence terms
+subject to its license terms
 
 |RustFS
 |Default, bundled S3-compatible object storage for artifacts (and for
@@ -44,7 +44,7 @@ via the `RUSTFS` provider
 
 |PostgreSQL 17
 |core-db and langfuse-db
-|PostgreSQL Licence
+|PostgreSQL License
 |—
 
 |Redis 8
@@ -71,7 +71,7 @@ via the `RUSTFS` provider
 |Trace UI and runtime prompt registry
 |MIT
 |Self-hosted open-source edition. Code under its `ee` directories is
-under a commercial licence and stays inactive without a licence key;
+under a commercial license and stays inactive without a license key;
 Kumoss uses none of it
 
 |ClickHouse
@@ -167,7 +167,16 @@ Answers to common questions about roles, requests, sessions, locks,
 and getting help.
 
 [card]
+.xref:main:guides/upgrade-notes.adoc[Upgrade notes]
+Breaking changes to act on before upgrading, from the OPA compliance
+policy and Langfuse to provider names and sidecar contracts.
+
+[card]
 .xref:main:roadmap.adoc[Roadmap]
 The direction Kumoss is heading, grouped by theme, with the status of
 each initiative.
+
+[card]
+.xref:main:events.adoc[Events]
+Talks and meetups where the team has presented Kumoss.
 ====

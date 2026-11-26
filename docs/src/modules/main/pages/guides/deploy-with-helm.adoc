@@ -210,7 +210,7 @@ permissions stay separate. Two of them need cloud access:
   infrastructure. This is the most privileged identity in the
   deployment; scope it accordingly.
 
-Bind a ServiceAccount by annotating it (and, on AKS, labelling the
+Bind a ServiceAccount by annotating it (and, on AKS, labeling the
 pods):
 
 [source,yaml]
@@ -268,7 +268,7 @@ The chart reads its generated credentials back from the cluster with
 Helm's `lookup`, which only works when Helm talks to the cluster
 (`helm install` / `helm upgrade`). Tools that render the chart offline
 get nothing back, so every render would generate new passwords, and
-the databases, initialised with the first ones, would reject them.
+the databases, initialized with the first ones, would reject them.
 
 Manage that Secret yourself instead (with Sealed Secrets, External
 Secrets, SOPS...) and set `secrets.existingSecret` to its name. The chart
@@ -283,7 +283,7 @@ generated one has:
 |Bearer tokens between the core and the sidecars (any random string)
 
 |`CORE_DB_PASSWORD`, `LANGFUSE_DB_PASSWORD`
-|Passwords the bundled databases are initialised with
+|Passwords the bundled databases are initialized with
 
 |`KUMOSS_SQL_DATABASE_URL`, `LANGFUSE_DATABASE_URL`
 |Connection URLs, e.g.
@@ -511,11 +511,11 @@ Then delete the crashed pods so they restart immediately, for example
   `caBundle.certificates` roll the pods on change.
 * Generated passwords and tokens are read back from the existing
   Secret on every upgrade. Changing a database password in values
-  after the first install does not change it inside an initialised
+  after the first install does not change it inside an initialized
   database.
 * `helm uninstall` keeps the data: the `workspaces` claim, the
   StatefulSets' data claims, and the `<release>-kumoss-internal` Secret
-  holding the passwords that data was initialised with (both carry
+  holding the passwords that data was initialized with (both carry
   `helm.sh/resource-policy: keep`). Reinstalling the same release in the
   same namespace picks all three up again. To start from scratch,
   delete them explicitly:

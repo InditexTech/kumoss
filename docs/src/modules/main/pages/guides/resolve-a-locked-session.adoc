@@ -1,4 +1,5 @@
-= Resolve a locked session
+|Write or change rules in Rego; see
+xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]= Resolve a locked session
 :description: Find out why Kumoss locked your session, who was notified, and how to get it unlocked so you can merge and apply.
 
 Kumoss checks every generate round before it lets you merge and apply.
@@ -18,61 +19,165 @@ get it unlocked.
 [#why]
 == Why a session is locked
 
-Three independent checks run at the end of every generate round. Any one
-of them can lock the session. Drift and import rounds are never checked
-and never lock a session.
+Three independent checks run at the end of every generate round, and any
+one of them can lock the session. Only the first is deterministic: the
+same plan always gets the same verdict. The other two are judgments made
+by a language model, because they depend on what you asked for and on
+what a change means, which no fixed rule over the plan can capture.
+For the mechanism as a whole, see
+xref:main:architecture/compliance.adoc[How compliance works].
+Drift and import rounds are never checked and never lock a session.
+
+[cols="2,1,3,3",options="header"]
+|===
+|Check |Deterministic |Defined in |How to adapt it
+
+|<<compliance-policy,Compliance policy>>
+|Yes
+|Rego policy `general/policies/compliance`, evaluated by Open Policy
+Agent
+|Write or change rules in Rego; see
+xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]
+
+|<<compliance-audit,Compliance audit>>
+|No
+|Prompt `general/compliance/report` and your convention prompts, read
+by a model
+|Edit the rules and conventions in prose; see
+xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
+prompts]
+
+|<<high-impact,High impact>>
+|No
+|Prompt `general/compliance/impact`, read by the report model
+|Edit the impact criteria in prose; see
+xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
+prompts]
+|===
+
+All three are prompts in Langfuse, seeded from
+`core/prompts/seed/general/`. A change takes effect on the next generate
+round once its new version carries your environment's label. Which
+checks run at all is set by your operator with the `orchestration`
+switches; see xref:main:reference/configuration.adoc[Configuration].
 
 [#compliance-policy]
-=== Compliance policy
+=== Compliance policy (deterministic)
 
-A deterministic check. Open Policy Agent evaluates your organization's
-Rego policy against the plan, and any `deny` finding locks the session.
+*What locks.* Open Policy Agent evaluates the
+xref:main:reference/compliance-policy.adoc[compliance policy], a Rego
+module, against the plan's JSON. Any `deny` finding locks the session.
 
 * The shipped rule, `critical_deletion`, denies any resource that is
   destroyed without being recreated, *even when you asked for the
   deletion*. Replacements are allowed.
 * If the policy cannot be evaluated at all, the round gets a
-  `policy_unavailable` finding and is locked too: the policy fails
-  closed.
+  `policy_unavailable` finding and is locked too: the policy
+  xref:main:reference/compliance-policy.adoc#failure[fails closed].
 
 Findings from this check carry a *policy* badge.
 
-[#compliance-audit]
-=== Compliance audit
+*Why it is deterministic.* No model is involved: the rules are code that
+reads resource types, actions, and attribute values from the plan. The
+same plan always gets the same verdict, and every rule can be tested
+with `opa test` before it is rolled out.
 
-A language-model agent compares the plan with your requests and with
-your organization's conventions. Two rules are always checked:
+*Where to change it.* The policy is the Langfuse prompt
+`general/policies/compliance`, seeded from
+`core/prompts/seed/general/policies/compliance.rego`. To add a rule, such
+as allowed regions, no public storage, or no owner role assignments,
+write it, test it, and publish it as a new version in Langfuse; see
+xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]. The
+input the policy receives and the decision it must return are in
+xref:main:reference/compliance-policy.adoc[Compliance policy].
+
+Use the policy for every rule you can state as a condition on the plan:
+it is the only check that cannot miss a case or flag one by mistake.
+
+[#compliance-audit]
+=== Compliance audit (not deterministic)
+
+*What locks.* A language-model agent compares the plan with every
+request of the session and with your organization's conventions, and
+reports violations with a rule id and a severity. A finding of severity
+`error` or `critical` locks the session; `warning` is reported only. The
+shipped rules are:
 
 * `scope_exceeded`: the plan changes something you did not ask for, for
-  example it removes a block or sets an attribute to null.
+  example it removes a block or sets an attribute to null. A removal is
+  never accepted as a side effect of an addition.
 * `scope_incomplete`: part of your request has no matching change in
   the plan.
 
-Any other finding of severity `error` or `critical` comes from the
-conventions and locks the session as well. Findings of severity
-`warning` are reported and never lock.
+Other findings come from the conventions the model checks the plan
+against, for example a missing mandatory tag.
+
+*Why it is not deterministic.* Whether a change is "what you asked for"
+depends on the meaning of your request, written in natural language;
+there is no attribute in the plan to test. The same holds for
+conventions written as prose. A model can read both, but two runs on the
+same plan can disagree, so a finding can be wrong. When you think it is,
+rephrase the request to be explicit about what must change and what must
+stay, or ask a reviewer to check it.
+
+*Where to adapt it.* Two kinds of prompts drive the audit:
+
+* `general/compliance/report` defines the business rules, each with a
+  `rule_id` and a severity. Edit `scope_exceeded` and `scope_incomplete`
+  to match how strict your organization wants to be, or add your own
+  rules in the same format; see
+  xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
+  prompts].
+* The convention prompts are the standards the plan is checked against:
+  `general/guidelines/terraform` and, per provider, `resource_creation`,
+  `networking`, and `permissions`; see
+  xref:main:guides/customize-prompts.adoc#general-guidelines[General
+  cross-provider prompts] and
+  xref:main:guides/customize-prompts.adoc#provider-guidelines[Provider-wide
+  guidelines]. The same prompts guide the generator, so a standard written
+  there is followed when code is written and checked when it is audited.
+
+If a convention can be stated as a condition on the plan, write it as a
+rule of the xref:main:reference/compliance-policy.adoc[compliance
+policy] instead: it then always holds, without depending on the model.
 
 [#high-impact]
-=== High impact
+=== High impact (not deterministic)
 
-The report rates the impact of the change. When the rating is `high`,
-because of destructive actions, restarts, service downtime, or critical
-networking changes, the session is locked. The impact banner is shown on
-every report; only your deployment's configuration decides whether a
-`high` rating locks.
+*What locks.* While writing the report, the report model groups the
+changes and labels each group `low`, `medium`, or `high`, and the report
+shows the overall level as its impact banner. When the level is `high`
+and your deployment enables `orchestration.block_on_high_impact`, the
+session is locked. The banner is shown on every report either way.
 
-Your operator decides which of these checks run; see
-xref:main:reference/configuration.adoc[Configuration] for the
-`orchestration` switches.
+*Why it is not deterministic.* Whether a change causes downtime or
+touches something critical depends on the resource, the attribute, and
+its context: renaming a tag and changing a firewall rule are both
+in-place updates in the plan. A model makes that judgment from written
+criteria, so the same plan can be rated differently on two runs.
+
+*Where to adapt it.* The criteria are the prompt
+`general/compliance/impact`. The shipped criteria are: high for
+destructive actions, restarts, service downtime, or critical networking
+changes; medium for configuration updates that change behavior without
+guaranteed downtime; low for isolated new resources or non-disruptive
+updates such as tags or locks. Rewrite them to match your organization's
+change-management standards, for example to rate any change to a
+production network as high; see
+xref:main:guides/customize-prompts.adoc#compliance-prompts[Compliance
+prompts].
+
+If a specific change must always be stopped, such as any change to a
+firewall, write it as a rule of the
+xref:main:reference/compliance-policy.adoc[compliance policy]: a
+high-impact verdict is a model's judgment and is not guaranteed.
 
 [#what-you-see]
 == What you see
 
 When you continue to the pull request, the *Deployment Blocked* screen
-opens instead of the merge controls.
-
-.The Deployment Blocked screen with *Why* expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the compliance audit
-image::deployment-blocked.png[Deployment Blocked screen listing the high-impact reason and two blocking compliance findings, with Back to Report, Contact Team, and Check again buttons,width=560,link=self]
+opens instead of the merge controls; see the screenshot in
+xref:main:guides/merge-and-apply.adoc#session-locked[Merge and apply].
 
 * Expand *Why* to see the cause: *High impact* with the impact summary,
   *Compliance* with each blocking finding (severity, rule id, and

@@ -1,0 +1,4 @@
+The deterministic part of the compliance check: a Rego policy, stored as
+the Langfuse prompt `general/policies/compliance`, that Open Policy
+Agent evaluates against the plan of every generate round. The same plan
+always gets the same verdict, and a `deny` finding locks the session.

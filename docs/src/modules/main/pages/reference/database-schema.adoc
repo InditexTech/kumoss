@@ -177,7 +177,7 @@ requests:
 
 * *One transaction.* PostgreSQL DDL is transactional, so a failed
   migration leaves the schema untouched and the core does not start.
-* *One core at a time.* A PostgreSQL advisory lock serialises cores
+* *One core at a time.* A PostgreSQL advisory lock serializes cores
   that start together; the second finds nothing left to do.
 * *Recorded.* The applied revision is kept in the `alembic_version`
   table.

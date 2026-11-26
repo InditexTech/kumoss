@@ -1,0 +1,264 @@
+= Write a policy rule
+:description: Add a deterministic rule to Kumoss's compliance policy, test it with OPA, and publish it through Langfuse.
+
+The compliance policy holds your organization's hard rules for
+infrastructure changes, such as "no public storage" or "only these
+regions", and Kumoss checks every generate round's plan against it. This
+guide adds a rule that stops Azure storage accounts with public network
+access, tests it, and publishes it. The exact input and decision a
+policy works with are in
+xref:main:reference/compliance-policy.adoc[Compliance policy].
+
+== Prerequisites
+
+* Access to Langfuse prompt management for your deployment; see
+  xref:main:guides/customize-prompts.adoc[Customize prompts].
+* Docker, to run the `openpolicyagent/opa:1.22.4-static` image, or OPA
+  1.22.4 installed locally. 1.22.4 is the version in the core image.
+* `orchestration.enable_compliance_checker` set to `true`, the shipped
+  default; see xref:main:reference/configuration.adoc[Configuration].
+* A rough idea of the plan JSON your engine produces with `terraform
+  show -json` or `tofu show -json`.
+
+[#how-a-rule-works]
+== How a rule works
+
+The policy is one Rego module, `package kumoss.compliance`. The shipped
+rule, `critical_deletion`, shows every part a rule needs:
+
+[source,rego]
+----
+package kumoss.compliance
+
+rules contains "critical_deletion" # <1>
+
+deny contains finding if { # <2>
+	some change in input.plan.resource_changes # <3>
+	change.mode == "managed"
+	change.change.actions == ["delete"] # <4>
+	finding := { # <5>
+		"rule_id": "critical_deletion",
+		"severity": "critical",
+		"resource": change.address,
+		"message": sprintf(
+			"%s is destroyed without being recreated; standalone deletions are never allowed, even when requested.",
+			[change.address],
+		),
+	}
+}
+----
+<1> Registers the rule id, so the report lists the rule as passed when
+it finds nothing.
+<2> Adds a finding to `deny`, the set of blocking findings, for every
+case where all the lines in the body hold. `warn` works the same way
+but does not block.
+<3> Loops over the plan's resource changes. `input.plan` is the plan
+JSON, unchanged.
+<4> The condition: the resource is destroyed and not recreated.
+<5> The finding: a rule id, a severity (`error` or `critical`), the
+resource address, and a message for the user.
+
+In Rego, the lines of a body are joined by "and": if any line is false
+or refers to a value that does not exist, the rule produces nothing for
+that change.
+
+[#steps]
+== Steps
+
+. Create a working folder with this layout:
++
+----
+policy-work/
+├── compliance.rego
+└── tests/
+    └── storage_test.rego
+----
+
+. In Langfuse, open `general/policies/compliance`, and copy the text of
+  the version your environment uses into `compliance.rego`. Keep the
+  existing rules: the policy is one module, and every new version
+  replaces the whole text.
+
+. Add your rule at the end of `compliance.rego`:
++
+[source,rego]
+----
+rules contains "storage_public_access"
+
+deny contains finding if {
+	"azurerm" in input.kumoss.providers
+	some change in input.plan.resource_changes
+	change.mode == "managed"
+	change.type == "azurerm_storage_account"
+	change.change.after.public_network_access_enabled == true
+	finding := {
+		"rule_id": "storage_public_access",
+		"severity": "error",
+		"resource": change.address,
+		"message": sprintf("%s allows public network access; set public_network_access_enabled = false.", [change.address]),
+	}
+}
+----
++
+The first line scopes the rule to root modules that use the `azurerm`
+provider. A deleted resource has no `after` values, so the rule only
+matches creates and updates.
+
+. (Optional) To report something without blocking, add a rule to `warn`
+  instead of `deny`. This one flags Azure resources without a
+  `cost-center` tag:
++
+[source,rego]
+----
+rules contains "cost_center_tag"
+
+warn contains finding if {
+	some change in input.plan.resource_changes
+	change.mode == "managed"
+	startswith(change.type, "azurerm_")
+	some action in change.change.actions
+	action in {"create", "update"}
+	tags := object.get(change.change.after, "tags", {})
+	not tags["cost-center"]
+	finding := {
+		"rule_id": "cost_center_tag",
+		"resource": change.address,
+		"message": sprintf("%s has no cost-center tag.", [change.address]),
+	}
+}
+----
+
+. Write a test for the rule in `tests/storage_test.rego`:
++
+[source,rego]
+----
+package kumoss.compliance_test
+
+import data.kumoss.compliance
+
+storage(public) := {
+	"plan": {"resource_changes": [{
+		"address": "azurerm_storage_account.logs",
+		"mode": "managed",
+		"type": "azurerm_storage_account",
+		"change": {
+			"actions": ["create"],
+			"after": {"public_network_access_enabled": public, "tags": {"cost-center": "analytics"}},
+		},
+	}]},
+	"kumoss": {"schema": "kumoss.compliance.input/v1", "providers": ["azurerm"]},
+}
+
+test_public_storage_is_denied if {
+	some finding in compliance.deny with input as storage(true)
+	finding.rule_id == "storage_public_access"
+}
+
+test_private_storage_is_allowed if {
+	count(compliance.deny) == 0 with input as storage(false)
+}
+----
+
+. From `policy-work/`, run the tests:
++
+[source,bash]
+----
+docker run --rm -v "$PWD:/w:ro" -w /w \
+  openpolicyagent/opa:1.22.4-static test -v compliance.rego tests
+----
++
+Every test reports `PASS` (timings omitted):
++
+----
+tests/storage_test.rego:23:
+data.kumoss.compliance_test.test_private_storage_is_allowed: PASS
+tests/storage_test.rego:18:
+data.kumoss.compliance_test.test_public_storage_is_denied: PASS
+--------------------------------------------------------------------------------
+PASS: 2/2
+----
+
+. Check the decision against a real plan from one of your root modules.
+  Wrap its `show -json` in the input document and evaluate it the way
+  the core does:
++
+[source,bash]
+----
+terraform show -json tfplan > plan.json
+jq '{plan: ., kumoss: {schema: "kumoss.compliance.input/v1", providers: ["azurerm"]}}' \
+  plan.json > input.json
+docker run --rm -i -v "$PWD:/w:ro" -w /w openpolicyagent/opa:1.22.4-static \
+  eval --stdin-input --strict-builtin-errors --format pretty \
+  -d compliance.rego data.kumoss.compliance < input.json
+----
++
+For a plan that creates a public storage account without a
+`cost-center` tag, the decision contains:
++
+[source,json]
+----
+{
+  "deny": [
+    {
+      "message": "azurerm_storage_account.logs allows public network access; set public_network_access_enabled = false.",
+      "resource": "azurerm_storage_account.logs",
+      "rule_id": "storage_public_access",
+      "severity": "error"
+    }
+  ],
+  "rules": ["cost_center_tag", "critical_deletion", "storage_public_access"],
+  "warn": [
+    {
+      "message": "azurerm_storage_account.logs has no cost-center tag.",
+      "resource": "azurerm_storage_account.logs",
+      "rule_id": "cost_center_tag"
+    }
+  ]
+}
+----
+
+. Publish the rule: in Langfuse, create a new version of
+  `general/policies/compliance` with the full text of `compliance.rego`,
+  then move your environment's label to it. The next generate round
+  uses it. To roll back, move the label to the previous version. See
+  xref:main:guides/customize-prompts.adoc#change-a-prompt[Change a
+  prompt].
++
+WARNING: One version serves every generate session of the environment.
+A syntax error or a rule that fails at run time does not skip the
+policy: it locks every round with `policy_unavailable` until the label
+is on a working version. Move the label only after the tests pass.
+
+== Verify
+
+Send a request that creates a storage account with public network
+access. The round is locked, and *Why* on the *Deployment Blocked*
+screen lists `storage_public_access` with a *policy* badge; see
+xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
+locked].
+
+[#tips]
+== Things to keep in mind
+
+* *A rule sees the session's targets only.* The plan is a `-target`
+  plan, so a rule cannot reason about resources outside the session.
+* *Values known only after apply are not in `after`.* They are listed in
+  `after_unknown`; a rule cannot check their final value.
+* *Never put attribute values in a message.* The plan JSON carries
+  sensitive values unmasked, and messages end up in the compliance
+  report, the session's artifacts, and the notification. Name the
+  resource address and the attribute instead.
+* *Keep rule ids stable.* They appear in reports, and they are what
+  reviewers and users search for.
+* *Use the policy for conditions on the plan only.* Rules that depend on
+  what the user asked for belong in the compliance audit; see
+  xref:main:guides/resolve-a-locked-session.adoc#compliance-audit[Compliance
+  audit].
+
+== Next steps
+
+* xref:main:reference/compliance-policy.adoc[Compliance policy] for
+  the full input and decision contract, and every reason a policy can
+  fail to evaluate.
+* xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+  session] for what users see when your rule denies a plan.

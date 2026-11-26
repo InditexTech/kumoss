@@ -261,7 +261,7 @@ needs..."). When nothing is needed the session starts straight away.
 Otherwise it shows the inputs form, "This root module needs a few
 values", with up to three groups:
 
-* *Scopes* — one field per provider in `missing_scopes`, labelled in
+* *Scopes* — one field per provider in `missing_scopes`, labeled in
   the provider's terms (Subscription ID, Project ID, Account ID,
   Compartment OCID).
 * *Values* — one field per missing variable, typed after the
@@ -301,8 +301,8 @@ first session.
   route and the `manifest` request field.
 * xref:main:reference/terraform-providers.adoc[Terraform providers] for
   the credentials each provider needs in the IaC sidecar.
-* xref:main:guides/customize-prompts.adoc[Customize prompts] for how the
-  module's providers select the prompts a session uses.
+* xref:main:reference/prompt-registry.adoc#runtime-lookup[Prompt registry]
+  for how the module's providers select the prompts a session uses.
 * xref:main:reference/compliance-policy.adoc#input[Compliance policy]
   for how the module's provider type names reach the Rego policy as
   `input.kumoss.providers`.

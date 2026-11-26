@@ -370,7 +370,7 @@ conditional writes (the bundled engines are {opentofu-version} and {terraform-ve
 |Native to the `azurerm` backend and always on; no flag is rendered.
 |===
 
-Whether RustFS honours the conditional-write semantics `use_lockfile`
+Whether RustFS honors the conditional-write semantics `use_lockfile`
 relies on has not been verified in this repository.
 
 == Verify

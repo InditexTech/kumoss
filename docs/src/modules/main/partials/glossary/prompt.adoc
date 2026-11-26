@@ -1,0 +1,4 @@
+A text in Langfuse that gives Kumoss's agents your organization's
+standards: conventions, compliance rules, impact criteria, exception
+lists, and the compliance policy. Named `<scope>/<type>/<name>` and
+seeded from `core/prompts/seed/` on a fresh deployment.

@@ -149,7 +149,7 @@ The account name is derived from `storage.endpoint_url`.
 |Connection URL of Kumoss's PostgreSQL database. Must carry the
 credentials of the `core-db` service in `docker-compose.yml`.
 |At boot: configuration validation fails if empty, and database
-initialisation fails if unreachable
+initialization fails if unreachable
 
 |`LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`
 |Optional (names from `telemetry.public_key_env` / `secret_key_env`)
@@ -170,7 +170,7 @@ your own Langfuse, a key pair created in the project settings.
 Redis — for example when the URL embeds a password or sits outside the
 compose network. Cache operations fail open at runtime, but the
 boot-time ping must succeed.
-|At boot: Redis initialisation fails if unreachable
+|At boot: Redis initialization fails if unreachable
 
 |`KUMOSS_CONFIG`
 |Optional; not present in `env.sample`
@@ -794,7 +794,7 @@ services:
     enabled: true
   mapping:
     enabled: true
-    # Your own catalogue-backed implementation of
+    # Your own catalog-backed implementation of
     # contracts/openapi/mapping.v1.yaml instead of the bundled one.
     endpoint: "https://mapping.kumoss.example.invalid"
   authz:
