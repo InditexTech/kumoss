@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/mapping/">
     <link rel="prev" href="../notifications/">
     <link rel="next" href="../authz/">
-    <meta name="description" content="The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.">
+    <meta name="description" content="The contract that turns a business identifier into the repository to clone. Kumoss bundles a prefix-based implementation, enabled by default, that resolves a bare repository name under a configured URL prefix.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -275,6 +275,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../architecture/compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../architecture/data-and-state/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
       </a>
@@ -342,9 +351,19 @@
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/make-a-request/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
       </a>
@@ -353,16 +372,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../guides/generate-infrastructure/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/follow-a-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
       </a>
@@ -371,7 +381,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/merge-and-apply/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
       </a>
@@ -380,7 +390,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -389,93 +424,64 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/import-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../guides/enable-authentication/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/administer-users-and-locks/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/customize-prompts/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item side-menu__item--branch">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../guides/configure-state-backends/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
-      </a>
-      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
-        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
-      </button>
-    </div>
-
-<ul class="dt-list side-menu__list" data-depth="1">
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../../guides/state-backends/repository-declared/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+        href="../../../guides/write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../../guides/state-backends/kumoss-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
     </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../../guides/state-backends/sidecar-supplied/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
-      </a>
-    </div>
-
-  </li>
-</ul>
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/deploy-to-production/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
       </a>
@@ -484,10 +490,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../../guides/production/secrets-and-credentials/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
       </a>
@@ -496,7 +502,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../../guides/production/networking-and-tls/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
       </a>
@@ -505,7 +511,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../../guides/production/hardening/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
       </a>
@@ -514,7 +520,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../../guides/production/operations/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
       </a>
@@ -525,7 +531,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/deploy-with-helm/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
       </a>
@@ -534,12 +540,80 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
   <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
@@ -557,18 +631,19 @@
     </div>
 
   </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../operating-modes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
-      </a>
-    </div>
+  <li class="side-menu__item side-menu__item--group">
 
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
       </a>
@@ -577,7 +652,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../environment-variables/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
       </a>
@@ -586,7 +661,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../llm-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
       </a>
@@ -595,16 +670,59 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../roles-and-permissions/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
       </a>
     </div>
 
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../prompt-registry/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../repository-layout/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
       </a>
@@ -613,16 +731,23 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../terraform-providers/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../database-schema/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
       </a>
@@ -631,7 +756,7 @@
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../">
         <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
       </a>
@@ -640,10 +765,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../core/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
       </a>
@@ -652,7 +777,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../iac/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
       </a>
@@ -661,7 +786,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../notifications/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
       </a>
@@ -670,7 +795,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="./" aria-current="page">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
       </a>
@@ -679,12 +804,14 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../authz/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
 </ul>
   </li>
@@ -716,8 +843,26 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../../roadmap/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -734,22 +879,6 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../../contributing/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item side-menu__item--label">
-    <div class="side-menu__row">
-      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
-      </span>
-    </div>
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../../events/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -787,11 +916,12 @@
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
-  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">HTTP APIs</span></a>
+  <div class="dt-breadcrumb-item"><span class="dt-breadcrumb-item__content">Reference</span></div>
+    <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../"><span class="dt-breadcrumb-item__content">HTTP APIs</span></a>
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Mapping sidecar API</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Mapping sidecar API</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The contract that turns a business identifier into the repository to clone, plus a best-effort Terraform provider and cloud scope. Kumoss bundles no implementation; while it is disabled the core answers with an identity passthrough.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The contract that turns a business identifier into the repository to clone. Kumoss bundles a prefix-based implementation, enabled by default, that resolves a bare repository name under a configured URL prefix.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -817,29 +947,74 @@
 calls this thing, which repository holds its IaC?</strong> The identifier can
 be a project name, a subscription code, a product slug, or a full git
 URL — whatever the organization already uses. The service returns the
-clone URL and, when its catalogue knows them, the Terraform provider
-the identifier deploys with and the cloud scope it deploys into.</p>
+clone URL.</p>
 </div>
 <div class="paragraph">
-<p>Only <code>repo_url</code> is guaranteed. <code>terraform_provider</code> and <code>scope_id</code> are
-best effort, and <strong><code>null</code> means "I do not know, ask the user"</strong> — never
-"there is none". The wizard skips its provider and scope questions for
-any field the mapper answers, so a confident wrong answer is worse than
-<code>null</code>: the user is never prompted and never sees it. An implementation
-returns <code>null</code> whenever its catalogue is not authoritative.</p>
+<p>Contract 2.0.0 dropped the former best-effort <code>terraform_provider</code> and
+<code>scope_id</code> fields and the <code>TerraformProvider</code> enum: the providers and
+scopes of a session come from its root module and its
+<a href="../../root-module-manifest/" class="xref page">manifest</a> rather than
+from a lookup, so nothing consumed them. A request that still sends
+<code>terraform_provider</code> fails validation with <code>422</code>.</p>
 </div>
 <div class="paragraph">
-<p>Contract: <code>contracts/openapi/mapping.v1.yaml</code>. Kumoss bundles no
-implementation of it: repository mapping is an optional extension point
-you implement yourself and point <code>services.mapping.endpoint</code> at.
-Bearer token: the value of the variable named by
-<code>services.mapping.token_env</code>, <code>KUMOSS_MAPPING_TOKEN</code> by default. The
-service is <strong>optional</strong> and ships disabled
-(<code>services.mapping.enabled: false</code>, <code>endpoint: ""</code>).</p>
+<p>The core calls the service when the web wizard scans a repository: what
+the user types in the repository step goes to
+<code>POST /api/v1/repository/parse</code>, which resolves it here before cloning,
+and every later call of the session uses the resolved <code>repo_url</code>. It
+calls the service once more when a session&#8217;s first <code>generate</code>, <code>drift</code>
+or <code>import</code> call carries a <code>project_identifier</code> (what the user typed,
+echoed by the parse route), to check that it still resolves to that
+call&#8217;s <code>repo_uri</code> before any session is created. The core&#8217;s former
+<code>POST /api/v1/mapping/resolve</code> passthrough was removed together with
+the provider and scope fields.</p>
 </div>
 <div class="paragraph">
-<p>It is internal-only. The browser never reaches it: the core forwards
-requests through <code>POST /api/v1/mapping/resolve</code>.</p>
+<p>Contract: <code>contracts/openapi/mapping.v1.yaml</code>, version 2.0.0. Kumoss
+bundles a reference implementation in <code>services/mapping</code>, <strong>enabled by
+default</strong> (<code>services.mapping.enabled: true</code>, <code>endpoint:
+"http://mapping:8081"</code>); point <code>services.mapping.endpoint</code> at your own
+implementation to replace it. Bearer token: the value of the variable
+named by <code>services.mapping.token_env</code>, <code>KUMOSS_MAPPING_TOKEN</code> by
+default.</p>
+</div>
+<div class="paragraph">
+<p>It is internal-only: only the core calls it, never the browser.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="bundled"><a class="anchor" href="#bundled"></a>The bundled implementation</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The bundled service resolves an identifier in one of two ways:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>An <code>https://</code> URL passes through unchanged.</p>
+</li>
+<li>
+<p>A bare repository name — letters, digits, <code>.</code>, <code>_</code> and <code>-</code>, no
+slashes — is appended to <code>MAPPING_PREFIX_IDENTIFIER</code> with a <code>.git</code>
+suffix (not doubled when the name already ends in <code>.git</code>). With
+<code>MAPPING_PREFIX_IDENTIFIER=https://github.com/MySuperOrg/</code>, <code>foo</code>
+resolves to <code>https://github.com/MySuperOrg/foo.git</code>.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Anything else, or a bare name while the prefix is empty, is <code>404</code> with
+a problem document that says why; the wizard shows that reason. Set the
+prefix in <code>services/mapping/.env</code> (Compose) or <code>mapping.env</code> (Helm). It
+must be an <code>https://</code> URL with a host and no password, query or
+fragment, and a trailing <code>/</code> is added if missing; the service refuses
+to start otherwise. Leave it empty to accept full URLs only.</p>
+</div>
+<div class="paragraph">
+<p>The <code>.git</code> suffix suits hosts whose clone URLs end in it (GitHub,
+GitLab, Bitbucket, Gitea). Azure DevOps clone URLs have none: with it,
+users type the full URL.</p>
 </div>
 </div>
 </div>
@@ -864,8 +1039,7 @@ requests through <code>POST /api/v1/mapping/resolve</code>.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>POST /v1/resolve</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Translates <code>identifier</code> into the repository the rest of Kumoss
-operates on, and optionally into the Terraform provider and cloud scope
-the caller would otherwise have to ask the user for.</p></td>
+operates on.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>GET /healthz</code></p></td>
@@ -880,11 +1054,11 @@ the caller would otherwise have to ask the user for.</p></td>
 <div class="sectionbody">
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"identifier"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-project"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"terraform_provider"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
+<pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">"identifier"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-project"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Only <code>identifier</code> is required. <code>additionalProperties</code> is <code>false</code>.</p>
+<p><code>identifier</code> is the only field. <code>additionalProperties</code> is <code>false</code>.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -905,23 +1079,8 @@ the caller would otherwise have to ask the user for.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">1-1024 chars</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The business identifier to resolve. Free-form by design.</p></td>
 </tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_provider</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">enum, nullable</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The provider the caller already knows the deployment targets — one of
-<code>azure</code>, <code>gcp</code>, <code>aws</code>, <code>oci</code>, <code>kubernetes</code>, <code>vmware</code> (the core&#8217;s own
-vocabulary, not Terraform registry names such as <code>azurerm</code> or
-<code>google</code>). An implementation may use it to disambiguate an identifier
-that spans clouds, and must echo it back when it is sent. May be
-omitted or sent as null, meaning the caller does not know either.</p></td>
-</tr>
 </tbody>
 </table></div></div>
-<div class="paragraph">
-<p>The wizard never sends <code>terraform_provider</code>: resolution runs at the
-repository step, before a provider has been picked. The field exists
-for contract completeness and for callers other than the wizard.</p>
-</div>
 </div>
 </div>
 <div class="sect1">
@@ -931,9 +1090,7 @@ for contract completeness and for callers other than the wizard.</p>
 <div class="content">
 <pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "repo_url"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://github.com/me/my-iac.git"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "identifier"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-project"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "terraform_provider"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azure"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "scope_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"0000aaaa-11bb-cccc-dd22-eeeeee333333"</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "identifier"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-project"</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
 </div>
@@ -968,32 +1125,11 @@ identifier that cannot be mapped to one is <code>404</code>.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The request&#8217;s <code>identifier</code>, echoed verbatim. Normative rather than
 conventional: callers correlate responses on it.</p></td>
 </tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_provider</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">enum, nullable</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The provider the deployment targets. Echoes the request&#8217;s value when
-one was sent; otherwise the implementation&#8217;s best-effort answer, or
-<code>null</code> for "I do not know, ask the user". Never a guess — the caller
-skips its provider prompt when this is non-null, so a wrong value is
-never seen or corrected.</p></td>
-</tr>
-<tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>scope_id</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">1-1024 chars, nullable</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The cloud scope the deployment targets — Azure: subscription id, GCP:
-project id, AWS: account id, OCI: compartment OCID, VMware: vSphere
-datacenter name — as a best-effort answer, or <code>null</code> for "I do not
-know, ask the user". Same warning as <code>terraform_provider</code>: a wrong
-value sends the user into a plan against the wrong scope with nothing
-to catch it. The core does not validate
-the value against the wizard&#8217;s typed-scope pattern, so an OCID is
-accepted here even though it cannot be typed in the wizard.</p></td>
-</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
 <p><code>additionalProperties</code> is <code>false</code> on the response too, so a client can
-rely on these four keys being the whole of it.</p>
+rely on these two keys being the whole of it.</p>
 </div>
 <div class="sect2">
 <h3 id="status-codes"><a class="anchor" href="#status-codes"></a>Status codes</h3>
@@ -1030,23 +1166,23 @@ challenge.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>404</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The identifier is not in the catalogue. The contract reserves this
+<td class="tableblock halign-left valign-top"><p class="tableblock">The identifier is not in the catalog. The contract reserves this
 for a clean negative answer, <strong>distinct</strong> from a transient backend
 failure, which is a <code>5xx</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>422</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Well-formed JSON that failed schema validation, including a
-<code>terraform_provider</code> outside the enum.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Well-formed JSON that failed schema validation, including any field
+other than <code>identifier</code> (such as the pre-2.0 <code>terraform_provider</code>).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>502</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The downstream catalogue or CMDB returned an error.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The downstream catalog or CMDB returned an error.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The <code>404</code>-versus-<code>502</code> split is the one design decision a catalogue
+<p>The <code>404</code>-versus-<code>502</code> split is the one design decision a catalog
 implementation should get right: it is what lets the core tell a user
 "no such project" instead of "try again later".</p>
 </div>
@@ -1057,25 +1193,28 @@ implementation should get right: it is what lets the core tell a user
 <h2 id="how-the-core-consumes-the-answer"><a class="anchor" href="#how-the-core-consumes-the-answer"></a>How the core consumes the answer</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The core calls the service from <code>POST /api/v1/mapping/resolve</code> and
-surfaces a timeout as <code>504</code> and an unreachable sidecar as <code>502</code>. Two
-more answers are also <code>502</code>: a body the core cannot parse, and a
-<code>terraform_provider</code> outside the contract&#8217;s enum (the generated client
-hands the raw string through, and the core refuses it rather than
-letting it fail later), and a <code>repo_url</code> that is not an <code>https://</code> URL.
-There is no silent fallback once the sidecar is enabled.</p>
+<p><code>POST /api/v1/repository/parse</code> resolves the trimmed input through the
+service before it clones anything. A <code>404</code> from the service reaches the
+caller as <code>404</code> with the service&#8217;s <code>detail</code>, so the wizard can tell the
+user what to type instead. A timeout is <code>504</code>, and an unreachable
+sidecar, any other error status, a body the core cannot parse, and a
+<code>repo_url</code> that is not an <code>https://</code> URL are all <code>502</code>. There is no
+silent fallback once the sidecar is enabled. The resolved URL is then
+checked like any repository URI (no embedded password: <code>422</code>).</p>
 </div>
 <div class="paragraph">
-<p>When the sidecar is disabled (the shipped default) the core answers
-with an <strong>identity passthrough</strong> and makes no call: <code>repo_url</code> and
-<code>identifier</code> both echo the input, <code>terraform_provider</code> echoes whatever
-was sent, and <code>scope_id</code> is <code>null</code>. Nothing is truncated and nothing is
-guessed: sniffing <code>azure</code> out of a <code>dev.azure.com</code> URL would conflate
-"hosted on Azure DevOps" with "deploys to Azure", and a guess is a
-question the user never gets to correct. This is exactly right for
-users who paste real HTTPS git URLs already. Any other input is echoed
-unchecked too; the next request that uses it as <code>repo_uri</code> is rejected
-with <code>422</code>.</p>
+<p>When the sidecar is disabled the core answers with an <strong>identity
+passthrough</strong> and makes no call: <code>repo_url</code> and <code>identifier</code> both echo
+the input, and anything that is not an <code>https://</code> URL is rejected with
+<code>422</code>.</p>
+</div>
+<div class="paragraph">
+<p>The same client checks a first IaC call&#8217;s <code>project_identifier</code>: the
+call is <code>422</code> unless the identifier resolves to its <code>repo_uri</code>, and the
+service&#8217;s own errors (<code>404</code>, <code>502</code>, <code>504</code>) reach the caller as above.
+With the sidecar disabled an identifier resolves to itself, so only a
+repository URL can be used, and that one is dropped as redundant. See
+<a href="../core/#infrastructure-as-code" class="xref page">Core API</a>.</p>
 </div>
 </div>
 </div>
@@ -1083,14 +1222,16 @@ with <code>422</code>.</p>
 <h2 id="providing-your-own-implementation"><a class="anchor" href="#providing-your-own-implementation"></a>Providing your own implementation</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>A catalogue-backed implementation looks the identifier up in a CMDB,
+<p>A catalog-backed implementation looks the identifier up in a CMDB,
 Backstage, or a shared spreadsheet and returns the canonical IaC
-repository, plus the provider and scope when the catalogue is
-authoritative for them. The contract carries the result and says
-nothing about where the lookup data lives. Set
-<code>services.mapping.enabled: true</code>, point <code>services.mapping.endpoint</code> at
-it, and set <code>KUMOSS_MAPPING_TOKEN</code> in <code>core/.env</code>; the core refuses to
-boot when an enabled service has no endpoint or an empty token.</p>
+repository. The contract carries the result and says
+nothing about where the lookup data lives. Point
+<code>services.mapping.endpoint</code> at it (with <code>enabled: true</code>, the default),
+set <code>KUMOSS_MAPPING_TOKEN</code> in <code>core/.env</code>, and drop the bundled
+<code>mapping</code> service from your deployment; the core refuses to boot when
+an enabled service has no endpoint or an empty token. Answer <code>404</code> with
+a <code>detail</code> written for the end user when an identifier is not in the
+catalog.</p>
 </div>
 </div>
 </div>
@@ -1118,9 +1259,8 @@ authentication.</p>
 <div class="paragraph">
 <p>The suite generates requests from the OpenAPI document and checks
 schema conformance of the responses. It cannot check that the
-identifiers your catalogue resolves are the <strong>right</strong> repositories, nor
-that a provider or scope it answers is true — that is what the
-implementation&#8217;s own tests are for.</p>
+identifiers your catalog resolves are the <strong>right</strong> repositories —
+that is what the implementation&#8217;s own tests are for.</p>
 </div>
 </div>
 </div>
@@ -1130,16 +1270,16 @@ implementation&#8217;s own tests are for.</p>
 <div class="ulist">
 <ul>
 <li>
-<p><a href="../core/" class="xref page">Core API</a> for the core route that
-wraps this one.</p>
-</li>
-<li>
 <p><a href="../../configuration/#config-services" class="xref page">the <code>services</code>
-section</a> of the configuration reference for enabling the sidecar.</p>
+section</a> of the configuration reference for the sidecar wiring.</p>
 </li>
 <li>
-<p><a href="../../../guides/make-a-request/" class="xref page">Make a request</a> for which wizard
-questions a mapper&#8217;s answers skip.</p>
+<p><a href="../core/" class="xref page">Core API</a> for
+<code>POST /api/v1/repository/parse</code>, the route that calls it.</p>
+</li>
+<li>
+<p><a href="../../root-module-manifest/" class="xref page">Root module manifest</a>
+for where a session&#8217;s providers and scopes come from now.</p>
 </li>
 </ul>
 </div>

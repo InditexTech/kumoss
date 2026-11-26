@@ -74,7 +74,7 @@
 
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/architecture/end-to-end-flow/">
     <link rel="prev" href="../">
-    <link rel="next" href="../data-and-state/">
+    <link rel="next" href="../compliance/">
     <meta name="description" content="The ten phases of one generate session, from request to applied infrastructure, and the mechanisms behind them.">
     <meta name="generator" content="Antora 3.2.3">
 
@@ -275,6 +275,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../data-and-state/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
       </a>
@@ -342,9 +351,19 @@
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/make-a-request/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
       </a>
@@ -353,16 +372,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/generate-infrastructure/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/follow-a-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
       </a>
@@ -371,7 +381,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/merge-and-apply/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
       </a>
@@ -380,7 +390,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -389,93 +424,64 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/import-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/enable-authentication/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/administer-users-and-locks/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/monitor-with-phoenix/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/customize-prompts/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item side-menu__item--branch">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/configure-state-backends/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
-      </a>
-      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
-        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
-      </button>
-    </div>
-
-<ul class="dt-list side-menu__list" data-depth="1">
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/repository-declared/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+        href="../../guides/write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/kumoss-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
     </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/sidecar-supplied/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
-      </a>
-    </div>
-
-  </li>
-</ul>
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/deploy-to-production/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
       </a>
@@ -484,10 +490,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/secrets-and-credentials/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
       </a>
@@ -496,7 +502,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/networking-and-tls/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
       </a>
@@ -505,7 +511,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/hardening/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
       </a>
@@ -514,7 +520,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/operations/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
       </a>
@@ -525,7 +531,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/deploy-with-helm/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
       </a>
@@ -534,12 +540,80 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
   <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
@@ -557,18 +631,19 @@
     </div>
 
   </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../reference/operating-modes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
-      </a>
-    </div>
+  <li class="side-menu__item side-menu__item--group">
 
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
       </a>
@@ -577,7 +652,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/environment-variables/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
       </a>
@@ -586,7 +661,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/llm-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
       </a>
@@ -595,16 +670,59 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../reference/roles-and-permissions/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
       </a>
     </div>
 
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/prompt-registry/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/repository-layout/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
       </a>
@@ -613,16 +731,23 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../reference/terraform-providers/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/database-schema/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
       </a>
@@ -631,7 +756,7 @@
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/api/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
       </a>
@@ -640,10 +765,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/core/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
       </a>
@@ -652,7 +777,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/iac/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
       </a>
@@ -661,7 +786,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/notifications/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
       </a>
@@ -670,7 +795,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/mapping/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
       </a>
@@ -679,12 +804,14 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/authz/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
 </ul>
   </li>
@@ -716,8 +843,26 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../roadmap/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -734,22 +879,6 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../contributing/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item side-menu__item--label">
-    <div class="side-menu__row">
-      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
-      </span>
-    </div>
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../events/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -1187,18 +1316,25 @@ gates on purpose: <strong>models propose, code decides.</strong></p>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Request</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The wizard posts repository URL, target cloud, scope id, optional IaC
-path and request text to <code>POST /api/v1/iac/generate</code> with a bearer
-token. The IaC path is one of the Terraform roots
-<code>POST /api/v1/repository/parse</code> found in a metadata-only clone
-(a <code>git ls-tree</code> heuristic over <code>.tf</code> directories).</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The wizard posts repository URL, root module path, request text and,
+when the module needed them, the answers to its inputs (<code>manifest</code>) to
+<code>POST /api/v1/iac/generate</code> with a bearer token. The root module path
+is one of the Terraform roots <code>POST /api/v1/repository/parse</code> found in
+a metadata-only clone (a <code>git ls-tree</code> heuristic over <code>.tf</code>
+directories), which also echoed what the user typed as
+<code>project_identifier</code>; the wizard sends that back too. Before posting,
+the wizard asked <code>POST /api/v1/manifest/probe</code> what the module needs
+and, only when something was missing, showed the inputs form. No provider or scope is
+sent: they come from the module itself. See
+<a href="../../reference/root-module-manifest/" class="xref page">Root module manifest</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Identity and role</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The authentication dependency validates the bearer JWT, or resolves
 the fixed local-developer identity when auth is disabled, and the role
-check requires <code>developer</code>: <code>401</code> or <code>403</code> otherwise. The wizard has separately asked the authz sidecar
-whether the user may work on that cloud project. See
+check requires <code>developer</code>: <code>401</code> or <code>403</code> otherwise. The authz
+sidecar is consulted later, once the module&#8217;s provider scopes are
+known (see the manifest step below). See
 <a href="#auth">Authentication</a> and <a href="#authz">Authorization and
 ownership</a>.</p></td>
 </tr>
@@ -1211,8 +1347,10 @@ username (the <code>&lt;org&gt;@</code> prefix of an Azure DevOps clone URL) but
 embed a password or token — also <code>422</code>, an empty <code>user:</code> password
 included. Then <code>git ls-remote</code> must succeed: unreachable, rejected or
 timed out → <code>400</code> with the fixed detail "Repository is not reachable or
-access was denied."; git&#8217;s own output goes only to the core log. Either
-way no session is created.</p></td>
+access was denied."; git&#8217;s own output goes only to the core log. A
+<code>project_identifier</code> other than the URL itself must then resolve to it
+through the mapping sidecar, or the call is <code>422</code> (a mapper error such
+as <code>404</code> is passed through). Either way no session is created.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Session creation</p></td>
@@ -1235,7 +1373,20 @@ never refused with <code>409</code>: the runner that loses logs
 returns without touching the session. It then clones into
 <code>/workspaces/&lt;session&gt;/&lt;call&gt;</code> on the volume shared with the iac
 sidecar, pushes the branch <code>Kumoss/YYYY-MM-DD_HHMMSS</code> (UTC), and installs
-the per-session Phoenix tracer.</p></td>
+the per-session Langfuse tracer.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Manifest and authorization</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On a first call the runner inspects the root module, reconciles it with
+its committed <code>kumoss.yaml</code> and the call&#8217;s <code>manifest</code> answers, and
+derives the session&#8217;s provider/scope pairs. The authz sidecar is asked
+once per pair before anything is saved; a denial, or input still
+missing, fails the session there. Otherwise the secrets are stored, the
+manifest is written and committed to the session branch, and the pairs
+are recorded on the session. Iteration calls skip this and reuse the
+recorded pairs, authorized synchronously on the route. Every generate,
+drift or import call then loads the module&#8217;s var files and values for
+its Terraform runs; apply runs the pinned plan, which already has them.</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -1259,18 +1410,17 @@ the per-session Phoenix tracer.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Request Filter Agent (<code>filtering</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The small model, with read-only workspace tools, classifies the request
-against the <code>general-guidelines-requests</code> and
-<code>&lt;cloud&gt;-guidelines-forbidden_actions</code> prompts. A change request
-proceeds; a question is answered in the conversation; an out-of-scope,
-prohibited or ambiguous request is declined with a rationale. In the
+against the <code>general/guidelines/requests</code> prompt. A change request
+proceeds; a question is answered in the conversation; an out-of-scope
+or ambiguous request is declined with a rationale. In the
 last two cases the round ends <code>uncompleted</code> and the user is invited to
 reformulate — the session itself stays usable.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Prompt Compositor</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Two small-model passes select the relevant resource templates and
-abbreviations from the cloud&#8217;s <code>resources_list</code> and <code>abbreviations</code>
-prompts in Phoenix, then look for dependencies among them. The result is
+abbreviations from the <code>resources_list</code> and <code>abbreviations</code> prompts of
+the module&#8217;s providers in Langfuse, then look for dependencies among them. The result is
 the round&#8217;s <em>conventions</em>, which every later agent is rendered with.</p></td>
 </tr>
 </tbody>
@@ -1716,14 +1866,14 @@ plan artifact, so every iteration leaves one artifact behind.</p></td>
 plain-language operations, the Reconciliation Filter (small model)
 reads the branch&#8217;s <code>diff_history</code> and drops every operation that would
 merely undo the session&#8217;s own intended changes, and the Drift Exception
-Filter (small model) then drops every operation the cloud&#8217;s
+Filter (small model) then drops every operation the providers'
 <code>drift_exceptions</code> rules cover, logging what it removed.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Decide</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Genuine drift re-enters the generation loop in batches of
-<code>orchestration.drift_group_operations</code> (8) with the forbidden-actions
-block omitted, and the pre-check runs once more. If only the session&#8217;s
+<code>orchestration.drift_group_operations</code> (8), and the pre-check runs
+once more. If only the session&#8217;s
 own changes remain, or the plan is clean, the pre-check stops and the
 last plan is final. If genuine drift is still there after the second
 iteration, the round continues to the report anyway: a warning is logged
@@ -1744,10 +1894,10 @@ existing plan safe: <a href="#drift">Drift detection and remediation</a>.</p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phases-7-8.png" alt="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
+<img src="../../_images/flow-phases-7-8.png" alt="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-7-8.html" data-archify-title="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-7-8.html" data-archify-title="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phases-7-8.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -2104,7 +2254,7 @@ existing plan safe: <a href="#drift">Drift detection and remediation</a>.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Report Generator (<code>report</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The main model turns the final plan into a JSON report: create, update,
 delete and recreate counts, detailed changes, an impact banner (<code>low</code>,
-<code>medium</code>, <code>high</code>) assigned with the <code>general-compliance-impact</code>
+<code>medium</code>, <code>high</code>) assigned with the <code>general/compliance/impact</code>
 criteria, and cost estimates.</p></td>
 </tr>
 <tr>
@@ -2121,7 +2271,7 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.</p></td>
 </div>
 </div>
 <div class="sect1">
-<h2 id="phase-8-compliance-audit"><a class="anchor" href="#phase-8-compliance-audit"></a>Phase 8: compliance audit</h2>
+<h2 id="phase-8-compliance-check"><a class="anchor" href="#phase-8-compliance-check"></a>Phase 8: compliance check</h2>
 <div class="sectionbody">
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -2136,22 +2286,38 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.</p></td>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance Auditor</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">With <code>orchestration.enable_compliance_checker</code> on, a second,
-independent small-model agent reads the session&#8217;s first request and the
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance policy</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">With <code>orchestration.enable_compliance_checker</code> on, the core first
+evaluates the Rego policies from Langfuse with OPA against the final
+plan&#8217;s <code>show -json</code>, deterministically: <code>general/policies/compliance</code>
+and the <code>&lt;provider&gt;/policies/compliance</code> of every provider the root
+module declares (a provider without one is skipped), in one
+evaluation. Its
+<code>deny</code> findings block; <code>warn</code> findings do not. A policy that cannot be
+evaluated yields a blocking <code>policy_unavailable</code> finding: the check
+fails closed. Contract:
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Intent check</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Then a second,
+independent small-model agent reads every request of the session and the
 raw plan output — not the report JSON — alongside the
-<code>general-compliance-report</code> rules and the cloud guidelines. It has no
+<code>general/intent/rules</code> rules. It judges only whether the plan does what
+the requests ask (<code>scope_exceeded</code>, <code>scope_incomplete</code>), not the
+conventions. It has no
 repository tools and must answer through its only tool,
-<code>report_compliance_findings</code>: rule id, severity, resource, message,
-suggested fix. The findings are stored like any other artifact, at
+<code>report_intent_findings</code>: rule id, severity, resource, message,
+suggested fix. Both parts' findings, each tagged with its <code>source</code>
+(<code>opa</code> or <code>intent</code>), are merged into one report, stored like any other artifact, at
 <code>compliance/check-&lt;token&gt;.json</code> with a <code>compliance_checks</code> row holding
 the verdict, so the session detail and the portal can show them.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The tool handler recomputes <code>passed</code> from the severities: any <code>error</code>
-or <code>critical</code> finding fails the audit regardless of the model&#8217;s own
-claim.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The model reports findings only, never a verdict: the merged report
+computes <code>passed</code> from the severities, and fails when either part has
+an <code>error</code> or <code>critical</code> finding.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Lock or release, then pin</p></td>
@@ -2974,7 +3140,7 @@ its phases use.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>User / reviewer</strong> (grey)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>User / reviewer</strong> (gray)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Human actor. Only a human starts a request, creates or merges a pull
 request, or applies.</p></td>
 </tr>
@@ -2994,7 +3160,7 @@ decision happens here.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>LLM agents</strong> (green)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Prompt-driven agent loops. Each message into this participant names the
 agent and its model role (<code>main</code> = <code>llm.model</code>, <code>small</code> =
-<code>llm.small_model</code>); see the <a href="#agent-catalogue">agent catalogue</a>.</p></td>
+<code>llm.small_model</code>); see the <a href="#agent-catalogue">agent catalog</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>core-db</strong> (purple)</p></td>
@@ -3026,11 +3192,11 @@ through the notifications sidecar, and the cloud platform.</p></td>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Solid grey arrow (<code>default message</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Solid gray arrow (<code>default message</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A call or hand-over in the direction of the arrow.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Dashed grey arrow (<code>return</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Dashed gray arrow (<code>return</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A result flowing back: engine output, structured findings, an HTTP
 status, a message shown to the user.</p></td>
 </tr>
@@ -3083,12 +3249,12 @@ operations per drift batch.</p></td>
 </div>
 </div>
 <div class="sect1">
-<h2 id="agent-catalogue"><a class="anchor" href="#agent-catalogue"></a>Agent catalogue</h2>
+<h2 id="agent-catalogue"><a class="anchor" href="#agent-catalogue"></a>Agent catalog</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>Every message into the agents lane is one of the agents below. Each is
 an orchestration loop rendered from a Jinja layout with
-prompts fetched from Phoenix, given a fixed tool set, and ended by a
+prompts fetched from Langfuse, given a fixed tool set, and ended by a
 <strong>sentinel tool</strong> whose structured arguments are the agent&#8217;s result.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -3113,7 +3279,8 @@ prompts fetched from Phoenix, given a fixed tool set, and ended by a
 <td class="tableblock halign-left valign-top"><p class="tableblock">Infrastructure Generation Agent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">main</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>write_to_file</code>, <code>replace_in_file</code>, <code>delete_file</code>, <code>read_file</code>,
-<code>list_dir</code>, <code>bulk_grep_search</code>, <code>diff_history</code>, <code>web_search</code></p></td>
+<code>list_dir</code>, <code>bulk_grep_search</code>, <code>diff_history</code>, <code>web_search</code>,
+<code>terraform_docs</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>task_complete</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 5; re-entered by drift batches in Phase 6 and by dedicated drift
 sessions</p></td>
@@ -3130,7 +3297,7 @@ sessions</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Drift Target Generator</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">main</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">the same read-only set, rendered with the
-<code>general-guidelines-targeting_policies</code> prompt</p></td>
+<code>general/guidelines/targeting_policies</code> prompt</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>generate_terraform_targets</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Dedicated <strong>partial</strong> drift sessions only, never in the generate flow</p></td>
 </tr>
@@ -3169,7 +3336,7 @@ or <code>generate_terraform_apply_report</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Drift Task Splitter</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">main</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>read_file</code>, <code>list_dir</code>, <code>bulk_grep_search</code>, <code>diff_history</code>,
-<code>web_search</code></p></td>
+<code>web_search</code>, <code>terraform_docs</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_decomposed_task_operations</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 6 and dedicated drift sessions</p></td>
 </tr>
@@ -3184,17 +3351,17 @@ call <code>diff_history</code>)</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Drift Exception Filter Agent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">small</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">None besides its sentinel; rendered with the cloud&#8217;s <code>drift_exceptions</code>
-prompt</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None besides its sentinel; rendered with the providers'
+<code>drift_exceptions</code> prompts</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_decomposed_task_operations</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 6 and dedicated drift sessions, after the reconciliation filter</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance Auditor Agent</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Intent Checker Agent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">small</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none besides its sentinel; input is the first request and the raw plan
-output</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_compliance_findings</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none besides its sentinel; input is every request of the session and
+the raw plan output</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_intent_findings</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 8, generate rounds, when the checker is enabled</p></td>
 </tr>
 <tr>
@@ -3219,8 +3386,8 @@ fixed at two iterations).</p>
 routers and use-case handlers; PostgreSQL session, ownership, status,
 <code>in_flight</code> and <code>is_blocked</code> controls; the git workspace service and the
 GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
-calculation (<code>plan_to_drift</code>, DeepDiff); the code-computed compliance
-verdict; object storage with presigned URLs; SSE status delivery; the
+calculation (<code>plan_to_drift</code>, DeepDiff); the OPA compliance policies and
+the code-computed compliance verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.</p>
 </div>
 <div class="sect2">
@@ -3241,7 +3408,7 @@ the budget is spent on work rather than on repeats:</p>
 <thead>
 <tr>
 <th class="tableblock halign-left valign-top">Guard</th>
-<th class="tableblock halign-left valign-top">Behaviour</th>
+<th class="tableblock halign-left valign-top">Behavior</th>
 </tr>
 </thead>
 <tbody>
@@ -3288,16 +3455,16 @@ model as a failed result. Every result reaches the model as JSON,
 </table></div></div>
 <div class="paragraph">
 <p><strong>Workspace confinement.</strong> The agents' working directory is the session&#8217;s
-IaC root: the clone plus <code>iac_path</code>, with symlinks resolved. The root must
+Root module: the clone plus <code>root_module_path</code>, with symlinks resolved. The root must
 be an existing directory inside the clone, or the run fails with <code>runner
-failed: iac_path '&lt;path&gt;' is not a directory inside the repository</code> before
+failed: root_module_path '&lt;path&gt;' is not a directory inside the repository</code> before
 any agent starts, so a committed link cannot widen the tools' reach.
 Within it:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Tool paths are relative to the IaC root. An absolute path is accepted
+<p>Tool paths are relative to the root module. An absolute path is accepted
 only when it points inside the root; anything that resolves outside it,
 through <code>..</code> or a symlink, is rejected.</p>
 </li>
@@ -3379,7 +3546,7 @@ misleads, since drift rounds never pin. The runner sets <code>FAILED</code> and 
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Pipeline failed</strong> — any phase</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Any error the core raises as one of its own typed exceptions: a model or
 tool error, a drift remediation batch that exhausts its own validation
-attempts, a sidecar timeout, a git or storage failure, a prompt Phoenix
+attempts, a sidecar timeout, a git or storage failure, a prompt Langfuse
 cannot return</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>runner failed: &lt;reason&gt;</code> and <code>system.exception.failure</code>; run directory
 removed; in-flight guard released.</p></td>
@@ -3405,7 +3572,7 @@ removed; in-flight guard released.</p></td>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Validated, unlocked</strong> — phase 8</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The audit passed or the checker is off, and the report&#8217;s impact banner is
+<td class="tableblock halign-left valign-top"><p class="tableblock">The compliance check passed or the checker is off, and the report&#8217;s impact banner is
 not <code>high</code> or <code>orchestration.block_on_high_impact</code> is off</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>is_blocked = false</code>, plan pinned. Apply and pull-request merge are
 available.</p></td>
@@ -3443,8 +3610,8 @@ round, never a second apply.</p>
 <div class="sect2">
 <h3 id="uncompleted-the-request-needs-reformulating"><a class="anchor" href="#uncompleted-the-request-needs-reformulating"></a><code>UNCOMPLETED</code>: the request needs reformulating</h3>
 <div class="paragraph">
-<p>The Request Filter Agent declined the request in phase 3 as out of scope,
-prohibited or ambiguous, or answered it as a question. The rationale is
+<p>The Request Filter Agent declined the request in phase 3 as out of scope
+or ambiguous, or answered it as a question. The rationale is
 added to the conversation, and the owner&#8217;s next request opens a new round of
 the same session.</p>
 </div>
@@ -3523,7 +3690,8 @@ session is not terminal and accepts a new round.</p></td>
 bundle itself; there is no separate frontend container. The SPA uses
 relative paths, so nginx is the only address the browser knows: <code>/api</code>
 proxies to <code>core:8000</code>, a dedicated events location disables proxy buffering
-so progress streams immediately, and <code>/monitoring/</code> exposes the Phoenix UI.
+so progress streams immediately, and a server on port 3000 exposes the
+Langfuse UI.
 nginx authenticates nothing — bearer tokens pass through to the core.</p>
 </div>
 </div>
@@ -3542,7 +3710,7 @@ nginx authenticates nothing — bearer tokens pass through to the core.</p>
 <thead>
 <tr>
 <th class="tableblock halign-left valign-top">Mode</th>
-<th class="tableblock halign-left valign-top">Behaviour</th>
+<th class="tableblock halign-left valign-top">Behavior</th>
 </tr>
 </thead>
 <tbody>
@@ -3621,13 +3789,17 @@ reads, including the progress stream, are open to the owner or to anyone
 holding a panel role.</p>
 </div>
 <div class="paragraph">
-<p>Separately from roles, the wizard&#8217;s preflight
-<code>POST /api/v1/auth/authorize</code> asks the authz sidecar whether the caller may
-touch a given cloud project and environment. Disabled — the default — the
-core answers "authorized" with no network call; enabled, a timeout or
-unreachable sidecar is returned as <code>504</code>/<code>502</code>, never as an allow. This is a
-hook for enterprise cloud-access policy, not the access control for
-Kumoss&#8217;s own data.</p>
+<p>Separately from roles, the IaC routes ask the authz sidecar whether the
+caller may run the operation on each provider scope of the session&#8217;s
+root module (a module with no scoped provider is checked once, at the
+module level). First calls are checked inside the session, after the
+manifest setup and before anything is saved; iteration calls and apply
+are checked on the route from the pairs recorded on the session.
+Disabled — the default — the core treats every check as allowed with no
+network call; enabled, a timeout or unreachable sidecar is <code>504</code>/<code>502</code>,
+never an allow. This is a hook for enterprise cloud-access policy, not
+the access control for Kumoss&#8217;s own data. See
+<a href="../../reference/api/authz/" class="xref page">Authorization sidecar API</a>.</p>
 </div>
 </div>
 <div class="sect2">
@@ -3643,7 +3815,7 @@ repository field at all, so both skip it.</p>
 <div class="paragraph">
 <p>The pipeline then runs in-process as a background task; there is no external
 job queue. Each run gets a freshly assembled object graph: the two model
-providers, the workspace tool registry, Phoenix-backed template services,
+providers, the workspace tool registry, Langfuse-backed template services,
 and the validation, filter, report, drift, task-splitting and pull-request
 services.</p>
 </div>
@@ -3675,7 +3847,7 @@ splitting</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.small_model</code> (small)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Request filtering, prompt composition, status messages, pull-request text,
-the reconciliation filter, the drift exception filter, the compliance audit</p></td>
+the reconciliation filter, the drift exception filter, the intent check</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -3697,7 +3869,7 @@ job — and does all the sequencing itself.</p>
 </colgroup>
 <thead>
 <tr>
-<th class="tableblock halign-left valign-top">Behaviour</th>
+<th class="tableblock halign-left valign-top">Behavior</th>
 <th class="tableblock halign-left valign-top">Detail</th>
 </tr>
 </thead>
@@ -3727,18 +3899,29 @@ workspace contains: the <code>backend_override.tf</code> the core writes by defa
 since Kumoss-managed state is on as shipped, or the repository&#8217;s own block
 if that is turned off.</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The project travels as a header</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A session whose first call carried a <code>project_identifier</code> sends it as
+the <code>Kumoss-Project</code> header on every IaC call, job polling included.
+An IaC service implementation may pick the command&#8217;s credentials by
+it; the bundled sidecar ignores it. See
+<a href="../../reference/api/iac/#project" class="xref page">Project</a>.</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>The <strong>mapping sidecar</strong> translates a business identifier into a repository
-reference. Kumoss ships no implementation of it: provide your own, and
-while it is disabled the core treats the identifier as the repository
-URL (identity passthrough). It may
-also answer with the terraform provider and cloud scope that identifier
-deploys to, and those answers are best effort: <code>null</code> means "unknown, ask
-the user", never "there is none". The wizard skips the step for every
-field the mapper fills, so a guess is a question the user never gets to
-correct — an implementation that does not know must say <code>null</code>.</p>
+<p>The <strong>mapping sidecar</strong> translates what the user types in the wizard&#8217;s
+repository step into a repository URL. <code>POST /api/v1/repository/parse</code>
+calls it before cloning and answers the resolved <code>repo_url</code>, which the
+wizard sends on every later call. A first IaC call that carries a
+<code>project_identifier</code> is resolved again, to check that it names the
+call&#8217;s <code>repo_uri</code>. The bundled implementation appends a
+bare repository name to <code>MAPPING_PREFIX_IDENTIFIER</code> with a <code>.git</code>
+suffix and passes full <code>https://</code> URLs through; a catalog-backed one
+can replace it. While it is disabled the core treats the input as the
+repository URL (identity passthrough). Contract 2.0.0 answers the
+repository only: providers and scopes come from the root module and
+its manifest.</p>
 </div>
 </div>
 <div class="sect2">
@@ -3767,11 +3950,12 @@ validation loop that produced it, one artifact per attempt.</p>
 <li>
 <p><strong>Split, filter, and remediate.</strong> A clean plan stops the loop. Otherwise
 the Drift Task Splitter (main model) turns the JSON into plain-language
-operations, the Drift Exception Filter drops every operation the cloud&#8217;s
-<code>&lt;cloud&gt;-guidelines-drift_exceptions</code> rules cover (logging each one), and
+operations, the Drift Exception Filter drops every operation the
+<code>&lt;provider&gt;/guidelines/drift_exceptions</code> rules of the module&#8217;s providers
+cover (logging each one), and
 the survivors, chunked into groups of <code>drift_group_operations</code> (8), each
-re-enter the generation and validation loop with the forbidden-actions
-block omitted, the intent being reconciliation. When every operation is
+re-enter the generation and validation loop, the intent being
+reconciliation. When every operation is
 excluded the loop stops there: re-planning would only rediscover the
 same drift.</p>
 </li>
@@ -3805,7 +3989,7 @@ the phase is visible on the timeline whether or not drift was found.</p>
 <tr>
 <th class="tableblock halign-left valign-top">Entry point</th>
 <th class="tableblock halign-left valign-top">Targets</th>
-<th class="tableblock halign-left valign-top">Behaviour</th>
+<th class="tableblock halign-left valign-top">Behavior</th>
 </tr>
 </thead>
 <tbody>
@@ -3829,7 +4013,7 @@ filter.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Up to <code>max_drift_reports</code> (3) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
-lock, does not run the compliance audit and does not pin the workspace —
+lock, does not run the compliance check and does not pin the workspace —
 drift never pins — so an apply after a drift-only round fails until a
 generate round pins a plan.</p></td>
 </tr>
@@ -3837,17 +4021,17 @@ generate round pins a plan.</p></td>
 </table></div></div>
 <div class="paragraph">
 <p><strong>How the DRIFT report is written.</strong> The drift report is the one report the
-generator does not receive as a text to summarise: it reads the branch for
+generator does not receive as a text to summarize: it reads the branch for
 itself. The report service gives the drift report the workspace-inspection
-tool set instead of <code>web_search</code>, and the drift branch of the report
+tool set instead of <code>web_search</code> and <code>terraform_docs</code>, and the drift branch of the report
 layout makes <code>diff_history</code> a required first call and the sole source of
 truth for the remediation. That works because every reconciliation group
 commits and pushes inside the validation loop before the report runs, so
 the branch&#8217;s committed diff against the default branch, plus untracked
 files, <strong>is</strong> the reconciliation; no remediated resource may be named that
-the diff does not show. The drift handler therefore no longer serialises
+the diff does not show. The drift handler therefore no longer serializes
 the session history into the report query and passes only what the
-remediation left out, in two labelled blocks that map one-to-one onto
+remediation left out, in two labeled blocks that map one-to-one onto
 optional report fields:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
@@ -3897,7 +4081,7 @@ rounds made.</p>
 <p>The pre-check replaced an earlier design in which a <strong>predictive</strong> target
 agent guessed the affected resources and remediated drift <strong>before</strong> any code
 was generated. That agent and its <code>PREDICTIVE</code> mode were removed, and the
-shared Phoenix guideline was renamed from <code>predictive_targets</code> to
+shared guideline prompt was renamed from <code>predictive_targets</code> to
 <code>targeting_policies</code>.</p>
 </div>
 </div>
@@ -3925,15 +4109,39 @@ short-circuits to an empty passing report and stores nothing. The gate has
 no progress status of its own.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">How it audits</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">A second, independent small-model agent loop. Its query is the session&#8217;s
-first user request plus the raw plan output, rendered into the local
-compliance-checker layout with the <code>general-compliance-report</code> rules and the
-cloud guidelines from Phoenix. It has no repository access and one tool, the
-sentinel <code>report_compliance_findings</code>, whose arguments — <code>rule_id</code>,
-<code>severity</code>, <code>resource</code>, <code>message</code> and <code>suggested_fix</code> per violation — are
-parsed into a typed report. The rules are applied by the model; only the
-verdict is computed in code.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Policy</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">First, the core evaluates the Rego policies (fetched from Langfuse with
+the <code>environment</code> label) with one run of the <code>opa</code> binary against the
+final plan&#8217;s <code>show -json</code>: <code>general/policies/compliance</code>, plus the
+<code>&lt;provider&gt;/policies/compliance</code> of each provider the root module
+declares that has one. <code>deny</code> findings have severity
+<code>error</code> or <code>critical</code>, <code>warn</code> findings <code>warning</code>. A policy that cannot be
+evaluated — fetch failure, broken policy, malformed decision, timeout —
+adds a blocking <code>policy_unavailable</code> finding instead, and the intent
+check still runs. With the checker on, the core refuses to start if the
+general policy or the policy of a provider that ships a seed fails
+against an empty plan. Contract:
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Intent check</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Then a second, independent small-model agent loop. Its query is every user
+request of the session plus the raw plan output, against the local
+intent-checker layout with the <code>general/intent/rules</code> rules from Langfuse.
+It judges only whether the plan does what the requests ask
+(<code>scope_exceeded</code>, <code>scope_incomplete</code>); it receives no conventions, so
+nothing audits the plan against them beyond the policies. It has no
+repository access and one tool, the sentinel <code>report_intent_findings</code>, whose
+arguments — <code>rule_id</code>, <code>severity</code>, <code>resource</code>, <code>message</code> and
+<code>suggested_fix</code> per violation — are parsed into a typed intent check with no
+verdict of its own. The rules are applied by the model; only the verdict is
+computed in code. The policy decision and the intent check are then merged
+into one report: policy findings first (<code>source: "opa"</code>), then the model&#8217;s
+(<code>source: "intent"</code>; stored reports with the former <code>"llm"</code> load as
+<code>"intent"</code>), with <code>policy_revisions</code> listing the policy
+versions that ran as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, the general policy
+first, for example <code>["general/policies/compliance@3",
+"aws/policies/compliance@1"]</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Persistence</p></td>
@@ -3945,18 +4153,18 @@ when the session is locked, in the blocked pull-request view.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The tool handler recomputes <code>passed</code> from the reported severities: any
-<code>error</code> or <code>critical</code> violation fails the check regardless of the model&#8217;s
-own claim.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The model reports findings only: the merged report computes <code>passed</code>
+from the severities, and fails if either source has an <code>error</code> or
+<code>critical</code> violation.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Effect</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Every generate round writes <code>is_blocked = (audit failed) or (high
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every generate round writes <code>is_blocked = (check failed) or (high
 impact)</code>, high impact meaning <code>orchestration.block_on_high_impact</code> is on and
 the report&#8217;s banner is <code>high</code>. Failure sends <code>iac.compliance.failed</code>, or
 <code>iac.impact.high</code>, to the notifications sidecar. Apply and pull-request
 merge refuse blocked sessions with <code>409</code>; pull-request <strong>creation</strong> is not
-lock-checked, and the audited code is already on the working branch, so the
+lock-checked, and the checked code is already on the working branch, so the
 lock guards the apply boundary specifically. A later passing generate round
 with a non-high impact clears the lock, drift rounds leave it untouched, and
 a panel <code>editor</code> can toggle it from the admin panel.</p></td>
@@ -3988,12 +4196,13 @@ them through presigned URLs signed against the public port-9000 endpoint
 nginx forwards to RustFS.</p>
 </li>
 <li>
-<p>Every run installs a per-session tracer exporting OpenInference-annotated
-spans — LLM, tool, chain, Terraform — to Phoenix over OTLP/HTTP.</p>
+<p>Every run installs a per-session tracer exporting spans with Langfuse&#8217;s
+own attributes — generation, tool, agent, Terraform evaluator — to
+Langfuse over OTLP/HTTP, grouped by the session&#8217;s id.</p>
 </li>
 <li>
-<p>Prompt templates live in Phoenix as a runtime registry, seeded at boot and
-fetched per request by environment tag, so prompt edits apply without a
+<p>Prompt templates live in Langfuse as a runtime registry, seeded at boot and
+fetched per request by environment label, so prompt edits apply without a
 redeploy.</p>
 </li>
 <li>
@@ -4024,9 +4233,9 @@ disabled and logs every send failure instead of failing the pipeline.</p>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../data-and-state/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../compliance/">
       <span class="dt-button__content">
-        <span class="pagination__label-full">Data and state</span>
+        <span class="pagination__label-full">How compliance works</span>
         <span class="pagination__label-short">Next</span>
         <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
       </span>

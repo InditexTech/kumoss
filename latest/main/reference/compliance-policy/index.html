@@ -1,0 +1,1765 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Compliance policy | Kumoss</title>
+
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/compliance-policy/">
+    <link rel="prev" href="../operating-modes/">
+    <link rel="next" href="../prompt-registry/">
+    <meta name="description" content="The contract of the Rego compliance policies: how and where they run, the general and provider policies, their input and decision, how their findings are reported, when they fail, and the shipped rules.">
+    <meta name="generator" content="Antora 3.2.3">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--latest version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">stable</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <a class="version" href="../../../../prerelease/main/reference/compliance-policy/">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </a>
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </span>
+  </div>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-stable.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="stable" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../see-it-in-action/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">See it in action</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/deploy-with-helm/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../prompt-registry/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../roadmap/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--latest version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">stable</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <a class="version" href="../../../../prerelease/main/reference/compliance-policy/">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </a>
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </span>
+  </div>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
+  <div class="dt-breadcrumb-item"><span class="dt-breadcrumb-item__content">Reference</span></div>
+    <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Compliance policy</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Compliance policy</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">The contract of the Rego compliance policies: how and where they run, the general and provider policies, their input and decision, how their findings are reported, when they fail, and the shipped rules.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>The compliance policies are the deterministic part of Kumoss&#8217;s
+compliance check: <a href="https://www.openpolicyagent.org/docs/policy-language">Rego</a>
+modules that <a href="https://www.openpolicyagent.org">Open Policy Agent</a> (OPA)
+evaluates against the plan of every generate round. No language model is
+involved, so the same plan always gets the same verdict. A <code>deny</code>
+finding locks the session.</p>
+</div>
+<div class="paragraph">
+<p>Two kinds of policy run together:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 28.5714%;">
+<col style="width: 42.8572%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Prompt</th>
+<th class="tableblock halign-left valign-top">Package</th>
+<th class="tableblock halign-left valign-top">Evaluated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss.compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On every generate round. It must exist.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss.providers.&lt;provider&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On the rounds whose root module declares that provider. A provider
+without one is skipped.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>&lt;provider&gt;</code> is the Terraform provider type name, as in the other
+provider prompts: <code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>oci</code>,
+<code>vsphere</code>. A type name containing <code>-</code> is not a valid Rego identifier,
+so its package uses the bracket form, for example <code>package
+kumoss.providers["google-beta"]</code>. Every policy gets the same
+<a href="#input">input</a> and returns the same <a href="#decision">decision</a>.</p>
+</div>
+<div class="paragraph">
+<p>This page is the contract a policy follows. To add a rule step by step,
+see <a href="../../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a>. For
+how the policies relate to the other checks that can lock a session, see
+<a href="../../architecture/compliance/" class="xref page">How compliance works</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="how-it-runs"><a class="anchor" href="#how-it-runs"></a>How the policies run</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>At the end of every generate round, when
+<code>orchestration.enable_compliance_checker</code> is <code>true</code>:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>The core fetches the general policy and the policy of every provider
+the root module declares in <code>required_providers</code> (the session&#8217;s
+providers), each from the version that carries your environment&#8217;s
+label in Langfuse. A provider whose policy prompt does not exist, or
+has no version with that label, is left out: a module declaring
+<code>random</code> gets no <code>random</code> policy, and no error. Nothing is cached, so
+a label moved in Langfuse applies to the next round.</p>
+</li>
+<li>
+<p>It builds the <a href="#input">input document</a> from the round&#8217;s final plan and
+the root module&#8217;s providers, and runs all the fetched policies in one
+<code>opa</code> process (OPA 1.22.4, shipped in the core image) that queries
+<code>data.kumoss</code>, so the general package and every provider package are
+read from a single result:</p>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">opa</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> eval</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --stdin-input</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --strict-builtin-errors</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --format</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> json</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --data</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --data</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> aws.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ...</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss</span></span></span></code></pre>
+</div>
+</div>
+</li>
+<li>
+<p>It reads each policy&#8217;s <a href="#decision">decision</a>: blocking <code>deny</code>
+findings, non-blocking <code>warn</code> findings, and the list of rules checked.</p>
+</li>
+<li>
+<p>The intent check, the language-model half, runs next, and both
+results are merged into one compliance report for the round; see
+<a href="#report">How findings appear in the report</a>.</p>
+</li>
+<li>
+<p>If either part has an <code>error</code> or <code>critical</code> finding, the session is
+locked and the compliance failure notification is sent.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Errors name the prompt and the line they come from, for example
+<code>aws/policies/compliance:12: &#8230;&#8203;</code>.</p>
+</div>
+<div class="paragraph">
+<p>Every policy sees the whole plan, not only its provider&#8217;s resources: a
+module may use several providers. A provider policy&#8217;s rules therefore
+match on their own resource `type`s.</p>
+</div>
+<div class="paragraph">
+<p>Drift and import rounds are never checked.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="where-it-lives"><a class="anchor" href="#where-it-lives"></a>Where the policies live</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each policy is a Langfuse text prompt, seeded from
+<code>core/prompts/seed/&lt;scope&gt;/policies/compliance.rego</code>: the general
+policy from <code>general/</code>, and one policy each for <code>aws</code>, <code>azurerm</code>,
+<code>google</code>, <code>kubernetes</code>, <code>oci</code>, and <code>vsphere</code>. To give another provider
+a policy, create its <code>&lt;provider&gt;/policies/compliance</code> prompt in
+Langfuse. The core uses the raw text of the version: Langfuse&#8217;s
+<code>{{variable}}</code> templating is not applied, so the braces of Rego are
+safe. A version you customized is never overwritten by a Kumoss
+upgrade. How versions, labels, and seeding work is in
+<a href="../prompt-registry/#how-seeding-works" class="xref page">How seeding
+works</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="input"><a class="anchor" href="#input"></a>Input</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The document every policy receives as <code>input</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "plan"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: { </span><span style="--shiki-light:#F44747;--shiki-dark:#F44747">...</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> },</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "kumoss"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: {</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "schema"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kumoss.compliance.input/v1"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">    "providers"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: [</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"kubernetes"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">]</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  }</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
+</div>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 20%;">
+<col style="width: 80%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Content</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>input.plan</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The final plan&#8217;s <code>terraform show -json</code> or <code>tofu show -json</code>
+document, unchanged. Rules usually walk <code>input.plan.resource_changes</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>input.kumoss.schema</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss.compliance.input/v1</code>. Changes if the shape of <code>input</code> ever
+does.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>input.kumoss.providers</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The provider type names of the root module&#8217;s <code>required_providers</code>
+(<code>azurerm</code> for <code>hashicorp/azurerm</code>): the providers whose policies are
+evaluated. The general policy can use it to scope a rule to the
+providers a module actually uses; see
+<a href="../root-module-manifest/" class="xref page">Root module manifest</a>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Three properties of the plan limit what a rule can check:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>It is a <code>-target</code> plan: it holds the session&#8217;s targets only, so a rule
+cannot see resources outside them.</p>
+</li>
+<li>
+<p>Values known only after apply are absent from <code>after</code> and listed in
+<code>after_unknown</code>.</p>
+</li>
+<li>
+<p>It carries sensitive values unmasked. Never put a value that can hold
+a secret (passwords, keys, tokens, connection strings, user data,
+policy or script bodies) in a finding&#8217;s <code>message</code>, which ends up in
+the compliance report, the session&#8217;s artifacts, and the notification;
+name the resource address and the attribute instead. Addresses, CIDR
+blocks, ports, protocols, and paths, which the shipped rules quote,
+are fine.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="decision"><a class="anchor" href="#decision"></a>Decision</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each policy&#8217;s package, <code>data.kumoss.compliance</code> or
+<code>data.kumoss.providers.&lt;provider&gt;</code>, is read with the same contract, so
+the general module must declare <code>package kumoss.compliance</code> and a
+provider&#8217;s <code>package kumoss.providers.&lt;provider&gt;</code>. All keys are
+optional; a missing one counts as empty, and keys outside these three
+are ignored.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 16.6666%;">
+<col style="width: 33.3333%;">
+<col style="width: 50.0001%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set of <code>{rule_id, message, resource?, severity?}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Blocking findings. <code>severity</code> is <code>error</code> (the default) or <code>critical</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>warn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set of <code>{rule_id, message, resource?}</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Non-blocking findings, reported with severity <code>warning</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>rules</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">set of strings</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every rule id the policy evaluates, so the report lists the rules
+that passed too. Rule ids of findings are added to it anyway.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>rule_id</code> and <code>message</code> are non-empty strings; <code>resource</code>, when
+present, is a string, usually the resource address.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="report"><a class="anchor" href="#report"></a>How findings appear in the report</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The policies' decisions and the intent check&#8217;s findings are merged
+into one compliance report per round; only this merge produces the
+verdict:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>Each policy violation carries <code>source: "opa"</code>; findings of the intent
+check carry <code>"intent"</code>. Reports stored with the former value <code>"llm"</code>,
+or before the policy existed with no <code>source</code>, load as intent
+findings. The web application marks policy findings with a <strong>policy</strong>
+badge and intent check findings with an <strong>intent</strong> badge, in the
+<strong>Compliance Check</strong> artifact and in the <strong>Why</strong> list of the <strong>Deployment
+Blocked</strong> screen.</p>
+</li>
+<li>
+<p>The policies' findings come first.</p>
+</li>
+<li>
+<p><code>policy_revisions</code> lists the versions that ran, each as
+<code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, the general policy first, for example
+<code>["general/policies/compliance@3", "aws/policies/compliance@1"]</code>, or
+is empty when no policy ran. Reports stored when there was only the
+general policy carry a single <code>policy_revision</code> string; they are read
+into the list.</p>
+</li>
+<li>
+<p><code>passed</code> is <code>false</code> when either source has an <code>error</code> or <code>critical</code>
+finding, and the session is then locked as for any failed compliance
+check. When the policies are what blocks, the summary starts with
+<code>Blocked by the compliance policy: N finding(s) (&lt;rule ids&gt;).</code></p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="failure"><a class="anchor" href="#failure"></a>When a policy cannot be evaluated</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The policies fail closed. If one cannot be evaluated, the round gets a
+blocking <code>policy_unavailable</code> finding (severity <code>error</code>) whose message
+gives the reason, so the session is locked and the compliance failure
+notification is sent. The intent check still runs, and its findings
+are in the same report.</p>
+</div>
+<div class="paragraph">
+<p>Since all the policies run in one evaluation, one broken provider
+policy blocks every round of a module that declares that provider, and
+a broken general policy blocks every round.</p>
+</div>
+<div class="sect2">
+<h3 id="problems-in-a-policy"><a class="anchor" href="#problems-in-a-policy"></a>Problems in a policy</h3>
+<div class="paragraph">
+<p>Fix these in a new version of the policy:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A syntax or compile error in any of the policies.</p>
+</li>
+<li>
+<p>A fetched policy does not define its package (<code>package
+kumoss.compliance</code> for the general policy, <code>package
+kumoss.providers.&lt;provider&gt;</code> for a provider&#8217;s), or the package is not
+an object.</p>
+</li>
+<li>
+<p><code>deny</code>, <code>warn</code>, or <code>rules</code> is not a set; a finding is not an object or
+lacks <code>rule_id</code> or <code>message</code>; or a <code>deny</code> severity is neither <code>error</code>
+nor <code>critical</code>.</p>
+</li>
+<li>
+<p>A builtin error. The policies run with <code>--strict-builtin-errors</code>, so
+<code>to_number("x")</code> fails rather than being undefined.</p>
+</li>
+<li>
+<p>The evaluation did not finish within 30 seconds.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="problems-around-the-policy"><a class="anchor" href="#problems-around-the-policy"></a>Problems around the policy</h3>
+<div class="paragraph">
+<p>These need your operator:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A policy could not be fetched from Langfuse: Langfuse is unreachable,
+the version carrying the environment label is not a single text
+prompt, or, for the general policy only, the prompt or such a version
+does not exist.</p>
+</li>
+<li>
+<p>The plan JSON could not be read.</p>
+</li>
+<li>
+<p><code>opa</code> could not be run.</p>
+</li>
+</ul>
+</div>
+</div>
+<div class="sect2">
+<h3 id="startup-check"><a class="anchor" href="#startup-check"></a>Startup check</h3>
+<div class="paragraph">
+<p>When <code>enable_compliance_checker</code> is <code>true</code>, the core, after seeding the
+prompts, evaluates the general policy and the policy of every provider
+that ships a seed (<code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>oci</code>,
+<code>vsphere</code>) against an empty plan, and refuses to start if that fails: a
+missing <code>opa</code> binary, a broken policy, or Langfuse unreachable. A
+provider policy missing from Langfuse is skipped there too. A broken
+version that gets the environment label while the core is running is
+caught only when it is evaluated, and then blocks every round it
+applies to.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="shipped-rules"><a class="anchor" href="#shipped-rules"></a>The shipped rules</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="general-policy"><a class="anchor" href="#general-policy"></a>General policy</h3>
+<div class="paragraph">
+<p>The general seed defines five rules that apply whatever the provider.
+<code>critical_deletion</code> looks at every managed resource and
+<code>provider_version_pin</code> at the root module&#8217;s provider configuration; the
+other three look only at what the plan creates or updates (a
+replacement included), so a resource the round leaves alone is not
+judged.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 12.5%;">
+<col style="width: 62.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Rule id</th>
+<th class="tableblock halign-left valign-top">Decision</th>
+<th class="tableblock halign-left valign-top">Finds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>critical_deletion</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code>, <code>critical</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A managed resource whose plan actions are exactly <code>["delete"]</code>, even
+when the user requested the deletion. A replacement
+(<code>["delete", "create"]</code> or <code>["create", "delete"]</code>), a <code>forget</code> (a
+<code>removed</code> block with <code>destroy = false</code>) and data sources are allowed.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>customer_managed_key_removed</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code>, <code>error</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A resource the plan updates or replaces that loses its
+customer-managed encryption key: an attribute named <code>kms_key_id</code>,
+<code>kms_key_arn</code>, <code>kms_master_key_id</code>, <code>kms_key_name</code>,
+<code>kms_key_self_link</code>, <code>default_kms_key_name</code>, <code>customer_managed_key</code>,
+<code>disk_encryption_set_id</code> or <code>key_vault_key_id</code>, at any nesting depth,
+is set before the change and empty or absent after it. Switching to
+another key is allowed, and a key whose new value is only known at
+apply time is not judged.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>command_execution</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code>, <code>error</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Terraform running commands: a <code>null_resource</code>, or a provisioner of
+any kind (<code>local-exec</code>, <code>remote-exec</code>, <code>file</code>) on a resource the plan
+creates or updates, child modules included; and any <code>data "external"</code>
+data source anywhere in the configuration, changed or not, since it
+runs its program on every plan. A resource with a provisioner that the
+round leaves untouched is not flagged.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>unprotected_credential_output</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>warn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A root module output the plan creates or updates whose name contains,
+case-insensitively, <code>password</code>, <code>passwd</code>, <code>secret</code>, <code>token</code>,
+<code>private_key</code>, <code>api_key</code>, <code>access_key</code>, <code>credential</code> or
+<code>connection_string</code>, and that is not marked <code>sensitive = true</code>. The
+name is only a hint, hence a warning; the message carries the output&#8217;s
+name, never its value.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>provider_version_pin</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>warn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A root module provider (an entry of the plan&#8217;s
+<code>configuration.provider_config</code> without <code>module_address</code>; the built-in
+<code>terraform.io/builtin/*</code> providers are skipped) with no version
+constraint, or one that is not of the form <code>~&gt; X.Y</code>: an exact pin such
+as <code>= 4.63.0</code> (which the plan shows as <code>4.63.0</code>), an open range such as
+<code>&gt;= 5.0</code>, or <code>~&gt; 6.1.0</code>. The finding has no <code>resource</code>; the message
+carries the provider&#8217;s full name. A warning, since an existing pin is
+never changed as a side effect and a workspace may keep one on purpose;
+child modules pin for themselves.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>critical_deletion</code>, the rule a custom policy most often starts from:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>package kumoss.compliance</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>rules contains "critical_deletion"</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>deny contains finding if {</span></span>
+<span class="line"><span>	some change in input.plan.resource_changes</span></span>
+<span class="line"><span>	change.mode == "managed"</span></span>
+<span class="line"><span>	change.change.actions == ["delete"]</span></span>
+<span class="line"><span>	finding := {</span></span>
+<span class="line"><span>		"rule_id": "critical_deletion",</span></span>
+<span class="line"><span>		"severity": "critical",</span></span>
+<span class="line"><span>		"resource": change.address,</span></span>
+<span class="line"><span>		"message": sprintf(</span></span>
+<span class="line"><span>			"%s is destroyed without being recreated; standalone deletions are never allowed, even when requested.",</span></span>
+<span class="line"><span>			[change.address],</span></span>
+<span class="line"><span>		),</span></span>
+<span class="line"><span>	}</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The seed declares its five ids in one <code>rules contains rule if some rule
+in {&#8230;&#8203;}</code> statement; the excerpt above declares only its own. The code
+is explained line by line in
+<a href="../../guides/write-a-policy-rule/#how-a-rule-works" class="xref page">How a rule
+works</a>.</p>
+</div>
+<div class="paragraph">
+<p><code>data "external"</code> runs its program while the plan is made, so by the
+time <code>command_execution</code> locks the round the program has already run
+in the IaC sidecar; the rule keeps the code from being applied and
+merged. Provisioners and <code>null_resource</code> commands run at apply and are
+stopped before they run.</p>
+</div>
+<div class="paragraph">
+<p>Some safeguards of the former prompts are not in the general policy.
+Removing <code>lifecycle.prevent_destroy</code> cannot be detected: the plan JSON
+does not contain <code>lifecycle</code> blocks. Turning off deletion protection
+and replacing a stateful resource are visible in the plan, but the
+prompts allowed them on an explicit request, so they were not
+translated (see below).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="provider-policies"><a class="anchor" href="#provider-policies"></a>Provider policies</h3>
+<div class="paragraph">
+<p>No prompt lists forbidden actions any more. The provider seeds
+translate the most critical rules of the removed <code>forbidden_actions</code>
+prompts that can be decided from the plan alone. Each has three rules,
+all <code>deny</code> with the default severity <code>error</code>, with ids prefixed by the
+provider (<code>k8s_</code> for Kubernetes). They check only resources the plan
+creates or updates, and only values known at plan time;
+<code>vsphere_unverified_ssl</code> reads the plan&#8217;s provider configuration
+instead.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 22.2222%;">
+<col style="width: 55.5556%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Rule id</th>
+<th class="tableblock halign-left valign-top">Denies</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_public_ingress</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Security group ingress (inline, <code>aws_security_group_rule</code> or
+<code>aws_vpc_security_group_ingress_rule</code>) from <code>0.0.0.0/0</code> or <code>::/0</code> on
+anything but TCP 80 or 443. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_iam_wildcard_admin</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An IAM policy statement allowing <code>Action</code> <code>"<strong>"</code> on <code>Resource</code> <code>"</strong>"</code>,
+including the inline policies of a role.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_s3_public_access</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>public-read</code> or <code>public-read-write</code> bucket ACL, or any S3 Block
+Public Access flag set to <code>false</code>, at bucket or account level.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>azurerm</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm_public_inbound</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A network security group inbound <code>Allow</code> rule from <code>*</code>, <code>Internet</code>,
+<code>0.0.0.0/0</code> or <code>::/0</code> on anything but TCP 80 or 443. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm_subscription_owner</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Owner or Contributor assigned at subscription, management group or
+root scope.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm_host_command</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The CustomScript extension on a virtual machine or scale set, or an
+<code>azurerm_virtual_machine_run_command</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>google</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google_public_ingress</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An ingress firewall rule or firewall policy rule from <code>0.0.0.0/0</code> or
+<code>::/0</code> on anything but TCP 80 or 443; a rule without ports opens every
+port. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google_sa_key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>google_service_account_key</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google_basic_role_to_sa</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>roles/owner</code>, <code>roles/editor</code> or <code>roles/viewer</code> granted to a
+<code>serviceAccount:</code> member through any <code>google_*<em>iam_member</code> or
+<code>google</em>*_iam_binding</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s_privilege_escalation</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>allow_privilege_escalation = true</code> in any security context.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s_runtime_socket</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>hostPath</code> volume on the container runtime socket or a directory
+exposing it: <code>/</code>, <code>/run</code>, <code>/var/run</code>, and the Docker, containerd and
+CRI-O sockets and directories.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s_cluster_admin_sa</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cluster-admin</code> bound to a ServiceAccount.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci_public_ingress</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Ingress from <code>0.0.0.0/0</code> or <code>::/0</code> on anything but TCP 80 or 443, in
+a security list (<code>oci_core_security_list</code>), a VCN&#8217;s default security
+list (<code>oci_core_default_security_list</code>) or a network security group
+rule. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci_bastion_open</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A bastion whose <code>client_cidr_block_allow_list</code> contains <code>0.0.0.0/0</code>
+or <code>::/0</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci_any_user_no_condition</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An <code>Allow any-user</code> policy statement without a <code>request.principal</code>
+condition.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>vsphere</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere_host_management</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Host-level resources: <code>vsphere_host*</code>, <code>vsphere_vnic</code>,
+<code>vsphere_license</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere_unverified_ssl</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>vsphere</code> provider block with <code>allow_unverified_ssl = true</code> written
+as a literal.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere_snapshot</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>vsphere_virtual_machine_snapshot</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Rules of the removed prompts that allowed an exception on an explicit
+user request were not translated: a policy sees the plan, not the
+request. Write such rules as <code>warn</code> rules, so a reviewer sees them
+without the session being locked, or leave them to review.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="write-a-rule"><a class="anchor" href="#write-a-rule"></a>Write your own rules</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Further prohibitions (no public storage, no owner role assignments,
+allowed regions, mandatory tags&#8230;&#8203;) are written as rules in the policy
+of the provider they concern, or in the general policy when they span
+providers, each adding its id to <code>rules</code>. To give a provider without a
+seed a policy, create its <code>&lt;provider&gt;/policies/compliance</code> prompt in
+Langfuse with <code>package kumoss.providers.&lt;provider&gt;</code>. See <a href="../../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="testing"><a class="anchor" href="#testing"></a>Testing commands</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>All commands use the OPA image at the version the core ships. With OPA
+1.22.4 installed locally, run <code>opa</code> with the same arguments instead.</p>
+</div>
+<div class="paragraph">
+<p>Run the shipped rules' tests, from the <code>core</code> directory (the shell
+expands the glob, so run it there):</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/core:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /core</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> prompts/seed/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">*</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/policies</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/policies</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The tests are in <code>core/tests/policies</code>, one <code>&lt;scope&gt;_test.rego</code> per
+policy. The general policy&#8217;s fixtures are real Terraform 1.16 and
+OpenTofu 1.13 plans, <code>fixtures/&lt;engine&gt;/data.json</code>, and a Terraform
+plan exercising its command and output rules,
+<code>fixtures/general/data.json</code>; the AWS, Google, and Kubernetes rules are
+tested against real <code>terraform plan</code> output,
+<code>fixtures/&lt;provider&gt;/data.json</code>. <code>opa test</code> loads each as
+<code>data.fixtures.&lt;directory&gt;</code>.</p>
+</div>
+<div class="paragraph">
+<p>Check that policies compile, from the folder that holds them, passing
+the general policy together with the provider policies a round would
+run:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/w:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /w</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> check</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> aws.rego</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Evaluate the policies against an input document, as the core does:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -i</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/w:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  eval</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --stdin-input</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --strict-builtin-errors</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --format</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pretty</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> aws.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C; </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>How to build <code>input.json</code> from a plan is shown in
+<a href="../../guides/write-a-policy-rule/#steps" class="xref page">Write a policy rule</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="related-pages"><a class="anchor" href="#related-pages"></a>Related pages</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a> to add
+a rule, test it, and publish it.</p>
+</li>
+<li>
+<p><a href="../prompt-registry/" class="xref page">Prompt registry</a> for how
+the policies are seeded, versioned, and labeled in Langfuse.</p>
+</li>
+<li>
+<p><a href="../../guides/resolve-a-locked-session/" class="xref page">Resolve a locked
+session</a> for what users see when a policy denies a plan.</p>
+</li>
+<li>
+<p><a href="../configuration/" class="xref page">Configuration</a> for
+<code>orchestration.enable_compliance_checker</code>.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../operating-modes/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Operating modes</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../prompt-registry/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Prompt registry</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/reference/compliance-policy.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>

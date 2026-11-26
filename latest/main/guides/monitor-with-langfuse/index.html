@@ -70,12 +70,12 @@
       })()
     </script>
 
-<title>Monitor with Phoenix | Kumoss</title>
+<title>Monitor with Langfuse | Kumoss</title>
 
-    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-phoenix/">
-    <link rel="prev" href="../administer-users-and-locks/">
-    <link rel="next" href="../customize-prompts/">
-    <meta name="description" content="Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.">
+    <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides/monitor-with-langfuse/">
+    <link rel="prev" href="../state-backends/sidecar-supplied/">
+    <link rel="next" href="../development/">
+    <meta name="description" content="Read Kumoss's traces in Langfuse, and know what a trace contains and what it omits.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -275,6 +275,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../architecture/data-and-state/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
       </a>
@@ -342,9 +351,19 @@
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../make-a-request/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
       </a>
@@ -353,16 +372,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../generate-infrastructure/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../follow-a-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
       </a>
@@ -371,7 +381,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../merge-and-apply/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
       </a>
@@ -380,7 +390,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -389,93 +424,64 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../import-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../enable-authentication/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../administer-users-and-locks/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="./" aria-current="page">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Phoenix</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../customize-prompts/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item side-menu__item--branch">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../configure-state-backends/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
-      </a>
-      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
-        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
-      </button>
-    </div>
-
-<ul class="dt-list side-menu__list" data-depth="1">
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/repository-declared/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+        href="../write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/kumoss-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
     </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../state-backends/sidecar-supplied/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
-      </a>
-    </div>
-
-  </li>
-</ul>
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../deploy-to-production/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
       </a>
@@ -484,10 +490,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../production/secrets-and-credentials/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
       </a>
@@ -496,7 +502,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../production/networking-and-tls/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
       </a>
@@ -505,7 +511,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../production/hardening/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
       </a>
@@ -514,7 +520,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../production/operations/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
       </a>
@@ -525,7 +531,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../deploy-with-helm/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
       </a>
@@ -534,12 +540,80 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
   <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
@@ -557,18 +631,19 @@
     </div>
 
   </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../reference/operating-modes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
-      </a>
-    </div>
+  <li class="side-menu__item side-menu__item--group">
 
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
       </a>
@@ -577,7 +652,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/environment-variables/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
       </a>
@@ -586,7 +661,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/llm-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
       </a>
@@ -595,16 +670,59 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../reference/roles-and-permissions/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
       </a>
     </div>
 
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/prompt-registry/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/repository-layout/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
       </a>
@@ -613,16 +731,23 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../reference/terraform-providers/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/database-schema/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
       </a>
@@ -631,7 +756,7 @@
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../reference/api/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
       </a>
@@ -640,10 +765,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/core/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
       </a>
@@ -652,7 +777,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/iac/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
       </a>
@@ -661,7 +786,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/notifications/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
       </a>
@@ -670,7 +795,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/mapping/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
       </a>
@@ -679,12 +804,14 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../reference/api/authz/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
 </ul>
   </li>
@@ -716,8 +843,26 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../roadmap/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -734,22 +879,6 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../contributing/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item side-menu__item--label">
-    <div class="side-menu__row">
-      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
-      </span>
-    </div>
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../events/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -787,10 +916,11 @@
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
-  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Monitor with Phoenix</span></div>
+  <div class="dt-breadcrumb-item"><span class="dt-breadcrumb-item__content">Guides</span></div>
+    <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Monitor with Langfuse</span></div>
 </nav>
-        <h1 class="hero__title dt-text dt-text--title-xl">Monitor with Phoenix</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Read Kumoss's OpenTelemetry traces in Arize Phoenix, and know what a trace contains and what it omits.</p>
+        <h1 class="hero__title dt-text dt-text--title-xl">Monitor with Langfuse</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Read Kumoss's traces in Langfuse, and know what a trace contains and what it omits.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -815,30 +945,33 @@
 <p>Kumoss records what its agents do as <strong>traces</strong>: for every session run,
 the prompts sent to the language model, the tool calls the model made,
 the Terraform validations, and the results. Traces are exported with
-OpenTelemetry using the OpenInference conventions and, in the default
-Compose stack, collected and displayed by
-<a href="https://arize.com/docs/phoenix">Arize Phoenix</a>.</p>
+OpenTelemetry, carrying Langfuse&#8217;s own span attributes, and in the
+default Compose stack they are collected and displayed by a self-hosted
+<a href="https://langfuse.com/docs">Langfuse</a>.</p>
 </div>
 <div class="paragraph">
-<p>This guide covers tracing only. Phoenix also hosts Kumoss&#8217;s runtime
+<p>This guide covers tracing only. Langfuse also hosts Kumoss&#8217;s runtime
 prompt registry; that is a separate function described in
 <a href="../customize-prompts/" class="xref page">Customize prompts</a>. How
-Phoenix is deployed in each model is covered by
-<a href="../../quickstart/" class="xref page">Quickstart</a> and
-<a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
+Langfuse is deployed in each model is covered by
+<a href="../../quickstart/" class="xref page">Quickstart</a>,
+<a href="../deploy-with-helm/" class="xref page">Deploy with Helm</a> and
+<a href="../deploy-to-production/" class="xref page">Deploy to production</a>.
+Kumoss used Arize Phoenix before; moving an existing installation is
+covered in <a href="../upgrade-notes/" class="xref page">Upgrade notes</a>.</p>
 </div>
 <div class="paragraph">
-<p><strong>Data sensitivity.</strong> Phoenix receives, in clear text, the full system
+<p><strong>Data sensitivity.</strong> Langfuse receives, in clear text, the full system
 prompts, the user&#8217;s requests and conversation history, repository
 metadata (URL, path, branch), Terraform plans and validation errors,
 tool inputs and outputs (which can include file contents from the
 repository), model outputs including generated code, and the session
-identifier plus the <strong>user&#8217;s e-mail address</strong> (as <code>user.id</code>) on every
-span. Nothing is redacted or truncated apart from a cap on the number of
-attributes. Operators must put Phoenix behind access control, decide on
-retention, and tell users not to paste secrets into requests or commit
-them into IaC. The default stack exposes Phoenix at <code>/monitoring/</code> on
-the same port as the application, with no authentication of its own.</p>
+identifier plus the <strong>user&#8217;s e-mail address</strong> (as the Langfuse user) on
+every span. Nothing is redacted or truncated. Langfuse has a login of
+its own (the bundled stack provisions one admin and turns sign-up off),
+but operators must still decide who gets an account, put the UI behind
+TLS, decide on retention, and tell users not to paste secrets into
+requests or commit them into IaC.</p>
 </div>
 </div>
 </div>
@@ -858,40 +991,59 @@ the same port as the application, with no authentication of its own.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix</code> (<code>arizephoenix/phoenix:20.12.0</code>)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Receives traces over OTLP/HTTP on port 6006 and serves the UI (port
-4317, OTLP/gRPC, is also exposed on the Compose network but unused by
-Kumoss). Started with <code>PHOENIX_HOST_ROOT_PATH=/monitoring</code> so it works
-behind the proxy prefix. Its MCP server is disabled.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse-web</code> (<code>langfuse/langfuse:4.83.0</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The UI and the public API: receives traces over OTLP/HTTP and serves
+prompts. Runs the database migrations at startup. On the first start
+it provisions the <code>Kumoss</code> organization, the <code>Kumoss</code> project with the
+key pair the core uses, and the admin user.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>phoenix-db</code> (PostgreSQL 17)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Persistence for Phoenix. Traces and prompts survive restarts in the
-<code>phoenix_db_data</code> volume.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse-worker</code> (<code>langfuse/langfuse-worker:4.83.0</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Processes ingested events into ClickHouse. Starts once <code>langfuse-web</code>
+is healthy.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse-db</code> (PostgreSQL 17)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Users, projects, API keys and prompts, in the <code>langfuse_db_data</code>
+volume.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse-clickhouse</code> (ClickHouse 26.3)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Traces and observations, in the <code>langfuse_clickhouse_data</code> volume.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse-redis</code> (Redis 8.8)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse&#8217;s job queue (<code>noeviction</code>). Separate from the core&#8217;s Redis,
+which is a cache.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>langfuse-bucket</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">One-shot: creates the <code>langfuse</code> bucket on the <code>object-storage</code>
+service, where Langfuse keeps the raw events (<code>events/</code>) and media
+(<code>media/</code>). Langfuse does not create its bucket itself.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>proxy</code> (nginx)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Forwards <code>/monitoring/</code> to Phoenix.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Serves the Langfuse UI and API on port 3000. The stock Langfuse image
+cannot be served under a path prefix, so it gets a port of its own.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Browser paths:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>http://localhost/monitoring/</code> opens Phoenix.</p>
-</li>
-<li>
-<p><code>http://localhost/monitoring/projects</code> lists the projects. The admin
-panel&#8217;s <strong>Phoenix</strong> link points here.</p>
-</li>
-</ul>
+<p>Open <code>http://localhost:3000</code> and log in as <code>admin@example.com</code> with
+password <code>kumoss-admin-1</code>. The admin panel&#8217;s <strong>Langfuse</strong> link goes to
+<code>/langfuse</code> on the proxy, which redirects there.</p>
 </div>
 <div class="paragraph">
-<p>Only the proxy publishes host ports; Phoenix is not reachable directly
-from the host in the default stack.</p>
+<p>The development defaults (admin password, project key pair, database,
+ClickHouse and Redis passwords, <code>SALT</code>, <code>ENCRYPTION_KEY</code>,
+<code>NEXTAUTH_SECRET</code>) are set in <code>docker-compose.yml</code> through <code>${VAR:-default}</code>
+interpolation: override them from the shell or a <code>.env</code> file next to
+<code>docker-compose.yml</code> before the first start, and keep
+<code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code> in <code>core/.env</code> matching
+the project keys. The admin, the project and its keys are only created
+on the first start; changing the values later does not change them (see
+<a href="#troubleshooting">Troubleshooting</a>).</p>
 </div>
 </div>
 </div>
@@ -918,127 +1070,99 @@ of the configuration reference):</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.collector_url</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://phoenix:6006/</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of the OTLP/HTTP collector. The core appends <code>v1/traces</code> by
-string concatenation, so the value <strong>must end in</strong> <code>/</code>. This is also the
-code default; running the core outside Docker needs an explicit
-<code>http://localhost:6006/</code>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.langfuse_url</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>http://langfuse-web:3000/</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Base URL of Langfuse as the core reaches it. Traces go to
+<code>&lt;langfuse_url&gt;api/public/otel/v1/traces</code>; prompts are read from
+<code>&lt;langfuse_url&gt;api/public/v2/prompts</code>. A trailing <code>/</code> is added when
+missing. Running the core outside Docker needs <code>http://localhost:3000/</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.public_key_env</code> / <code>telemetry.secret_key_env</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Names of the environment variables holding the project&#8217;s API key pair,
+used for both traces (HTTP Basic auth) and prompts. When the variables
+are unset the core uses the development keys the Compose stack
+provisions (<code>pk-lf-kumoss-dev</code> / <code>sk-lf-kumoss-dev</code>), so the
+quickstart needs no wiring; any other Langfuse rejects them.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_attribute_count_limit</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>1024</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum attributes per span. Long conversations produce many
-<code>llm.input_messages.N.*</code> attributes. When the limit is hit the
-OpenTelemetry SDK drops the oldest attributes first, and on LLM spans
-those are <code>session.id</code>, <code>user.id</code>, <code>metadata</code>, the span kind, and the
-model name, so an over-long span loses its identity rather than its
-messages. Raise this for long sessions.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Maximum attributes per span. Each span carries a few dozen; the
+conversation of an LLM span is a single attribute, so the limit is not
+reached in practice.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>telemetry.otel_console_exporter</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>false</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Also print spans to the core&#8217;s standard output. Useful for debugging
-without Phoenix, but spans carry prompts and plans.</p></td>
+without Langfuse, but spans carry prompts and plans.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p><strong>Replacing Phoenix as the trace collector.</strong> The exporter is the standard
-OpenTelemetry OTLP/HTTP span exporter, so any collector that accepts
-OTLP/HTTP on <code>&lt;collector_url&gt;v1/traces</code> (an OpenTelemetry Collector, a
-vendor endpoint) receives the spans. Two caveats:</p>
+<p>The removed Phoenix key <code>telemetry.collector_url</code> is refused at boot,
+so an old <code>config.yaml</code> cannot silently send traces to the default URL.</p>
 </div>
-<div class="ulist">
-<ul>
-<li>
-<p>The core sets no exporter headers itself (it passes no <code>headers</code>
-argument when it configures the span exporter); OTLP header env vars
-such as <code>OTEL_EXPORTER_OTLP_HEADERS</code> (for example
-<code>authorization=Bearer%20&lt;token&gt;</code>) may be honoured by the OpenTelemetry
-SDK when it reads the core&#8217;s environment, but this is not verified in
-this codebase — treat it as unconfirmed. The Phoenix client used for
-prompts separately reads <code>PHOENIX_API_KEY</code>. Put an authenticating
-proxy or collector in front of Phoenix if you need auth on the
-trace-export path.</p>
-</li>
-<li>
-<p>Today <code>telemetry.collector_url</code> is also the base URL of the Phoenix
-client used for prompt seeding and fetching. Pointing it at a
-non-Phoenix collector breaks startup. To send traces elsewhere while
-keeping Phoenix for prompts, forward from Phoenix or place a collector
-at the same base URL that proxies the prompt API.</p>
-</li>
-</ul>
+<div class="paragraph">
+<p><strong>Using your own Langfuse.</strong> Any Langfuse v4 works, self-hosted or Cloud:
+set <code>telemetry.langfuse_url</code> to it, create an API key
+pair in the project&#8217;s settings, and give it to the core as
+<code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code>. The same project holds the
+traces and the prompts.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="projects"><a class="anchor" href="#projects"></a>Projects</h2>
+<h2 id="environments-and-tags"><a class="anchor" href="#environments-and-tags"></a>Environments and tags</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Phoenix groups traces into projects. Kumoss picks the project from the
-<code>environment</code> setting and the session&#8217;s operation:</p>
+<p>Every trace goes to the one project the key pair belongs to. Langfuse
+fields tell traces apart:</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
-<col style="width: 10%;">
-<col style="width: 30%;">
-<col style="width: 30%;">
-<col style="width: 30%;">
+<col style="width: 33.3333%;">
+<col style="width: 66.6667%;">
 </colgroup>
 <thead>
 <tr>
-<th class="tableblock halign-left valign-top"><code>environment</code></th>
-<th class="tableblock halign-left valign-top">Generate</th>
-<th class="tableblock halign-left valign-top">Drift</th>
-<th class="tableblock halign-left valign-top">Import</th>
+<th class="tableblock halign-left valign-top">Field</th>
+<th class="tableblock halign-left valign-top">Value</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>development</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dev-terraform-day2</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dev-terraform-drift</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>dev-terraform-import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Environment</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The core&#8217;s <code>environment</code> setting: <code>development</code>, <code>staging</code> or
+<code>production</code>. Langfuse&#8217;s environment filter (top of the tracing views)
+selects one.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>staging</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pre-terraform-day2</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pre-terraform-drift</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pre-terraform-import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Tags</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The session&#8217;s operation (<code>generate</code>, <code>drift</code> or <code>import</code>) followed by
+the Terraform provider types of the root module, for example
+<code>generate</code>, <code>azurerm</code>, <code>random</code>. Apply runs re-use the operation of the
+session they belong to.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>production</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pro-terraform-day2</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pro-terraform-drift</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>pro-terraform-import</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Session</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The Kumoss session id. Langfuse&#8217;s <strong>Sessions</strong> view shows every trace of
+one session together, as a conversation.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">User</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The user&#8217;s e-mail address (or <code>user-&lt;id&gt;</code> when the account has none).</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Notes:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>day2</code> is the project used for generate operations.</p>
-</li>
-<li>
-<p>Apply runs re-use the operation of the session they belong to
-(generate or drift), so apply spans appear in the <code>day2</code> or <code>drift</code>
-project of that session.</p>
-</li>
-<li>
-<p>The <code>import</code> projects receive the spans of import sessions, Partial
-Import and Full Import alike (see
-<a href="../import-infrastructure/" class="xref page">Import infrastructure</a>).</p>
-</li>
-<li>
-<p>Each project has exactly one resource attribute,
-<code>openinference.project.name</code>. There is no <code>service.name</code> or version.</p>
-</li>
-</ul>
+<p>The import tag covers Partial Import and Full Import alike (see
+<a href="../import-infrastructure/" class="xref page">Import infrastructure</a>).
+Before Langfuse, the same split was nine Phoenix projects
+(<code>dev-terraform-day2</code>, <code>pro-terraform-drift</code>, &#8230;&#8203;): filter on the
+environment and the operation tag for the equivalent view.</p>
 </div>
 </div>
 </div>
@@ -1047,31 +1171,29 @@ Import and Full Import alike (see
 <div class="sectionbody">
 <div class="paragraph">
 <p>Kumoss instruments four kinds of work with decorators in the domain
-layer; each produces one span type. Attribute keys follow the
-OpenInference semantic conventions.</p>
+layer; each produces one observation type.</p>
 </div>
 <div class="sect2">
-<h3 id="1-agent-chain-spans"><a class="anchor" href="#1-agent-chain-spans"></a>1. Agent (chain) spans</h3>
+<h3 id="1-agent-observations"><a class="anchor" href="#1-agent-observations"></a>1. Agent observations</h3>
 <div class="ulist">
 <ul>
 <li>
 <p><strong>Name:</strong> <code>Chain - &lt;prompt type&gt;</code>, for example <code>Chain - IAC_GENERATOR</code>,
 <code>Chain - REQUESTS_FILTER</code>, <code>Chain - TARGET_GENERATOR</code>, <code>Chain -
 REPORT_GENERATOR</code>, <code>Chain - PR_GENERATOR</code>, <code>Chain -
-COMPLIANCE_CHECKER</code>, <code>Chain - PROMPT_COMPOSITOR</code>, <code>Chain -
+INTENT_CHECKER</code>, <code>Chain - PROMPT_COMPOSITOR</code>, <code>Chain -
 TASK_SPLITTER</code>, <code>Chain - FILTER_RECONCILIATION</code>, <code>Chain -
 FILTER_DRIFT_EXCEPTIONS</code>, <code>Chain - STATUS_UPDATE</code>.</p>
 </li>
 <li>
-<p><strong>Kind:</strong> <code>AGENT</code>.</p>
+<p><strong>Type:</strong> <code>AGENT</code>.</p>
 </li>
 <li>
-<p><strong>Input:</strong> the query handed to the chain (<code>input.value</code>).</p>
+<p><strong>Input:</strong> the query handed to the chain.</p>
 </li>
 <li>
 <p><strong>Output:</strong> the chain&#8217;s result, unwrapped to its <code>summary</code>,
-<code>explanation</code>, or <code>description</code> field when it is a tool result
-(<code>output.value</code>).</p>
+<code>explanation</code>, or <code>description</code> field when it is a tool result.</p>
 </li>
 <li>
 <p><strong>Metadata:</strong> the common metadata plus <code>chain_type</code>.</p>
@@ -1079,85 +1201,89 @@ FILTER_DRIFT_EXCEPTIONS</code>, <code>Chain - STATUS_UPDATE</code>.</p>
 </ul>
 </div>
 <div class="paragraph">
-<p>One chain span is opened per orchestration step (filtering, target
-generation, code generation, reporting, and so on).</p>
+<p>One agent observation is opened per orchestration step (filtering,
+target generation, code generation, reporting, and so on), as the root
+of its trace.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="2-llm-spans"><a class="anchor" href="#2-llm-spans"></a>2. LLM spans</h3>
+<h3 id="2-generations"><a class="anchor" href="#2-generations"></a>2. Generations</h3>
 <div class="ulist">
 <ul>
 <li>
 <p><strong>Name:</strong> <code>Async Inference</code>.</p>
 </li>
 <li>
-<p><strong>Kind:</strong> <code>LLM</code>.</p>
+<p><strong>Type:</strong> <code>GENERATION</code>.</p>
 </li>
 <li>
-<p><strong>Model and provider:</strong> <code>llm.model_name</code>, and <code>llm.provider</code> when the
-LiteLLM prefix maps to an OpenInference provider name. When
-<code>llm.model_list</code> uses a custom alias (see
-<a href="../../reference/llm-providers/" class="xref page">LLM providers and models</a>),
-<code>llm.model_name</code> on the span is that alias rather than the
-underlying <code>provider/model-id</code> string, and <code>llm.provider</code> is left
-unset because the alias carries no recognizable prefix.</p>
+<p><strong>Model:</strong> the model name without LiteLLM&#8217;s provider prefix
+(<code>claude-sonnet-4-6</code> for <code>anthropic/claude-sonnet-4-6</code>), which is what
+Langfuse matches against its model prices: generations of known models
+show their <strong>cost</strong>. The LiteLLM provider is in the <code>llm_provider</code>
+metadata. When <code>llm.model_list</code> uses a custom alias (see
+<a href="../../reference/llm-providers/" class="xref page">LLM providers and models</a>), the
+model is that alias, no provider is recorded, and Langfuse shows no
+cost unless you add a model definition for the alias in its settings.</p>
 </li>
 <li>
-<p><strong>Invocation parameters:</strong> <code>llm.invocation_parameters</code> with every
-request argument sent to LiteLLM, including the raw <code>messages</code> and
-<code>tools</code> payloads alongside temperature, max tokens, tool choice,
-retries, timeout and reasoning effort.</p>
+<p><strong>Model parameters:</strong> the request arguments sent to LiteLLM other than
+the messages and tools: temperature, max tokens, tool choice, retries,
+timeout, reasoning effort.</p>
 </li>
 <li>
-<p><strong>Messages:</strong> <code>llm.input_messages.N.message.role</code> and <code>.content</code> for the
-system prompt, the conversation history (user, assistant, tool
-results with their <code>tool_call_id</code>), the current message, and, last,
-any harness notice the agent loop added for that turn only (the
-budget-exhausted or no-tool-call reminder); assistant tool calls
-appear under <code>.message.tool_calls.M.*</code>.</p>
+<p><strong>Input:</strong> the conversation as chat messages, which Langfuse renders as
+a chat: the system prompt, the history (user and assistant turns,
+assistant tool calls, tool results with their <code>tool_call_id</code>), the
+current message, and, last, any harness notice the agent loop added
+for that turn only (the budget-exhausted or no-tool-call reminder).</p>
 </li>
 <li>
-<p><strong>Available tools:</strong> <code>llm.tools.N.tool.json_schema</code>.</p>
+<p><strong>Available tools:</strong> the tool definitions offered to the model (<code>tools</code>
+metadata, shown with the input).</p>
 </li>
 <li>
-<p><strong>Output:</strong> <code>output.value</code> (text, or JSON with text and tool calls) and
-<code>llm.output_messages.0.*</code> including the tool calls made.</p>
+<p><strong>Output:</strong> one assistant message with the text and the tool calls made.</p>
 </li>
 <li>
-<p><strong>Token counts:</strong> <code>llm.token_count.prompt</code>, <code>llm.token_count.completion</code>,
-<code>llm.token_count.total</code>.</p>
+<p><strong>Usage:</strong> input, output and total tokens. The finish reason is in the
+<code>finish_reason</code> metadata.</p>
 </li>
 </ul>
 </div>
 </div>
 <div class="sect2">
-<h3 id="3-tool-spans"><a class="anchor" href="#3-tool-spans"></a>3. Tool spans</h3>
+<h3 id="3-tool-observations"><a class="anchor" href="#3-tool-observations"></a>3. Tool observations</h3>
 <div class="ulist">
 <ul>
 <li>
 <p><strong>Name:</strong> <code>Tool call - &lt;tool name&gt;</code>.</p>
 </li>
 <li>
-<p><strong>Kind:</strong> <code>TOOL</code>.</p>
+<p><strong>Type:</strong> <code>TOOL</code>.</p>
 </li>
 <li>
-<p><strong>Identity:</strong> <code>tool.name</code>, <code>tool.id</code>.</p>
+<p><strong>Input:</strong> the call&#8217;s arguments.</p>
 </li>
 <li>
-<p><strong>Arguments:</strong> <code>tool.parameters</code> and <code>input.value</code>.</p>
+<p><strong>Output:</strong> a JSON document with <code>name</code>, <code>tool_call_id</code>, <code>success</code>,
+<code>result</code>, and <code>error_message</code>.</p>
 </li>
 <li>
-<p><strong>Result:</strong> <code>output.value</code>, a JSON document with <code>name</code>, <code>tool_call_id</code>,
-<code>success</code>, <code>result</code>, and <code>error_message</code>. A tool that returns a
-failure is recorded with <code>success: false</code> and its message here; the
-span status itself stays <code>OK</code>. A tool whose execution raises produces
-no span at all.</p>
+<p><strong>Level:</strong> a tool that returns a failure is an <code>ERROR</code> observation with
+its message as status message, so failed calls stand out in the trace
+and can be filtered on. A tool whose execution raises produces no
+observation at all.</p>
+</li>
+<li>
+<p><strong>Metadata:</strong> <code>tool_name</code> and <code>tool_call_id</code>, which links the result to
+the tool call in the generation that requested it.</p>
 </li>
 </ul>
 </div>
 </div>
 <div class="sect2">
-<h3 id="4-terraform-evaluator-spans"><a class="anchor" href="#4-terraform-evaluator-spans"></a>4. Terraform evaluator spans</h3>
+<h3 id="4-terraform-evaluator-observations"><a class="anchor" href="#4-terraform-evaluator-observations"></a>4. Terraform evaluator observations</h3>
 <div class="ulist">
 <ul>
 <li>
@@ -1169,7 +1295,7 @@ the traced method, and the outcome is validation for <code>plan</code>, being in
 sync for <code>drift</code>, and success for <code>apply</code>.</p>
 </li>
 <li>
-<p><strong>Kind:</strong> <code>EVALUATOR</code>.</p>
+<p><strong>Type:</strong> <code>EVALUATOR</code>.</p>
 </li>
 <li>
 <p><strong>Input:</strong> the keyword arguments of the call: the targets for <code>plan</code>,
@@ -1188,53 +1314,47 @@ summary for a drifted workspace, the apply output for a successful
 <div class="sect2">
 <h3 id="common-metadata"><a class="anchor" href="#common-metadata"></a>Common metadata</h3>
 <div class="paragraph">
-<p>Every span of every kind carries:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>session.id</code> and <code>user.id</code> as top-level attributes. <code>user.id</code> is the
-user&#8217;s e-mail address (or <code>user-&lt;id&gt;</code> when the account has none), so
-traces contain personal data;</p>
-</li>
-<li>
-<p>a <code>metadata</code> JSON attribute with <code>session_id</code>, <code>user_id</code> (the same
-e-mail), <code>cloud</code> (<code>AZURE</code>, <code>GCP</code>, <code>AWS</code>, <code>OCI</code>, <code>K8S</code>, <code>VMWARE</code>),
-<code>repo_uri</code>, <code>iac_path</code>, <code>branch_name</code>, and, on chain spans,
-<code>chain_type</code>.</p>
-</li>
-</ul>
+<p>Every observation of every kind carries the session, the user, the
+environment and the tags described above, and trace metadata with
+<code>operation</code>, <code>providers</code> (comma-separated; empty on a session&#8217;s first
+call, whose providers are only known once its manifest setup has run),
+<code>repo_uri</code>, <code>root_module_path</code> and <code>branch_name</code>. Each metadata key is
+filterable in Langfuse. Langfuse also copies the raw span attributes
+into the metadata under <code>attributes.<strong></code> and <code>resourceAttributes.</strong></code>;
+those duplicate the fields above.</p>
 </div>
 <div class="paragraph">
-<p>Use <code>session.id</code> to find everything that happened in one session.</p>
+<p>Use the <strong>Sessions</strong> view, or filter on the session id, to find
+everything that happened in one session.</p>
 </div>
 </div>
 <div class="sect2">
-<h3 id="how-spans-relate"><a class="anchor" href="#how-spans-relate"></a>How spans relate</h3>
+<h3 id="how-observations-relate"><a class="anchor" href="#how-observations-relate"></a>How observations relate</h3>
 <div class="paragraph">
 <p>Do not expect a deep tree. The current implementation produces:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Chain spans are roots.</strong> Each orchestration step starts a new chain
-span and remembers it as the current root.</p>
+<p><strong>Agent observations are roots.</strong> Each orchestration step starts a new
+trace and remembers its agent observation as the current root.</p>
 </li>
 <li>
-<p><strong>LLM and tool spans are children of the current chain span</strong>, as
-siblings of each other. A tool span is not nested under the LLM span
-that requested the call.</p>
+<p><strong>Generations and tool observations are children of the current agent
+observation</strong>, as siblings of each other. A tool observation is not
+nested under the generation that requested the call.</p>
 </li>
 <li>
-<p><strong>Terraform evaluator spans have no parent.</strong> Each one is a single-span
-trace of its own, linked to the rest only through <code>session.id</code> in the
-metadata.</p>
+<p><strong>Terraform evaluator observations have no parent.</strong> Each one is a
+single-observation trace of its own, linked to the rest through the
+session.</p>
 </li>
 </ul>
 </div>
 <div class="paragraph">
-<p>Child spans are created after their work finishes, with a back-dated
-start time, so durations are correct even though the nesting is flat.</p>
+<p>Child observations are created after their work finishes, with a
+back-dated start time, so durations are correct even though the nesting
+is flat.</p>
 </div>
 </div>
 </div>
@@ -1245,19 +1365,22 @@ start time, so durations are correct even though the nesting is flat.</p>
 <div class="ulist">
 <ul>
 <li>
-<p><strong>Errors and exceptions.</strong> Span status is always <code>OK</code>. When a chain,
-model call, tool, or Terraform command raises, the corresponding span
-is never ended and therefore never exported; a failed run appears
-truncated in Phoenix rather than marked failed. Tool-level failures
-are visible only as <code>success: false</code> in the tool span output. Use the
-session status and failure message in the application or the
+<p><strong>Exceptions.</strong> When a chain, model call, tool, or Terraform command
+raises, the corresponding span is never ended and therefore never
+exported; a failed run appears truncated in Langfuse rather than
+marked failed. Use the session status and failure message in the
+application or the
 <a href="../administer-users-and-locks/" class="xref page">admin panel</a> for
 error triage.</p>
 </li>
 <li>
-<p><strong>Metrics, dashboards, alerts, evaluations.</strong> Kumoss emits traces only.
-Phoenix&#8217;s evaluation and dataset features are available in the UI but
-nothing in Kumoss populates them.</p>
+<p><strong>Prompt links.</strong> Generations are not linked to the Langfuse prompt
+versions they were built from: the core renders several prompts into
+one system prompt.</p>
+</li>
+<li>
+<p><strong>Scores, evaluations, datasets.</strong> Langfuse&#8217;s evaluation features are
+available in the UI but nothing in Kumoss populates them.</p>
 </li>
 <li>
 <p><strong>Logs.</strong> Application logs go to the container&#8217;s standard output and
@@ -1265,7 +1388,7 @@ are not correlated with traces.</p>
 </li>
 <li>
 <p><strong>Sidecar activity.</strong> The sidecars are not instrumented; engine commands
-appear only through the core&#8217;s Terraform evaluator spans.</p>
+appear only through the core&#8217;s Terraform evaluator observations.</p>
 </li>
 </ul>
 </div>
@@ -1277,29 +1400,32 @@ appear only through the core&#8217;s Terraform evaluator spans.</p>
 <div class="ulist">
 <ul>
 <li>
-<p>Tracer providers for all nine projects are created when the core
-module is imported, before the FastAPI application starts. Each has a
-batching span processor with the OpenTelemetry SDK defaults (export
-every 5 seconds, batches of up to 512 spans, queue of 2048).</p>
+<p>The core&#8217;s tracer provider is created when the core module is
+imported, before the FastAPI application starts, with a batching span
+processor with the OpenTelemetry SDK defaults (export every 5 seconds,
+batches of up to 512 spans, queue of 2048). It is the core&#8217;s own
+provider, not the global one.</p>
 </li>
 <li>
 <p>Span creation never touches the network; export happens on a
-background thread. If the collector is unreachable, the exporter
-retries with back-off within its timeout, logs <code>Failed to export span
-batch</code>, and drops the batch. Sessions are not affected; the traces
-are lost.</p>
+background thread. If Langfuse is unreachable, the exporter retries
+with back-off within its timeout, logs <code>Failed to export span batch</code>,
+and drops the batch. Sessions are not affected; the traces are lost.
+Langfuse ingests asynchronously: a trace shows up a few seconds after
+its spans are exported.</p>
 </li>
 <li>
-<p>There is no startup connectivity check for the trace endpoint. The
-core does, however, need Phoenix&#8217;s HTTP API at the same base URL for
-prompt seeding: it retries the connection for about 27 seconds and
-then aborts the boot. In the bundled stack that makes Phoenix
-effectively required at startup.</p>
+<p>The core needs Langfuse at startup for prompt seeding. It makes an
+authenticated read, retrying for about 90 seconds while Langfuse does
+not answer (a cold Langfuse migrates its databases first) and then
+aborts the boot. A rejected key pair (<code>401</code>) aborts it at once. In the
+Compose stack the core also waits for <code>langfuse-web</code> to be healthy;
+in Helm an init container does.</p>
 </li>
 <li>
-<p>On shutdown the lifespan handler shuts every provider down,
-which drains pending spans (within a 30-second budget) before the
-process exits.</p>
+<p>On shutdown the lifespan handler shuts the provider down, which
+drains pending spans (within a 30-second budget) before the process
+exits.</p>
 </li>
 </ul>
 </div>
@@ -1309,25 +1435,45 @@ process exits.</p>
 <h2 id="troubleshooting"><a class="anchor" href="#troubleshooting"></a>Troubleshooting</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><strong>Phoenix does not open at <code>/monitoring/</code>.</strong> Check <code>docker compose ps</code> for
-the <code>phoenix</code> and <code>phoenix-db</code> containers and <code>docker compose logs
-phoenix</code>. Phoenix waits for its database; a slow first start is normal.
-The proxy returns <code>502</code> until Phoenix listens.</p>
+<p><strong>Langfuse does not open on port 3000.</strong> Check <code>docker compose ps</code> for the
+<code>langfuse-*</code> containers and <code>docker compose logs langfuse-web</code>. The
+first start runs the Postgres and ClickHouse migrations and takes a
+minute or two; the proxy returns <code>502</code> until Langfuse listens. If
+<code>langfuse-bucket</code> exited with an error, the object storage was not
+reachable with the <code>RUSTFS_ACCESS_KEY</code> / <code>RUSTFS_SECRET_KEY</code> credentials.</p>
 </div>
 <div class="paragraph">
-<p><strong>Core exits at boot with <code>Phoenix unreachable after 8 attempts</code>.</strong> The
-core could not reach <code>telemetry.collector_url</code> for prompt seeding.
-Confirm the URL resolves from inside the core container
-(<code>http://phoenix:6006/</code> in the stack), that the value ends with <code>/</code>,
-and that Phoenix is up. Start Phoenix first or restart the core.</p>
+<p><strong>Core exits at boot with <code>Langfuse refused the API key pair (401)</code>.</strong> The
+core&#8217;s <code>LANGFUSE_PUBLIC_KEY</code> / <code>LANGFUSE_SECRET_KEY</code> are not a key pair
+of the Langfuse project. In the Compose stack they must match the keys
+<code>langfuse-web</code> provisioned on its <strong>first</strong> start: changing
+<code>LANGFUSE_PUBLIC_KEY</code> for Compose afterwards does not replace the
+existing key. Create a key pair in the Langfuse project settings and put
+it in <code>core/.env</code>.</p>
 </div>
 <div class="paragraph">
-<p><strong>No traces appear.</strong> Confirm the project: with the default <code>environment:
-development</code>, generate runs are in <code>dev-terraform-day2</code> and drift runs
-in <code>dev-terraform-drift</code>. Check the core logs for <code>Failed to export span
-batch</code>, which means the OTLP endpoint <code>&lt;collector_url&gt;v1/traces</code> was not
-reachable when the batch was sent. Traces are exported in batches every
-few seconds; wait a moment and refresh.</p>
+<p><strong>Core exits at boot with <code>Langfuse unreachable after 15 attempts</code>.</strong> The
+core could not reach <code>telemetry.langfuse_url</code>. Confirm the URL resolves
+from inside the core container (<code>http://langfuse-web:3000/</code> in the
+stack) and that Langfuse is up.</p>
+</div>
+<div class="paragraph">
+<p><strong>Login redirects to the wrong address.</strong> Langfuse builds its login
+redirects from <code>NEXTAUTH_URL</code>, set from <code>LANGFUSE_PUBLIC_URL</code> in Compose
+and <code>langfuse.publicUrl</code> in Helm. It must be the URL browsers use.</p>
+</div>
+<div class="paragraph">
+<p><strong>No traces appear.</strong> Check the environment filter: traces are recorded
+under the core&#8217;s <code>environment</code> (<code>development</code> by default). Check the
+core logs for <code>Failed to export span batch</code>, which means
+<code>&lt;langfuse_url&gt;api/public/otel/v1/traces</code> was not reachable or refused
+the key pair. Ingestion is asynchronous; wait a few seconds and refresh.
+Check <code>docker compose logs langfuse-worker</code> for errors.</p>
+</div>
+<div class="paragraph">
+<p><strong>Generations show no cost.</strong> The model is unknown to Langfuse (a custom
+<code>llm.model_list</code> alias, or a model newer than its price table): add a
+model definition in the Langfuse project settings.</p>
 </div>
 <div class="paragraph">
 <p><strong>A session failed but its trace looks incomplete.</strong> Expected: spans for
@@ -1335,18 +1481,11 @@ work that raised are not exported. Use the session&#8217;s failure message
 and artifacts.</p>
 </div>
 <div class="paragraph">
-<p><strong>A long LLM span has no <code>session.id</code>, shows an unknown span kind, or
-does not appear in a session search.</strong> The attribute count hit
-<code>telemetry.otel_attribute_count_limit</code>; the SDK dropped the oldest
-attributes, which on LLM spans are the identity and kind fields, not the
-messages. Raise the limit and restart the core.</p>
-</div>
-<div class="paragraph">
-<p><strong>Traces from a different environment are mixed in.</strong> The project prefix
+<p><strong>Traces from a different environment are mixed in.</strong> The environment
 comes from <code>environment</code> in the core&#8217;s <code>config.yaml</code>; restart the core
-after changing it. Prompt tags follow the same value, so also read
-<a href="../customize-prompts/" class="xref page">Customize prompts</a> before
-changing it on an existing deployment.</p>
+after changing it. Prompt labels follow the same value, so also read
+<a href="../customize-prompts/#session-stops" class="xref page">A session stops
+without an error</a> before changing it on an existing deployment.</p>
 </div>
 </div>
 </div>
@@ -1362,16 +1501,16 @@ changing it on an existing deployment.</p>
 <div class="dt-grid-layout dt-grid-layout--with-margin pagination">
   <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
     <div class="pagination__buttons">
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../administer-users-and-locks/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../state-backends/sidecar-supplied/">
       <span class="dt-button__content">
         <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
-        <span class="pagination__label-full">Administer users and locks</span>
+        <span class="pagination__label-full">Sidecar-supplied backend</span>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../customize-prompts/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../development/">
       <span class="dt-button__content">
-        <span class="pagination__label-full">Customize prompts</span>
+        <span class="pagination__label-full">Development</span>
         <span class="pagination__label-short">Next</span>
         <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
       </span>
@@ -1388,7 +1527,7 @@ changing it on an existing deployment.</p>
       </div>
       <div class="page-footer__contribute-buttons">
 
-<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/guides/monitor-with-phoenix.adoc">
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/blob/docs/stable/docs/src/modules/main/pages/guides/monitor-with-langfuse.adoc">
   <span class="dt-button__content">
     Propose a change
     <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
