@@ -1000,8 +1000,8 @@ reads which prompt</a>.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Organization-wide Terraform standards: structure, providers, state,
 and style. Followed by the code generator and checked by the compliance
-audit. Keep its "No arbitrary command execution" section; see the
-<a href="#checklist">checklist</a>.</p></td>
+audit. Do not write into it bans a compliance policy enforces; see
+<a href="#compliance-policy">Change a compliance policy</a>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/requests</code></p></td>
@@ -1106,13 +1106,19 @@ locks the session when <code>orchestration.block_on_high_impact</code> is <code>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The deterministic compliance policy, in Rego; see
-<a href="#compliance-policy">Change the compliance policy</a>.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The general deterministic compliance policy, in Rego, evaluated on
+every generate round; see <a href="#compliance-policy">Change a compliance policy</a>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A provider&#8217;s compliance policy, in Rego, evaluated with the general
+policy when the root module declares that provider; see
+<a href="#compliance-policy">Change a compliance policy</a>.</p></td>
 </tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>For how these three decide whether a session is locked, see
+<p>For how these checks decide whether a session is locked, see
 <a href="../../architecture/compliance/" class="xref page">How compliance works</a>; for what
 each one looks for, see
 <a href="../resolve-a-locked-session/#why" class="xref page">Why a session is
@@ -1424,17 +1430,40 @@ such lists as bullets.
 </div>
 </div>
 <div class="sect1">
-<h2 id="compliance-policy"><a class="anchor" href="#compliance-policy"></a>Change the compliance policy</h2>
+<h2 id="compliance-policy"><a class="anchor" href="#compliance-policy"></a>Change a compliance policy</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p><code>general/policies/compliance</code> is a Rego module evaluated by Open Policy
-Agent, not read by a model. Change it like any other prompt, with the
-steps in <a href="#change-a-prompt">Change a prompt</a>, but test every version before you move
-the label: a broken version locks every generate round until the label
-is on a working one. To write, test, and publish a rule, see
+<p>The compliance policies are Rego modules evaluated by Open Policy
+Agent, not read by a model: <code>general/policies/compliance</code> on every
+generate round, and <code>&lt;provider&gt;/policies/compliance</code> on the rounds whose
+root module declares that provider. Kumoss ships one for <code>aws</code>,
+<code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>oci</code>, and <code>vsphere</code>; give another
+provider a policy by creating its prompt in Langfuse. Change a policy
+like any other prompt, with the steps in <a href="#change-a-prompt">Change a prompt</a>, but test
+every version before you move the label: a broken version locks every
+generate round it applies to (every round for the general policy, every
+round of a module declaring the provider for a provider policy) until
+the label is on a working one. To write, test, and publish a rule, see
 <a href="../write-a-policy-rule/" class="xref page">Write a policy rule</a>; the
-input and decision a policy works with are in
+input and decision a policy works with, and the shipped rules, are in
 <a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
+</div>
+<div class="paragraph">
+<p>What a policy enforces is not restated in the guideline and resource
+prompts. Those prompts feed both the IaC generator and the compliance
+audit, so a ban written there would also be enforced by the model,
+possibly differently from the policy. The shipped prompts keep positive
+defaults (<code>allow_privilege_escalation = false</code>, S3 Block Public Access
+fully enabled, outputs carrying secrets marked <code>sensitive = true</code>) and
+leave the bans to Rego: they no longer tell the generator to avoid
+<code>null_resource</code>, provisioners and <code>data "external"</code>, internet-open
+ingress, basic roles or service account keys, <code>cluster-admin</code> or
+<code>Allow any-user</code> grants, or <code>allow_unverified_ssl</code>. A round that
+generates one of those is locked by a policy rather than written
+correctly in the first place. If you add a rule to a policy, do not also
+write it into a prompt; if you would rather the generator avoid a
+pattern up front, phrase the prompt as the default to produce, not as a
+prohibition.</p>
 </div>
 </div>
 </div>
@@ -1486,15 +1515,26 @@ policy, not yours.</p>
 </li>
 <li>
 <p>Write the prohibitions your organization needs as rules in the
-compliance policy; the shipped policy only denies standalone
-deletions.</p>
+compliance policies: <code>&lt;provider&gt;/policies/compliance</code> for a
+provider&#8217;s resources, <code>general/policies/compliance</code> for rules that
+span providers. No prompt lists forbidden actions any more; the
+shipped policies deny standalone deletions, removed customer-managed
+keys and command execution, and three critical misconfigurations per
+shipped provider (public ingress, admin grants and the like), nothing
+else. Review them before relying on them.</p>
 </li>
 <li>
-<p>Keep the "No arbitrary command execution" section when you replace the
-body of <code>general/guidelines/terraform</code>. It is the only instruction
-that keeps <code>null_resource</code>, <code>provisioner</code> blocks, and
-<code>data "external"</code> out of generated code, and nothing enforces it
-outside the prompt; see
+<p>Do not restate a policy rule in a prompt; see <a href="#compliance-policy">Change a compliance policy</a>.
+Guidance the shipped prompts dropped along with those bans, and that
+no policy checks (no secrets in user data, Owner or User Access
+Administrator at narrower scopes, scoping other ingress to known
+CIDRs, tags or security groups, the alternatives to service account
+keys, credentials in the <code>vsphere</code> provider block, locking down the
+OCI default security list, OCI delete-protection defaults), is now
+checked by nothing: write it back into your own prompts, as a
+default, if you need it. <code>null_resource</code>, provisioners and
+<code>data "external"</code> are denied by the general policy&#8217;s
+<code>command_execution</code> rule only when the compliance check is on; see
 <a href="../deploy-to-production/" class="xref page">Deploy to production</a>.</p>
 </li>
 <li>

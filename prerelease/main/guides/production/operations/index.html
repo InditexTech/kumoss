@@ -974,7 +974,7 @@ succeed, so Redis has to exist, but it needs no persistence.</p>
 and code-change artifacts under
 <code>sessions/&lt;session&gt;/rounds/&lt;round&gt;/</code>. A second bucket,
 <code>storage.terraform_state_bucket</code>, holds Terraform/OpenTofu state under
-<code>&lt;project_id&gt;/terraform.tfstate</code> — it ships set to
+<code>&lt;state_id&gt;/terraform.tfstate</code> — it ships set to
 <code>kumoss-terraform-state</code>, so this is on by default; set it explicitly
 to <code>""</code> to leave state to each repository&#8217;s own backend instead. Every
 configured bucket is created at boot if missing, and the core <strong>fails to
@@ -1243,7 +1243,7 @@ traces in Langfuse, in the <code>production</code> environment with the
 <code>generate</code> tag. Also confirm state
 landed where you intended: with the shipped default (Kumoss-managed
 state), the core logs <code>Terraform state: &lt;provider&gt;
-bucket=&lt;bucket&gt; key=&lt;project_id&gt;/terraform.tfstate</code> before <code>init</code> and
+bucket=&lt;bucket&gt; key=&lt;state_id&gt;/terraform.tfstate</code> before <code>init</code> and
 that object must exist in the state bucket afterwards; if you set
 <code>storage.terraform_state_bucket</code> to <code>""</code>, check the backend the
 repository declares instead, and confirm <code>init</code> did not silently fall

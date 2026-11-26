@@ -1356,7 +1356,10 @@ Numbers restart at each session.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>workspaces</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>sessions</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The repository the session works against: <code>uri</code>, <code>branch</code>, and the
-<code>root_path</code> within it.</p></td>
+<code>root_path</code> within it, plus the nullable <code>project_identifier</code> the
+session&#8217;s first call named the repository by, sent to the IaC sidecar
+on every command (migration <code>0003</code>; null for sessions without one and
+for those created before it).</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>terraform_providers</code></p></td>

@@ -1094,6 +1094,10 @@ to be found.</p>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance.rego</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/policies/compliance.rego</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/policies/compliance</code></p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
@@ -1342,8 +1346,9 @@ and abbreviations</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The same as the IaC generator, plus <code>general/compliance/report</code></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance policy (same condition; evaluated by OPA, not a model)</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance policies (same condition; evaluated by OPA, not a model)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code>, and <code>&lt;provider&gt;/policies/compliance</code>
+for each provider the root module declares that has one</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Report generator (generate reports)</p></td>
@@ -1406,8 +1411,9 @@ style of the file you edit.</p>
 <div class="paragraph">
 <p>The <code>aws</code>, <code>azurerm</code>, <code>google</code>, and <code>oci</code> scopes ship the same seven
 guideline prompts; <code>kubernetes</code> and <code>vsphere</code> ship six, without
-<code>import_exceptions</code>. The resource prompts differ per provider. The
-<code>general</code> scope also ships the one policy, <code>policies/compliance.rego</code>.</p>
+<code>import_exceptions</code>. The resource prompts differ per provider. Every
+scope, <code>general</code> included, also ships one policy,
+<code>policies/compliance.rego</code>.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1585,7 +1591,8 @@ a prompt, add a resource prompt, or write exception lists.</p>
 </li>
 <li>
 <p><a href="../compliance-policy/" class="xref page">Compliance policy</a> for
-the contract of <code>general/policies/compliance</code>.</p>
+the contract of <code>general/policies/compliance</code> and the provider
+policies.</p>
 </li>
 <li>
 <p><a href="../../guides/monitor-with-langfuse/" class="xref page">Monitor with Langfuse</a> for

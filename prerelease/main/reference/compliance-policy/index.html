@@ -74,7 +74,7 @@
 
     <link rel="prev" href="../operating-modes/">
     <link rel="next" href="../prompt-registry/">
-    <meta name="description" content="The contract of the Rego compliance policy: how and where it runs, its input and decision, how its findings are reported, and when it fails.">
+    <meta name="description" content="The contract of the Rego compliance policies: how and where they run, the general and provider policies, their input and decision, how their findings are reported, when they fail, and the shipped rules.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -919,7 +919,7 @@
     <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Compliance policy</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Compliance policy</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The contract of the Rego compliance policy: how and where it runs, its input and decision, how its findings are reported, and when it fails.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The contract of the Rego compliance policies: how and where they run, the general and provider policies, their input and decision, how their findings are reported, when they fail, and the shipped rules.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -941,23 +941,61 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>The compliance policy is the deterministic part of Kumoss&#8217;s compliance
-check: a <a href="https://www.openpolicyagent.org/docs/policy-language">Rego</a>
-module that <a href="https://www.openpolicyagent.org">Open Policy Agent</a> (OPA)
+<p>The compliance policies are the deterministic part of Kumoss&#8217;s
+compliance check: <a href="https://www.openpolicyagent.org/docs/policy-language">Rego</a>
+modules that <a href="https://www.openpolicyagent.org">Open Policy Agent</a> (OPA)
 evaluates against the plan of every generate round. No language model is
 involved, so the same plan always gets the same verdict. A <code>deny</code>
 finding locks the session.</p>
 </div>
 <div class="paragraph">
+<p>Two kinds of policy run together:</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 28.5714%;">
+<col style="width: 28.5714%;">
+<col style="width: 42.8572%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Prompt</th>
+<th class="tableblock halign-left valign-top">Package</th>
+<th class="tableblock halign-left valign-top">Evaluated</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss.compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On every generate round. It must exist.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kumoss.providers.&lt;provider&gt;</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">On the rounds whose root module declares that provider. A provider
+without one is skipped.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>&lt;provider&gt;</code> is the Terraform provider type name, as in the other
+provider prompts: <code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>oci</code>,
+<code>vsphere</code>. A type name containing <code>-</code> is not a valid Rego identifier,
+so its package uses the bracket form, for example <code>package
+kumoss.providers["google-beta"]</code>. Every policy gets the same
+<a href="#input">input</a> and returns the same <a href="#decision">decision</a>.</p>
+</div>
+<div class="paragraph">
 <p>This page is the contract a policy follows. To add a rule step by step,
 see <a href="../../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a>. For
-how the policy relates to the other checks that can lock a session, see
+how the policies relate to the other checks that can lock a session, see
 <a href="../../architecture/compliance/" class="xref page">How compliance works</a>.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="how-it-runs"><a class="anchor" href="#how-it-runs"></a>How the policy runs</h2>
+<h2 id="how-it-runs"><a class="anchor" href="#how-it-runs"></a>How the policies run</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>At the end of every generate round, when
@@ -966,24 +1004,30 @@ how the policy relates to the other checks that can lock a session, see
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>The core fetches the version of the policy that carries your
-environment&#8217;s label in Langfuse. Nothing is cached, so a label moved in
-Langfuse applies to the next round.</p>
+<p>The core fetches the general policy and the policy of every provider
+the root module declares in <code>required_providers</code> (the session&#8217;s
+providers), each from the version that carries your environment&#8217;s
+label in Langfuse. A provider whose policy prompt does not exist, or
+has no version with that label, is left out: a module declaring
+<code>random</code> gets no <code>random</code> policy, and no error. Nothing is cached, so
+a label moved in Langfuse applies to the next round.</p>
 </li>
 <li>
 <p>It builds the <a href="#input">input document</a> from the round&#8217;s final plan and
-the root module&#8217;s providers, and runs one <code>opa</code> process on it (OPA
-1.22.4, shipped in the core image):</p>
+the root module&#8217;s providers, and runs all the fetched policies in one
+<code>opa</code> process (OPA 1.22.4, shipped in the core image) that queries
+<code>data.kumoss</code>, so the general package and every provider package are
+read from a single result:</p>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">opa</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> eval</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --stdin-input</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --strict-builtin-errors</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --format</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> json</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --data</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss.compliance</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  --data</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --data</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> aws.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> ...</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss</span></span></span></code></pre>
 </div>
 </div>
 </li>
 <li>
-<p>It reads the <a href="#decision">decision</a>: blocking <code>deny</code> findings,
-non-blocking <code>warn</code> findings, and the list of rules checked.</p>
+<p>It reads each policy&#8217;s <a href="#decision">decision</a>: blocking <code>deny</code>
+findings, non-blocking <code>warn</code> findings, and the list of rules checked.</p>
 </li>
 <li>
 <p>The language-model audit runs next, and both results are merged into
@@ -996,20 +1040,32 @@ locked and the compliance failure notification is sent.</p>
 </ol>
 </div>
 <div class="paragraph">
+<p>Errors name the prompt and the line they come from, for example
+<code>aws/policies/compliance:12: &#8230;&#8203;</code>.</p>
+</div>
+<div class="paragraph">
+<p>Every policy sees the whole plan, not only its provider&#8217;s resources: a
+module may use several providers. A provider policy&#8217;s rules therefore
+match on their own resource `type`s.</p>
+</div>
+<div class="paragraph">
 <p>Drift and import rounds are never checked.</p>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="where-it-lives"><a class="anchor" href="#where-it-lives"></a>Where the policy lives</h2>
+<h2 id="where-it-lives"><a class="anchor" href="#where-it-lives"></a>Where the policies live</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The policy is the Langfuse text prompt <code>general/policies/compliance</code>,
-seeded from <code>core/prompts/seed/general/policies/compliance.rego</code>. The
-core uses the raw text of the version: Langfuse&#8217;s <code>{{variable}}</code>
-templating is not applied, so the braces of Rego are safe. A version
-you customized is never overwritten by a Kumoss upgrade. How versions,
-labels, and seeding work is in
+<p>Each policy is a Langfuse text prompt, seeded from
+<code>core/prompts/seed/&lt;scope&gt;/policies/compliance.rego</code>: the general
+policy from <code>general/</code>, and one policy each for <code>aws</code>, <code>azurerm</code>,
+<code>google</code>, <code>kubernetes</code>, <code>oci</code>, and <code>vsphere</code>. To give another provider
+a policy, create its <code>&lt;provider&gt;/policies/compliance</code> prompt in
+Langfuse. The core uses the raw text of the version: Langfuse&#8217;s
+<code>{{variable}}</code> templating is not applied, so the braces of Rego are
+safe. A version you customized is never overwritten by a Kumoss
+upgrade. How versions, labels, and seeding work is in
 <a href="../prompt-registry/#how-seeding-works" class="xref page">How seeding
 works</a>.</p>
 </div>
@@ -1019,7 +1075,7 @@ works</a>.</p>
 <h2 id="input"><a class="anchor" href="#input"></a>Input</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The document the policy receives as <code>input</code>:</p>
+<p>The document every policy receives as <code>input</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1057,7 +1113,8 @@ does.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>input.kumoss.providers</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">The provider type names of the root module&#8217;s <code>required_providers</code>
-(<code>azurerm</code> for <code>hashicorp/azurerm</code>). Use it to scope rules to the
+(<code>azurerm</code> for <code>hashicorp/azurerm</code>): the providers whose policies are
+evaluated. The general policy can use it to scope a rule to the
 providers a module actually uses; see
 <a href="../root-module-manifest/" class="xref page">Root module manifest</a>.</p></td>
 </tr>
@@ -1077,10 +1134,13 @@ cannot see resources outside them.</p>
 <code>after_unknown</code>.</p>
 </li>
 <li>
-<p>It carries sensitive values unmasked. Never put attribute values in a
-finding&#8217;s <code>message</code>, which ends up in the compliance report, the
-session&#8217;s artifacts, and the notification; name the resource address
-and the attribute instead.</p>
+<p>It carries sensitive values unmasked. Never put a value that can hold
+a secret (passwords, keys, tokens, connection strings, user data,
+policy or script bodies) in a finding&#8217;s <code>message</code>, which ends up in
+the compliance report, the session&#8217;s artifacts, and the notification;
+name the resource address and the attribute instead. Addresses, CIDR
+blocks, ports, protocols, and paths, which the shipped rules quote,
+are fine.</p>
 </li>
 </ul>
 </div>
@@ -1090,9 +1150,12 @@ and the attribute instead.</p>
 <h2 id="decision"><a class="anchor" href="#decision"></a>Decision</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The core queries <code>data.kumoss.compliance</code>, so the module must declare
-<code>package kumoss.compliance</code>. All keys are optional; a missing one counts
-as empty, and keys outside these three are ignored.</p>
+<p>Each policy&#8217;s package, <code>data.kumoss.compliance</code> or
+<code>data.kumoss.providers.&lt;provider&gt;</code>, is read with the same contract, so
+the general module must declare <code>package kumoss.compliance</code> and a
+provider&#8217;s <code>package kumoss.providers.&lt;provider&gt;</code>. All keys are
+optional; a missing one counts as empty, and keys outside these three
+are ignored.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1136,8 +1199,8 @@ present, is a string, usually the resource address.</p>
 <h2 id="report"><a class="anchor" href="#report"></a>How findings appear in the report</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The policy&#8217;s decision and the language-model audit are merged into one
-compliance report per round:</p>
+<p>The policies' decisions and the language-model audit are merged into
+one compliance report per round:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -1148,17 +1211,20 @@ carry <code>"llm"</code>, and reports stored before the policy existed have no
 badge.</p>
 </li>
 <li>
-<p>The policy&#8217;s findings come first.</p>
+<p>The policies' findings come first.</p>
 </li>
 <li>
-<p><code>policy_revision</code> is the version that ran, as
-<code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, for example
-<code>general/policies/compliance@4</code>, or <code>null</code> when no policy ran.</p>
+<p><code>policy_revisions</code> lists the versions that ran, each as
+<code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, the general policy first, for example
+<code>["general/policies/compliance@3", "aws/policies/compliance@1"]</code>, or
+is empty when no policy ran. Reports stored when there was only the
+general policy carry a single <code>policy_revision</code> string; they are read
+into the list.</p>
 </li>
 <li>
 <p><code>passed</code> is <code>false</code> when either source has an <code>error</code> or <code>critical</code>
 finding, and the session is then locked as for any failed compliance
-check. When the policy is what blocks, the summary starts with
+check. When the policies are what blocks, the summary starts with
 <code>Blocked by the compliance policy: N finding(s) (&lt;rule ids&gt;).</code></p>
 </li>
 </ul>
@@ -1166,28 +1232,35 @@ check. When the policy is what blocks, the summary starts with
 </div>
 </div>
 <div class="sect1">
-<h2 id="failure"><a class="anchor" href="#failure"></a>When the policy cannot be evaluated</h2>
+<h2 id="failure"><a class="anchor" href="#failure"></a>When a policy cannot be evaluated</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The policy fails closed. If it cannot be evaluated, the round gets a
+<p>The policies fail closed. If one cannot be evaluated, the round gets a
 blocking <code>policy_unavailable</code> finding (severity <code>error</code>) whose message
 gives the reason, so the session is locked and the compliance failure
 notification is sent. The language-model audit still runs, and its
 findings are in the same report.</p>
 </div>
+<div class="paragraph">
+<p>Since all the policies run in one evaluation, one broken provider
+policy blocks every round of a module that declares that provider, and
+a broken general policy blocks every round.</p>
+</div>
 <div class="sect2">
-<h3 id="problems-in-the-policy"><a class="anchor" href="#problems-in-the-policy"></a>Problems in the policy</h3>
+<h3 id="problems-in-a-policy"><a class="anchor" href="#problems-in-a-policy"></a>Problems in a policy</h3>
 <div class="paragraph">
 <p>Fix these in a new version of the policy:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>A syntax or compile error.</p>
+<p>A syntax or compile error in any of the policies.</p>
 </li>
 <li>
-<p>No <code>package kumoss.compliance</code>, or <code>data.kumoss.compliance</code> is not an
-object.</p>
+<p>A fetched policy does not define its package (<code>package
+kumoss.compliance</code> for the general policy, <code>package
+kumoss.providers.&lt;provider&gt;</code> for a provider&#8217;s), or the package is not
+an object.</p>
 </li>
 <li>
 <p><code>deny</code>, <code>warn</code>, or <code>rules</code> is not a set; a finding is not an object or
@@ -1195,7 +1268,7 @@ lacks <code>rule_id</code> or <code>message</code>; or a <code>deny</code> sever
 nor <code>critical</code>.</p>
 </li>
 <li>
-<p>A builtin error. The policy runs with <code>--strict-builtin-errors</code>, so
+<p>A builtin error. The policies run with <code>--strict-builtin-errors</code>, so
 <code>to_number("x")</code> fails rather than being undefined.</p>
 </li>
 <li>
@@ -1212,9 +1285,10 @@ nor <code>critical</code>.</p>
 <div class="ulist">
 <ul>
 <li>
-<p>The policy could not be fetched from Langfuse: Langfuse is
-unreachable, the prompt or a version carrying the environment label
-does not exist, or that version is not a single text prompt.</p>
+<p>A policy could not be fetched from Langfuse: Langfuse is unreachable,
+the version carrying the environment label is not a single text
+prompt, or, for the general policy only, the prompt or such a version
+does not exist.</p>
 </li>
 <li>
 <p>The plan JSON could not be read.</p>
@@ -1228,28 +1302,266 @@ does not exist, or that version is not a single text prompt.</p>
 <div class="sect2">
 <h3 id="startup-check"><a class="anchor" href="#startup-check"></a>Startup check</h3>
 <div class="paragraph">
-<p>When <code>enable_compliance_checker</code> is <code>true</code>, the core evaluates the
-current policy against an empty plan after seeding the prompts, and
-refuses to start if that fails: a missing <code>opa</code> binary, a broken policy,
-or Langfuse unreachable. A broken version that gets the environment
-label while the core is running is caught only when it is evaluated,
-and then blocks every round.</p>
+<p>When <code>enable_compliance_checker</code> is <code>true</code>, the core, after seeding the
+prompts, evaluates the general policy and the policy of every provider
+that ships a seed (<code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>oci</code>,
+<code>vsphere</code>) against an empty plan, and refuses to start if that fails: a
+missing <code>opa</code> binary, a broken policy, or Langfuse unreachable. A
+provider policy missing from Langfuse is skipped there too. A broken
+version that gets the environment label while the core is running is
+caught only when it is evaluated, and then blocks every round it
+applies to.</p>
 </div>
 </div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="shipped-rule"><a class="anchor" href="#shipped-rule"></a>The shipped rule</h2>
+<h2 id="shipped-rules"><a class="anchor" href="#shipped-rules"></a>The shipped rules</h2>
 <div class="sectionbody">
+<div class="sect2">
+<h3 id="general-policy"><a class="anchor" href="#general-policy"></a>General policy</h3>
 <div class="paragraph">
-<p>The seed defines one rule, <code>critical_deletion</code> (severity <code>critical</code>): a
-managed resource whose plan actions are exactly <code>["delete"]</code> is denied,
-even when the user requested the deletion. A replacement
+<p>The general seed defines four rules that apply whatever the provider.
+<code>critical_deletion</code> looks at every managed resource; the other three
+look only at what the plan creates or updates (a replacement included),
+so a resource the round leaves alone is not judged.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 25%;">
+<col style="width: 12.5%;">
+<col style="width: 62.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Rule id</th>
+<th class="tableblock halign-left valign-top">Decision</th>
+<th class="tableblock halign-left valign-top">Finds</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>critical_deletion</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code>, <code>critical</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A managed resource whose plan actions are exactly <code>["delete"]</code>, even
+when the user requested the deletion. A replacement
 (<code>["delete", "create"]</code> or <code>["create", "delete"]</code>), a <code>forget</code> (a
-<code>removed</code> block with <code>destroy = false</code>), and data sources are allowed.
-Its code, explained line by line, is in
+<code>removed</code> block with <code>destroy = false</code>) and data sources are allowed.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>customer_managed_key_removed</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code>, <code>error</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A resource the plan updates or replaces that loses its
+customer-managed encryption key: an attribute named <code>kms_key_id</code>,
+<code>kms_key_arn</code>, <code>kms_master_key_id</code>, <code>kms_key_name</code>,
+<code>kms_key_self_link</code>, <code>default_kms_key_name</code>, <code>customer_managed_key</code>,
+<code>disk_encryption_set_id</code> or <code>key_vault_key_id</code>, at any nesting depth,
+is set before the change and empty or absent after it. Switching to
+another key is allowed, and a key whose new value is only known at
+apply time is not judged.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>command_execution</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>deny</code>, <code>error</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Terraform running commands: a <code>null_resource</code>, or a provisioner of
+any kind (<code>local-exec</code>, <code>remote-exec</code>, <code>file</code>) on a resource the plan
+creates or updates, child modules included; and any <code>data "external"</code>
+data source anywhere in the configuration, changed or not, since it
+runs its program on every plan. A resource with a provisioner that the
+round leaves untouched is not flagged.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>unprotected_credential_output</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>warn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A root module output the plan creates or updates whose name contains,
+case-insensitively, <code>password</code>, <code>passwd</code>, <code>secret</code>, <code>token</code>,
+<code>private_key</code>, <code>api_key</code>, <code>access_key</code>, <code>credential</code> or
+<code>connection_string</code>, and that is not marked <code>sensitive = true</code>. The
+name is only a hint, hence a warning; the message carries the output&#8217;s
+name, never its value.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p><code>critical_deletion</code>, the rule a custom policy most often starts from:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>package kumoss.compliance</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>rules contains "critical_deletion"</span></span>
+<span class="line"><span></span></span>
+<span class="line"><span>deny contains finding if {</span></span>
+<span class="line"><span>	some change in input.plan.resource_changes</span></span>
+<span class="line"><span>	change.mode == "managed"</span></span>
+<span class="line"><span>	change.change.actions == ["delete"]</span></span>
+<span class="line"><span>	finding := {</span></span>
+<span class="line"><span>		"rule_id": "critical_deletion",</span></span>
+<span class="line"><span>		"severity": "critical",</span></span>
+<span class="line"><span>		"resource": change.address,</span></span>
+<span class="line"><span>		"message": sprintf(</span></span>
+<span class="line"><span>			"%s is destroyed without being recreated; standalone deletions are never allowed, even when requested.",</span></span>
+<span class="line"><span>			[change.address],</span></span>
+<span class="line"><span>		),</span></span>
+<span class="line"><span>	}</span></span>
+<span class="line"><span>}</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>The seed declares its four ids in one <code>rules contains rule if some rule
+in {&#8230;&#8203;}</code> statement; the excerpt above declares only its own. The code
+is explained line by line in
 <a href="../../guides/write-a-policy-rule/#how-a-rule-works" class="xref page">How a rule
 works</a>.</p>
+</div>
+<div class="paragraph">
+<p><code>data "external"</code> runs its program while the plan is made, so by the
+time <code>command_execution</code> locks the round the program has already run
+in the IaC sidecar; the rule keeps the code from being applied and
+merged. Provisioners and <code>null_resource</code> commands run at apply and are
+stopped before they run.</p>
+</div>
+<div class="paragraph">
+<p>Some safeguards of the former prompts are not in the general policy.
+Removing <code>lifecycle.prevent_destroy</code> cannot be detected: the plan JSON
+does not contain <code>lifecycle</code> blocks. Turning off deletion protection
+and replacing a stateful resource are visible in the plan, but the
+prompts allowed them on an explicit request, so they were not
+translated (see below).</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="provider-policies"><a class="anchor" href="#provider-policies"></a>Provider policies</h3>
+<div class="paragraph">
+<p>No prompt lists forbidden actions any more. The provider seeds
+translate the most critical rules of the removed <code>forbidden_actions</code>
+prompts that can be decided from the plan alone. Each has three rules,
+all <code>deny</code> with the default severity <code>error</code>, with ids prefixed by the
+provider (<code>k8s_</code> for Kubernetes). They check only resources the plan
+creates or updates, and only values known at plan time;
+<code>vsphere_unverified_ssl</code> reads the plan&#8217;s provider configuration
+instead.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 22.2222%;">
+<col style="width: 22.2222%;">
+<col style="width: 55.5556%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Provider</th>
+<th class="tableblock halign-left valign-top">Rule id</th>
+<th class="tableblock halign-left valign-top">Denies</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_public_ingress</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Security group ingress (inline, <code>aws_security_group_rule</code> or
+<code>aws_vpc_security_group_ingress_rule</code>) from <code>0.0.0.0/0</code> or <code>::/0</code> on
+anything but TCP 80 or 443. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_iam_wildcard_admin</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An IAM policy statement allowing <code>Action</code> <code>"<strong>"</code> on <code>Resource</code> <code>"</strong>"</code>,
+including the inline policies of a role.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws_s3_public_access</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>public-read</code> or <code>public-read-write</code> bucket ACL, or any S3 Block
+Public Access flag set to <code>false</code>, at bucket or account level.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>azurerm</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm_public_inbound</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A network security group inbound <code>Allow</code> rule from <code>*</code>, <code>Internet</code>,
+<code>0.0.0.0/0</code> or <code>::/0</code> on anything but TCP 80 or 443. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm_subscription_owner</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Owner or Contributor assigned at subscription, management group or
+root scope.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm_host_command</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The CustomScript extension on a virtual machine or scale set, or an
+<code>azurerm_virtual_machine_run_command</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>google</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google_public_ingress</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An ingress firewall rule or firewall policy rule from <code>0.0.0.0/0</code> or
+<code>::/0</code> on anything but TCP 80 or 443; a rule without ports opens every
+port. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google_sa_key</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>google_service_account_key</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google_basic_role_to_sa</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>roles/owner</code>, <code>roles/editor</code> or <code>roles/viewer</code> granted to a
+<code>serviceAccount:</code> member through any <code>google_*<em>iam_member</code> or
+<code>google</em>*_iam_binding</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s_privilege_escalation</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>allow_privilege_escalation = true</code> in any security context.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s_runtime_socket</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>hostPath</code> volume on the container runtime socket or a directory
+exposing it: <code>/</code>, <code>/run</code>, <code>/var/run</code>, and the Docker, containerd and
+CRI-O sockets and directories.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>k8s_cluster_admin_sa</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cluster-admin</code> bound to a ServiceAccount.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci_public_ingress</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Ingress from <code>0.0.0.0/0</code> or <code>::/0</code> on anything but TCP 80 or 443, in
+a security list (<code>oci_core_security_list</code>), a VCN&#8217;s default security
+list (<code>oci_core_default_security_list</code>) or a network security group
+rule. ICMP is exempt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci_bastion_open</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A bastion whose <code>client_cidr_block_allow_list</code> contains <code>0.0.0.0/0</code>
+or <code>::/0</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci_any_user_no_condition</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">An <code>Allow any-user</code> policy statement without a <code>request.principal</code>
+condition.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top" rowspan="3"><p class="tableblock"><code>vsphere</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere_host_management</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Host-level resources: <code>vsphere_host*</code>, <code>vsphere_vnic</code>,
+<code>vsphere_license</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere_unverified_ssl</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>vsphere</code> provider block with <code>allow_unverified_ssl = true</code> written
+as a literal.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere_snapshot</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A <code>vsphere_virtual_machine_snapshot</code>.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Rules of the removed prompts that allowed an exception on an explicit
+user request were not translated: a policy sees the plan, not the
+request. Write such rules as <code>warn</code> rules, so a reviewer sees them
+without the session being locked, or leave them to review.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1257,9 +1569,12 @@ works</a>.</p>
 <h2 id="write-a-rule"><a class="anchor" href="#write-a-rule"></a>Write your own rules</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>Rules for the providers your modules use (no public storage, no owner
-role assignments, allowed regions) are added to the same module. See
-<a href="../../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a>.</p>
+<p>Further prohibitions (no public storage, no owner role assignments,
+allowed regions, mandatory tags&#8230;&#8203;) are written as rules in the policy
+of the provider they concern, or in the general policy when they span
+providers, each adding its id to <code>rules</code>. To give a provider without a
+seed a policy, create its <code>&lt;provider&gt;/policies/compliance</code> prompt in
+Langfuse with <code>package kumoss.providers.&lt;provider&gt;</code>. See <a href="../../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a>.</p>
 </div>
 </div>
 </div>
@@ -1271,38 +1586,45 @@ role assignments, allowed regions) are added to the same module. See
 1.22.4 installed locally, run <code>opa</code> with the same arguments instead.</p>
 </div>
 <div class="paragraph">
-<p>Run the shipped rule&#8217;s tests, from the repository root:</p>
+<p>Run the shipped rules' tests, from the <code>core</code> directory (the shell
+expands the glob, so run it there):</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/core:/core:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /core</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/core:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /core</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> prompts/seed/general/policies</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/policies</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> prompts/seed/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">*</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/policies</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/policies</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>The fixtures in <code>core/tests/policies</code> are real Terraform 1.16 and
-OpenTofu 1.13 plans, <code>fixtures/&lt;engine&gt;/data.json</code>, which <code>opa test</code>
-loads as <code>data.fixtures.&lt;engine&gt;</code>.</p>
+<p>The tests are in <code>core/tests/policies</code>, one <code>&lt;scope&gt;_test.rego</code> per
+policy. The general policy&#8217;s fixtures are real Terraform 1.16 and
+OpenTofu 1.13 plans, <code>fixtures/&lt;engine&gt;/data.json</code>, and a Terraform
+plan exercising its command and output rules,
+<code>fixtures/general/data.json</code>; the AWS, Google, and Kubernetes rules are
+tested against real <code>terraform plan</code> output,
+<code>fixtures/&lt;provider&gt;/data.json</code>. <code>opa test</code> loads each as
+<code>data.fixtures.&lt;directory&gt;</code>.</p>
 </div>
 <div class="paragraph">
-<p>Check that a policy compiles, from the folder that holds
-<code>compliance.rego</code>:</p>
+<p>Check that policies compile, from the folder that holds them, passing
+the general policy together with the provider policies a round would
+run:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/w:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /w</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> check</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> check</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> aws.rego</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Evaluate a policy against an input document, as the core does:</p>
+<p>Evaluate the policies against an input document, as the core does:</p>
 </div>
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -i</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/w:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  eval</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --stdin-input</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --strict-builtin-errors</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --format</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pretty</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss.compliance</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C; </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> aws.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C; </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1322,11 +1644,11 @@ a rule, test it, and publish it.</p>
 </li>
 <li>
 <p><a href="../prompt-registry/" class="xref page">Prompt registry</a> for how
-the policy is seeded, versioned, and labeled in Langfuse.</p>
+the policies are seeded, versioned, and labeled in Langfuse.</p>
 </li>
 <li>
 <p><a href="../../guides/resolve-a-locked-session/" class="xref page">Resolve a locked
-session</a> for what users see when the policy denies a plan.</p>
+session</a> for what users see when a policy denies a plan.</p>
 </li>
 <li>
 <p><a href="../configuration/" class="xref page">Configuration</a> for

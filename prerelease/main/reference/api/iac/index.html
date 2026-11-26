@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/api/iac/">
     <link rel="prev" href="../core/">
     <link rel="next" href="../notifications/">
-    <meta name="description" content="The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, import discovery, state backends, and engine selection in the bundled implementation.">
+    <meta name="description" content="The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, the optional project header, import discovery, state backends, and engine selection in the bundled implementation.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -921,7 +921,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">IaC sidecar API</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">IaC sidecar API</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, import discovery, state backends, and engine selection in the bundled implementation.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">The mandatory IaC sidecar contract — one engine command per asynchronous job, polled by the core — plus the environment and input variables each command takes, the optional project header, import discovery, state backends, and engine selection in the bundled implementation.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -948,7 +948,7 @@ interface. It is the one mandatory sidecar: without it the core cannot
 validate or apply anything, so <code>services.iac</code> has no <code>enabled</code> flag.</p>
 </div>
 <div class="paragraph">
-<p>Contract: <code>contracts/openapi/iac.v1.yaml</code>, version 2.0.0. Default endpoint:
+<p>Contract: <code>contracts/openapi/iac.v1.yaml</code>, version 2.1.0. Default endpoint:
 <code>http://iac:8082</code>. Bearer token: the value of the variable named by
 <code>services.iac.token_env</code>, <code>KUMOSS_IAC_TOKEN</code> by default, which the
 bundled implementation reads from the variable of the same name.</p>
@@ -1593,8 +1593,39 @@ listed.</p>
 </div>
 </div>
 <div class="sect1">
+<h2 id="project"><a class="anchor" href="#project"></a>Project</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Every request may carry a <code>Kumoss-Project</code> header naming the project
+the workspace belongs to, as the user identified it (for example
+<code>sistemas-kumoss-rsg-esc1-dev</code>). The core has already checked, through
+the <a href="../mapping/" class="xref page">mapping sidecar</a>, that it
+names the repository the workspace was checked out from. An IaC
+service implementation may pick the credentials the command runs with
+by it (for instance, reading them from the project&#8217;s own secret store)
+and reject a project it cannot serve with <code>403</code>; it must not echo the
+credentials back. Without the header, or in an implementation that
+ignores it, commands run with the implementation&#8217;s own environment. The
+header is never a credential itself.</p>
+</div>
+<div class="paragraph">
+<p>The core sends it on every call of a session whose first call carried
+a <code>project_identifier</code> (see
+<a href="../core/#infrastructure-as-code" class="xref page">Core API</a>):
+<code>init</code>, <code>validate</code>, <code>plan</code>, <code>show</code>, <code>apply</code>, <code>import</code>, both import
+discovery endpoints and job polling. Sessions without one send no
+header. The bundled implementation ignores it.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="versioning"><a class="anchor" href="#versioning"></a>Versioning</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>Contract 2.1.0 is additive: it adds the optional <code>Kumoss-Project</code>
+request header (see <a href="#project">Project</a>). Implementations of 2.0.0 keep
+working unchanged.</p>
+</div>
 <div class="paragraph">
 <p>Contract 2.0.0 is a breaking change from 1.x:</p>
 </div>

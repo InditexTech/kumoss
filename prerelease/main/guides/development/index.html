@@ -1089,22 +1089,22 @@ instances).</p>
 <h2 id="compliance-policy-tests"><a class="anchor" href="#compliance-policy-tests"></a>Compliance policy tests</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The seed policy (<code>core/prompts/seed/general/policies</code>) has Rego tests
-in <code>core/tests/policies</code>; see
+<p>The seed policies (<code>core/prompts/seed/*/policies</code>: the general policy
+and one per provider) have Rego tests in <code>core/tests/policies</code>; see
 <a href="../../reference/compliance-policy/#testing" class="xref page">Testing
-commands</a>. From the repository root, with the OPA version of the core
+commands</a>. From the <code>core</code> directory, with the OPA version of the core
 image:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/core:/core:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /core</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
+<pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/core:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /core</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> prompts/seed/general/policies</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/policies</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  test</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> prompts/seed/</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">*</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">/policies</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests/policies</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p><code>opa fmt --diff --fail</code> and <code>opa check</code> on the same two directories
-must pass too.</p>
+<p><code>opa fmt --diff --fail</code> and <code>opa check</code> on the same directories must
+pass too.</p>
 </div>
 </div>
 </div>

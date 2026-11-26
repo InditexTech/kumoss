@@ -1002,9 +1002,12 @@ the session.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Compliance policy</strong></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Open Policy Agent evaluates a Rego policy against the plan&#8217;s JSON.
-Fails closed: a policy that cannot be evaluated locks the round too.</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt <code>general/policies/compliance</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Open Policy Agent evaluates Rego policies against the plan&#8217;s JSON: the
+general policy, and the policy of each provider the root module
+declares. Fails closed: a policy that cannot be evaluated locks the
+round too.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompts <code>general/policies/compliance</code> and
+<code>&lt;provider&gt;/policies/compliance</code></p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Compliance audit</strong></p></td>
@@ -1024,12 +1027,12 @@ written criteria.</p></td>
 </tbody>
 </table></div></div>
 <div class="paragraph">
-<p>Only the policy is deterministic: it reads attributes of the plan, so
+<p>Only the policy check is deterministic: it reads attributes of the plan, so
 the same plan always gets the same verdict. The audit and the impact
 rating depend on what the request means and on what a change implies,
 which only a model can judge, so their verdicts can vary between runs.
 Rules that can be stated as a condition on the plan therefore belong in
-the policy. For what each check looks for, why, and where to adapt it,
+the policies, and are not restated in the prompts the audit reads. For what each check looks for, why, and where to adapt it,
 see <a href="../../guides/resolve-a-locked-session/#why" class="xref page">Why a session is
 locked</a>.</p>
 </div>
@@ -1041,9 +1044,9 @@ locked</a>.</p>
 <div class="olist arabic">
 <ol class="arabic">
 <li>
-<p>The core evaluates the policy, then runs the audit, and merges both
+<p>The core evaluates the policies, then runs the audit, and merges both
 into one <strong>compliance report</strong> for the round. Each finding carries its
-source (<code>opa</code> for the policy, <code>llm</code> for the audit), a rule id, a
+source (<code>opa</code> for the policies, <code>llm</code> for the audit), a rule id, a
 severity, and the resource it concerns.</p>
 </li>
 <li>

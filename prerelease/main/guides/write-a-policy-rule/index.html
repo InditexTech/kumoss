@@ -74,7 +74,7 @@
 
     <link rel="prev" href="../customize-prompts/">
     <link rel="next" href="../deploy-to-production/">
-    <meta name="description" content="Add a deterministic rule to Kumoss's compliance policy, test it with OPA, and publish it through Langfuse.">
+    <meta name="description" content="Add a deterministic rule to one of Kumoss's compliance policies, test it with OPA, and publish it through Langfuse.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -919,7 +919,7 @@
     <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Write a policy rule</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Write a policy rule</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Add a deterministic rule to Kumoss's compliance policy, test it with OPA, and publish it through Langfuse.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Add a deterministic rule to one of Kumoss's compliance policies, test it with OPA, and publish it through Langfuse.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -941,12 +941,15 @@
 <div id="preamble">
 <div class="sectionbody">
 <div class="paragraph">
-<p>The compliance policy holds your organization&#8217;s hard rules for
+<p>The compliance policies hold your organization&#8217;s hard rules for
 infrastructure changes, such as "no public storage" or "only these
-regions", and Kumoss checks every generate round&#8217;s plan against it. This
-guide adds a rule that stops Azure storage accounts with public network
-access, tests it, and publishes it. The exact input and decision a
-policy works with are in
+regions", and Kumoss checks every generate round&#8217;s plan against them:
+the general policy, <code>general/policies/compliance</code>, on every round, and
+a provider&#8217;s policy, <code>&lt;provider&gt;/policies/compliance</code>, on the rounds
+whose root module declares that provider. This guide adds a rule to the
+Azure policy that stops storage accounts with public network access,
+tests it, and publishes it. The exact input and decision a policy works
+with are in
 <a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
 </div>
 </div>
@@ -980,8 +983,10 @@ show -json</code> or <code>tofu show -json</code>.</p>
 <h2 id="how-a-rule-works"><a class="anchor" href="#how-a-rule-works"></a>How a rule works</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The policy is one Rego module, <code>package kumoss.compliance</code>. The shipped
-rule, <code>critical_deletion</code>, shows every part a rule needs:</p>
+<p>Each policy is one Rego module: <code>package kumoss.compliance</code> for the
+general policy, <code>package kumoss.providers.&lt;provider&gt;</code> for a provider&#8217;s.
+The general policy&#8217;s <code>critical_deletion</code> rule shows every part a rule
+needs:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1051,32 +1056,41 @@ that change.</p>
 <div class="listingblock">
 <div class="content">
 <pre>policy-work/
-├── compliance.rego
+├── general.rego
+├── azurerm.rego
 └── tests/
     └── storage_test.rego</pre>
 </div>
 </div>
 </li>
 <li>
-<p>In Langfuse, open <code>general/policies/compliance</code>, and copy the text of
-the version your environment uses into <code>compliance.rego</code>. Keep the
+<p>In Langfuse, open <code>azurerm/policies/compliance</code>, and copy the text of
+the version your environment uses into <code>azurerm.rego</code>. Keep the
 existing rules: the policy is one module, and every new version
-replaces the whole text.</p>
+replaces the whole text. Copy <code>general/policies/compliance</code> into
+<code>general.rego</code> the same way; you will not change it, but a round
+evaluates both together.</p>
+<div class="paragraph">
+<p>A rule that concerns one provider&#8217;s resources goes in that provider&#8217;s
+policy, which only runs for modules that declare the provider. A rule
+that spans providers goes in the general policy. For a provider that
+has no policy yet, create its <code>&lt;provider&gt;/policies/compliance</code> prompt
+with <code>package kumoss.providers.&lt;provider&gt;</code>.</p>
+</div>
 </li>
 <li>
-<p>Add your rule at the end of <code>compliance.rego</code>:</p>
+<p>Add your rule at the end of <code>azurerm.rego</code>:</p>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>rules contains "storage_public_access"</span></span>
+<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>rules contains "azurerm_storage_public_access"</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>deny contains finding if {</span></span>
-<span class="line"><span>	"azurerm" in input.kumoss.providers</span></span>
 <span class="line"><span>	some change in input.plan.resource_changes</span></span>
 <span class="line"><span>	change.mode == "managed"</span></span>
 <span class="line"><span>	change.type == "azurerm_storage_account"</span></span>
 <span class="line"><span>	change.change.after.public_network_access_enabled == true</span></span>
 <span class="line"><span>	finding := {</span></span>
-<span class="line"><span>		"rule_id": "storage_public_access",</span></span>
+<span class="line"><span>		"rule_id": "azurerm_storage_public_access",</span></span>
 <span class="line"><span>		"severity": "error",</span></span>
 <span class="line"><span>		"resource": change.address,</span></span>
 <span class="line"><span>		"message": sprintf("%s allows public network access; set public_network_access_enabled = false.", [change.address]),</span></span>
@@ -1085,9 +1099,10 @@ replaces the whole text.</p>
 </div>
 </div>
 <div class="paragraph">
-<p>The first line scopes the rule to root modules that use the <code>azurerm</code>
-provider. A deleted resource has no <code>after</code> values, so the rule only
-matches creates and updates.</p>
+<p>Every policy sees the whole plan, so the rule matches on its own
+resource <code>type</code>. A deleted resource has no <code>after</code> values, so the rule
+only matches creates and updates. Prefix the rule id with the provider,
+as the shipped rules do.</p>
 </div>
 </li>
 <li>
@@ -1096,7 +1111,7 @@ instead of <code>deny</code>. This one flags Azure resources without a
 <code>cost-center</code> tag:</p>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>rules contains "cost_center_tag"</span></span>
+<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>rules contains "azurerm_cost_center_tag"</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>warn contains finding if {</span></span>
 <span class="line"><span>	some change in input.plan.resource_changes</span></span>
@@ -1107,7 +1122,7 @@ instead of <code>deny</code>. This one flags Azure resources without a
 <span class="line"><span>	tags := object.get(change.change.after, "tags", {})</span></span>
 <span class="line"><span>	not tags["cost-center"]</span></span>
 <span class="line"><span>	finding := {</span></span>
-<span class="line"><span>		"rule_id": "cost_center_tag",</span></span>
+<span class="line"><span>		"rule_id": "azurerm_cost_center_tag",</span></span>
 <span class="line"><span>		"resource": change.address,</span></span>
 <span class="line"><span>		"message": sprintf("%s has no cost-center tag.", [change.address]),</span></span>
 <span class="line"><span>	}</span></span>
@@ -1119,9 +1134,9 @@ instead of <code>deny</code>. This one flags Azure resources without a
 <p>Write a test for the rule in <code>tests/storage_test.rego</code>:</p>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>package kumoss.compliance_test</span></span>
+<pre class="shiki highlight"><code data-lang="rego"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>package kumoss.providers.azurerm_test</span></span>
 <span class="line"><span></span></span>
-<span class="line"><span>import data.kumoss.compliance</span></span>
+<span class="line"><span>import data.kumoss.providers.azurerm</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>storage(public) := {</span></span>
 <span class="line"><span>	"plan": {"resource_changes": [{</span></span>
@@ -1137,12 +1152,12 @@ instead of <code>deny</code>. This one flags Azure resources without a
 <span class="line"><span>}</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>test_public_storage_is_denied if {</span></span>
-<span class="line"><span>	some finding in compliance.deny with input as storage(true)</span></span>
-<span class="line"><span>	finding.rule_id == "storage_public_access"</span></span>
+<span class="line"><span>	some finding in azurerm.deny with input as storage(true)</span></span>
+<span class="line"><span>	finding.rule_id == "azurerm_storage_public_access"</span></span>
 <span class="line"><span>}</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>test_private_storage_is_allowed if {</span></span>
-<span class="line"><span>	count(compliance.deny) == 0 with input as storage(false)</span></span>
+<span class="line"><span>	count(azurerm.deny) == 0 with input as storage(false)</span></span>
 <span class="line"><span>}</span></span></span></code></pre>
 </div>
 </div>
@@ -1152,7 +1167,7 @@ instead of <code>deny</code>. This one flags Azure resources without a
 <div class="listingblock">
 <div class="content">
 <pre class="shiki highlight"><code data-lang="bash"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/w:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /w</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> test</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> test</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> azurerm.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> tests</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
@@ -1160,10 +1175,10 @@ instead of <code>deny</code>. This one flags Azure resources without a
 </div>
 <div class="listingblock">
 <div class="content">
-<pre>tests/storage_test.rego:23:
-data.kumoss.compliance_test.test_private_storage_is_allowed: PASS
-tests/storage_test.rego:18:
-data.kumoss.compliance_test.test_public_storage_is_denied: PASS
+<pre>tests/storage_test.rego:18:
+data.kumoss.providers.azurerm_test.test_public_storage_is_denied: PASS
+tests/storage_test.rego:23:
+data.kumoss.providers.azurerm_test.test_private_storage_is_allowed: PASS
 --------------------------------------------------------------------------------
 PASS: 2/2</pre>
 </div>
@@ -1180,12 +1195,13 @@ the core does:</p>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  plan.json</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> > </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span>
 <span class="line"><span style="--shiki-light:#DCDCAA;--shiki-dark:#DCDCAA">docker</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> run</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --rm</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -i</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -v</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> "</span><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">$PWD</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">:/w:ro"</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> /w</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> openpolicyagent/opa:1.22.4-static</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
 <span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  eval</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --stdin-input</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --strict-builtin-errors</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> --format</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> pretty</span><span style="--shiki-light:#D7BA7D;--shiki-dark:#D7BA7D"> \</span></span>
-<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> compliance.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss.compliance</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C; </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span></span></code></pre>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">  -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> general.rego</span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6"> -d</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> azurerm.rego</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178"> data.kumoss.providers.azurerm</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4"> &#x3C; </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">input.json</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>For a plan that creates a public storage account without a
-<code>cost-center</code> tag, the decision contains:</p>
+<p>Query <code>data.kumoss</code> instead to see the general policy&#8217;s decision too,
+as the core reads it. For a plan that creates a public storage account
+without a <code>cost-center</code> tag, the Azure policy&#8217;s decision contains:</p>
 </div>
 <div class="listingblock">
 <div class="content">
@@ -1194,16 +1210,22 @@ the core does:</p>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    {</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "message"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm_storage_account.logs allows public network access; set public_network_access_enabled = false."</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "resource"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm_storage_account.logs"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "rule_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"storage_public_access"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "rule_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm_storage_public_access"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "severity"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"error"</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    }</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  ],</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "rules"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: [</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"cost_center_tag"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"critical_deletion"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"storage_public_access"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">],</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "rules"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: [</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    "azurerm_cost_center_tag"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    "azurerm_host_command"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    "azurerm_public_inbound"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    "azurerm_storage_public_access"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    "azurerm_subscription_owner"</span></span>
+<span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  ],</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "warn"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: [</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    {</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "message"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm_storage_account.logs has no cost-center tag."</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "resource"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm_storage_account.logs"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
-<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "rule_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"cost_center_tag"</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">      "rule_id"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"azurerm_cost_center_tag"</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">    }</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  ]</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
@@ -1212,7 +1234,7 @@ the core does:</p>
 </li>
 <li>
 <p>Publish the rule: in Langfuse, create a new version of
-<code>general/policies/compliance</code> with the full text of <code>compliance.rego</code>,
+<code>azurerm/policies/compliance</code> with the full text of <code>azurerm.rego</code>,
 then move your environment&#8217;s label to it. The next generate round
 uses it. To roll back, move the label to the previous version. See
 <a href="../customize-prompts/#change-a-prompt" class="xref page">Change a
@@ -1224,9 +1246,11 @@ prompt</a>.</p>
 <i class="fa icon-warning" title="Warning"></i>
 </td>
 <td class="content">
-One version serves every generate session of the environment.
-A syntax error or a rule that fails at run time does not skip the
-policy: it locks every round with <code>policy_unavailable</code> until the label
+One version serves every generate session of the environment
+that the policy applies to: every session for the general policy, every
+session whose module declares the provider for a provider policy. A
+syntax error or a rule that fails at run time does not skip the policy:
+it locks each of those rounds with <code>policy_unavailable</code> until the label
 is on a working version. Move the label only after the tests pass.
 </td>
 </tr>
@@ -1243,7 +1267,7 @@ is on a working version. Move the label only after the tests pass.
 <div class="paragraph">
 <p>Send a request that creates a storage account with public network
 access. The round is locked, and <strong>Why</strong> on the <strong>Deployment Blocked</strong>
-screen lists <code>storage_public_access</code> with a <strong>policy</strong> badge; see
+screen lists <code>azurerm_storage_public_access</code> with a <strong>policy</strong> badge; see
 <a href="../merge-and-apply/#session-locked" class="xref page">If the session is
 locked</a>.</p>
 </div>
@@ -1273,7 +1297,14 @@ resource address and the attribute instead.</p>
 reviewers and users search for.</p>
 </li>
 <li>
-<p><strong>Use the policy for conditions on the plan only.</strong> Rules that depend on
+<p><strong>Do not restate a rule in a prompt.</strong> The guideline and resource
+prompts feed both the code generator and the compliance audit, so a
+ban written there would be enforced a second time, by a model; see
+<a href="../customize-prompts/#compliance-policy" class="xref page">Change a
+compliance policy</a>.</p>
+</li>
+<li>
+<p><strong>Use the policies for conditions on the plan only.</strong> Rules that depend on
 what the user asked for belong in the compliance audit; see
 <a href="../resolve-a-locked-session/#compliance-audit" class="xref page">Compliance
 audit</a>.</p>

@@ -74,7 +74,7 @@
 
     <link rel="prev" href="../../faq/">
     <link rel="next" href="../../roadmap/">
-    <meta name="description" content="Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.">
+    <meta name="description" content="Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -918,7 +918,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Upgrade notes</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Upgrade notes</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -947,15 +947,70 @@ before rolling out a new core image.</p>
 </div>
 </div>
 <div class="sect1">
+<h2 id="project-identifier-iac-contract-2-1-0"><a class="anchor" href="#project-identifier-iac-contract-2-1-0"></a>Project identifier; IaC contract 2.1.0</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A repository can be named by a <strong>project identifier</strong>, such as
+<code>sistemas-kumoss-rsg-esc1-dev</code>, that the mapping sidecar resolves to
+its URL. A session now keeps that name and sends it to the IaC sidecar,
+so an IaC service implementation can pick the credentials a command
+runs with by it. Nothing is required of an operator; what changes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Database.</strong> Migration <code>0003</code> adds the nullable
+<code>workspaces.project_identifier</code> column. The core applies it at
+startup, like the others; existing sessions get null. See
+<a href="../../reference/database-schema/" class="xref page">Database schema</a>.</p>
+</li>
+<li>
+<p><strong>Core API.</strong> <code>POST /api/v1/repository/parse</code> also answers
+<code>project_identifier</code>, the input echoed. The first <code>generate</code>, <code>drift</code>
+or <code>import</code> call may send it back as <code>project_identifier</code>, as the web
+application does; the core then checks through the mapping sidecar
+that it resolves to <code>repo_uri</code> and answers <code>422</code> otherwise, before
+any session is created. It is optional: clients that do not send it
+behave as before. See
+<a href="../../reference/api/core/#infrastructure-as-code" class="xref page">Core API</a>.</p>
+</li>
+<li>
+<p><strong>Manifest.</strong> <code>kumoss.yaml</code> gains an optional top-level
+<code>project_identifier</code>, written only when the session has one. It never
+makes the manifest drift, but a first call saves the manifest when
+only the identifier changed. The layout version stays <code>"1"</code>; earlier
+cores ignore the key when reading and drop it when they save. See
+<a href="../../reference/root-module-manifest/#project-identifier" class="xref page">Root
+module manifest</a>.</p>
+</li>
+<li>
+<p><strong>IaC contract 2.1.0 (additive).</strong> Every IaC call of such a session
+carries the optional <code>Kumoss-Project</code> header. An implementation may
+ignore it, as the bundled one does, so 2.0.0 implementations keep
+working unchanged. See
+<a href="../../reference/api/iac/#project" class="xref page">IaC sidecar API</a>.</p>
+</li>
+<li>
+<p><strong>Session cache.</strong> The cached session context moved to a new key
+version; entries in the old shape are rebuilt from the database on
+first use. Nothing to flush.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
 <h2 id="compliance-policy-with-opa-forbidden_actions-removed"><a class="anchor" href="#compliance-policy-with-opa-forbidden_actions-removed"></a>Compliance policy with OPA; <code>forbidden_actions</code> removed</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>With <code>orchestration.enable_compliance_checker</code> on, generate rounds now
-also evaluate a Rego policy with OPA against the final plan, before the
-LLM audit, and both results go into one compliance report. The policy
-is the Langfuse text prompt <code>general/policies/compliance</code>, seeded on the
-next boot. See <a href="../../reference/compliance-policy/" class="xref page">Compliance
-policy</a>.</p>
+also evaluate Rego policies with OPA against the final plan, before the
+LLM audit, and all results go into one compliance report. The policies
+are the Langfuse text prompts <code>general/policies/compliance</code>, evaluated
+on every round, and <code>&lt;provider&gt;/policies/compliance</code>, evaluated when
+the root module declares that provider (skipped for a provider without
+one), all seeded on the next boot. See
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
 </div>
 <div class="paragraph">
 <p>What that changes:</p>
@@ -971,9 +1026,15 @@ declines requests as prohibited. Versions already in Langfuse
 (including those the Phoenix migration script imported) stay there,
 unused; the seeder never deletes. <strong>This removes guardrails</strong>: an
 install that relied on those lists and writes no policy has no
-replacement for them. Write the prohibitions you need as Rego rules in
-<code>general/policies/compliance</code>; the shipped policy only denies
-standalone deletions.</p>
+replacement for them beyond the shipped policies. Those deny
+standalone deletions, removed customer-managed keys and command
+execution (general policy) and, per provider, three of
+the most critical prohibitions the lists held that can be decided
+from the plan alone, such as security groups open to the internet or
+<code>cluster-admin</code> bound to a ServiceAccount. Rules that allowed an
+exception on an explicit user request were not translated. Write the
+other prohibitions you need as Rego rules in
+<code>&lt;provider&gt;/policies/compliance</code> or <code>general/policies/compliance</code>.</p>
 </li>
 <li>
 <p><strong><code>critical_deletion</code> moved to the policy.</strong> The seed of
@@ -983,13 +1044,56 @@ its <code>critical_deletion</code> section and standalone deletions are reported
 twice, once by each source. Delete the section from your version.</p>
 </li>
 <li>
+<p><strong>Three more general rules.</strong> The general policy also denies
+<code>customer_managed_key_removed</code> (a resource the plan updates or
+replaces losing its customer-managed encryption key) and
+<code>command_execution</code> (a <code>null_resource</code> or a provisioner on a resource
+the plan creates or updates, or any <code>data "external"</code> in the
+configuration, repository code included), and warns with
+<code>unprotected_credential_output</code> (a root module output named like a
+credential and not marked <code>sensitive = true</code>). A round that updates a
+repository resource carrying a provisioner, or whose configuration
+holds a <code>data "external"</code>, is now locked.
+The OCI policy&#8217;s <code>oci_public_ingress</code> now also checks
+<code>oci_core_default_security_list</code>. See
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
+</li>
+<li>
+<p><strong>Bans removed from the prompts.</strong> What a policy enforces is no longer
+restated in the guideline and resource prompts, which feed both the
+IaC generator and the LLM audit. The seeds lost the "No arbitrary
+command execution" section of <code>general/guidelines/terraform</code>, the
+"guest configuration only through user data or cloud-init" bullets
+of the compute resource prompts and <code>vsphere/guidelines/resource_creation</code>,
+the bans on internet-open ingress (security groups, NSGs, firewalls,
+OCI security lists, the OCI default security list, bastions), on
+basic roles and service account keys (<code>google</code>), <code>cluster-admin</code>
+(<code>kubernetes</code>), <code>Allow any-user</code> (<code>oci</code>) and Owner and similar
+assignments (<code>azurerm</code>), the <code>vsphere</code> provider-block and TLS
+bullets, and the deletion safeguards bullet of
+<code>oci/guidelines/resource_creation</code>. Bullets were removed whole, so
+the generator is no longer told to avoid these patterns: a round that
+generates one is locked by the policy instead of being written
+correctly. The parts of those bullets no policy checks (no secrets in
+user data, Owner or User Access Administrator at narrower scopes, the
+alternatives to service account keys, locking down the OCI default
+security list, OCI delete-protection defaults&#8230;&#8203;) are now checked by
+nothing; restore them in your own prompts if you need them. Prompts
+you customized keep your text, bans included. See
+<a href="../customize-prompts/#compliance-policy" class="xref page">Customize
+prompts</a>.</p>
+</li>
+<li>
 <p><strong>The core image ships <code>opa</code></strong> (OPA 1.22.4). A custom core image must
 provide it on the <code>PATH</code>.</p>
 </li>
 <li>
-<p><strong>Startup check.</strong> With the checker on, the core evaluates the policy
-against an empty plan after seeding and refuses to start if that
-fails: no <code>opa</code> binary, a broken policy, or Langfuse unreachable.</p>
+<p><strong>Startup check.</strong> With the checker on, the core evaluates the general
+policy and the policy of every provider that ships a seed (<code>aws</code>,
+<code>azurerm</code>, <code>google</code>, <code>kubernetes</code>, <code>oci</code>, <code>vsphere</code>) against an empty
+plan after seeding, and refuses to start if that fails: no <code>opa</code>
+binary, a broken policy, or Langfuse unreachable. A provider policy
+missing from Langfuse is skipped.</p>
 </li>
 <li>
 <p><strong>Fail closed.</strong> A policy that cannot be evaluated during a round adds
@@ -999,9 +1103,13 @@ the compliance failure notification is sent.</p>
 <li>
 <p><strong>Compliance reports.</strong> Each violation has <code>source</code> (<code>llm</code> or <code>opa</code>;
 absent on older reports, meaning <code>llm</code>) and the report has
-<code>policy_revision</code>, the Langfuse prompt version of the policy that ran
-as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, for example
-<code>general/policies/compliance@4</code> (null when no policy ran).</p>
+<code>policy_revisions</code>, the Langfuse prompt versions of the policies that
+ran, each as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, the general policy first,
+for example <code>["general/policies/compliance@3",
+"aws/policies/compliance@1"]</code> (empty when no policy ran). It replaces
+the single <code>policy_revision</code> string of earlier builds; reports stored
+with <code>policy_revision</code> are still read, into the list. Consumers of
+the report JSON must read the new field.</p>
 </li>
 </ul>
 </div>
@@ -1426,8 +1534,8 @@ creating resources that already exist.</p>
 </div>
 <div class="paragraph">
 <p>Before running sessions on an existing project, copy its state object
-in the state bucket from <code>&lt;old_project_id&gt;/terraform.tfstate</code> to
-<code>&lt;project_id&gt;/terraform.tfstate</code>. The old key appears in the
+in the state bucket from <code>&lt;old_state_id&gt;/terraform.tfstate</code> to
+<code>&lt;state_id&gt;/terraform.tfstate</code>. The old key appears in the
 <code>Terraform state: &#8230;&#8203; key=</code> log lines of the previous release; the new
 one in the same line the upgraded core logs on the project&#8217;s first
 <code>init</code>. Do not apply a plan made before the copy. See

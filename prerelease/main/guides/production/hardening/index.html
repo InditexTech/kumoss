@@ -1080,13 +1080,17 @@ under acceptable data-handling terms.</p>
 <p>Seeded prompts reviewed and adapted before the first user session;
 they encode a generic policy, including the compliance rules. No
 prompt lists forbidden actions: write your prohibitions as rules in
-the compliance policy (<a href="../../customize-prompts/" class="xref page">Customize prompts</a>,
+the compliance policies, the general one or a provider&#8217;s (<a href="../../customize-prompts/" class="xref page">Customize prompts</a>,
 <a href="../../../reference/compliance-policy/" class="xref page">Compliance policy</a>).</p>
 </li>
 <li>
 <p>With <code>orchestration.enable_compliance_checker</code> on, the core starts
-only if the compliance policy evaluates; keep Langfuse reachable and the
-policy valid.</p>
+only if the general compliance policy and the policies of the
+providers that ship a seed evaluate; keep Langfuse reachable and the
+policies valid. Keep the checker on: the shipped prompts no longer
+forbid what the policies deny, so with it off nothing stops
+<code>null_resource</code>, provisioners, <code>data "external"</code>, internet-open
+ingress or admin grants in generated code.</p>
 </li>
 </ul>
 </div>

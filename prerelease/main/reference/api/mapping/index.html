@@ -961,9 +961,13 @@ from a lookup, so nothing consumed them. A request that still sends
 <p>The core calls the service when the web wizard scans a repository: what
 the user types in the repository step goes to
 <code>POST /api/v1/repository/parse</code>, which resolves it here before cloning,
-and every later call of the session uses the resolved <code>repo_url</code>. The
-core&#8217;s former <code>POST /api/v1/mapping/resolve</code> passthrough was removed
-together with the provider and scope fields.</p>
+and every later call of the session uses the resolved <code>repo_url</code>. It
+calls the service once more when a session&#8217;s first <code>generate</code>, <code>drift</code>
+or <code>import</code> call carries a <code>project_identifier</code> (what the user typed,
+echoed by the parse route), to check that it still resolves to that
+call&#8217;s <code>repo_uri</code> before any session is created. The core&#8217;s former
+<code>POST /api/v1/mapping/resolve</code> passthrough was removed together with
+the provider and scope fields.</p>
 </div>
 <div class="paragraph">
 <p>Contract: <code>contracts/openapi/mapping.v1.yaml</code>, version 2.0.0. Kumoss
@@ -1203,6 +1207,14 @@ checked like any repository URI (no embedded password: <code>422</code>).</p>
 passthrough</strong> and makes no call: <code>repo_url</code> and <code>identifier</code> both echo
 the input, and anything that is not an <code>https://</code> URL is rejected with
 <code>422</code>.</p>
+</div>
+<div class="paragraph">
+<p>The same client checks a first IaC call&#8217;s <code>project_identifier</code>: the
+call is <code>422</code> unless the identifier resolves to its <code>repo_uri</code>, and the
+service&#8217;s own errors (<code>404</code>, <code>502</code>, <code>504</code>) reach the caller as above.
+With the sidecar disabled an identifier resolves to itself, so only a
+repository URL can be used, and that one is dropped as redundant. See
+<a href="../core/#infrastructure-as-code" class="xref page">Core API</a>.</p>
 </div>
 </div>
 </div>

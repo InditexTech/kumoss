@@ -1321,9 +1321,10 @@ when the module needed them, the answers to its inputs (<code>manifest</code>) t
 <code>POST /api/v1/iac/generate</code> with a bearer token. The root module path
 is one of the Terraform roots <code>POST /api/v1/repository/parse</code> found in
 a metadata-only clone (a <code>git ls-tree</code> heuristic over <code>.tf</code>
-directories). Before posting, the wizard asked
-<code>POST /api/v1/manifest/probe</code> what the module needs and, only when
-something was missing, showed the inputs form. No provider or scope is
+directories), which also echoed what the user typed as
+<code>project_identifier</code>; the wizard sends that back too. Before posting,
+the wizard asked <code>POST /api/v1/manifest/probe</code> what the module needs
+and, only when something was missing, showed the inputs form. No provider or scope is
 sent: they come from the module itself. See
 <a href="../../reference/root-module-manifest/" class="xref page">Root module manifest</a>.</p></td>
 </tr>
@@ -1346,8 +1347,10 @@ username (the <code>&lt;org&gt;@</code> prefix of an Azure DevOps clone URL) but
 embed a password or token — also <code>422</code>, an empty <code>user:</code> password
 included. Then <code>git ls-remote</code> must succeed: unreachable, rejected or
 timed out → <code>400</code> with the fixed detail "Repository is not reachable or
-access was denied."; git&#8217;s own output goes only to the core log. Either
-way no session is created.</p></td>
+access was denied."; git&#8217;s own output goes only to the core log. A
+<code>project_identifier</code> other than the URL itself must then resolve to it
+through the mapping sidecar, or the call is <code>422</code> (a mapper error such
+as <code>404</code> is passed through). Either way no session is created.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Session creation</p></td>
@@ -2285,8 +2288,11 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Compliance policy</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">With <code>orchestration.enable_compliance_checker</code> on, the core first
-evaluates the Rego policy <code>general/policies/compliance</code> from Langfuse
-with OPA against the final plan&#8217;s <code>show -json</code>, deterministically. Its
+evaluates the Rego policies from Langfuse with OPA against the final
+plan&#8217;s <code>show -json</code>, deterministically: <code>general/policies/compliance</code>
+and the <code>&lt;provider&gt;/policies/compliance</code> of every provider the root
+module declares (a provider without one is skipped), in one
+evaluation. Its
 <code>deny</code> findings block; <code>warn</code> findings do not. A policy that cannot be
 evaluated yields a blocking <code>policy_unavailable</code> finding: the check
 fails closed. Contract:
@@ -3378,7 +3384,7 @@ fixed at two iterations).</p>
 routers and use-case handlers; PostgreSQL session, ownership, status,
 <code>in_flight</code> and <code>is_blocked</code> controls; the git workspace service and the
 GitHub, Azure DevOps and GitLab adapters; the iac sidecar; drift
-calculation (<code>plan_to_drift</code>, DeepDiff); the OPA compliance policy and
+calculation (<code>plan_to_drift</code>, DeepDiff); the OPA compliance policies and
 the code-computed compliance verdict; object storage with presigned URLs; SSE status delivery; the
 notifications sidecar.</p>
 </div>
@@ -3891,13 +3897,23 @@ workspace contains: the <code>backend_override.tf</code> the core writes by defa
 since Kumoss-managed state is on as shipped, or the repository&#8217;s own block
 if that is turned off.</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The project travels as a header</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A session whose first call carried a <code>project_identifier</code> sends it as
+the <code>Kumoss-Project</code> header on every IaC call, job polling included.
+An IaC service implementation may pick the command&#8217;s credentials by
+it; the bundled sidecar ignores it. See
+<a href="../../reference/api/iac/#project" class="xref page">Project</a>.</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
 <p>The <strong>mapping sidecar</strong> translates what the user types in the wizard&#8217;s
 repository step into a repository URL. <code>POST /api/v1/repository/parse</code>
 calls it before cloning and answers the resolved <code>repo_url</code>, which the
-wizard sends on every later call. The bundled implementation appends a
+wizard sends on every later call. A first IaC call that carries a
+<code>project_identifier</code> is resolved again, to check that it names the
+call&#8217;s <code>repo_uri</code>. The bundled implementation appends a
 bare repository name to <code>MAPPING_PREFIX_IDENTIFIER</code> with a <code>.git</code>
 suffix and passes full <code>https://</code> URLs through; a catalog-backed one
 can replace it. While it is disabled the core treats the input as the
@@ -4092,14 +4108,17 @@ no progress status of its own.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Policy</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">First, the core evaluates the Rego policy <code>general/policies/compliance</code>
-(fetched from Langfuse with the <code>environment</code> label) with the <code>opa</code> binary
-against the final plan&#8217;s <code>show -json</code>. <code>deny</code> findings have severity
+<td class="tableblock halign-left valign-top"><p class="tableblock">First, the core evaluates the Rego policies (fetched from Langfuse with
+the <code>environment</code> label) with one run of the <code>opa</code> binary against the
+final plan&#8217;s <code>show -json</code>: <code>general/policies/compliance</code>, plus the
+<code>&lt;provider&gt;/policies/compliance</code> of each provider the root module
+declares that has one. <code>deny</code> findings have severity
 <code>error</code> or <code>critical</code>, <code>warn</code> findings <code>warning</code>. A policy that cannot be
 evaluated — fetch failure, broken policy, malformed decision, timeout —
 adds a blocking <code>policy_unavailable</code> finding instead, and the LLM audit
 still runs. With the checker on, the core refuses to start if the
-policy fails against an empty plan. Contract:
+general policy or the policy of a provider that ships a seed fails
+against an empty plan. Contract:
 <a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p></td>
 </tr>
 <tr>
@@ -4113,9 +4132,10 @@ sentinel <code>report_compliance_findings</code>, whose arguments — <code>rule
 parsed into a typed report. The rules are applied by the model; only the
 verdict is computed in code. The policy decision and the audit are then
 merged into one report: policy findings first (<code>source: "opa"</code>), then the
-model&#8217;s (<code>source: "llm"</code>), with <code>policy_revision</code> naming the policy
-version that ran as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, for example
-<code>general/policies/compliance@4</code>.</p></td>
+model&#8217;s (<code>source: "llm"</code>), with <code>policy_revisions</code> listing the policy
+versions that ran as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, the general policy
+first, for example <code>["general/policies/compliance@3",
+"aws/policies/compliance@1"]</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Persistence</p></td>

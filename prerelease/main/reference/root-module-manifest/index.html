@@ -1062,6 +1062,7 @@ in the root module&#8217;s directory:</p>
 <pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Managed by Kumoss: the inputs this Terraform root module is configured with.</span></span>
 <span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># Sensitive values are never stored here, only their names.</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">version</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"1"</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">project_identifier</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">sistemas-kumoss-rsg-esc1-dev</span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">fingerprint</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">sha256:&#x3C;hex></span></span>
 <span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">providers</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">:</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">  - </span><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">name</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">azurerm</span></span>
@@ -1090,6 +1091,19 @@ in the root module&#8217;s directory:</p>
 </tr>
 </thead>
 <tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>version</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The layout version, <code>"1"</code>.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>project_identifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Optional. What the user named the repository when it was not its URL
+(a name the <a href="../api/mapping/" class="xref page">mapping sidecar</a>
+resolved), as recorded by the latest session that saved the manifest.
+Written only when the session has one. Informational: it is refreshed
+on every save and never makes the manifest drift. See
+<a href="#project-identifier">Project identifier</a>.</p></td>
+</tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>fingerprint</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">A digest of what the user answers for: the providers and their
@@ -1121,10 +1135,30 @@ elsewhere (see <a href="#where-values-live">Where values and secrets live</a>).<
 <div class="paragraph">
 <p>The file is committed by a session on its branch, together with the
 session&#8217;s other changes, and reaches the default branch when the
-session&#8217;s pull request is merged. Reading is strict: the file may be
-edited by hand, so anything off the layout is reported (<code>422</code>) rather
-than guessed, and a sensitive variable written with a value is refused
-with an instruction to remove it and rotate the secret.</p>
+session&#8217;s pull request is merged. Only <code>version</code> and <code>fingerprint</code> are
+required; every other key is optional. Reading is strict about what is
+there: the file may be edited by hand, so a known key with the wrong
+type or shape is reported (<code>422</code>) rather than guessed, and a sensitive
+variable written with a value is refused with an instruction to remove
+it and rotate the secret. Unknown keys, at any level, are ignored, so a
+newer layout can add keys without breaking older readers; they are not
+kept when Kumoss saves the file.</p>
+</div>
+<div class="sect2">
+<h3 id="project-identifier"><a class="anchor" href="#project-identifier"></a>Project identifier</h3>
+<div class="paragraph">
+<p>A repository can be named by a <strong>project identifier</strong>, such as
+<code>sistemas-kumoss-rsg-esc1-dev</code>, that the mapping sidecar resolves to
+its URL. When the session&#8217;s first call carries one (the
+<code>project_identifier</code> field of the
+<a href="../api/core/#infrastructure-as-code" class="xref page">Core API</a>),
+the session writes it to the manifest. Every session&#8217;s first call
+records its own identifier: when it differs from the manifest&#8217;s, or the
+session has none and the manifest does, the manifest is saved even if
+nothing else changed, and a session without one removes the key. It is
+not part of the <code>fingerprint</code>, so the probe never reports <code>drifted</code> or
+<code>needs_input</code> because of it.</p>
+</div>
 </div>
 </div>
 </div>
@@ -1175,7 +1209,8 @@ read models never contain values.</p>
 </div>
 <div class="paragraph">
 <p>Provider <strong>credentials</strong> are not manifest inputs: they stay in the IaC
-sidecar&#8217;s environment.</p>
+sidecar&#8217;s environment, or an IaC service implementation picks them by
+the session&#8217;s <a href="#project-identifier">project identifier</a>.</p>
 </div>
 </div>
 </div>

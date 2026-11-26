@@ -1074,8 +1074,9 @@ cached session aggregates.</p>
 variables users answered for a root module, one JSON object per module
 at <code>manifests/&lt;sha256 of repository and module path&gt;/secrets.json</code>. The
 module&#8217;s committed <code>kumoss.yaml</code> names those variables but never holds
-their values; plain values, picked var files and provider scopes live
-in that file, in the repository. Back the bucket up and restrict it
+their values; plain values, picked var files, provider scopes and the
+project identifier, when there is one, live in that file, in the
+repository. Back the bucket up and restrict it
 accordingly. See
 <a href="../../reference/root-module-manifest/" class="xref page">Root module manifest</a>.</p>
 </div>

@@ -1237,11 +1237,28 @@ session saves them to the module&#8217;s manifest before running. First call
 only.</p></td>
 </tr>
 <tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>project_identifier</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">optional</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">What the user named the repository before it was resolved, for
+example <code>sistemas-kumoss-rsg-esc1-dev</code>: the <code>project_identifier</code> that
+<code>POST /api/v1/repository/parse</code> returned. 1 to 1024 characters, trimmed;
+dropped when empty or equal to <code>repo_uri</code>, and rejected when it embeds
+a password or token, since it is committed with the manifest. Before
+any session is created the core resolves it through the
+<a href="../mapping/" class="xref page">mapping sidecar</a> and rejects it
+with <code>422</code> unless it resolves to <code>repo_uri</code>. The session records it,
+writes it to the module&#8217;s
+<a href="../../root-module-manifest/" class="xref page">manifest</a> and sends it
+to the IaC sidecar as the
+<a href="../iac/#project" class="xref page"><code>Kumoss-Project</code> header</a> on
+every command, apply included. First call only.</p></td>
+</tr>
+<tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>session_id</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">omit</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">On an iteration call, the session to continue. Only <code>q</code> (and
-<code>is_partial</code>) may accompany it; <code>root_module_path</code> and <code>manifest</code> are
-rejected.</p></td>
+<code>is_partial</code>) may accompany it; <code>root_module_path</code>,
+<code>project_identifier</code> and <code>manifest</code> are rejected.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>is_partial</code></p></td>
@@ -1283,14 +1300,24 @@ or <code>apply</code>, the authorization sidecar denied one of the session&#8217
 provider scopes.</p>
 </li>
 <li>
-<p><code>404</code> — an iteration call referenced an unknown session.</p>
+<p><code>404</code> — an iteration call referenced an unknown session, or the
+mapping sidecar cannot resolve a first call&#8217;s <code>project_identifier</code>
+(with the mapper&#8217;s own explanation).</p>
 </li>
 <li>
 <p><code>409</code> — <code>apply</code> only, and only when the session&#8217;s plan is locked:
 <code>Session &lt;id&gt; is blocked; apply is not allowed.</code></p>
 </li>
 <li>
-<p><code>422</code> — the body failed the validation rules above.</p>
+<p><code>422</code> — the body failed the validation rules above, or a first
+call&#8217;s <code>project_identifier</code> does not resolve to its <code>repo_uri</code>. With
+<code>services.mapping</code> disabled the identifier resolves to itself, so
+any identifier other than <code>repo_uri</code> is <code>422</code>.</p>
+</li>
+<li>
+<p><code>502</code>, <code>504</code> — the mapping sidecar failed or timed out while
+checking <code>project_identifier</code>, as for
+<code>POST /api/v1/repository/parse</code>.</p>
 </li>
 </ul>
 </div>
@@ -1447,14 +1474,19 @@ as the repository is entered.</p>
 <div class="content">
 <pre class="shiki highlight"><code data-lang="json"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">{</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "repo_url"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"https://github.com/MySuperOrg/my-iac.git"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
+<span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "project_identifier"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"my-iac"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">,</span></span>
 <span class="line"><span style="--shiki-light:#9CDCFE;--shiki-dark:#9CDCFE">  "roots"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: [</span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"."</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"environments/dev"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">, </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">"environments/prod"</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">]</span></span>
 <span class="line"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">}</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p>Later calls (<code>manifest/probe</code>, <code>generate</code>, <code>drift</code>, <code>import</code>) must send
-the returned <code>repo_url</code>: they accept <code>https://</code> URIs only and do not
-resolve names. While <code>services.mapping</code> is disabled the input is used
+<p><code>project_identifier</code> is the input, trimmed and echoed. Later calls
+(<code>manifest/probe</code>, <code>generate</code>, <code>drift</code>, <code>import</code>) must send the
+returned <code>repo_url</code> as <code>repo_uri</code>: they accept <code>https://</code> URIs only and
+do not resolve names. The session&#8217;s first call may also send
+<code>project_identifier</code> back, so the session and the module&#8217;s manifest
+record what the user named the repository; the wizard does. While
+<code>services.mapping</code> is disabled the input is used
 as is, so it must already be a URI.</p>
 </div>
 <div class="paragraph">

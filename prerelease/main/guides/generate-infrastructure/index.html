@@ -1026,10 +1026,16 @@ impact banner (<code>low</code>, <code>medium</code>, <code>high</code>), and co
 <li>
 <p><strong>Compliance check</strong> (when <code>orchestration.enable_compliance_checker</code> is
 <code>true</code>). Two checks, merged into one compliance report. First, OPA
-evaluates the compliance policy (the Rego prompt
-<code>general/policies/compliance</code>) against the plan; the shipped policy
-denies standalone deletions. A policy that cannot be evaluated adds a
-blocking <code>policy_unavailable</code> finding. Then a small-model auditor
+evaluates the compliance policies (the Rego prompts
+<code>general/policies/compliance</code> and the
+<code>&lt;provider&gt;/policies/compliance</code> of each provider of the root
+module) against the plan; the shipped policies deny standalone
+deletions, removed customer-managed encryption keys and command
+execution (<code>null_resource</code>, provisioners, <code>data "external"</code>), warn
+about credential outputs not marked sensitive, and deny, per
+provider, critical misconfigurations such as ingress open to the
+internet. A policy that cannot be evaluated adds
+a blocking <code>policy_unavailable</code> finding. Then a small-model auditor
 checks the plan against the rules in the <code>general/compliance/report</code>
 prompt. See <a href="../../reference/compliance-policy/" class="xref page">Compliance
 policy</a>. The auditor judges the plan against

@@ -1044,7 +1044,7 @@ committed HCL. The core logs the target on every <code>init</code>:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;state_id>/terraform.tfstate</span></span></span></code></pre>
 </div>
 </div>
 </div>
@@ -1079,7 +1079,7 @@ name is the only value to add.</p>
 <pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>terraform {</span></span>
 <span class="line"><span>  backend "s3" {</span></span>
 <span class="line"><span>    bucket = "kumoss-terraform-state"</span></span>
-<span class="line"><span>    key    = "&#x3C;project_id>/terraform.tfstate"</span></span>
+<span class="line"><span>    key    = "&#x3C;state_id>/terraform.tfstate"</span></span>
 <span class="line"><span>    region = "us-east-1"</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>    access_key = "rustfsadmin"</span></span>
@@ -1128,7 +1128,7 @@ configured:</p>
 <pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>terraform {</span></span>
 <span class="line"><span>  backend "s3" {</span></span>
 <span class="line"><span>    bucket = "acme-kumoss-tfstate"</span></span>
-<span class="line"><span>    key    = "&#x3C;project_id>/terraform.tfstate"</span></span>
+<span class="line"><span>    key    = "&#x3C;state_id>/terraform.tfstate"</span></span>
 <span class="line"><span>    region = "eu-west-1"</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>    access_key = "AKIAEXAMPLE"</span></span>
@@ -1150,7 +1150,7 @@ or a workload identity on the <strong>IaC sidecar&#8217;s</strong> container:</p
 <pre class="shiki highlight"><code data-lang="hcl"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>terraform {</span></span>
 <span class="line"><span>  backend "s3" {</span></span>
 <span class="line"><span>    bucket = "acme-kumoss-tfstate"</span></span>
-<span class="line"><span>    key    = "&#x3C;project_id>/terraform.tfstate"</span></span>
+<span class="line"><span>    key    = "&#x3C;state_id>/terraform.tfstate"</span></span>
 <span class="line"><span>    region = "eu-west-1"</span></span>
 <span class="line"><span></span></span>
 <span class="line"><span>    use_lockfile = true</span></span>
@@ -1187,7 +1187,7 @@ account name is derived from <code>endpoint_url</code>; <code>region</code> is i
 <span class="line"><span>  backend "azurerm" {</span></span>
 <span class="line"><span>    storage_account_name = "acmekumoss"</span></span>
 <span class="line"><span>    container_name       = "kumoss-terraform-state"</span></span>
-<span class="line"><span>    key                  = "&#x3C;project_id>/terraform.tfstate"</span></span>
+<span class="line"><span>    key                  = "&#x3C;state_id>/terraform.tfstate"</span></span>
 <span class="line"><span>    access_key           = "azure-shared-key"</span></span>
 <span class="line"><span>  }</span></span>
 <span class="line"><span>}</span></span></span></code></pre>
@@ -1303,11 +1303,11 @@ or project from the resources.</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>&#x3C;state_bucket>/&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>&#x3C;state_bucket>/&#x3C;state_id>/terraform.tfstate</span></span></span></code></pre>
 </div>
 </div>
 <div class="paragraph">
-<p><code>project_id</code> is the SHA-256 hex digest of two newline-joined values:</p>
+<p><code>state_id</code> is the SHA-256 hex digest of two newline-joined values:</p>
 </div>
 <div class="olist arabic">
 <ol class="arabic">
@@ -1336,8 +1336,8 @@ recorded in its manifest may change without the state moving.</p>
 values, so state written by them sits under a different key. It is
 <strong>not</strong> migrated: after upgrading, the first session on a project plans
 against empty state. Before running it, copy each project&#8217;s
-<code>&lt;old_project_id&gt;/terraform.tfstate</code> object to
-<code>&lt;project_id&gt;/terraform.tfstate</code> in the state bucket — the old key is
+<code>&lt;old_state_id&gt;/terraform.tfstate</code> object to
+<code>&lt;state_id&gt;/terraform.tfstate</code> in the state bucket — the old key is
 in the <code>Terraform state: &#8230;&#8203; key=</code> lines an earlier release logged, and
 the new one in the line the upgraded core logs on its first <code>init</code> —
 or move it with <code>tofu state pull</code>/<code>state push</code> as described in
@@ -1454,7 +1454,7 @@ which key it chose:</p>
 </div>
 <div class="listingblock">
 <div class="content">
-<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;project_id>/terraform.tfstate</span></span></span></code></pre>
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>Terraform state: rustfs bucket=kumoss-terraform-state key=&#x3C;state_id>/terraform.tfstate</span></span></span></code></pre>
 </div>
 </div>
 </li>

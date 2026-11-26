@@ -998,8 +998,8 @@ Drift and import rounds are never checked and never lock a session.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#compliance-policy">Compliance policy</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Rego policy <code>general/policies/compliance</code>, evaluated by Open Policy
-Agent</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Rego policies <code>general/policies/compliance</code> and
+<code>&lt;provider&gt;/policies/compliance</code>, evaluated by Open Policy Agent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Write or change rules in Rego; see
 <a href="../write-a-policy-rule/" class="xref page">Write a policy rule</a></p></td>
 </tr>
@@ -1024,7 +1024,8 @@ prompts</a></p></td>
 </table></div></div>
 <div class="paragraph">
 <p>All three are prompts in Langfuse, seeded from
-<code>core/prompts/seed/general/</code>. A change takes effect on the next generate
+<code>core/prompts/seed/general/</code> (and, for the provider policies, from
+<code>core/prompts/seed/&lt;provider&gt;/</code>). A change takes effect on the next generate
 round once its new version carries your environment&#8217;s label. Which
 checks run at all is set by your operator with the <code>orchestration</code>
 switches; see <a href="../../reference/configuration/" class="xref page">Configuration</a>.</p>
@@ -1032,21 +1033,31 @@ switches; see <a href="../../reference/configuration/" class="xref page">Configu
 <div class="sect2">
 <h3 id="compliance-policy"><a class="anchor" href="#compliance-policy"></a>Compliance policy (deterministic)</h3>
 <div class="paragraph">
-<p><strong>What locks.</strong> Open Policy Agent evaluates the
-<a href="../../reference/compliance-policy/" class="xref page">compliance policy</a>, a Rego
-module, against the plan&#8217;s JSON. Any <code>deny</code> finding locks the session.</p>
+<p><strong>What locks.</strong> Open Policy Agent evaluates your organization&#8217;s
+<a href="../../reference/compliance-policy/" class="xref page">compliance policies</a>, Rego
+modules, against the plan&#8217;s JSON: the general policy, and one policy
+for each provider the module declares. Any <code>deny</code> finding locks the
+session; <code>warn</code> findings are reported but do not.</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>The shipped rule, <code>critical_deletion</code>, denies any resource that is
-destroyed without being recreated, <strong>even when you asked for the
-deletion</strong>. Replacements are allowed.</p>
+<p>The general policy&#8217;s <code>critical_deletion</code> rule denies any resource
+that is destroyed without being recreated, <strong>even when you asked for
+the deletion</strong>. Replacements are allowed.</p>
 </li>
 <li>
-<p>If the policy cannot be evaluated at all, the round gets a
-<code>policy_unavailable</code> finding and is locked too: the policy
-<a href="../../reference/compliance-policy/#failure" class="xref page">fails closed</a>.</p>
+<p>The other shipped rules deny removing a customer-managed key, having
+Terraform run commands (provisioners, <code>null_resource</code>, external data
+sources), and provider-specific risks such as public ingress or
+wildcard admin roles; see
+<a href="../../reference/compliance-policy/#shipped-rules" class="xref page">The
+shipped rules</a>.</p>
+</li>
+<li>
+<p>If a policy cannot be evaluated at all, the round gets a
+<code>policy_unavailable</code> finding and is locked too: the policies
+<a href="../../reference/compliance-policy/#failure" class="xref page">fail closed</a>.</p>
 </li>
 </ul>
 </div>
@@ -1060,18 +1071,21 @@ same plan always gets the same verdict, and every rule can be tested
 with <code>opa test</code> before it is rolled out.</p>
 </div>
 <div class="paragraph">
-<p><strong>Where to change it.</strong> The policy is the Langfuse prompt
-<code>general/policies/compliance</code>, seeded from
-<code>core/prompts/seed/general/policies/compliance.rego</code>. To add a rule, such
+<p><strong>Where to change it.</strong> The general policy is the Langfuse prompt
+<code>general/policies/compliance</code>, and each provider&#8217;s is
+<code>&lt;provider&gt;/policies/compliance</code>, seeded from
+<code>core/prompts/seed/&lt;scope&gt;/policies/compliance.rego</code>. To add a rule, such
 as allowed regions, no public storage, or no owner role assignments,
-write it, test it, and publish it as a new version in Langfuse; see
+write it in the policy of the provider it concerns (or in the general
+policy when it spans providers), test it, and publish it as a new
+version in Langfuse; see
 <a href="../write-a-policy-rule/" class="xref page">Write a policy rule</a>. The
-input the policy receives and the decision it must return are in
+input a policy receives and the decision it must return are in
 <a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p>
 </div>
 <div class="paragraph">
-<p>Use the policy for every rule you can state as a condition on the plan:
-it is the only check that cannot miss a case or flag one by mistake.</p>
+<p>Use the policies for every rule you can state as a condition on the
+plan: they are the only check that cannot miss a case or flag one by mistake.</p>
 </div>
 </div>
 <div class="sect2">

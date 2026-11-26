@@ -1007,7 +1007,10 @@ detail, for example "Deploy a PostgreSQL database on Azure" or "Create a
 virtual network with three subnets".</p>
 </li>
 <li>
-<p><strong>"What is the repository URL?"</strong> Paste the repository URL. Kumoss
+<p><strong>"What is the repository URL?"</strong> Paste the repository URL, or a name
+your deployment&#8217;s mapping service resolves, such as a project
+identifier; the session keeps that name and passes it to the IaC
+service, which may run commands with that project&#8217;s credentials. Kumoss
 clones only its metadata and looks for Terraform roots among the files
 committed on the default branch: directories that hold <code>.tf</code> files,
 skipping <code>modules</code>, <code>examples</code>, and <code>.terraform</code> folders, and keeping

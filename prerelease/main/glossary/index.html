@@ -951,8 +951,9 @@ for clarity and consistency when discussing Kumoss.</p>
 <h2 id="compliance-audit"><a class="anchor" href="#compliance-audit"></a>Compliance audit</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The check of a generated plan after a generate round: the compliance policy,
-a Rego policy evaluated by OPA, then an independent, second LLM agent that
+<p>The check of a generated plan after a generate round: the compliance policies,
+Rego policies evaluated by OPA (a general one and one per provider of the
+module), then an independent, second LLM agent that
 checks the plan against the organization&#8217;s compliance rules. Failing
 findings of either, or a policy that cannot be evaluated —
 and, optionally, a high-impact verdict — lock the session until a panel
@@ -969,9 +970,11 @@ session</a>.</p>
 <h2 id="compliance-policy"><a class="anchor" href="#compliance-policy"></a>Compliance policy</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The deterministic part of the compliance check: a Rego policy, stored as
-the Langfuse prompt <code>general/policies/compliance</code>, that Open Policy
-Agent evaluates against the plan of every generate round. The same plan
+<p>The deterministic part of the compliance check: Rego policies, stored as
+the Langfuse prompts <code>general/policies/compliance</code> and
+<code>&lt;provider&gt;/policies/compliance</code>, that Open Policy Agent evaluates
+against the plan of every generate round, the general policy always and
+a provider&#8217;s when the root module declares that provider. The same plan
 always gets the same verdict, and a <code>deny</code> finding locks the session.</p>
 </div>
 <div class="paragraph">
@@ -1126,6 +1129,23 @@ discards it whatever the outcome.</p>
 </div>
 <div class="paragraph">
 <p>See <a href="../guides/merge-and-apply/" class="xref page">Merge and apply</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="project-identifier"><a class="anchor" href="#project-identifier"></a>Project identifier</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>What the user named a repository by when it is not its URL, such as
+<code>sistemas-kumoss-rsg-esc1-dev</code>, which the mapping sidecar resolves to
+the repository. Checked against the repository when a session starts,
+recorded on the session and in the root module&#8217;s manifest, and sent to
+the IaC sidecar with each command, so an IaC service implementation can
+pick the credentials the command runs with. Never a credential itself.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="../reference/root-module-manifest/#project-identifier" class="xref page">Root
+module manifest</a>.</p>
 </div>
 </div>
 </div>
