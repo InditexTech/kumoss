@@ -614,10 +614,10 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 	if model.Model == azureStorageModel {
 		s.Storage.PublicEndpointURL = s.Storage.EndpointURL
 	}
-	// An S3 store is reached at the provider's own host, so nothing goes into
-	// endpoint_url: an empty one is what keeps the core on that host.
+	// An S3 store keeps the public endpoint as its internal one too: the core
+	// and the sidecar reach the same host the browser does.
 	if model.Model == s3StorageModel {
-		s.Storage.EndpointURL = ""
+		s.Storage.EndpointURL = s.Storage.PublicEndpointURL
 	}
 	// The bundled store is fully described by its defaults above: nothing left
 	// to ask, only the console question follows.
@@ -699,6 +699,9 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 	commit := func() {
 		for i, c := range model.Credentials {
 			s.Storage.Credentials[c.Name] = values[i]
+		}
+		if model.Model == s3StorageModel {
+			s.Storage.EndpointURL = s.Storage.PublicEndpointURL
 		}
 	}
 	return form, commit
