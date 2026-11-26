@@ -1,9 +1,49 @@
 = Upgrade notes
-:description: Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
+:description: Breaking changes to check before upgrading Kumoss: the intent check replacing the LLM compliance audit, the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
 
 This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.
+
+== Intent check replaces the LLM compliance audit
+
+The LLM half of the compliance check is now the *intent check*: it
+judges only whether the plan does what the session's requests ask
+(`scope_exceeded`, `scope_incomplete`, same ids and severities). It no
+longer receives or audits the conventions — the Terraform guidelines,
+the providers' `resource_creation`, `networking` and `permissions`
+guidelines, and the resource prompts. Those still guide generation, but
+after generation only the compliance policies enforce rules. The
+`orchestration.enable_compliance_checker` switch is unchanged and still
+gates both halves; see xref:main:architecture/compliance.adoc[How
+compliance works]. What changes:
+
+* *Prompt moved.* The rules prompt is now `general/intent/rules`,
+  seeded on the next boot from `core/prompts/seed/general/intent/rules.yaml`.
+  `general/compliance/report` is no longer read and can be deleted from
+  Langfuse; `general/compliance/impact` is unchanged. If you customized
+  `general/compliance/report`, port your changes to a new version of
+  `general/intent/rules` and move the environment label to it; see
+  xref:main:guides/customize-prompts.adoc#change-a-prompt[Change a
+  prompt]. Rules
+  about conventions rather than intent belong in a
+  xref:main:reference/compliance-policy.adoc[compliance policy] now.
+* *Tool and trace names.* The agent's sentinel tool is
+  `report_intent_findings` (was `report_compliance_findings`), without
+  a `passed` argument: the verdict is computed from the severities. Its
+  Langfuse observation is `Chain - INTENT_CHECKER` (was `Chain -
+  COMPLIANCE_CHECKER`).
+* *Finding source.* Findings of the intent check carry
+  `source: "intent"` (was `"llm"`). Stored reports keep loading: `"llm"`
+  is read as `"intent"`. The web UI marks them with an *intent* badge,
+  next to the *policy* badge of policy findings.
+* *New warning.* The general policy gains `provider_version_pin`, a
+  `warn` for every root module provider with no version constraint or
+  one not of the form `~> X.Y`, such as an exact pin. It never locks a
+  session, but workspaces with missing or exact provider pins start
+  reporting it. A general policy you customized does not get it; see
+  xref:main:reference/compliance-policy.adoc#shipped-rules[The shipped
+  rules].
 
 == Project identifier; IaC contract 2.1.0
 

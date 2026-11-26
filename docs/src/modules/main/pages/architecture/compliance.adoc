@@ -20,7 +20,7 @@ Two switches in `config.yaml` decide which checks run; both default to
 `false` in code, and the shipped `config.yaml` turns both on:
 
 * `orchestration.enable_compliance_checker` runs the compliance policy
-  and the compliance audit.
+  and the intent check.
 * `orchestration.block_on_high_impact` lets a high-impact verdict lock
   the session.
 
@@ -42,12 +42,14 @@ round too.
 |Prompts `general/policies/compliance` and
 `<provider>/policies/compliance`
 
-|*Compliance audit*
+|*Intent check*
 |No
-|A language model compares the plan with every request of the session
-and with your conventions: `scope_exceeded`, `scope_incomplete`, and
-convention findings.
-|Prompts `general/compliance/report` and the convention prompts
+|A language model judges only whether the plan does what every request
+of the session asks: `scope_exceeded` (a change nobody asked for) and
+`scope_incomplete` (a part of a request left out), both of severity
+`error`. It does not judge safety, conventions, deletions, or versions,
+and a change the user asked for is never a violation.
+|Prompt `general/intent/rules`
 
 |*High impact*
 |No
@@ -57,21 +59,24 @@ written criteria.
 |===
 
 Only the policy check is deterministic: it reads attributes of the plan, so
-the same plan always gets the same verdict. The audit and the impact
+the same plan always gets the same verdict. The intent check and the impact
 rating depend on what the request means and on what a change implies,
 which only a model can judge, so their verdicts can vary between runs.
 Rules that can be stated as a condition on the plan therefore belong in
-the policies, and are not restated in the prompts the audit reads. For what each check looks for, why, and where to adapt it,
-see xref:main:guides/resolve-a-locked-session.adoc#why[Why a session is
+the policies. Your conventions (the guideline and resource prompts)
+only guide generation: no check reviews a plan against them afterwards
+except what a policy enforces. For what each check looks for, why, and
+where to adapt it, see xref:main:guides/resolve-a-locked-session.adoc#why[Why a session is
 locked].
 
 [#flow]
 == From findings to a lock
 
-. The core evaluates the policies, then runs the audit, and merges both
-  into one *compliance report* for the round. Each finding carries its
-  source (`opa` for the policies, `llm` for the audit), a rule id, a
-  severity, and the resource it concerns.
+. The core evaluates the policies, then runs the intent check, and
+  merges both into one *compliance report* for the round; only this
+  merge produces a verdict. Each finding carries its source (`opa` for
+  the policies, `intent` for the intent check), a rule id, a severity,
+  and, when it concerns one, the resource.
 . The report fails when either source has a finding of severity `error`
   or `critical`. Findings of severity `warning` are reported only.
 . The core sets the session's lock from that round alone: locked when
@@ -93,7 +98,7 @@ While a session is locked, its owner can still read everything,
 continue the conversation, and create the pull request, but merging the
 pull request and applying the plan are refused with `409`. The web
 application shows the *Deployment Blocked* screen with the findings that
-caused the lock.
+caused the lock, each badged *policy* or *intent* by its source.
 
 A lock is cleared in one of two ways:
 

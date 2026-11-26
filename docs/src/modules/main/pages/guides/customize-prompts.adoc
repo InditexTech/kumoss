@@ -3,7 +3,7 @@
 
 Kumoss does not hard-code cloud knowledge. Its agents read your
 organization's standards (naming, tagging, networking, permissions,
-compliance rules, and exceptions) from *prompts* stored in
+intent rules, compliance policies, and exceptions) from *prompts* stored in
 https://langfuse.com/docs/prompt-management[Langfuse]. This guide shows
 what each prompt controls and how to change it. How the registry works
 underneath, including seeding and the shipped inventory, is in
@@ -37,8 +37,8 @@ reads which prompt].
 
 |`general/guidelines/terraform`
 |Organization-wide Terraform standards: structure, providers, state,
-and style. Followed by the code generator and checked by the compliance
-audit. Do not write into it bans a compliance policy enforces; see
+and style. Followed by the code generator; no check reads it. Do not
+write into it bans a compliance policy enforces; see
 <<compliance-policy>>.
 
 |`general/guidelines/requests`
@@ -60,15 +60,15 @@ One set per provider, at `<provider>/guidelines/<name>`:
 
 |`resource_creation`
 |General conventions for creating resources: tags, naming, and
-defaults. Followed by the generator and checked by the audit.
+defaults. Followed by the generator.
 
 |`networking`
 |Networking conventions: address plans, exposure rules, and private
-endpoints. Followed by the generator and checked by the audit.
+endpoints. Followed by the generator.
 
 |`permissions`
 |Identity and access conventions: least privilege and role assignment
-patterns. Followed by the generator and checked by the audit.
+patterns. Followed by the generator.
 
 |`abbreviations`
 |Short prefixes for resource names.
@@ -102,10 +102,12 @@ needs, chosen from `resources_list`.
 |===
 |Prompt |What it controls
 
-|`general/compliance/report`
-|The business rules the compliance audit checks a plan against, each
-with a rule id and a severity. Ships with `scope_exceeded` and
-`scope_incomplete`. A failed check locks the session.
+|`general/intent/rules`
+|The rules the intent check judges a plan against, each with a rule id
+and a severity: only whether the plan does what the session's requests
+ask. Ships with `scope_exceeded` and `scope_incomplete`, both `error`.
+An `error` or `critical` finding locks the session. Its prompt type is
+`intent`.
 
 |`general/compliance/impact`
 |What counts as a low, medium, or high impact change. A high impact
@@ -347,9 +349,10 @@ input and decision a policy works with, and the shipped rules, are in
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
 What a policy enforces is not restated in the guideline and resource
-prompts. Those prompts feed both the IaC generator and the compliance
-audit, so a ban written there would also be enforced by the model,
-possibly differently from the policy. The shipped prompts keep positive
+prompts. Those prompts feed only the IaC generator, and no check reads
+them, so a ban written there would be applied by the model at
+generation time, possibly differently from the policy, and never
+checked afterwards. The shipped prompts keep positive
 defaults (`allow_privilege_escalation = false`, S3 Block Public Access
 fully enabled, outputs carrying secrets marked `sensitive = true`) and
 leave the bans to Rego: they no longer tell the generator to avoid
@@ -395,7 +398,7 @@ match the `<name>` part of the prompt exactly. See
 == Checklist for operators
 
 * Review every shipped prompt before relying on a deployment: the
-  naming conventions, security defaults, and compliance rules encode a
+  naming conventions, security defaults, and intent rules encode a
   policy, not yours.
 * Write the prohibitions your organization needs as rules in the
   compliance policies: `<provider>/policies/compliance` for a

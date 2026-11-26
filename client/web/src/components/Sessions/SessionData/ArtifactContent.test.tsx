@@ -687,6 +687,26 @@ describe("ArtifactContent compliance checks", () => {
     expect(ruleIds).toEqual(["NET-001", "TAG-002"]);
   });
 
+  it("badges each violation with the check that reported it", async () => {
+    renderCompliance({
+      passed: false,
+      summary: "Blocked",
+      checked_rules: ["critical_deletion", "scope_exceeded", "scope_incomplete"],
+      violations: [
+        { rule_id: "critical_deletion", severity: "critical", message: "a", source: "opa" },
+        { rule_id: "scope_exceeded", severity: "error", message: "b", source: "intent" },
+        // Stored before the intent check had its name.
+        { rule_id: "scope_incomplete", severity: "warning", message: "c", source: "llm" },
+      ],
+    });
+
+    const section = (await screen.findByText("Violations")).closest("section")!;
+    const badges = within(section)
+      .getAllByText(/^(policy|intent)$/)
+      .map((el) => el.textContent);
+    expect(badges).toEqual(["policy", "intent", "intent"]);
+  });
+
   it("renders a passed check without a violations list", async () => {
     renderCompliance({
       passed: true,

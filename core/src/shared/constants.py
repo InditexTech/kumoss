@@ -141,7 +141,7 @@ class PromptsLibrary(Enum):
     TARGET_GENERATOR = "target_generator"
     REPORT_GENERATOR = "report_generator"
     PR_GENERATOR = "pr_generator"
-    COMPLIANCE_CHECKER = "compliance_checker"
+    INTENT_CHECKER = "intent_checker"
     # messages
     STATUS_UPDATE = "status_update"
     CHAT_REPLY = "chat_reply"
@@ -163,7 +163,7 @@ class ToolContext(Enum):
     FILTER_RECONCILIATION = "filter_reconciliation"
     GENERAL_TASK_COMPLETION = "general_task_completion"
     IMPORT_ADDRESSES = "import_addresses"
-    COMPLIANCE_CHECK = "compliance_check"
+    INTENT_CHECK = "intent_check"
 
 
 @unique

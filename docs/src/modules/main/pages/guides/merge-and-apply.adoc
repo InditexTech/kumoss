@@ -53,7 +53,7 @@ If the *Deployment Blocked* screen opens instead of the merge controls,
 the session is locked: you can still create the pull request, but merge
 and apply are refused. Expand *Why* to see what locked it.
 
-.The Deployment Blocked screen with *Why* expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the compliance audit
+.The Deployment Blocked screen with *Why* expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the intent check
 image::deployment-blocked.png[Deployment Blocked screen listing the high-impact reason and two blocking compliance findings, with Back to Report, Contact Team, and Check again buttons,width=560,link=self]
 
 See xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked

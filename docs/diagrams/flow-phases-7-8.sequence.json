@@ -48,7 +48,7 @@
     {
       "from": 316,
       "to": 656,
-      "label": "PHASE 8 · Independent compliance audit, verdict computed in code — when the checker is disabled the step yields an empty passing report"
+      "label": "PHASE 8 · Independent compliance check, verdict computed in code — when the checker is disabled the step yields an empty passing report"
     }
   ],
   "messages": [
@@ -77,7 +77,7 @@
       "from": "ct",
       "to": "ag",
       "y": 330,
-      "label": "29 · [checker enabled] Compliance Auditor (small, no repo tools) judges request + raw plan",
+      "label": "29 · [checker enabled] Intent Checker (small, no repo tools) judges requests + raw plan",
       "variant": "default",
       "note": "[checker disabled] the step yields an empty passing report instead"
     },
@@ -85,14 +85,14 @@
       "from": "ag",
       "to": "ct",
       "y": 372,
-      "label": "30 · structured findings via report_compliance_findings (rule id, severity, resource, message, fix)",
+      "label": "30 · structured findings via report_intent_findings (rule id, severity, resource, message, fix)",
       "variant": "return"
     },
     {
       "from": "ct",
       "to": "db",
       "y": 414,
-      "label": "31 · VERDICT: any ERROR or CRITICAL means fail — the model's own \"passed\" is ignored · plan pinned either way",
+      "label": "31 · VERDICT: any ERROR or CRITICAL from either half means fail — computed in code · plan pinned either way",
       "variant": "security"
     },
     {

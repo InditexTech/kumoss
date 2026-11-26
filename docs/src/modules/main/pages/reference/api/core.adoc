@@ -541,8 +541,8 @@ aggregate: the summary fields and one entry in
 `rounds` per generation round. Each round carries its own statuses,
 its `reports`, `compliance_checks`, `plans`, and `code_changes`
 artifacts as client-fetchable URLs, oldest first, and its
-`pull_requests`. Each `compliance_checks` entry also carries the audit's
-`passed` verdict; the list is empty when the round was not audited.
+`pull_requests`. Each `compliance_checks` entry also carries the check's
+`passed` verdict; the list is empty when the round was not checked.
 
 Pass `include_chat_history=true` to also populate `chat_history` with
 the session's conversation: one `{"user": …, "assistant": …}` turn per

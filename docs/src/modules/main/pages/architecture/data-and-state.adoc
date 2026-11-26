@@ -15,7 +15,7 @@ nullable `panel_role`), `sessions` (owned by a `user_id`, including the
 gates apply), `workspaces`, `terraform_providers`, `pull_requests`,
 `histories`, `statuses`, `rounds`, and the artifact-metadata tables
 `artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the
-audit verdict plus its stored findings), and `code_changes`. Roles are
+compliance verdict plus its stored findings), and `code_changes`. Roles are
 managed from the admin panel or, for the first administrator on IdPs
 that emit no `email_verified` claim, by a one-off SQL update (see
 xref:main:guides/enable-authentication.adoc#bootstrap-admin[Grant the

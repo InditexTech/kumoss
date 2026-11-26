@@ -172,7 +172,7 @@ layer; each produces one observation type.
 * *Name:* `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`,
   `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain -
   REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain -
-  COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain -
+  INTENT_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain -
   TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain -
   FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
 * *Type:* `AGENT`.

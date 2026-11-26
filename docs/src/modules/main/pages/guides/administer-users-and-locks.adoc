@@ -157,7 +157,7 @@ Locks are set in two ways:
 * *Automatically* at the end of a generate round, from two independent
   triggers, each behind its own switch: the compliance check fails — the
   compliance policy denies the plan or could not be evaluated
-  (`policy_unavailable`), or the LLM audit finds an `error` or
+  (`policy_unavailable`), or the intent check finds an `error` or
   `critical` violation (only when
   `orchestration.enable_compliance_checker` is `true`; a disabled
   checker always passes) — or the report's impact banner is `high` (only
@@ -216,7 +216,7 @@ been reviewed and accepted.
 When the notifications sidecar is enabled, editors receive the lock
 notifications of every session. Before unlocking, read the round's
 *Compliance Check* artifact: findings with a *policy* badge come from the
-compliance policy, the others from the LLM audit. For what each cause
+compliance policy, those with an *intent* badge from the intent check. For what each cause
 means, see xref:main:guides/resolve-a-locked-session.adoc#why[Why a
 session is locked].
 

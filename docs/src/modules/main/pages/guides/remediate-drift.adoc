@@ -90,7 +90,7 @@ can no longer be continued, applied, or reused — only a new session will
 do.
 
 *Apply, pull requests, compliance, locks.* You can create a pull request
-from the branch. Drift rounds run no compliance audit and never set the
+from the branch. Drift rounds run no compliance check and never set the
 lock. Apply is unavailable until a generate round pins a plan. In the web
 application a drift session therefore ends at the pull-request merge:
 the merge button is labeled for merging only, and no apply is triggered
@@ -134,7 +134,7 @@ report follow.
 
 *Artifacts, plan pinning, apply, compliance, locks.* As for partial
 drift: artifacts and a `drift` report, no pinned plan, no compliance
-audit, no lock, apply unavailable until a generate round pins a plan, and
+check, no lock, apply unavailable until a generate round pins a plan, and
 the web application ends the session at the pull-request merge.
 
 *Example.* "Reconcile everything in `envs/dev`." Kumoss plans the whole
