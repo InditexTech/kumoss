@@ -567,7 +567,7 @@ func (w *Wizard) storageModelStep(s *state.State) error {
 		newStepGroup(
 			huh.NewSelect[string]().
 				Title("Storage model").
-				Description("Where artifacts and, optionally, Terraform state are kept.").
+				Description("Where Kumoss artifacts and Terraform state are kept.").
 				Options(storageModelOptions()...).
 				Value(&picked),
 		).Title("Storage"),
@@ -590,7 +590,9 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 		s.Storage.Bucket = "kumoss-artifacts"
 	}
 	// Managed state owns the bucket; repository-declared state leaves it "".
-	if !model.Managed {
+	// Azure is the exception: its backend is not ours to write, so the state
+	// bucket stays blank and each repository keeps the backend it declares.
+	if !model.Managed || model.Model == azureStorageModel {
 		s.Storage.TerraformStateBucket = ""
 	} else if s.Storage.TerraformStateBucket == "" {
 		s.Storage.TerraformStateBucket = "kumoss-terraform-state"
@@ -606,6 +608,49 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 	if s.Storage.PublicEndpointURL == "" {
 		s.Storage.PublicEndpointURL = model.PublicEndpointURL
 	}
+	// Azure has no second address to answer: the same endpoint the core calls
+	// is the one browsers are signed against. Recomputed each time, so changing
+	// the endpoint never leaves a stale public one behind.
+	if model.Model == azureStorageModel {
+		s.Storage.PublicEndpointURL = s.Storage.EndpointURL
+	}
+	// An S3 store is reached at the provider's own host, so nothing goes into
+	// endpoint_url: an empty one is what keeps the core on that host.
+	if model.Model == s3StorageModel {
+		s.Storage.EndpointURL = ""
+	}
+	// The bundled store is fully described by its defaults above: nothing left
+	// to ask, only the console question follows.
+	if model.Model == bundledStorageModel {
+		return nil, func() {}
+	}
+
+	// Azure asks nothing but the account and its key: buckets, region and
+	// endpoints all keep the defaults set above.
+	if model.Model == azureStorageModel {
+		accountKey := s.Storage.Credentials["STORAGE_ACCOUNT_KEY"]
+		account := strings.TrimSuffix(strings.TrimPrefix(s.Storage.EndpointURL, "https://"), "."+azureStorageEndpoint)
+		form := newStepForm(
+			newStepGroup(
+				huh.NewInput().
+					Title(titled("Storage account name", false)).
+					Description("The account whose key you paste next. The endpoint https://<account>.blob.core.windows.net is built from it, and download links are signed against the same address.").
+					Value(&account).
+					Validate(azureAccount),
+				huh.NewInput().
+					Title(titled("Storage account key", false)).
+					Description("STORAGE_ACCOUNT_KEY. Settings → Access keys in the portal. Passed to the core container as an environment variable.").
+					EchoMode(huh.EchoModePassword).
+					Value(&accountKey).
+					Validate(required),
+			).Title("Storage — " + model.Name),
+		)
+		return form, func() {
+			s.Storage.EndpointURL = "https://" + account + "." + azureStorageEndpoint
+			s.Storage.PublicEndpointURL = s.Storage.EndpointURL
+			s.Storage.Credentials["STORAGE_ACCOUNT_KEY"] = accountKey
+		}
+	}
 
 	values := make([]string, len(model.Credentials))
 	fields := []huh.Field{
@@ -615,36 +660,14 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 			Value(&s.Storage.Bucket).
 			Validate(required),
 	}
-	if model.Managed {
-		fields = append(fields, huh.NewInput().
-			Title(titled("Terraform state bucket", true)).
-			Description("Blank = each repository declares its own backend.").
-			Value(&s.Storage.TerraformStateBucket))
-	}
-	if model.Region {
-		fields = append(fields, huh.NewInput().
-			Title(titled("Region", false)).
-			Description("Ignored by Azure Storage Account.").
-			Value(&s.Storage.Region).
-			Validate(required))
-	}
-	fields = append(fields,
-		huh.NewInput().
-			Title(titled("Endpoint URL", false)).
-			Description(storageDescriptions()[0]).
-			Value(&s.Storage.EndpointURL).
-			Validate(required),
-		huh.NewInput().
-			Title(titled("Public endpoint URL", false)).
-			Description(storageDescriptions()[1]).
-			Value(&s.Storage.PublicEndpointURL).
-			Validate(required),
-	)
+	// The core reads a static key pair here for S3 too: RUSTFS_ACCESS_KEY and
+	// RUSTFS_SECRET_KEY. Asked before the endpoint, since that is the order the
+	// two are used in.
 	for i, c := range model.Credentials {
 		values[i] = s.Storage.Credentials[c.Name]
 		field := huh.NewInput().
 			Title(titled(c.Title, false)).
-			Description(c.Name).
+			Description(c.Name + ". Written to core/.env.").
 			Value(&values[i]).
 			Validate(required)
 		if c.Secret {
@@ -652,6 +675,25 @@ func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
 		}
 		fields = append(fields, field)
 	}
+	// Region and the two endpoints: the external store has no defaults to seed,
+	// and the wizard asks for the browser-facing address because the signed
+	// download links must point at it.
+	if model.Region {
+		fields = append(fields, huh.NewInput().
+			Title(titled("Region", false)).
+			Description("AWS region of the bucket, e.g. eu-west-1.").
+			Value(&s.Storage.Region).
+			Validate(required))
+	}
+	// The public endpoint is all the browser needs: the core's SDK calls use
+	// the provider's own default host, so endpoint_url stays empty.
+	fields = append(fields,
+		huh.NewInput().
+			Title(titled("Public endpoint URL", false)).
+			Description(storageDescriptions()[1]).
+			Value(&s.Storage.PublicEndpointURL).
+			Validate(required),
+	)
 
 	form := newStepForm(newStepGroup(fields...).Title("Storage — " + model.Name))
 	commit := func() {
@@ -676,7 +718,7 @@ func (w *Wizard) cloudStep(s *state.State) (*stepForm, func()) {
 		newStepGroup(
 			huh.NewMultiSelect[string]().
 				Title("Cloud providers").
-				Description("Which clouds your Terraform modules target? Space (or x) toggles a cloud, enter confirms. Skip if none.").
+				Description("Pick the clouds your Terraform code deploys to. Next, you enter the credentials each one needs: AWS profile or access key, Azure service principal, GCP service-account file. Skip if none.").
 				Options(cloudOptions()...).
 				// One line per cloud, plus title, description and help bar.
 				Height(len(clouds) + 5).
@@ -708,7 +750,8 @@ func (w *Wizard) cloudStep(s *state.State) (*stepForm, func()) {
 	return newStepForm(groups...), commit
 }
 
-// engineStep selects the IaC engine and, for Terraform, gates on its license.
+// engineStep selects the IaC engine. Terraform's BUSL-1.1 license is not
+// gated here: the user picks it knowingly from the options.
 func (w *Wizard) engineStep(s *state.State) (*stepForm, func()) {
 	if s.Engine.Binary == "" {
 		s.Engine.Binary = "tofu"
@@ -724,15 +767,6 @@ func (w *Wizard) engineStep(s *state.State) (*stepForm, func()) {
 				).
 				Value(&s.Engine.Binary),
 		).Title("IaC engine"),
-		newStepGroup(
-			huh.NewConfirm().
-				Title("Acknowledge the Terraform license").
-				Description("Terraform is under BUSL-1.1. Confirm your use complies with its terms.").
-				Affirmative("I acknowledge").
-				Negative("Cancel").
-				Value(&s.Engine.BUSLAcknowledged).
-				Validate(acknowledgeTerraform),
-		).WithHideFunc(func() bool { return s.Engine.Binary != "terraform" }),
 	)
 	return form, func() {}
 }
@@ -970,6 +1004,18 @@ func parseKnobInt(s string) *int {
 // bundledStorageModel is the discriminator for the RustFS container Kumoss
 // ships. It is the only storage model with a console to offer.
 const bundledStorageModel = "bundled"
+
+// azureStorageModel is the Azure Storage Account. Its endpoint is the one
+// answer it needs: the core derives the account name from it and signs its
+// download links against it, so public_endpoint_url is the same value.
+const azureStorageModel = "external_azure"
+
+// azureStorageEndpoint is the host every Azure storage account answers on.
+const azureStorageEndpoint = "blob.core.windows.net"
+
+// s3StorageModel is the external S3-compatible store. It asks for the keys, the
+// region and the public endpoint; the core reaches the provider's own host.
+const s3StorageModel = "external_s3"
 
 // rustfsDefaultKey is what RustFS uses when the variables are absent. Seeded
 // rather than left blank: the container falls back to it either way, so a

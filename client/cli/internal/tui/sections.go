@@ -47,12 +47,16 @@ func (w *Wizard) notifySteps() []step {
 
 // stateSteps splits the model from its settings: the fields below depend on
 // which model was picked, and huh cannot add fields to a running form. The
-// last two apply only to the bundled store, which is the only one with a
-// console to turn on.
+// bundled store asks nothing but the console, the only one it has to turn on.
 func (w *Wizard) stateSteps() []step {
 	return []step{
 		w.storageModelStep,
-		func(s *state.State) error { return w.formStep(w.storageStep, s) },
+		func(s *state.State) error {
+			if s.Storage.Model == bundledStorageModel {
+				return errSkip
+			}
+			return w.formStep(w.storageStep, s)
+		},
 		w.storageConsoleStep,
 		func(s *state.State) error {
 			if !bundledConsole(s) {

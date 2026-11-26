@@ -6,6 +6,7 @@ package tui
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"charm.land/huh/v2"
@@ -87,9 +88,10 @@ func TestStateStepsOrder(t *testing.T) {
 		t.Fatalf("stateSteps = %d steps, want 4", len(steps))
 	}
 
-	s := &state.State{}
 	// The model is picked first, because the fields below it depend on which
-	// model was chosen.
+	// model was chosen. The bundled store's form is skipped, so use an external
+	// one to reach the fields step.
+	s := &state.State{Storage: state.Storage{Model: "external_s3"}}
 	if err := steps[0](s); err != nil {
 		t.Fatalf("storage model step returned %v", err)
 	}
@@ -149,7 +151,6 @@ func TestStateStepsAskTheConsoleOnlyForTheBundledStore(t *testing.T) {
 		{"bundled", true},
 		{"external_s3", false},
 		{"external_azure", false},
-		{"repository", false},
 	}
 	for _, c := range cases {
 		w, _ := stubWizard()
@@ -163,6 +164,86 @@ func TestStateStepsAskTheConsoleOnlyForTheBundledStore(t *testing.T) {
 		}
 		if ran != c.want {
 			t.Errorf("%s: console step ran = %v, want %v", c.model, ran, c.want)
+		}
+	}
+}
+
+func TestStateStepsSkipTheFieldsOfTheBundledStore(t *testing.T) {
+	w, _ := stubWizard()
+	s := &state.State{Storage: state.Storage{Model: "bundled"}}
+
+	// The bundled store's settings are all defaults, so its form is never shown.
+	if err := w.stateSteps()[1](s); !errors.Is(err, errSkip) {
+		t.Errorf("fields step returned %v for the bundled store, want errSkip", err)
+	}
+
+	s.Storage.Model = "external_s3"
+	if err := w.stateSteps()[1](s); err != nil {
+		t.Errorf("fields step returned %v for an external store, want it to run", err)
+	}
+}
+
+func TestBundledStorageDefaults(t *testing.T) {
+	w, runs := stubWizard()
+	s := &state.State{}
+	if _, commit := w.storageStep(s); commit != nil {
+		commit()
+	}
+	if *runs != 0 {
+		t.Errorf("storageStep ran %d forms for the bundled store, want 0", *runs)
+	}
+	for name, got := range map[string]string{
+		"provider":     s.Storage.Provider,
+		"bucket":       s.Storage.Bucket,
+		"state bucket": s.Storage.TerraformStateBucket,
+		"endpoint":     s.Storage.EndpointURL,
+		"public":       s.Storage.PublicEndpointURL,
+	} {
+		if got == "" {
+			t.Errorf("%s = %q, want the bundled default filled in", name, got)
+		}
+	}
+}
+
+func TestAzureStorageAsksOnlyTheAccountAndKey(t *testing.T) {
+	w, runs := stubWizard()
+	s := &state.State{Storage: state.Storage{
+		Model:    "external_azure",
+		Provider: "STORAGE_ACCOUNT",
+		Region:   "westeurope",
+		// What an earlier pick left behind must not survive.
+		TerraformStateBucket: "kumoss-terraform-state",
+		Credentials:          map[string]string{},
+	}}
+
+	form, commit := w.storageStep(s)
+	if form == nil || *runs != 0 {
+		t.Fatalf("the Azure form did not open (runs = %d)", *runs)
+	}
+	commit()
+	if s.Storage.TerraformStateBucket != "" {
+		t.Errorf("terraform_state_bucket = %q, want the empty string", s.Storage.TerraformStateBucket)
+	}
+	// The endpoint is built from the account name, never typed; both addresses
+	// are the same one, or downloads are signed against the wrong host.
+	if !strings.HasPrefix(s.Storage.EndpointURL, "https://") ||
+		s.Storage.PublicEndpointURL != s.Storage.EndpointURL {
+		t.Errorf("endpoints = %q / %q", s.Storage.EndpointURL, s.Storage.PublicEndpointURL)
+	}
+	if s.Storage.Bucket != "kumoss-artifacts" || s.Storage.Region != "westeurope" {
+		t.Errorf("defaults lost: bucket %q, region %q", s.Storage.Bucket, s.Storage.Region)
+	}
+}
+
+func TestAzureAccountValidator(t *testing.T) {
+	for _, ok := range []string{"acmekumoss", "a1b2c3"} {
+		if err := azureAccount(ok); err != nil {
+			t.Errorf("azureAccount(%q) = %v, want nil", ok, err)
+		}
+	}
+	for _, bad := range []string{"", "ab", "Acmekumoss", "acme-kumoss", "acme.blob"} {
+		if azureAccount(bad) == nil {
+			t.Errorf("azureAccount(%q) was accepted", bad)
 		}
 	}
 }
