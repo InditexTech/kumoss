@@ -99,8 +99,9 @@ The wizard asks, in order:
   the cheap model, with each provider's credentials and its model strings.
   The form starts from what `config.yaml` already holds.
 . *Git* - the host, the author identity, and the token used for pull requests.
-. *Storage* - the bundled RustFS, an external S3-compatible store, an Azure
-  Storage Account, or repository-declared state.
+. *Storage* - the bundled RustFS, with its web console on or off. The other
+  storage models (an external S3-compatible store and an Azure Storage Account)
+  are not offered by the wizard yet.
 . *Cloud* - the clouds the IaC engine will target, with credentials.
 . *Engine* - OpenTofu (the default) or Terraform.
 . *Notifications* - whether to enable the Slack sidecar, and its webhook.

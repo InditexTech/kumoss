@@ -50,7 +50,7 @@ func (stubSection) LLM(*state.State) error           { return nil }
 func (stubSection) Git(*state.State) error           { return nil }
 func (stubSection) Cloud(*state.State) error         { return nil }
 func (stubSection) Engine(*state.State) error        { return nil }
-func (stubSection) State(*state.State) error         { return nil }
+func (stubSection) Storage(*state.State) error       { return nil }
 func (stubSection) Notifications(*state.State) error { return nil }
 func (stubSection) RotateSecrets([]Secret) ([]string, error) {
 	return nil, nil
@@ -308,7 +308,7 @@ func TestSectionsMapToTheContainersThatReadThem(t *testing.T) {
 		"cloud":  "iac",
 		"engine": "iac",
 		// object-storage: the console answer changes its own definition.
-		"state":         "core iac object-storage",
+		"storage":       "core iac object-storage",
 		"notifications": "core notifications",
 		"secrets":       "core iac notifications",
 	}
@@ -437,7 +437,7 @@ func TestConfigSkipsRecreateWithoutAComposeFile(t *testing.T) {
 	}
 }
 
-// Enabling the console from `kumoss config state` has to write the container's
+// Enabling the console from `kumoss config storage` has to write the container's
 // credential file too, or the override references a file that is not there.
 func TestRunConfigWritesTheObjectStorageEnv(t *testing.T) {
 	h, st := configured(t)
@@ -446,7 +446,7 @@ func TestRunConfigWritesTheObjectStorageEnv(t *testing.T) {
 	}
 	ui := &consoleSection{}
 	if err := RunConfig(context.Background(), ConfigOptions{
-		Home: h, Section: "state", UI: ui, Docker: &stubDocker{},
+		Home: h, Section: "storage", UI: ui, Docker: &stubDocker{},
 		Out: io.Discard, Warn: io.Discard,
 	}); err != nil {
 		t.Fatalf("RunConfig: %v", err)
@@ -461,10 +461,10 @@ func TestRunConfigWritesTheObjectStorageEnv(t *testing.T) {
 	}
 }
 
-// consoleSection is a UI whose state section turns the console on.
+// consoleSection is a UI whose storage section turns the console on.
 type consoleSection struct{ stubSection }
 
-func (consoleSection) State(s *state.State) error {
+func (consoleSection) Storage(s *state.State) error {
 	s.Storage.Model = "bundled"
 	s.Storage.ConsoleEnabled = true
 	s.Secrets.RustFSAccessKey = "ak"

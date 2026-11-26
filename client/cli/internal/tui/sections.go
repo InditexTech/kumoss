@@ -23,8 +23,8 @@ func (w *Wizard) Cloud(s *state.State) error { return w.runSequence(s, w.cloudSt
 // Engine asks OpenTofu or Terraform.
 func (w *Wizard) Engine(s *state.State) error { return w.runSequence(s, w.engineSteps()) }
 
-// State asks the storage model and the state backend.
-func (w *Wizard) State(s *state.State) error { return w.runSequence(s, w.stateSteps()) }
+// Storage asks for the store the artifacts and the state live in.
+func (w *Wizard) Storage(s *state.State) error { return w.runSequence(s, w.stateSteps()) }
 
 // Notifications asks for the Slack webhook and whether to use it.
 func (w *Wizard) Notifications(s *state.State) error { return w.runSequence(s, w.notifySteps()) }

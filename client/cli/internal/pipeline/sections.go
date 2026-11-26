@@ -27,7 +27,7 @@ type SectionUI interface {
 	Git(s *state.State) error
 	Cloud(s *state.State) error
 	Engine(s *state.State) error
-	State(s *state.State) error
+	Storage(s *state.State) error
 	Notifications(s *state.State) error
 	// RotateSecrets returns the keys to regenerate; empty keeps them all.
 	RotateSecrets(found []Secret) ([]string, error)
@@ -44,7 +44,7 @@ var Sections = []Section{
 	{Name: "engine", Services: []string{"iac"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Engine(s) }},
 	// object-storage too: the console answer changes that service's own
 	// definition, not just what core and iac read.
-	{Name: "state", Services: []string{"core", "iac", "object-storage"}, Ask: func(ui SectionUI, s *state.State) error { return ui.State(s) }},
+	{Name: "storage", Services: []string{"core", "iac", "object-storage"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Storage(s) }},
 	{Name: "notifications", Services: []string{"core", "notifications"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Notifications(s) }},
 	{Name: "secrets", Services: []string{"core", "iac", "notifications"}, Ask: rotateSecrets},
 }

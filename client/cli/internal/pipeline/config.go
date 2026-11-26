@@ -72,7 +72,7 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 
 	// A state change does not migrate what is already stored, and the new
 	// backend would look empty. Say so before asking, not after writing.
-	if section.Name == "state" {
+	if section.Name == "storage" {
 		fmt.Fprintln(out, "Warning: changing the state backend does not migrate the existing state.")
 		fmt.Fprintln(out, "Terraform will not find it in the new backend and will offer to create everything again.")
 	}

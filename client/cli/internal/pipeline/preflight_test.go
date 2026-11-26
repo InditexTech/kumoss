@@ -107,7 +107,7 @@ func TestPreflightReportsConfigYAMLDrift(t *testing.T) {
 	}{
 		{"llm model", "model: anthropic/claude-sonnet-5", "model: openai/gpt-5", "llm.model", "kumoss config llm"},
 		{"git author", "author_email: kumoss@noreply.invalid", "author_email: someone@else.invalid", "git.author_email", "kumoss config git"},
-		{"storage bucket", "bucket: kumoss-artifacts", "bucket: other-bucket", "storage.bucket", "kumoss config state"},
+		{"storage bucket", "bucket: kumoss-artifacts", "bucket: other-bucket", "storage.bucket", "kumoss config storage"},
 		{"notifications", "enabled: false", "enabled: true", "services.notifications.enabled", "kumoss config notifications"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

@@ -107,7 +107,7 @@ kumoss init
 
 ### 🏢 Designed to fit the stack you already run
 
-- **Works with what you already have.** GitHub, Azure DevOps or GitLab; OpenTofu or Terraform; the bundled RustFS, an external S3-compatible store (AWS, Google Cloud or any S3 API), or an Azure Storage Account.
+- **Works with what you already have.** GitHub, Azure DevOps or GitLab; OpenTofu or Terraform; the bundled RustFS. External stores — an S3-compatible one, or an Azure Storage Account — are set in `config.yaml`.
 - **Multicloud.** AWS, Azure, Google Cloud, Oracle Cloud Infrastructure and Kubernetes, with only the methods that work inside the Compose stack.
 - **Your rules, your definition of critical.** OIDC, the bootstrap administrator, the mapping and authorization sidecars and `llm.model_list` routing stay hand-edited in `config.yaml`; the CLI preserves the keys it does not own.
 - **Nothing hidden.** Every generated file is plain text under `~/.kumoss`, readable, diffable and reviewable before the stack starts.
@@ -120,7 +120,7 @@ kumoss init
 | **Git**             | Provider, author, token  | —                                                |
 | **Cloud**           | Credentials for the IaC sidecar | Anything the wizard does not ask for     |
 | **IaC executor**    | OpenTofu or Terraform    | The sidecar-supplied backend                     |
-| **State**           | Four storage models      | Timeouts and presign settings                    |
+| **State**           | The bundled RustFS, with its console | Timeouts and presign settings, external stores |
 | **Notifications**   | Slack webhook, on or off | —                                                |
 | **Identity**        | —                        | OIDC and the bootstrap administrator             |
 | **Authorization**   | —                        | The mapping and authorization contracts          |
@@ -320,7 +320,7 @@ and recreates **only** the containers that read them.
 | --------------- | ---------------------- |
 | `llm`, `git`    | `core`                 |
 | `cloud`, `engine` | `iac`                |
-| `state`         | `core`, `iac`          |
+| `storage`       | `core`, `iac`, `object-storage` |
 | `notifications` | `core`, `notifications` |
 | `secrets`       | the token pairs        |
 
@@ -329,7 +329,7 @@ and recreates **only** the containers that read them.
 **definition** — the credential mounts `cloud` writes into
 `compose.override.yml`, or `engine` — compose would otherwise keep the old
 container, so `core`, `iac` and `notifications` are all force-recreated. A
-`state` change warns first that the existing state is not migrated — Terraform
+`storage` change warns first that the existing state is not migrated — Terraform
 will not find it in the new backend.
 
 Run without a section to list them.

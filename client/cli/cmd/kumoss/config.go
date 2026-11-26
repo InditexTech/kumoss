@@ -20,13 +20,14 @@ func NewConfigCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 		Use:   "config <section>",
 		Short: "Reopen one wizard section and apply it",
 		Long: "Reopen one wizard section, prefilled from the current files.\n\n" +
-			"Sections: llm, git, cloud, engine, state, notifications, secrets.\n\n" +
+			"Sections: llm, git, cloud, engine, storage, notifications, secrets.\n\n" +
 			"It shows a diff of the generated files with the secrets masked and,\n" +
 			"on confirmation, writes them and recreates only the containers that\n" +
 			"read them: llm and git recreate core; cloud and engine recreate iac;\n" +
-			"state recreates core and iac; notifications recreates core and\n" +
-			"notifications; secrets rotates a token pair. `docker compose restart`\n" +
-			"would keep the old environment, so the containers are recreated.\n\n" +
+			"storage recreates core, iac and object-storage; notifications recreates\n" +
+			"core and notifications; secrets rotates a token pair. `docker compose\n" +
+			"restart` would keep the old environment, so the containers are\n" +
+			"recreated.\n\n" +
 			"With no section it lists them.",
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

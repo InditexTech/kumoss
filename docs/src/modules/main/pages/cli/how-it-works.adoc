@@ -137,8 +137,8 @@ questions later does not mean starting over.
 
 Going back keeps your answers, including the ones in the form you are leaving,
 and walking forward again reopens the same forms with them filled in. Change an
-answer that decides what comes next -- the LLM providers, the storage model --
-and the questions after it are rebuilt from the new answer.
+answer that decides what comes next -- the LLM providers, the clouds the engine
+targets -- and the questions after it are rebuilt from the new answer.
 
 Going back also clears the screen, so the reopened form does not stack under
 the copy you already answered. Going forward does not: the forms you have
@@ -186,7 +186,7 @@ since moved offline. The sections and the containers each one recreates:
 |`git` |`core`
 |`cloud` |`iac`
 |`engine` |`iac`
-|`state` |`core`, `iac`
+|`storage` |`core`, `iac`, `object-storage`
 |`notifications` |`core`, `notifications`
 |`secrets` |`core`, `iac`, `notifications`
 |===

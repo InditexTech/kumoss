@@ -179,18 +179,18 @@ func ownedConfigKeys(s *state.State) []ownedConfigKey {
 	add("git", s.Git.Provider, "git", "provider")
 	add("git", s.Git.AuthorName, "git", "author_name")
 	add("git", s.Git.AuthorEmail, "git", "author_email")
-	add("state", s.Storage.Provider, "storage", "provider")
-	add("state", s.Storage.Bucket, "storage", "bucket")
-	add("state", s.Storage.TerraformStateBucket, "storage", "terraform_state_bucket")
-	add("state", s.Storage.Region, "storage", "region")
+	add("storage", s.Storage.Provider, "storage", "provider")
+	add("storage", s.Storage.Bucket, "storage", "bucket")
+	add("storage", s.Storage.TerraformStateBucket, "storage", "terraform_state_bucket")
+	add("storage", s.Storage.Region, "storage", "region")
 	// Azure's endpoint is built from the account name the wizard asked for,
 	// never typed: a blank one skips the key, as the omitted key is the drift.
 	if s.Storage.Model == "external_azure" {
-		add("state", "https://"+azureAccountFrom(s.Storage.EndpointURL)+"."+azureBlobSuffix, "storage", "endpoint_url")
-		add("state", "https://"+azureAccountFrom(s.Storage.EndpointURL)+"."+azureBlobSuffix, "storage", "public_endpoint_url")
+		add("storage", "https://"+azureAccountFrom(s.Storage.EndpointURL)+"."+azureBlobSuffix, "storage", "endpoint_url")
+		add("storage", "https://"+azureAccountFrom(s.Storage.EndpointURL)+"."+azureBlobSuffix, "storage", "public_endpoint_url")
 	} else {
-		add("state", s.Storage.EndpointURL, "storage", "endpoint_url")
-		add("state", s.Storage.PublicEndpointURL, "storage", "public_endpoint_url")
+		add("storage", s.Storage.EndpointURL, "storage", "endpoint_url")
+		add("storage", s.Storage.PublicEndpointURL, "storage", "public_endpoint_url")
 	}
 
 	// The tuning knobs are pointers: nil means the forms never asked, so the
