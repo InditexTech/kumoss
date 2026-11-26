@@ -61,9 +61,9 @@ builds a fresh object graph per run.
 |Composes domain services
 
 |Domain layer (`core/src/domains`)
-|Entities, value objects and ports, and the services holding the behaviour:
+|Entities, value objects and ports, and the services holding the behavior:
 the agent loop, session and user management, validation, targeting, the
-compliance audit, artifact storage, persistence and tracing.
+compliance check, artifact storage, persistence and tracing.
 |Depends only on interfaces
 
 |Infrastructure layer (`core/src/infrastructure`)
@@ -92,14 +92,14 @@ deployments are expected to supply their own.
 |Resolves what the user types in the wizard's repository step (a
 repository name or URL) to the clone URL. Bundled and enabled by
 default: a bare name is appended to `MAPPING_PREFIX_IDENTIFIER`; replace
-it with your own catalogue-backed implementation if you have one.
+it with your own catalog-backed implementation if you have one.
 Disabled, the core treats the input as the repository URL (identity
 passthrough).
 |Called by the core from `POST /api/v1/repository/parse`
 
 |notifications service
 |Channel-agnostic notify contract; the reference implementation posts
-colour-coded Slack webhook messages.
+color-coded Slack webhook messages.
 |Fire-and-forget from the core on compliance, apply and pipeline failures;
 request/response for the support requests the header's chat bubble sends
 
@@ -176,6 +176,9 @@ Enterprise Server and self-managed GitLab are not supported today.
 * xref:main:architecture/end-to-end-flow.adoc[End-to-end flow] — the ten
   phases of one generate session, from the request to the applied
   infrastructure, and the mechanisms behind them.
+* xref:main:architecture/compliance.adoc[How compliance works] — the three
+  checks of a generate round, which are deterministic, and how their
+  results become a session lock.
 * xref:main:architecture/data-and-state.adoc[Data and state] — what
   core-db, Langfuse's stores, Redis, object storage, and the `workspaces` volume
   each hold.

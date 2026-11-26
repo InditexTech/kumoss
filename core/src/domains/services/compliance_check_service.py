@@ -7,6 +7,7 @@ from typing import Any
 from src.domains.dto import (
     ComplianceCheckReport,
     ComplianceViolation,
+    IntentCheck,
     PolicyDecision,
     ToolResultDTO,
 )
@@ -17,16 +18,16 @@ from src.domains.services.artifact_storage_service import ArtifactStorageService
 from src.domains.services.llm_service import LLMOrchestrationService
 from src.domains.services.template_service import TemplateOrchestrationService
 from src.domains.services.tool_service import ToolOrchestrationService
-from src.domains.value_objects import Conventions
 from src.shared.config import system_config
 from src.shared.constants import ContentType, PromptsLibrary, ToolContext
 from src.shared.logger import logging
 
 
 class ComplianceCheckService:
-    """Audits a generate round's final plan twice: deterministically with
-    the policy engine, then with the LLM against the conventions. Both run
-    under ``enable_compliance_checker`` and end up in one report."""
+    """Checks a generate round's final plan twice: deterministically with
+    the policy engine, then with the intent check (an LLM judging whether
+    the plan does what the session's requests ask, nothing more or less).
+    Both run under ``enable_compliance_checker`` and end up in one report."""
 
     # The finding that stands in for a policy that could not be evaluated.
     POLICY_UNAVAILABLE_RULE: str = "policy_unavailable"
@@ -48,11 +49,10 @@ class ComplianceCheckService:
     async def check(
         self,
         ctx: SessionContext,
-        conventions: Conventions,
         plan: str,
         plan_json: dict[str, Any] | None,
     ) -> ComplianceCheckReport:
-        """``plan`` is the plan text the LLM audits; ``plan_json`` the same
+        """``plan`` is the plan text the intent check reads; ``plan_json`` the same
         plan's ``show -json``, which the policy evaluates (None when it
         could not be read, which blocks like any policy failure)."""
         if not system_config.orchestration.enable_compliance_checker:
@@ -62,22 +62,19 @@ class ComplianceCheckService:
 
         requests = "\n".join(f"- {q}" for q in ctx.history.user_queries)
         query = (
-            f"The user requests:\n{requests}\n\nThe Terraform plan to audit:\n{plan}"
+            f"The user requests:\n{requests}\n\nThe Terraform plan to check:\n{plan}"
         )
 
         result: ToolResultDTO = await self.__llm_svc.generate(
             query=query,
             tools=self.__tool_svc.get_available_tools(
-                contexts=[ToolContext.COMPLIANCE_CHECK]
+                contexts=[ToolContext.INTENT_CHECK]
             ),
-            prompt=await self.__template_svc.render(
-                PromptsLibrary.COMPLIANCE_CHECKER,
-                resources=conventions.templates,
-                abbreviations=conventions.abbreviations,
-            ),
+            prompt=await self.__template_svc.render(PromptsLibrary.INTENT_CHECKER),
         )
 
-        report = ComplianceCheckReport.merge(result.result, policy)
+        intent: IntentCheck = result.result
+        report = ComplianceCheckReport.merge(intent, policy)
         _ = await self.__artifact_svc.store_compliance_check(
             session_id=ctx.id,
             round_id=ctx.round_id,

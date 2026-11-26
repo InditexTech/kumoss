@@ -33,7 +33,7 @@ from src.infrastructure.exceptions import PromptSeedLoadError
 # "general", or a Terraform provider type name (azurerm, google, aws...): the
 # provider whose sessions use the prompt. Any provider may have prompts.
 Scope = str
-PromptType = Literal["guidelines", "resources", "compliance", "policies"]
+PromptType = Literal["guidelines", "resources", "compliance", "intent", "policies"]
 
 _SCOPE_RE: re.Pattern[str] = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 # The name part of the prompt names the fetcher asks Langfuse for.
@@ -67,6 +67,7 @@ class SeedLoader:
         "guidelines": ".yaml",
         "resources": ".yaml",
         "compliance": ".yaml",
+        "intent": ".yaml",
         "policies": ".rego",
     }
 

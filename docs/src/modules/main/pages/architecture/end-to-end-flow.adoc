@@ -28,9 +28,10 @@ when the module needed them, the answers to its inputs (`manifest`) to
 `POST /api/v1/iac/generate` with a bearer token. The root module path
 is one of the Terraform roots `POST /api/v1/repository/parse` found in
 a metadata-only clone (a `git ls-tree` heuristic over `.tf`
-directories). Before posting, the wizard asked
-`POST /api/v1/manifest/probe` what the module needs and, only when
-something was missing, showed the inputs form. No provider or scope is
+directories), which also echoed what the user typed as
+`project_identifier`; the wizard sends that back too. Before posting,
+the wizard asked `POST /api/v1/manifest/probe` what the module needs
+and, only when something was missing, showed the inputs form. No provider or scope is
 sent: they come from the module itself. See
 xref:main:reference/root-module-manifest.adoc[Root module manifest].
 
@@ -51,8 +52,10 @@ username (the `<org>@` prefix of an Azure DevOps clone URL) but must not
 embed a password or token — also `422`, an empty `user:` password
 included. Then `git ls-remote` must succeed: unreachable, rejected or
 timed out → `400` with the fixed detail "Repository is not reachable or
-access was denied."; git's own output goes only to the core log. Either
-way no session is created.
+access was denied."; git's own output goes only to the core log. A
+`project_identifier` other than the URL itself must then resolve to it
+through the mapping sidecar, or the call is `422` (a mapper error such
+as `404` is passed through). Either way no session is created.
 
 |Session creation
 |A session row owned by the caller is created, or an existing one
@@ -199,7 +202,7 @@ existing plan safe: xref:#drift[Drift detection and remediation].
 == Phase 7: report and artifacts
 
 :diagram-name: flow-phases-7-8
-:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit
+:diagram-alt: Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check
 :diagram-verb: follow a message
 include::partial$interactive-diagram.adoc[]
 
@@ -224,7 +227,7 @@ are `reports/<report type>-<token>.json`, `plans/plan-<token>.txt`,
 Metadata goes to PostgreSQL; the UI receives presigned URLs.
 |===
 
-== Phase 8: compliance audit
+== Phase 8: compliance check
 
 [cols="1,3",options="header"]
 |===
@@ -242,22 +245,24 @@ evaluated yields a blocking `policy_unavailable` finding: the check
 fails closed. Contract:
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
-|Compliance Auditor
+|Intent check
 |Then a second,
-independent small-model agent reads the session's first request and the
+independent small-model agent reads every request of the session and the
 raw plan output — not the report JSON — alongside the
-`general/compliance/report` rules and the cloud guidelines. It has no
+`general/intent/rules` rules. It judges only whether the plan does what
+the requests ask (`scope_exceeded`, `scope_incomplete`), not the
+conventions. It has no
 repository tools and must answer through its only tool,
-`report_compliance_findings`: rule id, severity, resource, message,
+`report_intent_findings`: rule id, severity, resource, message,
 suggested fix. Both parts' findings, each tagged with its `source`
-(`opa` or `llm`), are merged into one report, stored like any other artifact, at
+(`opa` or `intent`), are merged into one report, stored like any other artifact, at
 `compliance/check-<token>.json` with a `compliance_checks` row holding
 the verdict, so the session detail and the portal can show them.
 
 |Verdict in code
-|The tool handler recomputes `passed` from the severities: any `error`
-or `critical` finding fails the audit regardless of the model's own
-claim. The merged report fails when either part has one.
+|The model reports findings only, never a verdict: the merged report
+computes `passed` from the severities, and fails when either part has
+an `error` or `critical` finding.
 
 |Lock or release, then pin
 |The handler first writes `is_blocked`, which decides whether apply and
@@ -356,7 +361,7 @@ its phases use.
 |===
 |Participant |Meaning
 
-|*User / reviewer* (grey)
+|*User / reviewer* (gray)
 |Human actor. Only a human starts a request, creates or merges a pull
 request, or applies.
 
@@ -373,7 +378,7 @@ decision happens here.
 |*LLM agents* (green)
 |Prompt-driven agent loops. Each message into this participant names the
 agent and its model role (`main` = `llm.model`, `small` =
-`llm.small_model`); see the xref:#agent-catalogue[agent catalogue].
+`llm.small_model`); see the xref:#agent-catalogue[agent catalog].
 
 |*core-db* (purple)
 |The PostgreSQL rows the gates read and write: the session, its status,
@@ -392,10 +397,10 @@ through the notifications sidecar, and the cloud platform.
 |===
 |Element |Meaning
 
-|Solid grey arrow (`default message`)
+|Solid gray arrow (`default message`)
 |A call or hand-over in the direction of the arrow.
 
-|Dashed grey arrow (`return`)
+|Dashed gray arrow (`return`)
 |A result flowing back: engine output, structured findings, an HTTP
 status, a message shown to the user.
 
@@ -438,7 +443,7 @@ operations per drift batch.
 |===
 
 [#agent-catalogue]
-== Agent catalogue
+== Agent catalog
 
 Every message into the agents lane is one of the agents below. Each is
 an orchestration loop rendered from a Jinja layout with
@@ -520,11 +525,11 @@ call `diff_history`)
 |`report_decomposed_task_operations`
 |Phase 6 and dedicated drift sessions, after the reconciliation filter
 
-|Compliance Auditor Agent
+|Intent Checker Agent
 |small
-|none besides its sentinel; input is the first request and the raw plan
-output
-|`report_compliance_findings`
+|none besides its sentinel; input is every request of the session and
+the raw plan output
+|`report_intent_findings`
 |Phase 8, generate rounds, when the checker is enabled
 
 |PR Title & Description Agent
@@ -561,7 +566,7 @@ the budget is spent on work rather than on repeats:
 
 [cols="1,3",options="header"]
 |===
-|Guard |Behaviour
+|Guard |Behavior
 
 |Last turn
 |The final turn of the budget offers only the sentinel tool, with a note
@@ -672,7 +677,7 @@ removed; in-flight guard released.
 |Outcome |Reached when |Side effects
 
 |*Validated, unlocked* — phase 8
-|The audit passed or the checker is off, and the report's impact banner is
+|The compliance check passed or the checker is off, and the report's impact banner is
 not `high` or `orchestration.block_on_high_impact` is off
 |`is_blocked = false`, plan pinned. Apply and pull-request merge are
 available.
@@ -772,7 +777,7 @@ Before rendering, the SPA fetches the only unauthenticated route,
 
 [cols="1,3",options="header"]
 |===
-|Mode |Behaviour
+|Mode |Behavior
 
 |*Disabled* — blank `oidc.issuer_url`, the checked-in default
 |The SPA mounts a dev provider, and the core resolves every request to a
@@ -872,7 +877,7 @@ splitting
 
 |`llm.small_model` (small)
 |Request filtering, prompt composition, status messages, pull-request text,
-the reconciliation filter, the drift exception filter, the compliance audit
+the reconciliation filter, the drift exception filter, the intent check
 |===
 
 === IaC and mapping sidecars
@@ -886,7 +891,7 @@ job — and does all the sequencing itself.
 
 [cols="1,3",options="header"]
 |===
-|Behaviour |Detail
+|Behavior |Detail
 
 |Three verbs over the plan artifact
 |`plan` runs `init → validate → plan -out` and returns a reference naming
@@ -908,14 +913,23 @@ adopted, never migrated.
 workspace contains: the `backend_override.tf` the core writes by default,
 since Kumoss-managed state is on as shipped, or the repository's own block
 if that is turned off.
+
+|The project travels as a header
+|A session whose first call carried a `project_identifier` sends it as
+the `Kumoss-Project` header on every IaC call, job polling included.
+An IaC service implementation may pick the command's credentials by
+it; the bundled sidecar ignores it. See
+xref:main:reference/api/iac.adoc#project[Project].
 |===
 
 The *mapping sidecar* translates what the user types in the wizard's
 repository step into a repository URL. `POST /api/v1/repository/parse`
 calls it before cloning and answers the resolved `repo_url`, which the
-wizard sends on every later call. The bundled implementation appends a
+wizard sends on every later call. A first IaC call that carries a
+`project_identifier` is resolved again, to check that it names the
+call's `repo_uri`. The bundled implementation appends a
 bare repository name to `MAPPING_PREFIX_IDENTIFIER` with a `.git`
-suffix and passes full `https://` URLs through; a catalogue-backed one
+suffix and passes full `https://` URLs through; a catalog-backed one
 can replace it. While it is disabled the core treats the input as the
 repository URL (identity passthrough). Contract 2.0.0 answers the
 repository only: providers and scopes come from the root module and
@@ -966,7 +980,7 @@ The loop has two entry points, differing in *what* they target and
 
 [cols="1,2,3",options="header"]
 |===
-|Entry point |Targets |Behaviour
+|Entry point |Targets |Behavior
 
 |*Pre-check inside every generate round*
 |The session's own validated targets
@@ -986,13 +1000,13 @@ filter.
 |Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
-lock, does not run the compliance audit and does not pin the workspace —
+lock, does not run the compliance check and does not pin the workspace —
 drift never pins — so an apply after a drift-only round fails until a
 generate round pins a plan.
 |===
 
 *How the DRIFT report is written.* The drift report is the one report the
-generator does not receive as a text to summarise: it reads the branch for
+generator does not receive as a text to summarize: it reads the branch for
 itself. The report service gives the drift report the workspace-inspection
 tool set instead of `web_search` and `terraform_docs`, and the drift branch of the report
 layout makes `diff_history` a required first call and the sole source of
@@ -1000,9 +1014,9 @@ truth for the remediation. That works because every reconciliation group
 commits and pushes inside the validation loop before the report runs, so
 the branch's committed diff against the default branch, plus untracked
 files, *is* the reconciliation; no remediated resource may be named that
-the diff does not show. The drift handler therefore no longer serialises
+the diff does not show. The drift handler therefore no longer serializes
 the session history into the report query and passes only what the
-remediation left out, in two labelled blocks that map one-to-one onto
+remediation left out, in two labeled blocks that map one-to-one onto
 optional report fields:
 
 [cols="2,2,3,2",options="header"]
@@ -1061,23 +1075,27 @@ final plan's `show -json`: `general/policies/compliance`, plus the
 declares that has one. `deny` findings have severity
 `error` or `critical`, `warn` findings `warning`. A policy that cannot be
 evaluated — fetch failure, broken policy, malformed decision, timeout —
-adds a blocking `policy_unavailable` finding instead, and the LLM audit
-still runs. With the checker on, the core refuses to start if the
+adds a blocking `policy_unavailable` finding instead, and the intent
+check still runs. With the checker on, the core refuses to start if the
 general policy or the policy of a provider that ships a seed fails
 against an empty plan. Contract:
 xref:main:reference/compliance-policy.adoc[Compliance policy].
 
-|How it audits
-|Then a second, independent small-model agent loop. Its query is the session's
-first user request plus the raw plan output, rendered into the local
-compliance-checker layout with the `general/compliance/report` rules and the
-cloud guidelines from Langfuse. It has no repository access and one tool, the
-sentinel `report_compliance_findings`, whose arguments — `rule_id`,
-`severity`, `resource`, `message` and `suggested_fix` per violation — are
-parsed into a typed report. The rules are applied by the model; only the
-verdict is computed in code. The policy decision and the audit are then
-merged into one report: policy findings first (`source: "opa"`), then the
-model's (`source: "llm"`), with `policy_revisions` listing the policy
+|Intent check
+|Then a second, independent small-model agent loop. Its query is every user
+request of the session plus the raw plan output, against the local
+intent-checker layout with the `general/intent/rules` rules from Langfuse.
+It judges only whether the plan does what the requests ask
+(`scope_exceeded`, `scope_incomplete`); it receives no conventions, so
+nothing audits the plan against them beyond the policies. It has no
+repository access and one tool, the sentinel `report_intent_findings`, whose
+arguments — `rule_id`, `severity`, `resource`, `message` and
+`suggested_fix` per violation — are parsed into a typed intent check with no
+verdict of its own. The rules are applied by the model; only the verdict is
+computed in code. The policy decision and the intent check are then merged
+into one report: policy findings first (`source: "opa"`), then the model's
+(`source: "intent"`; stored reports with the former `"llm"` load as
+`"intent"`), with `policy_revisions` listing the policy
 versions that ran as `"<prompt name>@<version>"`, the general policy
 first, for example `["general/policies/compliance@3",
 "aws/policies/compliance@1"]`.
@@ -1090,18 +1108,17 @@ first, for example `["general/policies/compliance@3",
 when the session is locked, in the blocked pull-request view.
 
 |Verdict in code
-|The tool handler recomputes `passed` from the reported severities: any
-`error` or `critical` violation fails the check regardless of the model's
-own claim. The merged report fails if either source has such a
-violation.
+|The model reports findings only: the merged report computes `passed`
+from the severities, and fails if either source has an `error` or
+`critical` violation.
 
 |Effect
-|Every generate round writes `is_blocked = (audit failed) or (high
+|Every generate round writes `is_blocked = (check failed) or (high
 impact)`, high impact meaning `orchestration.block_on_high_impact` is on and
 the report's banner is `high`. Failure sends `iac.compliance.failed`, or
 `iac.impact.high`, to the notifications sidecar. Apply and pull-request
 merge refuse blocked sessions with `409`; pull-request *creation* is not
-lock-checked, and the audited code is already on the working branch, so the
+lock-checked, and the checked code is already on the working branch, so the
 lock guards the apply boundary specifically. A later passing generate round
 with a non-high impact clears the lock, drift rounds leave it untouched, and
 a panel `editor` can toggle it from the admin panel.

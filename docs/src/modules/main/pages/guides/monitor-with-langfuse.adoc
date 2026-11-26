@@ -172,7 +172,7 @@ layer; each produces one observation type.
 * *Name:* `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`,
   `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain -
   REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain -
-  COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain -
+  INTENT_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain -
   TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain -
   FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
 * *Type:* `AGENT`.
@@ -360,5 +360,5 @@ and artifacts.
 *Traces from a different environment are mixed in.* The environment
 comes from `environment` in the core's `config.yaml`; restart the core
 after changing it. Prompt labels follow the same value, so also read
-xref:main:guides/customize-prompts.adoc[Customize prompts] before
-changing it on an existing deployment.
+xref:main:guides/customize-prompts.adoc#session-stops[A session stops
+without an error] before changing it on an existing deployment.

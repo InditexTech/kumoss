@@ -2,21 +2,22 @@
 #
 # SPDX-License-Identifier: Apache-2.0
 
-description: Business rules a generated report must satisfy; violations block the operation.
+description: Intent rules the plan must satisfy against the session's requests; an error-severity violation blocks the operation.
 body: |
-  # Report Compliance Rules
+  # Intent Rules
 
-  Business rules the reported operation must satisfy. Each rule declares the
-  `rule_id` to use when reporting a violation and the severity it carries.
+  Rules on whether the plan does what the user's requests ask. Each rule
+  declares the `rule_id` to use when reporting a violation and the severity
+  it carries.
 
-  The unit of audit is the individual change, not the resource. A resource
+  The unit of check is the individual change, not the resource. A resource
   updated in-place (`~`) is a bundle of attribute-level changes; each `+`,
   `-` and `~` line inside it is audited on its own. "Unchanged attributes
   hidden" lines are not changes and need no justification.
 
   ## scope_exceeded (severity: error)
   Every individual change in the plan must be traceable to the user's
-  request: either explicitly asked for, or a indirect change or dependency
+  request: either explicitly asked for, or an indirect change or dependency
   required for the request. Any other change is a violation, reported per
   resource with the offending attribute or block in the message.
 

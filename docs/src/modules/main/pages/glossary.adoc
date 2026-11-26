@@ -5,14 +5,20 @@ This glossary lists the terms, abbreviations, and phrases used across the
 Kumoss documentation, together with their definitions. Use this terminology
 for clarity and consistency when discussing Kumoss.
 
-== Compliance audit
+== Compliance check
 
-include::partial$glossary/compliance-audit.adoc[]
+include::partial$glossary/compliance-check.adoc[]
 
-See xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
-session] and
-xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
-locks].
+See xref:main:architecture/compliance.adoc[How compliance works] and
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session].
+
+== Compliance policy
+
+include::partial$glossary/compliance-policy.adoc[]
+
+See xref:main:guides/write-a-policy-rule.adoc[Write a policy rule] and
+xref:main:reference/compliance-policy.adoc[Compliance policy].
 
 == Drift
 
@@ -37,6 +43,21 @@ See xref:main:guides/follow-a-session.adoc[Follow a session].
 include::partial$glossary/iac-engine.adoc[]
 
 See xref:main:architecture/deployment-view.adoc[Deployment view].
+
+== Intent check
+
+include::partial$glossary/intent-check.adoc[]
+
+See xref:main:architecture/compliance.adoc[How compliance works] and
+xref:main:guides/resolve-a-locked-session.adoc#intent-check[Resolve a
+locked session].
+
+== Langfuse
+
+include::partial$glossary/langfuse.adoc[]
+
+See xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse]
+and xref:main:guides/customize-prompts.adoc[Customize prompts].
 
 == Manifest
 
@@ -74,6 +95,20 @@ include::partial$glossary/pinned-plan.adoc[]
 
 See xref:main:guides/merge-and-apply.adoc[Merge and apply].
 
+== Project identifier
+
+include::partial$glossary/project-identifier.adoc[]
+
+See xref:main:reference/root-module-manifest.adoc#project-identifier[Root
+module manifest].
+
+== Prompt
+
+include::partial$glossary/prompt.adoc[]
+
+See xref:main:guides/customize-prompts.adoc[Customize prompts] and
+xref:main:reference/prompt-registry.adoc[Prompt registry].
+
 == Report
 
 include::partial$glossary/report.adoc[]
@@ -110,8 +145,9 @@ See xref:main:guides/follow-a-session.adoc[Follow a session].
 
 include::partial$glossary/session-lock.adoc[]
 
-See xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
-session] and
+See xref:main:architecture/compliance.adoc[How compliance works],
+xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session], and
 xref:main:guides/administer-users-and-locks.adoc#session-locks[Session
 locks].
 

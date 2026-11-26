@@ -60,7 +60,7 @@ request.
 
 |1:10
 |**A plan that passes.** Kumoss runs a real OpenTofu or Terraform plan,
-feeds any errors back to the agent, and audits the result for
+feeds any errors back to the agent, and checks the result for
 compliance.
 |xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
 

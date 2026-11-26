@@ -3,13 +3,8 @@
 
 Once you have reviewed a session's results, this guide takes you from the
 session branch to applied infrastructure: you open the pull request, get
-it reviewed, merge it, and apply exactly the plan you reviewed.
-
-[#session-locked]
-NOTE: If the *Deployment Blocked* screen opens when you continue to the
-pull request, the session is locked and merge and apply are refused. See
-xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked session]
-for why, and for how to get it unlocked.
+it reviewed, merge it, and apply exactly the plan you reviewed. If a
+*Deployment Blocked* screen opens on the way, see <<session-locked>>.
 
 == Prerequisites
 
@@ -50,6 +45,19 @@ NOTE: In drift-remediation and import sessions the button reads *Approve
 and Merge PR* and only merges: the merge is the remediation, an import is
 already in the state, and no apply follows. See
 xref:main:reference/operating-modes.adoc#compare-modes[Comparing the operating modes].
+
+[#session-locked]
+== If the session is locked
+
+If the *Deployment Blocked* screen opens instead of the merge controls,
+the session is locked: you can still create the pull request, but merge
+and apply are refused. Expand *Why* to see what locked it.
+
+.The Deployment Blocked screen with *Why* expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the intent check
+image::deployment-blocked.png[Deployment Blocked screen listing the high-impact reason and two blocking compliance findings, with Back to Report, Contact Team, and Check again buttons,width=560,link=self]
+
+See xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+session] for what each cause means and how to get the session unlocked.
 
 == Verify
 

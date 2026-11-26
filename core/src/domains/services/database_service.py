@@ -153,8 +153,8 @@ def _k_context(session_id: UUID) -> str:
     # Versioned so entries in an older shape are rebuilt from the database:
     # v2 renamed "iac_path" to "root_module_path"; v3 replaced the single
     # provider and scope with the list of the module's providers; v4 added
-    # the user queries.
-    return f"{_CACHE_NS}:session:{session_id}:ctx:v4"
+    # the user queries; v5 the project identifier.
+    return f"{_CACHE_NS}:session:{session_id}:ctx:v5"
 
 
 def _k_last_status(session_id: UUID) -> str:
@@ -192,6 +192,7 @@ def _serialize_ctx(ctx: SessionContext) -> dict[str, Any]:
         "operation_type": ctx.operation.value,
         "branch_name": ctx.branch_name,
         "root_module_path": ctx.root_module_path,
+        "project_identifier": ctx.project_identifier,
         "history": ctx.history.serialize(),
         "chat_history": ctx.chat_history.serialize(),
         "user_queries": list(ctx.history.user_queries),
@@ -211,6 +212,7 @@ def _deserialize_ctx(data: dict[str, Any]) -> SessionContext:
         history=data["history"],
         chat_history=data["chat_history"],
         user_queries=data["user_queries"],
+        project_identifier=data["project_identifier"],
     )
 
 
@@ -363,12 +365,17 @@ class DatabaseService:
     async def __workspace_facts(session_id: UUID) -> WorkspaceFacts | None:
         """Write-once workspace fields for a session."""
 
-        async def _load() -> dict[str, str] | None:
+        async def _load() -> dict[str, str | None] | None:
             sid = await DatabaseService.__map_session_id(session_id)
             ws: Workspace | None = await db.get_by(Workspace, session_id=sid)
             if ws is None:
                 return None
-            return {"uri": ws.uri, "branch": ws.branch, "root_path": ws.root_path}
+            return {
+                "uri": ws.uri,
+                "branch": ws.branch,
+                "root_path": ws.root_path,
+                "project_identifier": ws.project_identifier,
+            }
 
         data = await redis_client.get_or_set(
             _k_workspace(session_id), _ttl(_TTL_FACTS), _load
@@ -533,6 +540,7 @@ class DatabaseService:
         branch_name: str,
         query: str,
         root_module_path: str | None = None,
+        project_identifier: str | None = None,
     ) -> Session:
         session: Session = await db.create(
             Session,
@@ -546,6 +554,7 @@ class DatabaseService:
             uri=repo_uri,
             branch=branch_name,
             root_path=root_module_path,
+            project_identifier=project_identifier,
         )
         _ = await db.create(History, session_id=session.id, first_query=query)
         round_id = await DatabaseService.create_round(session_id, query)
@@ -566,6 +575,7 @@ class DatabaseService:
                         "uri": repo_uri,
                         "branch": branch_name,
                         "root_path": root_module_path,
+                        "project_identifier": project_identifier,
                     },
                     _ttl(_TTL_FACTS),
                 ),
@@ -615,6 +625,7 @@ class DatabaseService:
                 operation_type=session.operation,
                 branch_name=workspace.branch,
                 root_module_path=workspace.root_path,
+                project_identifier=workspace.project_identifier,
                 history=history["payload"],
                 chat_history=history["chat_payload"],
                 user_queries=history["user_queries"],

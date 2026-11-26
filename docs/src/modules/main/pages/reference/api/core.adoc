@@ -208,11 +208,27 @@ is still accepted as a deprecated alias; prefer `root_module_path`.
 session saves them to the module's manifest before running. First call
 only.
 
+|`project_identifier`
+|optional
+|What the user named the repository before it was resolved, for
+example `sistemas-kumoss-rsg-esc1-dev`: the `project_identifier` that
+`POST /api/v1/repository/parse` returned. 1 to 1024 characters, trimmed;
+dropped when empty or equal to `repo_uri`, and rejected when it embeds
+a password or token, since it is committed with the manifest. Before
+any session is created the core resolves it through the
+xref:main:reference/api/mapping.adoc[mapping sidecar] and rejects it
+with `422` unless it resolves to `repo_uri`. The session records it,
+writes it to the module's
+xref:main:reference/root-module-manifest.adoc[manifest] and sends it
+to the IaC sidecar as the
+xref:main:reference/api/iac.adoc#project[`Kumoss-Project` header] on
+every command, apply included. First call only.
+
 |`session_id`
 |omit
 |On an iteration call, the session to continue. Only `q` (and
-`is_partial`) may accompany it; `root_module_path` and `manifest` are
-rejected.
+`is_partial`) may accompany it; `root_module_path`,
+`project_identifier` and `manifest` are rejected.
 
 |`is_partial`
 |optional
@@ -242,10 +258,18 @@ Failures on these three routes:
   owner of the session named by `session_id`, or, on an iteration call
   or `apply`, the authorization sidecar denied one of the session's
   provider scopes.
-* `404` — an iteration call referenced an unknown session.
+* `404` — an iteration call referenced an unknown session, or the
+  mapping sidecar cannot resolve a first call's `project_identifier`
+  (with the mapper's own explanation).
 * `409` — `apply` only, and only when the session's plan is locked:
   `Session <id> is blocked; apply is not allowed.`
-* `422` — the body failed the validation rules above.
+* `422` — the body failed the validation rules above, or a first
+  call's `project_identifier` does not resolve to its `repo_uri`. With
+  `services.mapping` disabled the identifier resolves to itself, so
+  any identifier other than `repo_uri` is `422`.
+* `502`, `504` — the mapping sidecar failed or timed out while
+  checking `project_identifier`, as for
+  `POST /api/v1/repository/parse`.
 
 A `202` is a promise that a round was scheduled, not that it
 succeeded. If the session is already running, or already finished, the
@@ -377,13 +401,18 @@ as the repository is entered.
 ----
 {
   "repo_url": "https://github.com/MySuperOrg/my-iac.git",
+  "project_identifier": "my-iac",
   "roots": [".", "environments/dev", "environments/prod"]
 }
 ----
 
-Later calls (`manifest/probe`, `generate`, `drift`, `import`) must send
-the returned `repo_url`: they accept `https://` URIs only and do not
-resolve names. While `services.mapping` is disabled the input is used
+`project_identifier` is the input, trimmed and echoed. Later calls
+(`manifest/probe`, `generate`, `drift`, `import`) must send the
+returned `repo_url` as `repo_uri`: they accept `https://` URIs only and
+do not resolve names. The session's first call may also send
+`project_identifier` back, so the session and the module's manifest
+record what the user named the repository; the wizard does. While
+`services.mapping` is disabled the input is used
 as is, so it must already be a URI.
 
 An input the mapper cannot resolve is `404` with the mapper's own
@@ -512,8 +541,8 @@ aggregate: the summary fields and one entry in
 `rounds` per generation round. Each round carries its own statuses,
 its `reports`, `compliance_checks`, `plans`, and `code_changes`
 artifacts as client-fetchable URLs, oldest first, and its
-`pull_requests`. Each `compliance_checks` entry also carries the audit's
-`passed` verdict; the list is empty when the round was not audited.
+`pull_requests`. Each `compliance_checks` entry also carries the check's
+`passed` verdict; the list is empty when the round was not checked.
 
 Pass `include_chat_history=true` to also populate `chat_history` with
 the session's conversation: one `{"user": …, "assistant": …}` turn per

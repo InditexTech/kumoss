@@ -1,0 +1,5 @@
+The LLM half of the compliance check: an independent agent that reads the
+session's requests and the plan and reports only `scope_exceeded` (a change
+nobody asked for) and `scope_incomplete` (a part of a request left out), with
+the rules in the `general/intent/rules` prompt. It does not check the
+organization's conventions.

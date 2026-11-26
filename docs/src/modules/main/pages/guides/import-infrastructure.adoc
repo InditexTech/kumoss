@@ -132,10 +132,10 @@ fails.
 
 *Plan pinned, apply, pull requests, compliance, locks.* No plan is pinned
 and no apply follows. You can create a pull request from the branch; in
-the web application the merge button is labelled for merging only, and
+the web application the merge button is labeled for merging only, and
 merging ends the session with "Pull Request merged. The imported
 resources are now managed from your repository." Import rounds run no
-compliance audit and never set the lock.
+compliance check and never set the lock.
 
 *Example.* "Import the storage account `stappdev001` and the key vault
 `kv-app-dev`." Kumoss finds both among the unmanaged resources in the

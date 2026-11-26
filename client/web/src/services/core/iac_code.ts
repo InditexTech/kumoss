@@ -39,6 +39,8 @@ export interface ParseRepositoryResponse {
   roots: string[];
   /** The clone URL the input resolved to; use it for every later call. */
   repo_url: string;
+  /** The input, echoed: send it back on the session's first call. */
+  project_identifier: string;
 }
 
 /**

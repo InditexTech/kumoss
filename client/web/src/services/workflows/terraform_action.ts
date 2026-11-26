@@ -33,6 +33,8 @@ export interface ModeActionParams {
   query: string;
   mode: Mode;
   repoUri?: string;
+  /** First call only: what the user typed for the repository. */
+  projectIdentifier?: string;
   rootModulePath?: string;
   /**
    * First call only: answers for the root module's missing inputs,
@@ -85,6 +87,7 @@ export async function runTerraformActionWorkflow(
         repo_uri: params.repoUri,
         q: params.query,
         root_module_path: params.rootModulePath ?? null,
+        project_identifier: params.projectIdentifier || null,
         ...(params.manifest ? { manifest: params.manifest } : {}),
       };
 

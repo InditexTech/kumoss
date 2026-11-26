@@ -171,6 +171,8 @@ def reconcile_manifest(
     var_files: Sequence[str] | None,
     stored_secrets: Mapping[str, JsonValue],
     scopes: Mapping[str, str] | None = None,
+    *,
+    module: RootModuleRef,
 ) -> tuple[Manifest, dict[str, JsonValue]]:
     """The manifest and secret values that result from applying ``answers``.
 
@@ -179,7 +181,8 @@ def reconcile_manifest(
     move to the secrets, and each answer replaces its variable's binding.
     ``var_files`` None keeps the current selection. ``scopes`` answer the
     scope id of scoped providers by type; scopes of providers the module no
-    longer uses are dropped.
+    longer uses are dropped. The module's project identifier is recorded
+    as it is now, whatever the manifest had.
 
     Secret values are never pruned: the store is shared by every branch
     of the repository, and a value this branch no longer binds may still
@@ -245,6 +248,7 @@ def reconcile_manifest(
         var_files=_select_var_files(resolution, var_files),
         variables=tuple(bindings[n] for n in sorted(bindings)),
         scopes=merged_scopes,
+        project_identifier=module.project_identifier,
     )
 
     check = resolve_manifest(requirements, manifest, stored_secrets=secrets.keys())
@@ -277,9 +281,10 @@ class ManifestService:
     ) -> ManifestResolution:
         """Resolve, and save the manifest whenever that needs no answer from the user.
 
-        Covers a first setup with nothing to ask and drift such as a
+        Covers a first setup with nothing to ask, drift such as a
         provider bump, a removed variable or a variable newly declared
-        sensitive. The returned resolution ``needs_input`` otherwise.
+        sensitive, and a new project identifier for the module. The
+        returned resolution ``needs_input`` otherwise.
         ``authorize`` sees the session's provider/scope pairs before
         anything is written, and stops the setup by raising.
         """
@@ -290,7 +295,11 @@ class ManifestService:
         )
         if resolution.needs_input:
             return resolution
-        if resolution.status is ManifestStatus.UP_TO_DATE:
+        if (
+            resolution.status is ManifestStatus.UP_TO_DATE
+            and manifest is not None
+            and manifest.project_identifier == module.project_identifier
+        ):
             if authorize is not None:
                 await authorize(session_providers(requirements, manifest))
             return resolution
@@ -378,7 +387,7 @@ class ManifestService:
         authorize: Authorize | None,
     ) -> ManifestResolution:
         manifest, secrets = reconcile_manifest(
-            resolution, answers, var_files, stored, scopes
+            resolution, answers, var_files, stored, scopes, module=module
         )
         if authorize is not None:
             await authorize(session_providers(resolution.requirements, manifest))

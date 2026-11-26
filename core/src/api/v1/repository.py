@@ -121,7 +121,8 @@ async def create_pr(
         "repository name), clones the repository and returns the resolved "
         "`repo_url` with the Terraform root-module directories found, as "
         "POSIX paths relative to the repo root. Later calls must use the "
-        "returned `repo_url`."
+        "returned `repo_url`, and pass `project_identifier` (the input, "
+        "echoed) back on a session's first call so the manifest records it."
     ),
     responses={
         400: {
@@ -178,6 +179,10 @@ async def parse_repository(
     except ExceptionHandler as e:
         raise HTTPException(status_code=e.error_code, detail=e.message)
     return JSONResponse(
-        content={"repo_url": repo_url, "roots": roots},
+        content={
+            "repo_url": repo_url,
+            "project_identifier": identifier,
+            "roots": roots,
+        },
         status_code=200,
     )

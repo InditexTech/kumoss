@@ -1,0 +1,6 @@
+The deterministic part of the compliance check: Rego policies, stored as
+the Langfuse prompts `general/policies/compliance` and
+`<provider>/policies/compliance`, that Open Policy Agent evaluates
+against the plan of every generate round, the general policy always and
+a provider's when the root module declares that provider. The same plan
+always gets the same verdict, and a `deny` finding locks the session.

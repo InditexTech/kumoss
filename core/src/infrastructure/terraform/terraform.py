@@ -125,6 +125,9 @@ OperationRequest = (
 class Terraform(ITerraform):
     """Plan, read drift and apply by orchestrating raw terraform jobs on the IaC service."""
 
+    # Names the session's project on every IaC service call.
+    PROJECT_HEADER = "Kumoss-Project"
+
     def __init__(
         self,
         workspace_path: Path,
@@ -132,11 +135,17 @@ class Terraform(ITerraform):
         scopes: Sequence[ProviderScope],
         backend: TerraformBackend,
         inputs: TerraformInputs | None = None,
+        project_identifier: str | None = None,
     ):
         """``inputs`` are the root module's configured variables, passed to
         the commands that evaluate them (``plan``, ``import``). ``scopes`` are
         the session's providers; those with a scope id point every command
-        at it (see ``SCOPE_BINDINGS``)."""
+        at it (see ``SCOPE_BINDINGS``). ``project_identifier``, when set, is
+        sent with every call as the ``Kumoss-Project`` header: the IaC
+        service may pick the credentials commands run with by it."""
+        self.__headers = (
+            {self.PROJECT_HEADER: project_identifier} if project_identifier else {}
+        )
         self.__workspace_path = workspace_path
         self.__inputs = inputs
         self.__git = git
@@ -156,11 +165,7 @@ class Terraform(ITerraform):
     @override
     async def plan(self, targets: list[str]) -> TerraformPlanDTO:
         cfg = system_config.services.iac
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(cfg.timeout),
-        )
+        client = self.__client(cfg)
         try:
             async with client as c:
                 init_res = await self.__ensure_init(c, cfg)
@@ -258,11 +263,7 @@ class Terraform(ITerraform):
             plan = plan_res.plan
 
         cfg = system_config.services.iac
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(cfg.timeout),
-        )
+        client = self.__client(cfg)
         try:
             async with client as c:
                 init_res = await self.__ensure_init(c, cfg)
@@ -320,11 +321,7 @@ class Terraform(ITerraform):
     @override
     async def apply(self) -> TerraformApplyDTO:
         cfg = system_config.services.iac
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(cfg.timeout),
-        )
+        client = self.__client(cfg)
         try:
             async with client as c:
                 apply_res = await self.__run_op(
@@ -352,6 +349,15 @@ class Terraform(ITerraform):
             ok=True,
             stdout=apply_res.stdout,
             feedback="",
+        )
+
+    def __client(self, cfg: IacServiceConfig) -> AuthenticatedClient:
+        # A copy: the client writes its Authorization header into the dict.
+        return AuthenticatedClient(
+            base_url=cfg.endpoint,
+            token=cfg.token,
+            timeout=httpx.Timeout(cfg.timeout),
+            headers=dict(self.__headers),
         )
 
     async def __ensure_init(
@@ -416,11 +422,7 @@ class Terraform(ITerraform):
     @override
     async def state_resource_ids(self) -> TerraformDiscoveryDTO:
         cfg = system_config.services.iac
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(cfg.timeout),
-        )
+        client = self.__client(cfg)
         workspace = str(self.__workspace_path)
         try:
             async with client as c:
@@ -466,11 +468,7 @@ class Terraform(ITerraform):
     @override
     async def scope_resource_ids(self, scope: ProviderScope) -> TerraformDiscoveryDTO:
         cfg = system_config.services.iac
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(cfg.timeout),
-        )
+        client = self.__client(cfg)
         workspace = str(self.__workspace_path)
         try:
             async with client as c:
@@ -523,11 +521,7 @@ class Terraform(ITerraform):
         resource_id: str,
     ) -> TerraformImportResourceDTO:
         cfg = system_config.services.iac
-        client = AuthenticatedClient(
-            base_url=cfg.endpoint,
-            token=cfg.token,
-            timeout=httpx.Timeout(cfg.timeout),
-        )
+        client = self.__client(cfg)
         workspace = str(self.__workspace_path)
         try:
             async with client as c:

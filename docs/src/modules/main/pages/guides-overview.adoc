@@ -1,14 +1,14 @@
 = Guides
-:description: Task guides for using, operating, and developing Kumoss, grouped by what you want to do.
+:description: Task guides for using, reviewing, customizing, deploying, and developing Kumoss, grouped by what you want to do.
 
 These guides show how to accomplish specific tasks with Kumoss. Pick the
-group that matches your role, then the guide that states your goal. For
-what each operating mode does today, side by side, see
-xref:main:reference/operating-modes.adoc[Operating modes]. To watch the
-main guides play out in one real session, see
+group that matches your role, then the guide that states your goal. To
+watch the main guides play out in one real session, see
 xref:main:see-it-in-action.adoc[See Kumoss in action].
 
 == Use Kumoss
+
+For developers who ask Kumoss for infrastructure changes.
 
 [cards,columns="1 s:2 m:3"]
 ====
@@ -17,13 +17,8 @@ xref:main:see-it-in-action.adoc[See Kumoss in action].
 Open a session and phrase a request the filter accepts.
 
 [card]
-.xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
-Turn a request into validated Terraform code, reviewed as a plan and
-report before you apply it.
-
-[card]
 .xref:main:guides/follow-a-session.adoc[Follow a session]
-Track progress and read the plan, code, and report.
+Track progress and read the report, plan, and code.
 
 [card]
 .xref:main:guides/merge-and-apply.adoc[Merge and apply]
@@ -32,6 +27,20 @@ Open, merge, and apply the pull request of a session.
 [card]
 .xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked session]
 Find out why a session is locked and get it unlocked.
+====
+
+== Operating modes
+
+What each kind of session does, from the request to the merge. For the
+three side by side, see
+xref:main:reference/operating-modes.adoc[Operating modes].
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:guides/generate-infrastructure.adoc[Generate infrastructure]
+Turn a request into validated Terraform code, reviewed as a plan and
+report before you apply it.
 
 [card]
 .xref:main:guides/remediate-drift.adoc[Remediate drift]
@@ -44,37 +53,41 @@ Bring existing, unmanaged cloud resources under Terraform management,
 for a specific set of resources or across a whole scope.
 ====
 
-== Operate Kumoss
+== Review and administer
+
+For reviewers and administrators with a panel role.
 
 [cards,columns="1 s:2 m:3"]
 ====
 [card]
-.xref:main:guides/enable-authentication.adoc[Enable authentication]
-Connect an OIDC identity provider and grant the first administrator
-access.
-
-[card]
 .xref:main:guides/administer-users-and-locks.adoc[Administer users and locks]
 Review any user's sessions, and manage session locks and roles from the
 admin panel.
+====
 
-[card]
-.xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse]
-Read Kumoss's traces in Langfuse, and know what a trace contains and
-omits.
+== Customize
 
+For platform and security teams adapting Kumoss to their standards.
+
+[cards,columns="1 s:2 m:3"]
+====
 [card]
 .xref:main:guides/customize-prompts.adoc[Customize prompts]
-Manage the prompt registry that encodes your conventions and compliance
-rules.
+Adapt Kumoss to your organization's standards by editing its prompts in
+Langfuse.
 
 [card]
-.xref:main:guides/configure-state-backends.adoc[Configure state backends]
-Choose who owns Terraform and OpenTofu state:
-xref:main:guides/state-backends/repository-declared.adoc[the repository],
-xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss], or
-xref:main:guides/state-backends/sidecar-supplied.adoc[the deployment].
+.xref:main:guides/write-a-policy-rule.adoc[Write a policy rule]
+Add a deterministic rule to a compliance policy, test it, and publish
+it.
+====
 
+== Deploy and operate
+
+For operators who install and run Kumoss.
+
+[cards,columns="1 s:2 m:3"]
+====
 [card]
 .xref:main:guides/deploy-to-production.adoc[Deploy to production]
 Plan a production deployment, then work through
@@ -90,13 +103,29 @@ Install Kumoss on Kubernetes with the bundled chart, try it on a local
 kind cluster, and bind cloud credentials through workload identity.
 
 [card]
-.xref:main:guides/upgrade-notes.adoc[Upgrade notes]
-Breaking changes to act on when upgrading: providers read from the root
-module, renamed provider names, sidecar contracts 2.0.0, and the new
-managed state key.
+.xref:main:guides/enable-authentication.adoc[Enable authentication]
+Connect an OIDC identity provider and grant the first administrator
+access.
+
+[card]
+.xref:main:guides/configure-state-backends.adoc[Configure state backends]
+Choose who owns Terraform and OpenTofu state:
+xref:main:guides/state-backends/repository-declared.adoc[the repository],
+xref:main:guides/state-backends/kumoss-managed.adoc[Kumoss], or
+xref:main:guides/state-backends/sidecar-supplied.adoc[the deployment].
+
+[card]
+.xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse]
+Read Kumoss's traces in Langfuse, and know what a trace contains and
+omits.
 ====
 
-== Develop Kumoss
+Before upgrading an existing deployment, read
+xref:main:guides/upgrade-notes.adoc[Upgrade notes].
+
+== Develop
+
+For contributors to Kumoss itself.
 
 [cards,columns="1 s:2 m:3"]
 ====

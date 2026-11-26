@@ -35,13 +35,16 @@ your platform team configured.
 
 . *Choose the mode* in the header drop-down. Most work uses *Generate
   Infrastructure*. The drift and import modes are shown
-  greyed out with the hint "Requires the devops operation role." if you do
+  grayed out with the hint "Requires the devops operation role." if you do
   not hold that role.
 . *"What do you need?"* Type your request (up to 500 characters) and press
   Enter. The rotating hints under the field show the expected level of
   detail, for example "Deploy a PostgreSQL database on Azure" or "Create a
   virtual network with three subnets".
-. *"What is the repository URL?"* Paste the repository URL. Kumoss
+. *"What is the repository URL?"* Paste the repository URL, or a name
+  your deployment's mapping service resolves, such as a project
+  identifier; the session keeps that name and passes it to the IaC
+  service, which may run commands with that project's credentials. Kumoss
   clones only its metadata and looks for Terraform roots among the files
   committed on the default branch: directories that hold `.tf` files,
   skipping `modules`, `examples`, and `.terraform` folders, and keeping

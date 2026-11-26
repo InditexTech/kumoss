@@ -15,7 +15,7 @@ omitted when it does not, leaving the engine to resolve them the way any
 Terraform backend does — an instance profile, IRSA or a workload
 identity on the IaC service's container.
 
-State is keyed by ``project_id`` (see ``TerraformUtils.project_id``):
+State is keyed by ``state_id`` (see ``TerraformUtils.state_id``):
 clone directories are per-call, so two runs of the same project must be
 brought together by something that describes the project itself.
 """
@@ -32,13 +32,13 @@ from src.shared.logger import logging
 class TerraformBackend:
     """Writes the state backend of one workspace."""
 
-    def __init__(self, project_id: str):
-        self.__project_id = project_id
+    def __init__(self, state_id: str):
+        self.__state_id = state_id
         self.__storage = system_config.storage
 
     @property
     def state_key(self) -> str:
-        return f"{self.__project_id}/{self.__storage.terraform_state_filename}"
+        return f"{self.__state_id}/{self.__storage.terraform_state_filename}"
 
     def apply(self, workspace_path: Path) -> None:
         """Write the override into ``workspace_path``.

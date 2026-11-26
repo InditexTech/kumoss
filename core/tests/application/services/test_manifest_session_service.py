@@ -45,7 +45,9 @@ from tests.domains.services.test_manifest_service import (
 COMPARTMENT = VariableSpec("compartment_ocid", "string", required=True)
 
 
-def session(providers: tuple[ProviderScope, ...] = ()) -> SessionContext:
+def session(
+    providers: tuple[ProviderScope, ...] = (), project_identifier: str | None = None
+) -> SessionContext:
     ctx = SessionContext(
         id=uuid4(),
         user_id="1",
@@ -57,6 +59,7 @@ def session(providers: tuple[ProviderScope, ...] = ()) -> SessionContext:
         operation_type=OperationType.GENERATE,
         history=[],
         chat_history=[],
+        project_identifier=project_identifier,
     )
     ctx.set_call_dir(Path("/workspaces/s/c/infra"))
     return ctx
@@ -99,6 +102,11 @@ class TestSessionInputsService(unittest.IsolatedAsyncioTestCase):
                 values={"region": {"location": "westeurope"}, "db_password": "s3cr3t"}
             ),
         )
+
+    async def test_first_call_records_the_sessions_project_identifier(self):
+        ctx = session(project_identifier="repo")
+        await self.service.prepare(ctx, first_call=True, answers=ANSWERS)
+        self.assertEqual(self.manifests.stored.project_identifier, "repo")
 
     async def test_first_call_without_needed_answers_fails_before_committing(self):
         with self.assertRaises(ManifestInputError) as ctx:

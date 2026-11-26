@@ -102,9 +102,5 @@ class ITemplate(ABC):
         pass
 
     @abstractmethod
-    async def render_compliance_checker(
-        self,
-        resources: list[str],
-        abbreviations: list[str],
-    ) -> str:
+    async def render_intent_checker(self) -> str:
         pass

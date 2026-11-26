@@ -149,9 +149,10 @@ export interface ComplianceViolation {
   resource?: string | null;
   message: string;
   suggested_fix?: string | null;
-  /** Who reported it: the LLM audit or the OPA policy. Absent on reports
-   *  stored before the policy engine, which are all LLM findings. */
-  source?: "llm" | "opa";
+  /** Who reported it: the intent check or the OPA policy. Absent on
+   *  reports stored before the policy engine, and "llm" on reports stored
+   *  before the intent check had its name; both mean the intent check. */
+  source?: "intent" | "llm" | "opa";
 }
 
 export interface ComplianceReport {

@@ -10,6 +10,8 @@ import type { ManifestAnswers } from "@/types/api";
 export interface WizardData {
   query: string;
   repositoryUrl: string;
+  /** What the user typed for the repository; may be the URL itself. */
+  projectIdentifier: string;
   rootModulePath: string;
   /** The root module's inputs were probed and, if needed, answered. */
   inputsChecked: boolean;
@@ -23,6 +25,7 @@ export interface WizardData {
 export const INITIAL_WIZARD_DATA: WizardData = {
   query: "",
   repositoryUrl: "",
+  projectIdentifier: "",
   rootModulePath: "",
   inputsChecked: false,
   inputs: null,

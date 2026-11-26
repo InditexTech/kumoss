@@ -97,22 +97,22 @@ class TestSeedCatalog(unittest.TestCase):
                 body = yaml.safe_load(path.read_text(encoding="utf-8"))["body"]
                 self.assertNotRegex(body, r"(?i)forbidden actions?\b")
 
-    def test_policy_and_llm_rules_do_not_overlap(self):
-        # A rule enforced by a policy and audited by the LLM, or by two
+    def test_policy_and_intent_rules_do_not_overlap(self):
+        # A rule enforced by a policy and by the intent check, or by two
         # policies, would be reported twice, possibly with different verdicts.
-        llm_rules = set(
+        intent_rules = set(
             re.findall(
                 r"^## ([a-z0-9_]+) \(severity:",
-                _body("general", "compliance", "report"),
+                _body("general", "intent", "rules"),
                 re.M,
             )
         )
-        self.assertTrue(llm_rules)
+        self.assertTrue(intent_rules)
         seen: dict[str, str] = {}
         for scope, rules in _policy_rules().items():
             with self.subTest(policy=scope):
                 self.assertTrue(rules)
-                self.assertEqual(rules & llm_rules, set())
+                self.assertEqual(rules & intent_rules, set())
                 for rule in rules:
                     self.assertNotIn(rule, seen, f"also in {seen.get(rule)}")
                     seen[rule] = scope

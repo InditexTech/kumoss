@@ -283,14 +283,14 @@ class TestProjectId(unittest.TestCase):
     PATH = "envs/prod"
 
     def _id(self, repo=REPO, path=PATH) -> str:
-        return TerraformUtils.project_id(repo_uri=repo, root_module_path=path)
+        return TerraformUtils.state_id(repo_uri=repo, root_module_path=path)
 
     def test_is_a_sha256_hex_digest(self):
-        """The IaC contract types project_id as 64 lowercase hex chars."""
-        project_id = self._id()
+        """The IaC contract types state_id as 64 lowercase hex chars."""
+        state_id = self._id()
 
-        self.assertEqual(len(project_id), 64)
-        self.assertTrue(all(c in "0123456789abcdef" for c in project_id))
+        self.assertEqual(len(state_id), 64)
+        self.assertTrue(all(c in "0123456789abcdef" for c in state_id))
 
     def test_is_stable_across_calls(self):
         """Two runs of the same project must land on the same state."""
@@ -312,7 +312,7 @@ class TestProjectId(unittest.TestCase):
         import inspect
 
         self.assertEqual(
-            list(inspect.signature(TerraformUtils.project_id).parameters),
+            list(inspect.signature(TerraformUtils.state_id).parameters),
             ["repo_uri", "root_module_path"],
         )
 

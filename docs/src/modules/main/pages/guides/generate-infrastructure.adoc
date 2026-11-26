@@ -61,16 +61,18 @@ bucket for application logs", "open port 443 on the web security group",
   module) against the plan; the shipped policies deny standalone
   deletions, removed customer-managed encryption keys and command
   execution (`null_resource`, provisioners, `data "external"`), warn
-  about credential outputs not marked sensitive, and deny, per
+  about credential outputs not marked sensitive and provider versions
+  not pinned as `~> X.Y`, and deny, per
   provider, critical misconfigurations such as ingress open to the
   internet. A policy that cannot be evaluated adds
-  a blocking `policy_unavailable` finding. Then a small-model auditor
-  checks the plan against the rules in the `general/compliance/report`
-  prompt. See xref:main:reference/compliance-policy.adoc[Compliance
-  policy]. The auditor judges the plan against
-  the session's *first* request, not the current round's, so in a
-  follow-up round `scope_exceeded` and `scope_incomplete` are measured
-  against the original request.
+  a blocking `policy_unavailable` finding. Then the intent check, a
+  small-model agent, judges only whether the plan does what the requests
+  ask, with the rules in the `general/intent/rules` prompt; it does not
+  check the conventions. See
+  xref:main:reference/compliance-policy.adoc[Compliance policy]. It
+  reads every request of the session, oldest first, so in a follow-up
+  round `scope_exceeded` and `scope_incomplete` are measured against the
+  session's requests as a whole, a later one refining an earlier one.
 . *Lock decision.* The session is locked when either compliance check
   has an `error` or `critical` finding or, with `orchestration.block_on_high_impact`, when the impact banner is
   `high`. A clean round clears an earlier lock. Notifications are sent for
@@ -116,8 +118,8 @@ create the pull request, merge it, and apply.
   that have them in Langfuse; a provider without prompts gets only the
   `general/*` ones, and a missing `general/*` prompt aborts the round
   with `Prompt not found`. See
-  xref:main:guides/customize-prompts.adoc#guideline-prompts[Guideline
-  prompts].
+  xref:main:reference/prompt-registry.adoc#runtime-lookup[Runtime
+  lookup].
 * A `high` impact or a failed compliance check does not stop the round,
   it locks the session; review the report before asking for an unlock.
 

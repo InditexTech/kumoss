@@ -3,10 +3,10 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # pyright: basic
-"""The compliance check: the policy and the LLM audit, one report.
+"""The compliance check: the policy and the intent check, one report.
 
-The LLM audits the plan against every request of the session, including
-the one whose round produced the plan."""
+The intent check reads the plan against every request of the session,
+including the one whose round produced the plan."""
 
 import json
 import unittest
@@ -18,13 +18,14 @@ from uuid import uuid4
 from src.domains.dto import (
     ComplianceCheckReport,
     ComplianceViolation,
+    IntentCheck,
     PolicyDecision,
     ToolResultDTO,
 )
 from src.domains.entities import SessionContext
 from src.domains.exceptions import PolicyEvaluationError
 from src.domains.services.compliance_check_service import ComplianceCheckService
-from src.domains.value_objects import Conventions, ProviderScope
+from src.domains.value_objects import ProviderScope
 from src.shared.config import system_config
 from src.shared.constants import OperationType
 
@@ -34,7 +35,7 @@ PLAN_JSON = {"format_version": "1.2", "resource_changes": []}
 def _violation(
     rule_id: str,
     severity: Literal["info", "warning", "error", "critical"],
-    source: Literal["llm", "opa"] = "llm",
+    source: Literal["intent", "opa"] = "intent",
 ) -> ComplianceViolation:
     return ComplianceViolation(
         rule_id=rule_id,
@@ -45,11 +46,10 @@ def _violation(
     )
 
 
-def _audit(
+def _intent(
     *violations: ComplianceViolation, summary: str = "Plan is fine."
-) -> ComplianceCheckReport:
-    return ComplianceCheckReport(
-        passed=not any(v.blocking for v in violations),
+) -> IntentCheck:
+    return IntentCheck(
         violations=list(violations),
         summary=summary,
         checked_rules=["scope_exceeded", "scope_incomplete"],
@@ -69,7 +69,7 @@ def _clean_policy() -> AsyncMock:
 
 
 class TestComplianceQuery(unittest.IsolatedAsyncioTestCase):
-    async def test_every_user_query_reaches_the_audit(self):
+    async def test_every_user_query_reaches_the_intent_check(self):
         ctx = SessionContext(
             id=uuid4(),
             user_id="user@example.com",
@@ -85,12 +85,10 @@ class TestComplianceQuery(unittest.IsolatedAsyncioTestCase):
         )
         llm = AsyncMock()
         llm.generate.return_value = ToolResultDTO(
-            name="report_compliance_findings",
+            name="report_intent_findings",
             tool_call_id="call_1",
             success=True,
-            result=ComplianceCheckReport(
-                passed=True, violations=[], summary="ok", checked_rules=[]
-            ),
+            result=IntentCheck(violations=[], summary="ok", checked_rules=[]),
             error_message=None,
         )
         svc = ComplianceCheckService(
@@ -105,25 +103,25 @@ class TestComplianceQuery(unittest.IsolatedAsyncioTestCase):
             "src.domains.services.compliance_check_service.system_config"
         ) as config:
             config.orchestration.enable_compliance_checker = True
-            _ = await svc.check(ctx, Conventions.empty(), "<plan>", PLAN_JSON)
+            _ = await svc.check(ctx, "<plan>", PLAN_JSON)
 
         query = cast(str, llm.generate.await_args.kwargs["query"])
         self.assertEqual(
             query,
             "The user requests:\n- add a vnet\n- and a subnet\n\n"
-            "The Terraform plan to audit:\n<plan>",
+            "The Terraform plan to check:\n<plan>",
         )
 
 
 class TestComplianceReportMerge(unittest.TestCase):
-    def test_a_policy_deny_fails_a_passing_audit_and_leads_the_summary(self):
+    def test_a_policy_deny_fails_a_passing_intent_check_and_leads_the_summary(self):
         policy = PolicyDecision(
             violations=[_deletion()],
             checked_rules=["critical_deletion"],
             revisions=["v7"],
         )
 
-        report = ComplianceCheckReport.merge(_audit(), policy)
+        report = ComplianceCheckReport.merge(_intent(), policy)
 
         self.assertFalse(report.passed)
         self.assertEqual(
@@ -145,17 +143,17 @@ class TestComplianceReportMerge(unittest.TestCase):
             revisions=["v7"],
         )
 
-        report = ComplianceCheckReport.merge(_audit(), policy)
+        report = ComplianceCheckReport.merge(_intent(), policy)
 
         self.assertTrue(report.passed)
         self.assertEqual(report.summary, "Plan is fine.")
         self.assertEqual(len(report.violations), 1)
 
-    def test_a_failing_audit_stays_failed_with_a_clean_policy(self):
-        audit = _audit(_violation("scope_exceeded", "error"), summary="Too much.")
+    def test_a_failing_intent_check_stays_failed_with_a_clean_policy(self):
+        intent = _intent(_violation("scope_exceeded", "error"), summary="Too much.")
         policy = PolicyDecision(violations=[], checked_rules=["x"], revisions=[])
 
-        report = ComplianceCheckReport.merge(audit, policy)
+        report = ComplianceCheckReport.merge(intent, policy)
 
         self.assertFalse(report.passed)
         self.assertEqual(report.summary, "Too much.")
@@ -180,8 +178,29 @@ class TestComplianceReportMerge(unittest.TestCase):
 
         report = ComplianceCheckReport.model_validate_json(stored)
 
-        self.assertEqual(report.violations[0].source, "llm")
+        self.assertEqual(report.violations[0].source, "intent")
         self.assertEqual(report.policy_revisions, [])
+
+    def test_findings_stored_with_the_llm_source_load_as_intent(self):
+        stored = json.dumps(
+            {
+                "passed": False,
+                "violations": [
+                    {
+                        "rule_id": "scope_exceeded",
+                        "severity": "error",
+                        "message": "unrequested",
+                        "source": "llm",
+                    }
+                ],
+                "summary": "s",
+                "checked_rules": ["scope_exceeded"],
+            }
+        )
+
+        report = ComplianceCheckReport.model_validate_json(stored)
+
+        self.assertEqual(report.violations[0].source, "intent")
 
     def test_a_report_with_a_single_policy_revision_still_loads(self):
         stored = json.dumps(
@@ -209,7 +228,7 @@ class TestComplianceCheckService(unittest.IsolatedAsyncioTestCase):
         self.addCleanup(patcher.stop)
 
         self.llm = AsyncMock()
-        self.llm.generate.return_value = SimpleNamespace(result=_audit())
+        self.llm.generate.return_value = SimpleNamespace(result=_intent())
         self.artifacts = AsyncMock()
         self.engine = _clean_policy()
         self.service = ComplianceCheckService(
@@ -226,7 +245,6 @@ class TestComplianceCheckService(unittest.IsolatedAsyncioTestCase):
     async def _check(self, plan_json=PLAN_JSON) -> ComplianceCheckReport:
         return await self.service.check(
             ctx=self.ctx,
-            conventions=Conventions(templates=[], abbreviations=[]),
             plan="plan text",
             plan_json=plan_json,
         )
@@ -258,7 +276,7 @@ class TestComplianceCheckService(unittest.IsolatedAsyncioTestCase):
         kwargs = self.artifacts.store_compliance_check.await_args.kwargs
         self.assertFalse(kwargs["passed"])
 
-    async def test_an_engine_failure_blocks_and_the_audit_still_runs(self):
+    async def test_an_engine_failure_blocks_and_the_intent_check_still_runs(self):
         self.engine.evaluate.side_effect = PolicyEvaluationError(
             message="opa eval timed out after 30s", error_code=504
         )

@@ -78,6 +78,7 @@ def configured(
         },
         None,
         secrets or {},
+        module=MODULE,
     )
 
 
@@ -168,7 +169,7 @@ class TestResolve(unittest.TestCase):
         )
         res = resolve_manifest(req, None, stored_secrets=())
         self.assertTrue(res.needs_input)
-        manifest, _ = reconcile_manifest(res, {}, [], {})
+        manifest, _ = reconcile_manifest(res, {}, [], {}, module=MODULE)
         self.assertFalse(resolve_manifest(req, manifest, stored_secrets=()).needs_input)
 
     def test_configured_manifest_is_up_to_date(self):
@@ -215,7 +216,11 @@ class TestResolve(unittest.TestCase):
     def test_vanished_var_file_needs_input(self):
         req = requirements(variables=(), var_files=(VarFile("envs/dev.tfvars", False),))
         manifest, _ = reconcile_manifest(
-            resolve_manifest(req, None, stored_secrets=()), {}, ["envs/dev.tfvars"], {}
+            resolve_manifest(req, None, stored_secrets=()),
+            {},
+            ["envs/dev.tfvars"],
+            {},
+            module=MODULE,
         )
         res = resolve_manifest(requirements(variables=()), manifest, stored_secrets=())
         self.assertEqual(res.missing_var_files, ("envs/dev.tfvars",))
@@ -227,7 +232,11 @@ class TestResolve(unittest.TestCase):
             var_files=(VarFile("envs/dev.tfvars", False, frozenset({"region"})),),
         )
         manifest, _ = reconcile_manifest(
-            resolve_manifest(req, None, stored_secrets=()), {}, ["envs/dev.tfvars"], {}
+            resolve_manifest(req, None, stored_secrets=()),
+            {},
+            ["envs/dev.tfvars"],
+            {},
+            module=MODULE,
         )
         self.assertEqual(manifest.variables, ())
         self.assertIs(
@@ -256,6 +265,7 @@ class TestReconcile(unittest.TestCase):
             },
             None,
             {},
+            module=MODULE,
         )
         self.assertTrue(manifest.variable("region").sensitive)
         self.assertEqual(secrets["region"], {"location": "x"})
@@ -270,6 +280,7 @@ class TestReconcile(unittest.TestCase):
             },
             None,
             {},
+            module=MODULE,
         )
         self.assertTrue(manifest.variable("db_password").sensitive)
         self.assertIn("db_password", secrets)
@@ -278,11 +289,15 @@ class TestReconcile(unittest.TestCase):
         req = requirements(variables=(OWNERS,))
         res = resolve_manifest(req, None, stored_secrets=())
         manifest, secrets = reconcile_manifest(
-            res, {"owners": VariableAnswer(["a"], sensitive=True)}, None, {}
+            res,
+            {"owners": VariableAnswer(["a"], sensitive=True)},
+            None,
+            {},
+            module=MODULE,
         )
         res = resolve_manifest(req, manifest, stored_secrets=secrets.keys())
         manifest, secrets = reconcile_manifest(
-            res, {"owners": VariableAnswer(["b"])}, None, secrets
+            res, {"owners": VariableAnswer(["b"])}, None, secrets, module=MODULE
         )
         self.assertTrue(manifest.variable("owners").sensitive)
         self.assertEqual(secrets, {"owners": ["b"]})
@@ -291,11 +306,19 @@ class TestReconcile(unittest.TestCase):
         req = requirements(variables=(OWNERS,))
         res = resolve_manifest(req, None, stored_secrets=())
         manifest, secrets = reconcile_manifest(
-            res, {"owners": VariableAnswer(["a"], sensitive=True)}, None, {}
+            res,
+            {"owners": VariableAnswer(["a"], sensitive=True)},
+            None,
+            {},
+            module=MODULE,
         )
         res = resolve_manifest(req, manifest, stored_secrets=secrets.keys())
         manifest, secrets = reconcile_manifest(
-            res, {"owners": VariableAnswer(["a"], sensitive=False)}, None, secrets
+            res,
+            {"owners": VariableAnswer(["a"], sensitive=False)},
+            None,
+            secrets,
+            module=MODULE,
         )
         self.assertEqual(manifest.variable("owners"), Variable("owners", ["a"]))
         # Another branch may still bind it as a secret: the value is kept.
@@ -308,6 +331,7 @@ class TestReconcile(unittest.TestCase):
             {"owners": VariableAnswer(["a"])},
             None,
             {},
+            module=MODULE,
         )
         now_sensitive = requirements(
             variables=(VariableSpec("owners", "list(string)", sensitive=True),)
@@ -315,7 +339,7 @@ class TestReconcile(unittest.TestCase):
         res = resolve_manifest(now_sensitive, manifest, stored_secrets=())
         self.assertEqual(res.exposed_variables, ("owners",))
         self.assertFalse(res.needs_input)
-        manifest, secrets = reconcile_manifest(res, {}, None, {})
+        manifest, secrets = reconcile_manifest(res, {}, None, {}, module=MODULE)
         self.assertEqual(
             manifest.variable("owners"), Variable("owners", sensitive=True)
         )
@@ -326,7 +350,7 @@ class TestReconcile(unittest.TestCase):
         shrunk = requirements(variables=(REGION,))
         res = resolve_manifest(shrunk, manifest, stored_secrets=secrets.keys())
         self.assertEqual(res.stale_variables, ("db_password",))
-        manifest, secrets = reconcile_manifest(res, {}, None, secrets)
+        manifest, secrets = reconcile_manifest(res, {}, None, secrets, module=MODULE)
         self.assertEqual([v.name for v in manifest.variables], ["region"])
         # The store is shared by every branch; older ones may still need it.
         self.assertEqual(secrets, {"db_password": "s3cr3t"})
@@ -346,6 +370,7 @@ class TestReconcile(unittest.TestCase):
                 None,
                 {},
                 {"oci": "ocid1.compartment.mine"},
+                module=MODULE,
             )
         self.assertIn("compartment_ocid", ctx.exception.message)
         self.assertEqual(ctx.exception.error_code, 422)
@@ -353,14 +378,18 @@ class TestReconcile(unittest.TestCase):
     def test_incomplete_answers_are_rejected_with_the_missing_names(self):
         res = resolve_manifest(requirements(), None, stored_secrets=())
         with self.assertRaises(ManifestInputError) as ctx:
-            _ = reconcile_manifest(res, {"region": VariableAnswer({})}, None, {})
+            _ = reconcile_manifest(
+                res, {"region": VariableAnswer({})}, None, {}, module=MODULE
+            )
         self.assertIn("db_password", ctx.exception.message)
         self.assertEqual(ctx.exception.error_code, 422)
 
     def test_unknown_variable_is_rejected(self):
         res = resolve_manifest(requirements(), None, stored_secrets=())
         with self.assertRaises(ManifestInputError) as ctx:
-            _ = reconcile_manifest(res, {"nope": VariableAnswer(1)}, None, {})
+            _ = reconcile_manifest(
+                res, {"nope": VariableAnswer(1)}, None, {}, module=MODULE
+            )
         self.assertIn("nope", ctx.exception.message)
 
     def test_wrong_shape_is_rejected(self):
@@ -374,6 +403,7 @@ class TestReconcile(unittest.TestCase):
                 },
                 None,
                 {},
+                module=MODULE,
             )
         self.assertIn("map(string)", ctx.exception.message)
 
@@ -399,6 +429,7 @@ class TestReconcile(unittest.TestCase):
             },
             None,
             {},
+            module=MODULE,
         )
         self.assertEqual(len(manifest.variables), 5)
 
@@ -417,7 +448,7 @@ class TestReconcile(unittest.TestCase):
             ["envs/dev.tfvars"] * 2,
         ):
             with self.assertRaises(ManifestInputError):
-                _ = reconcile_manifest(res, {}, selection, {})
+                _ = reconcile_manifest(res, {}, selection, {}, module=MODULE)
 
     def test_var_file_order_is_kept(self):
         req = requirements(
@@ -425,7 +456,9 @@ class TestReconcile(unittest.TestCase):
             var_files=(VarFile("a.tfvars", False), VarFile("b.tfvars", False)),
         )
         res = resolve_manifest(req, None, stored_secrets=())
-        manifest, _ = reconcile_manifest(res, {}, ["b.tfvars", "a.tfvars"], {})
+        manifest, _ = reconcile_manifest(
+            res, {}, ["b.tfvars", "a.tfvars"], {}, module=MODULE
+        )
         self.assertEqual(manifest.var_files, ("b.tfvars", "a.tfvars"))
 
 
@@ -450,7 +483,12 @@ class TestScopes(unittest.TestCase):
         req = requirements(variables=(), providers=(AZURERM, GOOGLE, RANDOM))
         res = resolve_manifest(req, None, stored_secrets=())
         manifest, _ = reconcile_manifest(
-            res, {}, None, {}, {"google": "proj-1", "azurerm": f"  {SUB} "}
+            res,
+            {},
+            None,
+            {},
+            {"google": "proj-1", "azurerm": f"  {SUB} "},
+            module=MODULE,
         )
         self.assertEqual(
             manifest.scopes,
@@ -467,7 +505,7 @@ class TestScopes(unittest.TestCase):
         req = requirements(variables=(), providers=(AZURERM, GOOGLE))
         res = resolve_manifest(req, None, stored_secrets=())
         with self.assertRaises(ManifestInputError) as ctx:
-            _ = reconcile_manifest(res, {}, None, {}, {"azurerm": SUB})
+            _ = reconcile_manifest(res, {}, None, {}, {"azurerm": SUB}, module=MODULE)
         self.assertEqual(ctx.exception.error_code, 422)
         self.assertIn("google", ctx.exception.message)
         self.assertNotIn("azurerm", ctx.exception.message)
@@ -478,7 +516,7 @@ class TestScopes(unittest.TestCase):
         for provider in ("random", "google"):
             with self.assertRaises(ManifestInputError) as ctx:
                 _ = reconcile_manifest(
-                    res, {}, None, {}, {"azurerm": SUB, provider: "x"}
+                    res, {}, None, {}, {"azurerm": SUB, provider: "x"}, module=MODULE
                 )
             self.assertEqual(ctx.exception.error_code, 422)
             self.assertIn(provider, ctx.exception.message)
@@ -487,7 +525,7 @@ class TestScopes(unittest.TestCase):
         req = requirements(variables=(), providers=(AZURERM,))
         res = resolve_manifest(req, None, stored_secrets=())
         with self.assertRaises(ManifestInputError) as ctx:
-            _ = reconcile_manifest(res, {}, None, {}, {"azurerm": "   "})
+            _ = reconcile_manifest(res, {}, None, {}, {"azurerm": "   "}, module=MODULE)
         self.assertEqual(ctx.exception.error_code, 422)
         self.assertIn("azurerm", ctx.exception.message)
 
@@ -495,12 +533,14 @@ class TestScopes(unittest.TestCase):
         req = requirements(variables=(), providers=(AZURERM, GOOGLE))
         res = resolve_manifest(req, None, stored_secrets=())
         manifest, _ = reconcile_manifest(
-            res, {}, None, {}, {"azurerm": SUB, "google": "proj-1"}
+            res, {}, None, {}, {"azurerm": SUB, "google": "proj-1"}, module=MODULE
         )
         res = resolve_manifest(req, manifest, stored_secrets=())
-        kept, _ = reconcile_manifest(res, {}, None, {})
+        kept, _ = reconcile_manifest(res, {}, None, {}, module=MODULE)
         self.assertEqual(kept.scopes, manifest.scopes)
-        changed, _ = reconcile_manifest(res, {}, None, {}, {"google": "proj-2"})
+        changed, _ = reconcile_manifest(
+            res, {}, None, {}, {"google": "proj-2"}, module=MODULE
+        )
         self.assertEqual(
             changed.scopes,
             (ProviderScope("azurerm", SUB), ProviderScope("google", "proj-2")),
@@ -514,6 +554,7 @@ class TestScopes(unittest.TestCase):
             None,
             {},
             {"azurerm": SUB},
+            module=MODULE,
         )
         after = requirements(variables=(), providers=(RANDOM,))
         res = resolve_manifest(after, manifest, stored_secrets=())
@@ -521,7 +562,7 @@ class TestScopes(unittest.TestCase):
         self.assertEqual(res.missing_scopes, ())
         self.assertIs(res.status, ManifestStatus.DRIFTED)
         self.assertFalse(res.needs_input)
-        healed, _ = reconcile_manifest(res, {}, None, {})
+        healed, _ = reconcile_manifest(res, {}, None, {}, module=MODULE)
         self.assertEqual(healed.scopes, ())
 
     def test_switching_provider_asks_for_the_new_scope(self):
@@ -532,6 +573,7 @@ class TestScopes(unittest.TestCase):
             None,
             {},
             {"azurerm": SUB},
+            module=MODULE,
         )
         after = requirements(variables=(), providers=(GOOGLE,))
         res = resolve_manifest(after, manifest, stored_secrets=())
@@ -592,6 +634,41 @@ class TestValueObjects(unittest.TestCase):
         self.assertEqual(
             RootModuleRef("r", "a", Path("/one")), RootModuleRef("r", "a", Path("/two"))
         )
+
+    def test_root_module_identity_ignores_the_project_identifier(self):
+        self.assertEqual(
+            RootModuleRef("r", "a", Path("/w"), project_identifier="infra"),
+            RootModuleRef("r", "a", Path("/w")),
+        )
+
+    def test_reconcile_records_the_project_identifier(self):
+        req = requirements(variables=())
+        module = RootModuleRef(
+            "https://github.com/org/infra.git",
+            "envs/dev",
+            Path("/w"),
+            project_identifier="infra",
+        )
+        manifest, _ = reconcile_manifest(
+            resolve_manifest(req, None, stored_secrets=()),
+            {},
+            None,
+            {},
+            module=module,
+        )
+        self.assertEqual(manifest.project_identifier, "infra")
+
+    def test_recorded_project_identifier_never_drifts_the_manifest(self):
+        req = requirements(variables=())
+        manifest, _ = reconcile_manifest(
+            resolve_manifest(req, None, stored_secrets=()),
+            {},
+            None,
+            {},
+            module=RootModuleRef("https://old.example/r", "old", Path("/w"), "r"),
+        )
+        res = resolve_manifest(req, manifest, stored_secrets=())
+        self.assertIs(res.status, ManifestStatus.UP_TO_DATE)
 
 
 class FakeInspector(IConfigInspector):
@@ -657,6 +734,39 @@ class TestManifestService(unittest.IsolatedAsyncioTestCase):
                 "db_password": VariableAnswer("s3cr3t"),
             },
         )
+
+    async def test_a_save_refreshes_the_project_identifier(self):
+        _ = await self.configure()
+        self.assertIsNone(self.manifests.stored.project_identifier)
+        renamed = RootModuleRef(
+            "https://example.com/org/renamed",
+            "infra",
+            Path("/tmp/x"),
+            project_identifier="renamed",
+        )
+        res = await self.service.configure(renamed, {})
+        self.assertIs(res.status, ManifestStatus.UP_TO_DATE)
+        self.assertEqual(self.manifests.stored.project_identifier, "renamed")
+
+    async def test_sync_records_a_new_project_identifier_on_an_up_to_date_manifest(
+        self,
+    ):
+        self.inspector.requirements = requirements(variables=())
+        _ = await self.service.sync(MODULE)
+        saves = self.manifests.saves
+        named = RootModuleRef(
+            MODULE.repo_uri, MODULE.path, MODULE.directory, "sistemas-kumoss-rsg"
+        )
+
+        res = await self.service.sync(named)
+
+        self.assertIs(res.status, ManifestStatus.UP_TO_DATE)
+        self.assertEqual(self.manifests.saves, saves + 1)
+        self.assertEqual(
+            self.manifests.stored.project_identifier, "sistemas-kumoss-rsg"
+        )
+        _ = await self.service.sync(named)
+        self.assertEqual(self.manifests.saves, saves + 1)
 
     async def test_full_cycle(self):
         res = await self.service.sync(MODULE)

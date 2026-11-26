@@ -1,0 +1,3 @@
+The self-hosted service where Kumoss keeps its prompts and sends its
+traces. The core reads every prompt from Langfuse at request time, from
+the version that carries the deployment's `environment` label.
