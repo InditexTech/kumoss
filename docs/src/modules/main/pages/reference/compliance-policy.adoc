@@ -62,8 +62,9 @@ opa eval --stdin-input --strict-builtin-errors --format json \
 ----
 . It reads each policy's <<decision,decision>>: blocking `deny`
   findings, non-blocking `warn` findings, and the list of rules checked.
-. The language-model audit runs next, and both results are merged into
-  one compliance report for the round; see <<report>>.
+. The intent check, the language-model half, runs next, and both
+  results are merged into one compliance report for the round; see
+  <<report>>.
 . If either part has an `error` or `critical` finding, the session is
   locked and the compliance failure notification is sent.
 
@@ -175,13 +176,17 @@ present, is a string, usually the resource address.
 [#report]
 == How findings appear in the report
 
-The policies' decisions and the language-model audit are merged into
-one compliance report per round:
+The policies' decisions and the intent check's findings are merged
+into one compliance report per round; only this merge produces the
+verdict:
 
-* Each policy violation carries `source: "opa"`; findings of the audit
-  carry `"llm"`, and reports stored before the policy existed have no
-  `source`. The web application marks policy findings with a *policy*
-  badge.
+* Each policy violation carries `source: "opa"`; findings of the intent
+  check carry `"intent"`. Reports stored with the former value `"llm"`,
+  or before the policy existed with no `source`, load as intent
+  findings. The web application marks policy findings with a *policy*
+  badge and intent check findings with an *intent* badge, in the
+  *Compliance Check* artifact and in the *Why* list of the *Deployment
+  Blocked* screen.
 * The policies' findings come first.
 * `policy_revisions` lists the versions that ran, each as
   `"<prompt name>@<version>"`, the general policy first, for example
@@ -200,8 +205,8 @@ one compliance report per round:
 The policies fail closed. If one cannot be evaluated, the round gets a
 blocking `policy_unavailable` finding (severity `error`) whose message
 gives the reason, so the session is locked and the compliance failure
-notification is sent. The language-model audit still runs, and its
-findings are in the same report.
+notification is sent. The intent check still runs, and its findings
+are in the same report.
 
 Since all the policies run in one evaluation, one broken provider
 policy blocks every round of a module that declares that provider, and
@@ -251,10 +256,12 @@ applies to.
 
 === General policy
 
-The general seed defines four rules that apply whatever the provider.
-`critical_deletion` looks at every managed resource; the other three
-look only at what the plan creates or updates (a replacement included),
-so a resource the round leaves alone is not judged.
+The general seed defines five rules that apply whatever the provider.
+`critical_deletion` looks at every managed resource and
+`provider_version_pin` at the root module's provider configuration; the
+other three look only at what the plan creates or updates (a
+replacement included), so a resource the round leaves alone is not
+judged.
 
 [cols="2,1,5",options="header"]
 |===
@@ -295,6 +302,18 @@ case-insensitively, `password`, `passwd`, `secret`, `token`,
 `connection_string`, and that is not marked `sensitive = true`. The
 name is only a hint, hence a warning; the message carries the output's
 name, never its value.
+
+|`provider_version_pin`
+|`warn`
+|A root module provider (an entry of the plan's
+`configuration.provider_config` without `module_address`; the built-in
+`terraform.io/builtin/*` providers are skipped) with no version
+constraint, or one that is not of the form `~> X.Y`: an exact pin such
+as `= 4.63.0` (which the plan shows as `4.63.0`), an open range such as
+`>= 5.0`, or `~> 6.1.0`. The finding has no `resource`; the message
+carries the provider's full name. A warning, since an existing pin is
+never changed as a side effect and a workspace may keep one on purpose;
+child modules pin for themselves.
 |===
 
 `critical_deletion`, the rule a custom policy most often starts from:
@@ -321,7 +340,7 @@ deny contains finding if {
 }
 ----
 
-The seed declares its four ids in one `rules contains rule if some rule
+The seed declares its five ids in one `rules contains rule if some rule
 in {...}` statement; the excerpt above declares only its own. The code
 is explained line by line in
 xref:main:guides/write-a-policy-rule.adoc#how-a-rule-works[How a rule

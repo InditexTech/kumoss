@@ -41,7 +41,7 @@ remediation operations).
 |Fast, cheaper model
 |Every other chain: request filtering, drift reconciliation filtering,
 drift exception filtering, prompt composition, pull-request text, the
-compliance checker, status messages, and the LLM calls that some tools
+intent check, status messages, and the LLM calls that some tools
 make internally (for example web search).
 |===
 

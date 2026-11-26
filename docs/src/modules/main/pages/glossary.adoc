@@ -5,9 +5,9 @@ This glossary lists the terms, abbreviations, and phrases used across the
 Kumoss documentation, together with their definitions. Use this terminology
 for clarity and consistency when discussing Kumoss.
 
-== Compliance audit
+== Compliance check
 
-include::partial$glossary/compliance-audit.adoc[]
+include::partial$glossary/compliance-check.adoc[]
 
 See xref:main:architecture/compliance.adoc[How compliance works] and
 xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
@@ -43,6 +43,14 @@ See xref:main:guides/follow-a-session.adoc[Follow a session].
 include::partial$glossary/iac-engine.adoc[]
 
 See xref:main:architecture/deployment-view.adoc[Deployment view].
+
+== Intent check
+
+include::partial$glossary/intent-check.adoc[]
+
+See xref:main:architecture/compliance.adoc[How compliance works] and
+xref:main:guides/resolve-a-locked-session.adoc#intent-check[Resolve a
+locked session].
 
 == Langfuse
 

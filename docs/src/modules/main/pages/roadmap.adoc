@@ -173,7 +173,7 @@ A single request will be able to target several projects at once. A team
 will be able to ask, for example, to add a new database to a list of
 projects, and Kumoss will run the generation, validation, and reporting
 phases for each project, tailoring the code to the conventions and
-compliance rules of each one. Progress and results will be tracked per
+compliance policies of each one. Progress and results will be tracked per
 project, so a failure in one project does not block the others.
 
 Today a session works on a single project; see
@@ -210,10 +210,11 @@ models Kumoss supports today.
 Kumoss evaluates the final plan of every generate round against a
 deterministic policy written in Rego with
 https://www.openpolicyagent.org[Open Policy Agent], alongside the
-language-model compliance audit. The policies are stored in Langfuse:
+language-model intent check. The policies are stored in Langfuse:
 a general one, which ships with three deny rules (standalone deletions,
-removed customer-managed keys, command execution) and one warning
-(credential outputs not marked sensitive), and one
+removed customer-managed keys, command execution) and two warnings
+(credential outputs not marked sensitive, provider versions not pinned
+as `~> X.Y`), and one
 per provider, evaluated when a module declares that provider and
 shipped for AWS, Azure, Google Cloud, Kubernetes, OCI and vSphere with
 three rules each. A deny, or a policy that cannot be evaluated, locks

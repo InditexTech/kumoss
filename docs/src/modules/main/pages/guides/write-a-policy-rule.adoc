@@ -274,14 +274,15 @@ locked].
 * *Keep rule ids stable.* They appear in reports, and they are what
   reviewers and users search for.
 * *Do not restate a rule in a prompt.* The guideline and resource
-  prompts feed both the code generator and the compliance audit, so a
-  ban written there would be enforced a second time, by a model; see
+  prompts feed only the code generator, so a ban written there would be
+  applied a second time, by a model, possibly differently from the
+  policy; see
   xref:main:guides/customize-prompts.adoc#compliance-policy[Change a
   compliance policy].
 * *Use the policies for conditions on the plan only.* Rules that depend on
-  what the user asked for belong in the compliance audit; see
-  xref:main:guides/resolve-a-locked-session.adoc#compliance-audit[Compliance
-  audit].
+  what the user asked for belong in the intent check; see
+  xref:main:guides/resolve-a-locked-session.adoc#intent-check[Intent
+  check].
 
 == Next steps
 

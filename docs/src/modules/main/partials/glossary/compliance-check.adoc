@@ -1,7 +1,7 @@
 The check of a generated plan after a generate round: the compliance policies,
 Rego policies evaluated by OPA (a general one and one per provider of the
-module), then an independent, second LLM agent that
-checks the plan against the organization's compliance rules. Failing
+module), then the intent check, an independent, second LLM agent that
+judges only whether the plan does what the session's requests ask. Failing
 findings of either, or a policy that cannot be evaluated —
 and, optionally, a high-impact verdict — lock the session until a panel
 editor unlocks it or a later generate round passes clean.
