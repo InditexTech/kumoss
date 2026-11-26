@@ -35,6 +35,7 @@ MANIFEST = Manifest(
         ProviderScope("aws", "123456789012"),
         ProviderScope("azurerm", "00000000-0000-0000-0000-000000000000"),
     ),
+    project_identifier="infra",
 )
 
 
@@ -98,6 +99,42 @@ class TestManifestFile(unittest.TestCase):
         self.write("version: 1\nfingerprint: sha256:x\n")
         self.assertEqual(self.file.load(self.dir), Manifest(fingerprint="sha256:x"))
 
+    def test_project_identifier_leads_the_file(self):
+        self.file.save(self.dir, MANIFEST)
+        text = (self.dir / "kumoss.yaml").read_text()
+        self.assertIn(
+            "version: '1'\nproject_identifier: infra\nfingerprint: sha256:abc\n",
+            text,
+        )
+
+    def test_absent_project_identifier_is_not_written(self):
+        manifest = Manifest(fingerprint="sha256:x")
+        self.file.save(self.dir, manifest)
+        self.assertNotIn("project_identifier", (self.dir / "kumoss.yaml").read_text())
+        self.assertEqual(self.file.load(self.dir), manifest)
+
+    def test_unknown_keys_are_ignored_at_every_level(self):
+        self.write(
+            "version: '1'\nfingerprint: sha256:x\nadded_later: {a: 1}\n"
+            + "providers:\n  - {name: aws, source: hashicorp/aws, pinned: true}\n"
+            + "variables:\n  - {name: region, value: eu, note: hi}\n"
+            + "scopes:\n  - {provider: aws, scope_id: '1', region: eu}\n"
+        )
+        self.assertEqual(
+            self.file.load(self.dir),
+            Manifest(
+                fingerprint="sha256:x",
+                providers=(ProviderRequirement("aws", "hashicorp/aws"),),
+                variables=(Variable("region", "eu"),),
+                scopes=(ProviderScope("aws", "1"),),
+            ),
+        )
+
+    def test_unknown_keys_are_dropped_on_save(self):
+        self.write("version: '1'\nfingerprint: sha256:x\nadded_later: 1\n")
+        self.file.save(self.dir, self.file.load(self.dir))
+        self.assertNotIn("added_later", (self.dir / "kumoss.yaml").read_text())
+
     def test_invalid_manifests_are_reported(self):
         cases = {
             "unsupported version": "version: '2'\nfingerprint: sha256:x\n",
@@ -127,6 +164,9 @@ class TestManifestFile(unittest.TestCase):
             ),
             "a scope must be a mapping": (
                 "version: '1'\nfingerprint: x\nscopes:\n  - azurerm\n"
+            ),
+            "'project_identifier' must be a non-empty string": (
+                "version: '1'\nfingerprint: x\nproject_identifier: 3\n"
             ),
         }
         for expected, text in cases.items():

@@ -7,8 +7,13 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class WorkspaceFacts:
-    """Value object: write-once workspace fields captured at session creation."""
+    """Value object: write-once workspace fields captured at session creation.
+
+    ``project_identifier`` defaults to None so facts cached before it was
+    recorded still load: those sessions have none.
+    """
 
     uri: str
     branch: str
     root_path: str
+    project_identifier: str | None = None

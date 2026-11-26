@@ -71,6 +71,7 @@ export function useHomeWizard() {
       terraform.run(
         {
           repoUri: data.repositoryUrl,
+          projectIdentifier: data.projectIdentifier,
           query: data.query,
           mode,
           rootModulePath: data.rootModulePath,
@@ -166,10 +167,17 @@ export function useHomeWizard() {
           try {
             // The core resolves a repository name to its clone URL; only
             // that URL is stored and sent on later calls.
-            const { repoUrl, roots: paths } = await repo.scan(input);
+            const {
+              repoUrl,
+              projectIdentifier,
+              roots: paths,
+            } = await repo.scan(input);
 
             if (paths.length === 0) {
-              navigation.applyResolution({ repositoryUrl: repoUrl });
+              navigation.applyResolution({
+                repositoryUrl: repoUrl,
+                projectIdentifier,
+              });
               updateSession({ workspace: { uri: repoUrl } });
               repo.setScanError(STRINGS.wizard.noRootModulePaths);
               break;
@@ -178,6 +186,7 @@ export function useHomeWizard() {
             const path = paths.length === 1 ? paths[0] : "";
             const resolved = navigation.applyResolution({
               repositoryUrl: repoUrl,
+              projectIdentifier,
               ...(path ? { rootModulePath: path } : {}),
             });
             updateSession({
@@ -254,6 +263,7 @@ export function useHomeWizard() {
       navigation.setData((prev) => ({
         ...prev,
         repositoryUrl: "",
+        projectIdentifier: "",
         rootModulePath: "",
         inputsChecked: false,
         inputs: null,

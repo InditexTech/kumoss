@@ -59,6 +59,7 @@ class SessionOrchestrationService:
             # Optional on the request, where it defaults to the repository
             # root: stored as ".", the spelling the root-module detector uses.
             root_module_path=request.root_module_path or ".",
+            project_identifier=request.project_identifier,
         )
         return await DatabaseService.get_session_context(sid)
 

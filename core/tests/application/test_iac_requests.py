@@ -172,6 +172,40 @@ class TestGenerateRequest(unittest.TestCase):
                 {"session_id": str(_SID), "q": "x", "iac_path": "envs/dev"}
             )
 
+    def test_first_call_carries_the_project_identifier(self):
+        req = GenerateRequest(
+            repo_uri="https://example.com/foo.git",
+            q="x",
+            project_identifier="  foo ",
+        )
+        self.assertEqual(req.project_identifier, "foo")
+
+    def test_a_project_identifier_that_is_the_uri_is_dropped(self):
+        for same in ("https://example.com/foo.git", " https://example.com/foo.git "):
+            req = GenerateRequest(
+                repo_uri="https://example.com/foo.git", q="x", project_identifier=same
+            )
+            self.assertIsNone(req.project_identifier)
+
+    def test_a_blank_project_identifier_is_dropped(self):
+        req = GenerateRequest(
+            repo_uri="https://example.com/foo.git", q="x", project_identifier="   "
+        )
+        self.assertIsNone(req.project_identifier)
+
+    def test_project_identifier_must_not_embed_a_password(self):
+        # It is committed to the repository with the manifest.
+        with self.assertRaises(ValidationError):
+            GenerateRequest(
+                repo_uri="https://example.com/foo.git",
+                q="x",
+                project_identifier="https://user:ghp_secret@example.com/foo.git",
+            )
+
+    def test_iteration_calls_cannot_carry_a_project_identifier(self):
+        with self.assertRaises(ValidationError):
+            GenerateRequest(session_id=str(_SID), q="x", project_identifier="foo")
+
 
 class TestDriftRequest(unittest.TestCase):
     def test_drift_first_call(self):

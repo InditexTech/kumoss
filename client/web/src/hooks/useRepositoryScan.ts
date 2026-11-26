@@ -5,9 +5,13 @@
 import { useState, useCallback } from "react";
 import { parseRepository } from "@/services/core/iac_code";
 
-/** What a scan found: the resolved clone URL and its root modules. */
+/**
+ * What a scan found: the resolved clone URL, its root modules, and the
+ * project identifier the user typed (to send on the session's first call).
+ */
 export interface RepositoryScan {
   repoUrl: string;
+  projectIdentifier: string;
   roots: string[];
 }
 
@@ -29,7 +33,11 @@ export function useRepositoryScan() {
     try {
       const parsed = await parseRepository(input);
       setScanPaths(parsed.roots);
-      return { repoUrl: parsed.repo_url, roots: parsed.roots };
+      return {
+        repoUrl: parsed.repo_url,
+        projectIdentifier: parsed.project_identifier,
+        roots: parsed.roots,
+      };
     } finally {
       setScanLoading(false);
     }

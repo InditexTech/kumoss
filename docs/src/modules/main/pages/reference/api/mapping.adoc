@@ -17,9 +17,13 @@ from a lookup, so nothing consumed them. A request that still sends
 The core calls the service when the web wizard scans a repository: what
 the user types in the repository step goes to
 `POST /api/v1/repository/parse`, which resolves it here before cloning,
-and every later call of the session uses the resolved `repo_url`. The
-core's former `POST /api/v1/mapping/resolve` passthrough was removed
-together with the provider and scope fields.
+and every later call of the session uses the resolved `repo_url`. It
+calls the service once more when a session's first `generate`, `drift`
+or `import` call carries a `project_identifier` (what the user typed,
+echoed by the parse route), to check that it still resolves to that
+call's `repo_uri` before any session is created. The core's former
+`POST /api/v1/mapping/resolve` passthrough was removed together with
+the provider and scope fields.
 
 Contract: `contracts/openapi/mapping.v1.yaml`, version 2.0.0. Kumoss
 bundles a reference implementation in `services/mapping`, *enabled by
@@ -174,6 +178,13 @@ When the sidecar is disabled the core answers with an *identity
 passthrough* and makes no call: `repo_url` and `identifier` both echo
 the input, and anything that is not an `https://` URL is rejected with
 `422`.
+
+The same client checks a first IaC call's `project_identifier`: the
+call is `422` unless the identifier resolves to its `repo_uri`, and the
+service's own errors (`404`, `502`, `504`) reach the caller as above.
+With the sidecar disabled an identifier resolves to itself, so only a
+repository URL can be used, and that one is dropped as redundant. See
+xref:main:reference/api/core.adoc#infrastructure-as-code[Core API].
 
 == Providing your own implementation
 

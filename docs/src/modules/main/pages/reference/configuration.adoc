@@ -923,7 +923,7 @@ from `storage.bucket`. *Non-blank — the shipped value — means Kumoss
 manages state*: the bucket is created at boot if missing and the core
 writes `paths.backend_override_filename` into every workspace before
 `init`, addressing it with the key
-`<project_id>/<storage.terraform_state_filename>`. Backend
+`<state_id>/<storage.terraform_state_filename>`. Backend
 type follows `storage.provider` (`s3` for `RUSTFS`/`S3`, `azurerm` for
 `STORAGE_ACCOUNT`). Set it explicitly to `""` to opt out — no value,
 `""`, and whitespace-only are all blank, and blank means no bucket is
@@ -939,7 +939,7 @@ backends].
 |`terraform.tfstate`
 |Optional
 |Object name of each project's state inside
-`storage.terraform_state_bucket`, stored under the `<project_id>/`
+`storage.terraform_state_bucket`, stored under the `<state_id>/`
 prefix. It must be a single safe filename: no path separators, no
 spaces, at most 128 characters. Changing it orphans the existing state:
 every project then starts from an empty state under the new key.

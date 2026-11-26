@@ -5,6 +5,7 @@
 """POST /v1/manifest/probe: request validation and the response shape."""
 
 import unittest
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from fastapi import HTTPException
@@ -15,6 +16,7 @@ from src.api.v1.manifest import probe_manifest
 from src.domains.services.manifest_service import reconcile_manifest, resolve_manifest
 from src.domains.value_objects import (
     ProviderRequirement,
+    RootModuleRef,
     TerraformRequirements,
     VarFile,
     VariableAnswer,
@@ -36,6 +38,7 @@ REQ = TerraformRequirements(
         VarFile("envs/pro.tfvars", False),
     ),
 )
+MODULE = RootModuleRef("https://github.com/o/r", ".", Path("/w"))
 
 
 class TestProbeRequest(unittest.TestCase):
@@ -101,6 +104,7 @@ class TestProbeResponse(unittest.TestCase):
             ["envs/pro.tfvars"],
             {},
             {"aws": "123456789012"},
+            module=MODULE,
         )
         bumped = TerraformRequirements(
             providers=(
@@ -138,6 +142,7 @@ class TestProbeResponse(unittest.TestCase):
             ["envs/pro.tfvars", "envs/dev.tfvars"],
             {},
             {"aws": "123456789012"},
+            module=MODULE,
         )
         body = ManifestProbeResponse.from_resolution(
             resolve_manifest(REQ, manifest, stored_secrets=secrets.keys())
@@ -156,6 +161,7 @@ class TestProbeResponse(unittest.TestCase):
             ["envs/dev.tfvars"],
             {},
             {"aws": "123456789012"},
+            module=MODULE,
         )
         resolution = resolve_manifest(REQ, manifest, stored_secrets=())
         self.assertEqual([v.name for v in resolution.missing_variables], ["pw"])

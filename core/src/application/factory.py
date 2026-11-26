@@ -273,11 +273,12 @@ class ApplicationFactory:
             project_root=project_root,
             git=self.get_git_utils(self.__ctx.repo_uri, project_root),
             scopes=self.__ctx.providers,
-            project_id=TerraformUtils.project_id(
+            state_id=TerraformUtils.state_id(
                 repo_uri=self.__ctx.repo_uri,
                 root_module_path=self.__ctx.root_module_path,
             ),
             inputs=self.__ctx.terraform_inputs,
+            project_identifier=self.__ctx.project_identifier,
         ).get()
 
     def _get_terraform_validation_service(

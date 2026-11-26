@@ -66,14 +66,20 @@ class SessionInputsService:
         On a first call the session's providers and scopes come from the
         manifest: ``authorize`` checks them before anything is saved, and
         they are recorded on the session. Iteration calls keep the ones
-        recorded then.
+        recorded then. A first call also records the session's project
+        identifier in the manifest.
 
         Raises:
             ManifestInputError: When the first call leaves something the
                 module needs unanswered (422), or the answers are invalid.
             Whatever ``authorize`` raises, before anything is saved.
         """
-        module = RootModuleRef(ctx.repo_uri, ctx.root_module_path or "", ctx.call_dir)
+        module = RootModuleRef(
+            ctx.repo_uri,
+            ctx.root_module_path or "",
+            ctx.call_dir,
+            project_identifier=ctx.project_identifier,
+        )
         if first_call:
             if answers is None:
                 resolution = await self.__manifests.sync(module, authorize)

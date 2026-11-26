@@ -30,20 +30,23 @@ class TerraformFactory:
         project_root: Path,
         git: IGit,
         scopes: tuple[ProviderScope, ...],
-        project_id: str,
+        state_id: str,
         inputs: TerraformInputs | None = None,
+        project_identifier: str | None = None,
     ):
         self.__project_root = project_root
+        self.__project_identifier = project_identifier
         self.__inputs = inputs
         self.__git = git
         self.__scopes = scopes
-        self.__project_id = project_id
+        self.__state_id = state_id
 
     def get(self) -> ITerraform:
         return Terraform(
             workspace_path=self.__project_root,
             git=self.__git,
             scopes=self.__scopes,
-            backend=TerraformBackend(project_id=self.__project_id),
+            backend=TerraformBackend(state_id=self.__state_id),
             inputs=self.__inputs,
+            project_identifier=self.__project_identifier,
         )

@@ -70,6 +70,12 @@ export interface BaseIacRequest {
   session_id?: string | null;
   q: string;
   root_module_path?: string | null;
+  /**
+   * First call only: what the user typed for the repository, as
+   * `/v1/repository/parse` echoed it. The core checks it resolves to
+   * `repo_uri` and ignores it when it is `repo_uri` itself.
+   */
+  project_identifier?: string | null;
   /** First call only: answers for what the manifest probe reported missing. */
   manifest?: ManifestAnswers | null;
 }

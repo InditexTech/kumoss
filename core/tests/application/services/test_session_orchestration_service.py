@@ -78,6 +78,26 @@ class TestSessionOrchestration(unittest.IsolatedAsyncioTestCase):
         ctx2 = await self.svc.resolve(iter_req)
         self.assertEqual(ctx2.root_module_path, "environments/dev")
 
+    async def test_project_identifier_persisted_and_loaded(self):
+        ctx1 = await self.svc.resolve(
+            self._first_request(project_identifier="sistemas-kumoss-rsg-esc1-dev"),
+            OperationType.GENERATE,
+            self.user_pk,
+        )
+        self.assertEqual(ctx1.project_identifier, "sistemas-kumoss-rsg-esc1-dev")
+
+        iter_req = GenerateRequest(session_id=str(ctx1.id), q="iterate")
+        ctx2 = await self.svc.resolve(iter_req)
+        self.assertEqual(ctx2.project_identifier, "sistemas-kumoss-rsg-esc1-dev")
+
+    async def test_a_session_named_by_its_url_has_no_project_identifier(self):
+        ctx = await self.svc.resolve(
+            self._first_request(project_identifier="https://example.com/foo.git"),
+            OperationType.GENERATE,
+            self.user_pk,
+        )
+        self.assertIsNone(ctx.project_identifier)
+
     async def test_an_omitted_root_module_path_is_the_repository_root(self):
         for omitted in (None, ""):
             ctx = await self.svc.resolve(

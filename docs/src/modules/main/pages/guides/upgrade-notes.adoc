@@ -1,9 +1,45 @@
 = Upgrade notes
-:description: Breaking changes to check before upgrading Kumoss: the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
+:description: Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.
 
 This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.
+
+== Project identifier; IaC contract 2.1.0
+
+A repository can be named by a *project identifier*, such as
+`sistemas-kumoss-rsg-esc1-dev`, that the mapping sidecar resolves to
+its URL. A session now keeps that name and sends it to the IaC sidecar,
+so an IaC service implementation can pick the credentials a command
+runs with by it. Nothing is required of an operator; what changes:
+
+* *Database.* Migration `0003` adds the nullable
+  `workspaces.project_identifier` column. The core applies it at
+  startup, like the others; existing sessions get null. See
+  xref:main:reference/database-schema.adoc[Database schema].
+* *Core API.* `POST /api/v1/repository/parse` also answers
+  `project_identifier`, the input echoed. The first `generate`, `drift`
+  or `import` call may send it back as `project_identifier`, as the web
+  application does; the core then checks through the mapping sidecar
+  that it resolves to `repo_uri` and answers `422` otherwise, before
+  any session is created. It is optional: clients that do not send it
+  behave as before. See
+  xref:main:reference/api/core.adoc#infrastructure-as-code[Core API].
+* *Manifest.* `kumoss.yaml` gains an optional top-level
+  `project_identifier`, written only when the session has one. It never
+  makes the manifest drift, but a first call saves the manifest when
+  only the identifier changed. The layout version stays `"1"`; earlier
+  cores ignore the key when reading and drop it when they save. See
+  xref:main:reference/root-module-manifest.adoc#project-identifier[Root
+  module manifest].
+* *IaC contract 2.1.0 (additive).* Every IaC call of such a session
+  carries the optional `Kumoss-Project` header. An implementation may
+  ignore it, as the bundled one does, so 2.0.0 implementations keep
+  working unchanged. See
+  xref:main:reference/api/iac.adoc#project[IaC sidecar API].
+* *Session cache.* The cached session context moved to a new key
+  version; entries in the old shape are rebuilt from the database on
+  first use. Nothing to flush.
 
 == Compliance policy with OPA; `forbidden_actions` removed
 
@@ -371,8 +407,8 @@ session on each project plans against empty state and proposes
 creating resources that already exist.
 
 Before running sessions on an existing project, copy its state object
-in the state bucket from `<old_project_id>/terraform.tfstate` to
-`<project_id>/terraform.tfstate`. The old key appears in the
+in the state bucket from `<old_state_id>/terraform.tfstate` to
+`<state_id>/terraform.tfstate`. The old key appears in the
 `Terraform state: ... key=` log lines of the previous release; the new
 one in the same line the upgraded core logs on the project's first
 `init`. Do not apply a plan made before the copy. See

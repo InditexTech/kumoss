@@ -510,7 +510,7 @@ class StorageConfig(BaseModel):
     artifacts bucket carries. Empty turns managed state off: no backend
     override is written and each workspace keeps the backend its own
     configuration declares. ``terraform_state_filename`` is the object
-    name of each project's state under its ``project_id`` prefix.
+    name of each project's state under its ``state_id`` prefix.
     """
 
     # `provider` is ObjectStorageProvider enum names (see
