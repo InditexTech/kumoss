@@ -157,8 +157,8 @@ Practical rules:
 * *Prefer additive changes.* A standalone deletion is always denied by
   the compliance policy, even when you ask for it, and locks the
   session, see
-  xref:main:guides/merge-and-apply.adoc#session-locked[If the session is
-  locked].
+  xref:main:guides/resolve-a-locked-session.adoc[Resolve a locked
+  session].
 
 Examples that work well: "Create a private S3 bucket named
 `demo-platform-logs` with versioning and default encryption for

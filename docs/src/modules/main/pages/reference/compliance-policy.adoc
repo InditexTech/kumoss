@@ -155,7 +155,8 @@ general policy carry a single `policy_revision` string; they are read
 into the list. The policies' findings come first. The report has
 `passed: false` when either source has an `error` or `critical`
 finding, and the session is locked exactly as for any failed
-compliance check. When the policies block, the summary starts with `Blocked by the compliance
+compliance check. When the policies block, the summary starts with
+`Blocked by the compliance
 policy: N finding(s) (<rule ids>).` The web UI marks policy findings
 with a *policy* badge.
 
@@ -201,6 +202,7 @@ skipped there too. A broken version that gets the environment label
 while the core is running is not caught until it is evaluated, and
 then blocks every round it applies to.
 
+[#shipped-rules]
 == The shipped rules
 
 === General policy

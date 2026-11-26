@@ -303,5 +303,8 @@ first session.
   the credentials each provider needs in the IaC sidecar.
 * xref:main:guides/customize-prompts.adoc[Customize prompts] for how the
   module's providers select the prompts a session uses.
+* xref:main:reference/compliance-policy.adoc#input[Compliance policy]
+  for how the module's provider type names reach the Rego policy as
+  `input.kumoss.providers`.
 * xref:main:guides/upgrade-notes.adoc[Upgrade notes] for what changed
   when providers moved to the module.
