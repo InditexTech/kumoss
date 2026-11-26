@@ -1,0 +1,45 @@
+docs/src/modules/main/pages/architecture/end-to-end-flow.adoc
+  s_ad638db013a85c::t_f076500546a773 356,373,392,395,438,561,772,886,915,966,992,1000,1002
+docs/src/modules/main/pages/guides/deploy-to-production.adoc
+  s_ad638db013a85c::t_34083419d2db83 25,280,345,444
+docs/src/modules/main/pages/guides/deploy-with-helm.adoc
+  s_ad638db013a85c::t_c9c03c21e78331 213,271,286,514,518
+docs/src/modules/main/pages/guides/import-infrastructure.adoc
+  s_ad638db013a85c::t_6ac010192e2918 135
+docs/src/modules/main/pages/guides/make-a-request.adoc
+  s_ad638db013a85c::t_e931b787149177 38
+docs/src/modules/main/pages/guides/remediate-drift.adoc
+  s_ad638db013a85c::t_c802cfd930e7cd 96
+docs/src/modules/main/pages/guides/state-backends/kumoss-managed.adoc
+  s_ad638db013a85c::t_5008d9d859b46c 373
+docs/src/modules/main/pages/reference/api/iac.adoc
+  s_ad638db013a85c::t_d6c18f82f6b9e9 54,484,538,862
+docs/src/modules/main/pages/reference/api/index.adoc
+  s_ad638db013a85c::t_76896cb3b04b60 22
+docs/src/modules/main/pages/reference/api/mapping.adoc
+  s_ad638db013a85c::t_b0d1a99358e05f 146,155,158,180,189,212
+docs/src/modules/main/pages/reference/api/notifications.adoc
+  s_ad638db013a85c::t_dc0b9daa1d0160 159
+docs/src/modules/main/pages/reference/database-schema.adoc
+  s_ad638db013a85c::t_2093a73696af2a 180
+docs/src/modules/main/pages/reference/environment-variables.adoc
+  s_ad638db013a85c::t_42321ae68da923 152,173,797
+docs/src/modules/main/pages/reference/llm-providers.adoc
+  s_ad638db013a85c::t_286b6df47b196f 205,431
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.6",
+  "base_commit_sha": "e58913c22388d61a1ad769e2067860addbd679bb",
+  "prompts": {},
+  "sessions": {
+    "s_ad638db013a85c": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "57599cb7-4d09-45f1-8e43-30af586f4da0",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Luis Valerio Gonzalez <luisivg@inditex.com>"
+    }
+  }
+}
