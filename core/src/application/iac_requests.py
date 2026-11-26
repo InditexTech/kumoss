@@ -262,6 +262,12 @@ class BaseIacRequest(BaseModel):
         # A repository given by its URL has no other name to record.
         if self.project_identifier == self.repo_uri:
             self.project_identifier = None
+        if self.project_identifier is not None and any(
+            not 32 <= ord(char) <= 126 for char in self.project_identifier
+        ):
+            raise ValueError(
+                "project_identifier must contain only printable ASCII characters for the Kumoss-Project header."
+            )
         return self
 
 
