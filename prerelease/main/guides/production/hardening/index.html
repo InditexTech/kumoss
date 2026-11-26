@@ -1078,10 +1078,13 @@ under acceptable data-handling terms.</p>
 </li>
 <li>
 <p>Seeded prompts reviewed and adapted before the first user session;
-they encode a generic policy, including the compliance rules. No
+they encode a generic policy, including the intent rules. No
 prompt lists forbidden actions: write your prohibitions as rules in
 the compliance policies, the general one or a provider&#8217;s (<a href="../../customize-prompts/" class="xref page">Customize prompts</a>,
-<a href="../../../reference/compliance-policy/" class="xref page">Compliance policy</a>).</p>
+<a href="../../../reference/compliance-policy/" class="xref page">Compliance policy</a>). The conventions in the
+guideline and resource prompts only guide generation: no check audits
+a plan against them afterwards, so anything that must hold belongs in
+a policy.</p>
 </li>
 <li>
 <p>With <code>orchestration.enable_compliance_checker</code> on, the core starts

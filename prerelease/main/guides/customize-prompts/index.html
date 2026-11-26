@@ -944,7 +944,7 @@
 <div class="paragraph">
 <p>Kumoss does not hard-code cloud knowledge. Its agents read your
 organization&#8217;s standards (naming, tagging, networking, permissions,
-compliance rules, and exceptions) from <strong>prompts</strong> stored in
+intent rules, compliance policies, and exceptions) from <strong>prompts</strong> stored in
 <a href="https://langfuse.com/docs/prompt-management">Langfuse</a>. This guide shows
 what each prompt controls and how to change it. How the registry works
 underneath, including seeding and the shipped inventory, is in
@@ -999,8 +999,8 @@ reads which prompt</a>.</p>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Organization-wide Terraform standards: structure, providers, state,
-and style. Followed by the code generator and checked by the compliance
-audit. Do not write into it bans a compliance policy enforces; see
+and style. Followed by the code generator; no check reads it. Do not
+write into it bans a compliance policy enforces; see
 <a href="#compliance-policy">Change a compliance policy</a>.</p></td>
 </tr>
 <tr>
@@ -1035,17 +1035,17 @@ placeholder with no exclusions.</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>resource_creation</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">General conventions for creating resources: tags, naming, and
-defaults. Followed by the generator and checked by the audit.</p></td>
+defaults. Followed by the generator.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>networking</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Networking conventions: address plans, exposure rules, and private
-endpoints. Followed by the generator and checked by the audit.</p></td>
+endpoints. Followed by the generator.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>permissions</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Identity and access conventions: least privilege and role assignment
-patterns. Followed by the generator and checked by the audit.</p></td>
+patterns. Followed by the generator.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code></p></td>
@@ -1094,10 +1094,12 @@ needs, chosen from <code>resources_list</code>.</p>
 </thead>
 <tbody>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report</code></p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The business rules the compliance audit checks a plan against, each
-with a rule id and a severity. Ships with <code>scope_exceeded</code> and
-<code>scope_incomplete</code>. A failed check locks the session.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/intent/rules</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The rules the intent check judges a plan against, each with a rule id
+and a severity: only whether the plan does what the session&#8217;s requests
+ask. Ships with <code>scope_exceeded</code> and <code>scope_incomplete</code>, both <code>error</code>.
+An <code>error</code> or <code>critical</code> finding locks the session. Its prompt type is
+<code>intent</code>.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/impact</code></p></td>
@@ -1450,9 +1452,10 @@ input and decision a policy works with, and the shipped rules, are in
 </div>
 <div class="paragraph">
 <p>What a policy enforces is not restated in the guideline and resource
-prompts. Those prompts feed both the IaC generator and the compliance
-audit, so a ban written there would also be enforced by the model,
-possibly differently from the policy. The shipped prompts keep positive
+prompts. Those prompts feed only the IaC generator, and no check reads
+them, so a ban written there would be applied by the model at
+generation time, possibly differently from the policy, and never
+checked afterwards. The shipped prompts keep positive
 defaults (<code>allow_privilege_escalation = false</code>, S3 Block Public Access
 fully enabled, outputs carrying secrets marked <code>sensitive = true</code>) and
 leave the bans to Rego: they no longer tell the generator to avoid
@@ -1510,7 +1513,7 @@ match the <code>&lt;name&gt;</code> part of the prompt exactly. See
 <ul>
 <li>
 <p>Review every shipped prompt before relying on a deployment: the
-naming conventions, security defaults, and compliance rules encode a
+naming conventions, security defaults, and intent rules encode a
 policy, not yours.</p>
 </li>
 <li>

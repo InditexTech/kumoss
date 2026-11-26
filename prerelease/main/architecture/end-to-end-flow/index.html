@@ -1894,10 +1894,10 @@ existing plan safe: <a href="#drift">Drift detection and remediation</a>.</p>
 <div class="sectionbody">
 <div class="imageblock">
 <div class="content">
-<img src="../../_images/flow-phases-7-8.png" alt="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
+<img src="../../_images/flow-phases-7-8.png" alt="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check">
 </div>
 </div>
-<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-7-8.html" data-archify-title="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit">
+<p class="archify-actions" data-archify-src="../../_attachments/flow-phases-7-8.html" data-archify-title="Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check">
   <span class="archify-hint">Pan, zoom, search, follow a message, switch themes.</span>
   <a class="archify-full" href="../../_attachments/flow-phases-7-8.html" target="_blank" rel="noopener">Open in a new tab</a>
 </p>
@@ -2271,7 +2271,7 @@ Metadata goes to PostgreSQL; the UI receives presigned URLs.</p></td>
 </div>
 </div>
 <div class="sect1">
-<h2 id="phase-8-compliance-audit"><a class="anchor" href="#phase-8-compliance-audit"></a>Phase 8: compliance audit</h2>
+<h2 id="phase-8-compliance-check"><a class="anchor" href="#phase-8-compliance-check"></a>Phase 8: compliance check</h2>
 <div class="sectionbody">
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -2299,23 +2299,25 @@ fails closed. Contract:
 <a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance Auditor</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Intent check</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Then a second,
-independent small-model agent reads the session&#8217;s first request and the
+independent small-model agent reads every request of the session and the
 raw plan output — not the report JSON — alongside the
-<code>general/compliance/report</code> rules and the cloud guidelines. It has no
+<code>general/intent/rules</code> rules. It judges only whether the plan does what
+the requests ask (<code>scope_exceeded</code>, <code>scope_incomplete</code>), not the
+conventions. It has no
 repository tools and must answer through its only tool,
-<code>report_compliance_findings</code>: rule id, severity, resource, message,
+<code>report_intent_findings</code>: rule id, severity, resource, message,
 suggested fix. Both parts' findings, each tagged with its <code>source</code>
-(<code>opa</code> or <code>llm</code>), are merged into one report, stored like any other artifact, at
+(<code>opa</code> or <code>intent</code>), are merged into one report, stored like any other artifact, at
 <code>compliance/check-&lt;token&gt;.json</code> with a <code>compliance_checks</code> row holding
 the verdict, so the session detail and the portal can show them.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The tool handler recomputes <code>passed</code> from the severities: any <code>error</code>
-or <code>critical</code> finding fails the audit regardless of the model&#8217;s own
-claim. The merged report fails when either part has one.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The model reports findings only, never a verdict: the merged report
+computes <code>passed</code> from the severities, and fails when either part has
+an <code>error</code> or <code>critical</code> finding.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Lock or release, then pin</p></td>
@@ -3355,11 +3357,11 @@ call <code>diff_history</code>)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 6 and dedicated drift sessions, after the reconciliation filter</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance Auditor Agent</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Intent Checker Agent</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">small</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">none besides its sentinel; input is the first request and the raw plan
-output</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_compliance_findings</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">none besides its sentinel; input is every request of the session and
+the raw plan output</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>report_intent_findings</code></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Phase 8, generate rounds, when the checker is enabled</p></td>
 </tr>
 <tr>
@@ -3570,7 +3572,7 @@ removed; in-flight guard released.</p></td>
 <tbody>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Validated, unlocked</strong> — phase 8</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The audit passed or the checker is off, and the report&#8217;s impact banner is
+<td class="tableblock halign-left valign-top"><p class="tableblock">The compliance check passed or the checker is off, and the report&#8217;s impact banner is
 not <code>high</code> or <code>orchestration.block_on_high_impact</code> is off</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>is_blocked = false</code>, plan pinned. Apply and pull-request merge are
 available.</p></td>
@@ -3845,7 +3847,7 @@ splitting</p></td>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock"><code>llm.small_model</code> (small)</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Request filtering, prompt composition, status messages, pull-request text,
-the reconciliation filter, the drift exception filter, the compliance audit</p></td>
+the reconciliation filter, the drift exception filter, the intent check</p></td>
 </tr>
 </tbody>
 </table></div></div>
@@ -4011,7 +4013,7 @@ filter.</p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Up to <code>max_drift_reports</code> (3) iterations, unfiltered — a drift session has
 no intended changes of its own. It writes a DRIFT report from the branch
 diff (see below) and plans for itself on the first iteration. The drift handler never touches the session
-lock, does not run the compliance audit and does not pin the workspace —
+lock, does not run the compliance check and does not pin the workspace —
 drift never pins — so an apply after a drift-only round fails until a
 generate round pins a plan.</p></td>
 </tr>
@@ -4115,24 +4117,28 @@ final plan&#8217;s <code>show -json</code>: <code>general/policies/compliance</c
 declares that has one. <code>deny</code> findings have severity
 <code>error</code> or <code>critical</code>, <code>warn</code> findings <code>warning</code>. A policy that cannot be
 evaluated — fetch failure, broken policy, malformed decision, timeout —
-adds a blocking <code>policy_unavailable</code> finding instead, and the LLM audit
-still runs. With the checker on, the core refuses to start if the
+adds a blocking <code>policy_unavailable</code> finding instead, and the intent
+check still runs. With the checker on, the core refuses to start if the
 general policy or the policy of a provider that ships a seed fails
 against an empty plan. Contract:
 <a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>.</p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock">How it audits</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Then a second, independent small-model agent loop. Its query is the session&#8217;s
-first user request plus the raw plan output, rendered into the local
-compliance-checker layout with the <code>general/compliance/report</code> rules and the
-cloud guidelines from Langfuse. It has no repository access and one tool, the
-sentinel <code>report_compliance_findings</code>, whose arguments — <code>rule_id</code>,
-<code>severity</code>, <code>resource</code>, <code>message</code> and <code>suggested_fix</code> per violation — are
-parsed into a typed report. The rules are applied by the model; only the
-verdict is computed in code. The policy decision and the audit are then
-merged into one report: policy findings first (<code>source: "opa"</code>), then the
-model&#8217;s (<code>source: "llm"</code>), with <code>policy_revisions</code> listing the policy
+<td class="tableblock halign-left valign-top"><p class="tableblock">Intent check</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Then a second, independent small-model agent loop. Its query is every user
+request of the session plus the raw plan output, against the local
+intent-checker layout with the <code>general/intent/rules</code> rules from Langfuse.
+It judges only whether the plan does what the requests ask
+(<code>scope_exceeded</code>, <code>scope_incomplete</code>); it receives no conventions, so
+nothing audits the plan against them beyond the policies. It has no
+repository access and one tool, the sentinel <code>report_intent_findings</code>, whose
+arguments — <code>rule_id</code>, <code>severity</code>, <code>resource</code>, <code>message</code> and
+<code>suggested_fix</code> per violation — are parsed into a typed intent check with no
+verdict of its own. The rules are applied by the model; only the verdict is
+computed in code. The policy decision and the intent check are then merged
+into one report: policy findings first (<code>source: "opa"</code>), then the model&#8217;s
+(<code>source: "intent"</code>; stored reports with the former <code>"llm"</code> load as
+<code>"intent"</code>), with <code>policy_revisions</code> listing the policy
 versions that ran as <code>"&lt;prompt name&gt;@&lt;version&gt;"</code>, the general policy
 first, for example <code>["general/policies/compliance@3",
 "aws/policies/compliance@1"]</code>.</p></td>
@@ -4147,19 +4153,18 @@ when the session is locked, in the blocked pull-request view.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Verdict in code</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">The tool handler recomputes <code>passed</code> from the reported severities: any
-<code>error</code> or <code>critical</code> violation fails the check regardless of the model&#8217;s
-own claim. The merged report fails if either source has such a
-violation.</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The model reports findings only: the merged report computes <code>passed</code>
+from the severities, and fails if either source has an <code>error</code> or
+<code>critical</code> violation.</p></td>
 </tr>
 <tr>
 <td class="tableblock halign-left valign-top"><p class="tableblock">Effect</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Every generate round writes <code>is_blocked = (audit failed) or (high
+<td class="tableblock halign-left valign-top"><p class="tableblock">Every generate round writes <code>is_blocked = (check failed) or (high
 impact)</code>, high impact meaning <code>orchestration.block_on_high_impact</code> is on and
 the report&#8217;s banner is <code>high</code>. Failure sends <code>iac.compliance.failed</code>, or
 <code>iac.impact.high</code>, to the notifications sidecar. Apply and pull-request
 merge refuse blocked sessions with <code>409</code>; pull-request <strong>creation</strong> is not
-lock-checked, and the audited code is already on the working branch, so the
+lock-checked, and the checked code is already on the working branch, so the
 lock guards the apply boundary specifically. A later passing generate round
 with a non-high impact clears the lock, drift rounds leave it untouched, and
 a panel <code>editor</code> can toggle it from the admin panel.</p></td>

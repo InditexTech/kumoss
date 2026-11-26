@@ -1175,7 +1175,7 @@ change it.</p>
 <p><strong>Automatically</strong> at the end of a generate round, from two independent
 triggers, each behind its own switch: the compliance check fails — the
 compliance policy denies the plan or could not be evaluated
-(<code>policy_unavailable</code>), or the LLM audit finds an <code>error</code> or
+(<code>policy_unavailable</code>), or the intent check finds an <code>error</code> or
 <code>critical</code> violation (only when
 <code>orchestration.enable_compliance_checker</code> is <code>true</code>; a disabled
 checker always passes) — or the report&#8217;s impact banner is <code>high</code> (only
@@ -1271,7 +1271,7 @@ been reviewed and accepted.</p>
 <p>When the notifications sidecar is enabled, editors receive the lock
 notifications of every session. Before unlocking, read the round&#8217;s
 <strong>Compliance Check</strong> artifact: findings with a <strong>policy</strong> badge come from the
-compliance policy, the others from the LLM audit. For what each cause
+compliance policy, those with an <strong>intent</strong> badge from the intent check. For what each cause
 means, see <a href="../resolve-a-locked-session/#why" class="xref page">Why a
 session is locked</a>.</p>
 </div>

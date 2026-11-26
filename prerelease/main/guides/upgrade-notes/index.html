@@ -74,7 +74,7 @@
 
     <link rel="prev" href="../../faq/">
     <link rel="next" href="../../roadmap/">
-    <meta name="description" content="Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.">
+    <meta name="description" content="Breaking changes to check before upgrading Kumoss: the intent check replacing the LLM compliance audit, the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -918,7 +918,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Upgrade notes</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Upgrade notes</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Breaking changes to check before upgrading Kumoss: the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Breaking changes to check before upgrading Kumoss: the intent check replacing the LLM compliance audit, the project identifier and IaC contract 2.1.0, the OPA compliance policy and the removal of forbidden_actions, Langfuse replaces Phoenix, providers read from the root module, Terraform provider type names, sidecar contracts 2.0.0, the bundled mapping sidecar, removed request fields, and the new managed state key.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -943,6 +943,61 @@
 <p>This page lists the changes that need action from an operator, an
 integrator or a custom sidecar implementation when upgrading. Read it
 before rolling out a new core image.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="intent-check-replaces-the-llm-compliance-audit"><a class="anchor" href="#intent-check-replaces-the-llm-compliance-audit"></a>Intent check replaces the LLM compliance audit</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The LLM half of the compliance check is now the <strong>intent check</strong>: it
+judges only whether the plan does what the session&#8217;s requests ask
+(<code>scope_exceeded</code>, <code>scope_incomplete</code>, same ids and severities). It no
+longer receives or audits the conventions — the Terraform guidelines,
+the providers' <code>resource_creation</code>, <code>networking</code> and <code>permissions</code>
+guidelines, and the resource prompts. Those still guide generation, but
+after generation only the compliance policies enforce rules. The
+<code>orchestration.enable_compliance_checker</code> switch is unchanged and still
+gates both halves; see <a href="../../architecture/compliance/" class="xref page">How
+compliance works</a>. What changes:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Prompt moved.</strong> The rules prompt is now <code>general/intent/rules</code>,
+seeded on the next boot from <code>core/prompts/seed/general/intent/rules.yaml</code>.
+<code>general/compliance/report</code> is no longer read and can be deleted from
+Langfuse; <code>general/compliance/impact</code> is unchanged. If you customized
+<code>general/compliance/report</code>, port your changes to a new version of
+<code>general/intent/rules</code> and move the environment label to it; see
+<a href="../customize-prompts/#change-a-prompt" class="xref page">Change a
+prompt</a>. Rules
+about conventions rather than intent belong in a
+<a href="../../reference/compliance-policy/" class="xref page">compliance policy</a> now.</p>
+</li>
+<li>
+<p><strong>Tool and trace names.</strong> The agent&#8217;s sentinel tool is
+<code>report_intent_findings</code> (was <code>report_compliance_findings</code>), without
+a <code>passed</code> argument: the verdict is computed from the severities. Its
+Langfuse observation is <code>Chain - INTENT_CHECKER</code> (was <code>Chain -
+COMPLIANCE_CHECKER</code>).</p>
+</li>
+<li>
+<p><strong>Finding source.</strong> Findings of the intent check carry
+<code>source: "intent"</code> (was <code>"llm"</code>). Stored reports keep loading: <code>"llm"</code>
+is read as <code>"intent"</code>. The web UI marks them with an <strong>intent</strong> badge,
+next to the <strong>policy</strong> badge of policy findings.</p>
+</li>
+<li>
+<p><strong>New warning.</strong> The general policy gains <code>provider_version_pin</code>, a
+<code>warn</code> for every root module provider with no version constraint or
+one not of the form <code>~&gt; X.Y</code>, such as an exact pin. It never locks a
+session, but workspaces with missing or exact provider pins start
+reporting it. A general policy you customized does not get it; see
+<a href="../../reference/compliance-policy/#shipped-rules" class="xref page">The shipped
+rules</a>.</p>
+</li>
+</ul>
 </div>
 </div>
 </div>

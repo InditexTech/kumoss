@@ -1298,16 +1298,17 @@ reviewers and users search for.</p>
 </li>
 <li>
 <p><strong>Do not restate a rule in a prompt.</strong> The guideline and resource
-prompts feed both the code generator and the compliance audit, so a
-ban written there would be enforced a second time, by a model; see
+prompts feed only the code generator, so a ban written there would be
+applied a second time, by a model, possibly differently from the
+policy; see
 <a href="../customize-prompts/#compliance-policy" class="xref page">Change a
 compliance policy</a>.</p>
 </li>
 <li>
 <p><strong>Use the policies for conditions on the plan only.</strong> Rules that depend on
-what the user asked for belong in the compliance audit; see
-<a href="../resolve-a-locked-session/#compliance-audit" class="xref page">Compliance
-audit</a>.</p>
+what the user asked for belong in the intent check; see
+<a href="../resolve-a-locked-session/#intent-check" class="xref page">Intent
+check</a>.</p>
 </li>
 </ul>
 </div>

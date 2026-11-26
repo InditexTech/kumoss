@@ -948,13 +948,13 @@ for clarity and consistency when discussing Kumoss.</p>
 </div>
 </div>
 <div class="sect1">
-<h2 id="compliance-audit"><a class="anchor" href="#compliance-audit"></a>Compliance audit</h2>
+<h2 id="compliance-check"><a class="anchor" href="#compliance-check"></a>Compliance check</h2>
 <div class="sectionbody">
 <div class="paragraph">
 <p>The check of a generated plan after a generate round: the compliance policies,
 Rego policies evaluated by OPA (a general one and one per provider of the
-module), then an independent, second LLM agent that
-checks the plan against the organization&#8217;s compliance rules. Failing
+module), then the intent check, an independent, second LLM agent that
+judges only whether the plan does what the session&#8217;s requests ask. Failing
 findings of either, or a policy that cannot be evaluated —
 and, optionally, a high-impact verdict — lock the session until a panel
 editor unlocks it or a later generate round passes clean.</p>
@@ -1032,6 +1032,23 @@ infrastructure code.</p>
 </div>
 <div class="paragraph">
 <p>See <a href="../architecture/deployment-view/" class="xref page">Deployment view</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="intent-check"><a class="anchor" href="#intent-check"></a>Intent check</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The LLM half of the compliance check: an independent agent that reads the
+session&#8217;s requests and the plan and reports only <code>scope_exceeded</code> (a change
+nobody asked for) and <code>scope_incomplete</code> (a part of a request left out), with
+the rules in the <code>general/intent/rules</code> prompt. It does not check the
+organization&#8217;s conventions.</p>
+</div>
+<div class="paragraph">
+<p>See <a href="../architecture/compliance/" class="xref page">How compliance works</a> and
+<a href="../guides/resolve-a-locked-session/#intent-check" class="xref page">Resolve a
+locked session</a>.</p>
 </div>
 </div>
 </div>
@@ -1154,7 +1171,7 @@ module manifest</a>.</p>
 <div class="sectionbody">
 <div class="paragraph">
 <p>A text in Langfuse that gives Kumoss&#8217;s agents your organization&#8217;s
-standards: conventions, compliance rules, impact criteria, exception
+standards: conventions, intent rules, impact criteria, exception
 lists, and the compliance policy. Named <code>&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;</code> and
 seeded from <code>core/prompts/seed/</code> on a fresh deployment.</p>
 </div>
@@ -1239,10 +1256,10 @@ volume, and each user request within it opens a round.</p>
 <div class="paragraph">
 <p>A flag on the session that blocks apply and pull-request merge. It is set
 automatically at the end of a generate round when the compliance policy
-denies the plan (or cannot be evaluated), when the LLM compliance audit
+denies the plan (or cannot be evaluated), when the intent check
 finds an <code>error</code> or <code>critical</code> violation such as <code>scope_exceeded</code>, or,
 where the deployment enables it, when the impact is High, and cleared either by an admin-panel
-editor or by a later generate round whose audit passes without a
+editor or by a later generate round whose compliance check passes without a
 high-impact verdict. Some internal material calls this a plan lock.</p>
 </div>
 <div class="paragraph">

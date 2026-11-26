@@ -70,10 +70,11 @@
       })()
     </script>
 
-<title>Untitled | Kumoss</title>
+<title>Resolve a locked session | Kumoss</title>
 
     <link rel="prev" href="../merge-and-apply/">
     <link rel="next" href="../generate-infrastructure/">
+    <meta name="description" content="Find out why Kumoss locked your session, who was notified, and how to get it unlocked so you can merge and apply.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -917,7 +918,8 @@
   <div class="dt-breadcrumb-item"><span class="dt-breadcrumb-item__content">Guides</span></div>
     <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Resolve a locked session</span></div>
 </nav>
-        <h1 class="hero__title dt-text dt-text--title-xl"></h1>
+        <h1 class="hero__title dt-text dt-text--title-xl">Resolve a locked session</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">Find out why Kumoss locked your session, who was notified, and how to get it unlocked so you can merge and apply.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -936,17 +938,16 @@
 </aside>
 
 <article class="doc">
-<div class="paragraph">
-<p>|Write or change rules in Rego; see
-<a href="../write-a-policy-rule/" class="xref page">Write a policy rule</a>= Resolve a locked session
-:description: Find out why Kumoss locked your session, who was notified, and how to get it unlocked so you can merge and apply.</p>
-</div>
+<div id="preamble">
+<div class="sectionbody">
 <div class="paragraph">
 <p>Kumoss checks every generate round before it lets you merge and apply.
 When a check fails, the session is locked: you can keep working on it,
 but merge and apply are refused until the lock is cleared. This guide
 explains why a session gets locked, what you see, and the two ways to
 get it unlocked.</p>
+</div>
+</div>
 </div>
 <div class="sect1">
 <h2 id="prerequisites"><a class="anchor" href="#prerequisites"></a>Prerequisites</h2>
@@ -1004,11 +1005,10 @@ Drift and import rounds are never checked and never lock a session.</p>
 <a href="../write-a-policy-rule/" class="xref page">Write a policy rule</a></p></td>
 </tr>
 <tr>
-<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#compliance-audit">Compliance audit</a></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><a href="#intent-check">Intent check</a></p></td>
 <td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt <code>general/compliance/report</code> and your convention prompts, read
-by a model</p></td>
-<td class="tableblock halign-left valign-top"><p class="tableblock">Edit the rules and conventions in prose; see
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt <code>general/intent/rules</code>, read by a model</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Edit the intent rules in prose; see
 <a href="../customize-prompts/#compliance-prompts" class="xref page">Compliance
 prompts</a></p></td>
 </tr>
@@ -1089,13 +1089,13 @@ plan: they are the only check that cannot miss a case or flag one by mistake.</p
 </div>
 </div>
 <div class="sect2">
-<h3 id="compliance-audit"><a class="anchor" href="#compliance-audit"></a>Compliance audit (not deterministic)</h3>
+<h3 id="intent-check"><a class="anchor" href="#intent-check"></a>Intent check (not deterministic)</h3>
 <div class="paragraph">
-<p><strong>What locks.</strong> A language-model agent compares the plan with every
-request of the session and with your organization&#8217;s conventions, and
-reports violations with a rule id and a severity. A finding of severity
-<code>error</code> or <code>critical</code> locks the session; <code>warning</code> is reported only. The
-shipped rules are:</p>
+<p><strong>What locks.</strong> A language-model agent judges only whether the plan does
+what the requests of the session ask, every request and not just the
+first. It reports violations with a rule id and a severity; a finding of
+severity <code>error</code> or <code>critical</code> locks the session, and <code>warning</code> is
+reported only. The shipped rules, both of severity <code>error</code>, are:</p>
 </div>
 <div class="ulist">
 <ul>
@@ -1111,47 +1111,34 @@ the plan.</p>
 </ul>
 </div>
 <div class="paragraph">
-<p>Other findings come from the conventions the model checks the plan
-against, for example a missing mandatory tag.</p>
+<p>The intent check does not judge safety, conventions, deletions, or
+versions, and a change you asked for is never an intent violation. Your
+organization&#8217;s conventions only guide generation: nothing checks a plan
+against them afterwards except the rules of the compliance policy.</p>
+</div>
+<div class="paragraph">
+<p>Findings from this check carry an <strong>intent</strong> badge.</p>
 </div>
 <div class="paragraph">
 <p><strong>Why it is not deterministic.</strong> Whether a change is "what you asked for"
 depends on the meaning of your request, written in natural language;
-there is no attribute in the plan to test. The same holds for
-conventions written as prose. A model can read both, but two runs on the
-same plan can disagree, so a finding can be wrong. When you think it is,
-rephrase the request to be explicit about what must change and what must
-stay, or ask a reviewer to check it.</p>
+there is no attribute in the plan to test. A model can read it, but two
+runs on the same plan can disagree, so a finding can be wrong. When you
+think it is, rephrase the request to be explicit about what must change
+and what must stay, or ask a reviewer to check it.</p>
 </div>
 <div class="paragraph">
-<p><strong>Where to adapt it.</strong> Two kinds of prompts drive the audit:</p>
-</div>
-<div class="ulist">
-<ul>
-<li>
-<p><code>general/compliance/report</code> defines the business rules, each with a
-<code>rule_id</code> and a severity. Edit <code>scope_exceeded</code> and <code>scope_incomplete</code>
-to match how strict your organization wants to be, or add your own
-rules in the same format; see
+<p><strong>Where to adapt it.</strong> The prompt <code>general/intent/rules</code> defines the
+rules, each with a <code>rule_id</code> and a severity. Edit <code>scope_exceeded</code> and
+<code>scope_incomplete</code> to match how strict your organization wants to be,
+or add your own rules about intent in the same format; see
 <a href="../customize-prompts/#compliance-prompts" class="xref page">Compliance
 prompts</a>.</p>
-</li>
-<li>
-<p>The convention prompts are the standards the plan is checked against:
-<code>general/guidelines/terraform</code> and, per provider, <code>resource_creation</code>,
-<code>networking</code>, and <code>permissions</code>; see
-<a href="../customize-prompts/#general-guidelines" class="xref page">General
-cross-provider prompts</a> and
-<a href="../customize-prompts/#provider-guidelines" class="xref page">Provider-wide
-guidelines</a>. The same prompts guide the generator, so a standard written
-there is followed when code is written and checked when it is audited.</p>
-</li>
-</ul>
 </div>
 <div class="paragraph">
-<p>If a convention can be stated as a condition on the plan, write it as a
-rule of the <a href="../../reference/compliance-policy/" class="xref page">compliance
-policy</a> instead: it then always holds, without depending on the model.</p>
+<p>To enforce a convention, such as a mandatory tag, write it as a rule of
+the <a href="../../reference/compliance-policy/" class="xref page">compliance policy</a>: it
+then always holds, without depending on the model.</p>
 </div>
 </div>
 <div class="sect2">
@@ -1203,9 +1190,9 @@ opens instead of the merge controls; see the screenshot in
 <ul>
 <li>
 <p>Expand <strong>Why</strong> to see the cause: <strong>High impact</strong> with the impact summary,
-<strong>Compliance</strong> with each blocking finding (severity, rule id, and
-resource), or both. <strong>Show all findings</strong> adds the warnings and the
-suggested fixes.</p>
+<strong>Compliance</strong> with each blocking finding (severity, rule id, resource,
+and a <strong>policy</strong> or <strong>intent</strong> badge), or both. <strong>Show all findings</strong> adds
+the warnings and the suggested fixes.</p>
 </li>
 <li>
 <p><strong>Check again</strong> reads the lock state again, for example after a
@@ -1315,7 +1302,7 @@ write your own policy rules.</p>
 </li>
 <li>
 <p><a href="../customize-prompts/" class="xref page">Customize prompts</a> to change
-the conventions the compliance audit checks against.</p>
+the conventions that guide generation, or the intent rules.</p>
 </li>
 </ul>
 </div>

@@ -1032,16 +1032,18 @@ evaluates the compliance policies (the Rego prompts
 module) against the plan; the shipped policies deny standalone
 deletions, removed customer-managed encryption keys and command
 execution (<code>null_resource</code>, provisioners, <code>data "external"</code>), warn
-about credential outputs not marked sensitive, and deny, per
+about credential outputs not marked sensitive and provider versions
+not pinned as <code>~&gt; X.Y</code>, and deny, per
 provider, critical misconfigurations such as ingress open to the
 internet. A policy that cannot be evaluated adds
-a blocking <code>policy_unavailable</code> finding. Then a small-model auditor
-checks the plan against the rules in the <code>general/compliance/report</code>
-prompt. See <a href="../../reference/compliance-policy/" class="xref page">Compliance
-policy</a>. The auditor judges the plan against
-the session&#8217;s <strong>first</strong> request, not the current round&#8217;s, so in a
-follow-up round <code>scope_exceeded</code> and <code>scope_incomplete</code> are measured
-against the original request.</p>
+a blocking <code>policy_unavailable</code> finding. Then the intent check, a
+small-model agent, judges only whether the plan does what the requests
+ask, with the rules in the <code>general/intent/rules</code> prompt; it does not
+check the conventions. See
+<a href="../../reference/compliance-policy/" class="xref page">Compliance policy</a>. It
+reads every request of the session, oldest first, so in a follow-up
+round <code>scope_exceeded</code> and <code>scope_incomplete</code> are measured against the
+session&#8217;s requests as a whole, a later one refining an earlier one.</p>
 </li>
 <li>
 <p><strong>Lock decision.</strong> The session is locked when either compliance check

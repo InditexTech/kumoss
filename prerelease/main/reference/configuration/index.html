@@ -1452,17 +1452,19 @@ core evaluates the Rego policies with OPA against the final plan&#8217;s
 <code>&lt;provider&gt;/policies/compliance</code> of every provider the root module
 declares that has one; a policy that cannot be
 evaluated adds a blocking <code>policy_unavailable</code> finding, see
-<a href="../compliance-policy/" class="xref page">Compliance policy</a>. Then a
-second, independent small-model agent reads the session&#8217;s first
-request and the raw plan, and checks them against the rules in the
-<code>general/compliance/report</code> prompt. The session is
+<a href="../compliance-policy/" class="xref page">Compliance policy</a>. Then the
+intent check, a second, independent small-model agent, reads every
+request of the session and the raw plan, and judges only whether the
+plan does what the requests ask, against the rules in the
+<code>general/intent/rules</code> prompt; it does not check the conventions. The
+session is
 <strong>locked</strong> if any finding of either part has severity <code>error</code> or <code>critical</code>;
 <code>warning</code> findings are recorded in the report but do not lock. The
 report is stored as a round artifact and shown in the portal. A lock
 also sends an <code>iac.compliance.failed</code> notification. When <code>false</code> the
-audit is skipped entirely and reported as an empty passing result, so
+check is skipped entirely and reported as an empty passing result, so
 it can never lock and nothing is stored. Generate rounds only — drift
-rounds do not audit, and apply does not re-audit. When <code>true</code>, the core
+rounds are not checked, and apply does not re-check. When <code>true</code>, the core
 evaluates the general policy and the policies of the providers that
 ship a seed at startup against an empty plan and refuses to start if
 that fails (no <code>opa</code> binary, a broken policy, Langfuse unreachable).</p></td>
@@ -1478,7 +1480,7 @@ back <code>high</code>, and sends an <code>iac.impact.high</code> notification. 
 itself — <code>low</code>, <code>medium</code>, or <code>high</code>, judged against the
 <code>general/compliance/impact</code> prompt criteria — is part of every report
 either way; this flag decides only whether it gates. It is evaluated
-independently of the auditor above: the round ends locked if <strong>either</strong>
+independently of the compliance check above: the round ends locked if <strong>either</strong>
 condition fires.</p></td>
 </tr>
 <tr>
@@ -1560,7 +1562,7 @@ polling exhausted</code>.</p></td>
 the same session flag, so their effect is identical: a locked session
 answers <code>409</code> to <code>POST /v1/iac/apply</code> and to <code>PUT
 /v1/repository/pr/merge</code>. <em>Creating</em> a pull request is not
-lock-checked, and the audited code has already been pushed to the
+lock-checked, and the checked code has already been pushed to the
 working branch by then, so the gate guards the apply boundary rather
 than the commit. The lock clears when a later generate round passes
 with a non-<code>high</code> banner, or when a panel <code>editor</code> toggles it in the

@@ -815,7 +815,7 @@ The diagram condenses some detail. The sidecars share one node: the bundled `iac
 | Nginx (`proxy`) | Sole public entry point, on ports 80, 9000 and 3000: serves the built SPA and proxies `/api`, the events stream, object storage and the Langfuse UI. | Browser → core, object storage, Langfuse |
 | Core API layer (`core/src/api/v1`) | Routes every request: IaC operations, the progress stream, session reads, repository and pull-request actions, identity and roles, the admin panel, and a passthrough to the notifications sidecar. One authentication dependency guards all of them but the public OIDC configuration. | Delegates to application handlers |
 | Application layer (`core/src/application`) | The generate, drift and apply handlers, and the services they orchestrate — filtering, reporting, pull requests, session orchestration. A factory builds a fresh object graph per run. | Composes domain services |
-| Domain layer (`core/src/domains`) | Entities, value objects and ports, and the services holding the behavior: the agent loop, session and user management, validation, targeting, the compliance audit, artifact storage, persistence and tracing. | Depends only on interfaces |
+| Domain layer (`core/src/domains`) | Entities, value objects and ports, and the services holding the behavior: the agent loop, session and user management, validation, targeting, the compliance check, artifact storage, persistence and tracing. | Depends only on interfaces |
 | Infrastructure layer (`core/src/infrastructure`) | Adapters behind those ports: OIDC, the LiteLLM router, git and workspaces, the iac-sidecar driver, Jinja layouts, object storage, PostgreSQL, Redis and OpenTelemetry. The generated sidecar clients are **not** part of this layer — they live in `core/src/clients`, a sibling package. | Implements domain ports |
 | authz service | AuthZEN policy decision point for organizational access control. Disabled by default and not bundled: deploy your own PDP implementing the 2-endpoint contract (evaluation + healthz). Disabled, the core treats every operation as authorized; enabled, the core consults the PDP on every write route and never fails open. | Called from every write route via the PEP helper with the caller’s identity |
 | iac service | Runs one IaC engine command per asynchronous job — `init`, `validate`, `plan`, `show`, `apply` — returning a job id to poll. OpenTofu by default, selected with `IAC_BINARY`. A reference implementation; production deployments are expected to supply their own. | Shares the `workspaces` volume with the core |
@@ -986,7 +986,7 @@ It is an approximation of fixed monthly prices for the resources in the plan, ta
 
 Where are the compliance findings?
 
-In the session details, as the round’s **Compliance Check** artifact: a summary, each violation with its severity, rule id, and resource, and the rules that passed. When a finding locks the session, the same findings appear under **Why** on the **Deployment Blocked** screen. Findings from the compliance policy carry a **policy** badge. See [Compliance findings](../guides/follow-a-session/#compliance-findings).
+In the session details, as the round’s **Compliance Check** artifact: a summary, each violation with its severity, rule id, and resource, and the rules that passed. When a finding locks the session, the same findings appear under **Why** on the **Deployment Blocked** screen. Findings from the compliance policy carry a **policy** badge, and findings from the intent check an **intent** badge. See [Compliance findings](../guides/follow-a-session/#compliance-findings).
 
 Can I download the plan or the report?
 
@@ -996,7 +996,7 @@ Not as files. The plan, report, and changed files are shown inline in the result
 
 Why is my session locked?
 
-The compliance check found an error-level or critical violation (with the default rules: changes outside the scope of your request, parts of the request left undone, a standalone deletion, a removed customer-managed encryption key, a `null_resource`, provisioner or `data "external"`, or one of the provider policies' prohibitions such as a port open to the internet), a compliance policy could not be evaluated, or the impact was rated High in a deployment that locks on high impact. See [Why a session is locked](../guides/resolve-a-locked-session/#why).
+The compliance check found an error-level or critical violation (with the default rules: from the intent check, changes outside the scope of your request or parts of the request left undone; from the compliance policy, a standalone deletion, a removed customer-managed encryption key, a `null_resource`, provisioner or `data "external"`, or one of the provider policies' prohibitions such as a port open to the internet), a compliance policy could not be evaluated, or the impact was rated High in a deployment that locks on high impact. See [Why a session is locked](../guides/resolve-a-locked-session/#why).
 
 What can I do while locked?
 
@@ -1074,9 +1074,9 @@ Source: https://inditextech.github.io/kumoss/prerelease/main/glossary/
 
 This glossary lists the terms, abbreviations, and phrases used across the Kumoss documentation, together with their definitions. Use this terminology for clarity and consistency when discussing Kumoss.
 
-## Compliance audit
+## Compliance check
 
-The check of a generated plan after a generate round: the compliance policies, Rego policies evaluated by OPA (a general one and one per provider of the module), then an independent, second LLM agent that checks the plan against the organization’s compliance rules. Failing findings of either, or a policy that cannot be evaluated — and, optionally, a high-impact verdict — lock the session until a panel editor unlocks it or a later generate round passes clean.
+The check of a generated plan after a generate round: the compliance policies, Rego policies evaluated by OPA (a general one and one per provider of the module), then the intent check, an independent, second LLM agent that judges only whether the plan does what the session’s requests ask. Failing findings of either, or a policy that cannot be evaluated — and, optionally, a high-impact verdict — lock the session until a panel editor unlocks it or a later generate round passes clean.
 
 See [How compliance works](../architecture/compliance/) and [Resolve a locked session](../guides/resolve-a-locked-session/).
 
@@ -1109,6 +1109,12 @@ See [Follow a session](../guides/follow-a-session/).
 The command-line tool — OpenTofu by default, or HashiCorp Terraform — that the `iac` sidecar runs to initialize, validate, plan, and apply infrastructure code.
 
 See [Deployment view](../architecture/deployment-view/).
+
+## Intent check
+
+The LLM half of the compliance check: an independent agent that reads the session’s requests and the plan and reports only `scope_exceeded` (a change nobody asked for) and `scope_incomplete` (a part of a request left out), with the rules in the `general/intent/rules` prompt. It does not check the organization’s conventions.
+
+See [How compliance works](../architecture/compliance/) and [Resolve a locked session](../guides/resolve-a-locked-session/#intent-check).
 
 ## Langfuse
 
@@ -1160,7 +1166,7 @@ See [Root module manifest](../reference/root-module-manifest/#project-identifier
 
 ## Prompt
 
-A text in Langfuse that gives Kumoss’s agents your organization’s standards: conventions, compliance rules, impact criteria, exception lists, and the compliance policy. Named `<scope>/<type>/<name>` and seeded from `core/prompts/seed/` on a fresh deployment.
+A text in Langfuse that gives Kumoss’s agents your organization’s standards: conventions, intent rules, impact criteria, exception lists, and the compliance policy. Named `<scope>/<type>/<name>` and seeded from `core/prompts/seed/` on a fresh deployment.
 
 See [Customize prompts](../guides/customize-prompts/) and [Prompt registry](../reference/prompt-registry/).
 
@@ -1196,7 +1202,7 @@ See [Follow a session](../guides/follow-a-session/).
 
 ## Session lock
 
-A flag on the session that blocks apply and pull-request merge. It is set automatically at the end of a generate round when the compliance policy denies the plan (or cannot be evaluated), when the LLM compliance audit finds an `error` or `critical` violation such as `scope_exceeded`, or, where the deployment enables it, when the impact is High, and cleared either by an admin-panel editor or by a later generate round whose audit passes without a high-impact verdict. Some internal material calls this a plan lock.
+A flag on the session that blocks apply and pull-request merge. It is set automatically at the end of a generate round when the compliance policy denies the plan (or cannot be evaluated), when the intent check finds an `error` or `critical` violation such as `scope_exceeded`, or, where the deployment enables it, when the impact is High, and cleared either by an admin-panel editor or by a later generate round whose compliance check passes without a high-impact verdict. Some internal material calls this a plan lock.
 
 See [How compliance works](../architecture/compliance/), [Resolve a locked session](../guides/resolve-a-locked-session/), and [Session locks](../guides/administer-users-and-locks/#session-locks).
 
@@ -1729,7 +1735,7 @@ Any request will be able to run against all projects or a selection of them, ins
 
 ### Multiproject requests
 
-A single request will be able to target several projects at once. A team will be able to ask, for example, to add a new database to a list of projects, and Kumoss will run the generation, validation, and reporting phases for each project, tailoring the code to the conventions and compliance rules of each one. Progress and results will be tracked per project, so a failure in one project does not block the others.
+A single request will be able to target several projects at once. A team will be able to ask, for example, to add a new database to a list of projects, and Kumoss will run the generation, validation, and reporting phases for each project, tailoring the code to the conventions and compliance policies of each one. Progress and results will be tracked per project, so a failure in one project does not block the others.
 
 Today a session works on a single project; see [Follow a session](../guides/follow-a-session/).
 
@@ -1747,7 +1753,7 @@ Kumoss will publish benchmark results showing how supported language models perf
 
 ### Policy as code with Open Policy Agent
 
-Kumoss evaluates the final plan of every generate round against a deterministic policy written in Rego with [Open Policy Agent](https://www.openpolicyagent.org), alongside the language-model compliance audit. The policies are stored in Langfuse: a general one, which ships with three deny rules (standalone deletions, removed customer-managed keys, command execution) and one warning (credential outputs not marked sensitive), and one per provider, evaluated when a module declares that provider and shipped for AWS, Azure, Google Cloud, Kubernetes, OCI and vSphere with three rules each. A deny, or a policy that cannot be evaluated, locks the session; see [Compliance policy](../reference/compliance-policy/) and [Resolve a locked session](../guides/resolve-a-locked-session/).
+Kumoss evaluates the final plan of every generate round against a deterministic policy written in Rego with [Open Policy Agent](https://www.openpolicyagent.org), alongside the language-model intent check. The policies are stored in Langfuse: a general one, which ships with three deny rules (standalone deletions, removed customer-managed keys, command execution) and two warnings (credential outputs not marked sensitive, provider versions not pinned as `~> X.Y`), and one per provider, evaluated when a module declares that provider and shipped for AWS, Azure, Google Cloud, Kubernetes, OCI and vSphere with three rules each. A deny, or a policy that cannot be evaluated, locks the session; see [Compliance policy](../reference/compliance-policy/) and [Resolve a locked session](../guides/resolve-a-locked-session/).
 
 ### Policy bundles and self-repair
 
@@ -1829,7 +1835,7 @@ Your browser does not support the video tag.
 | 0:23 | **Context first.** Kumoss reads the repository, the infrastructure deployed in the cloud, and the organization’s guidelines for that cloud. | [Generate infrastructure](../guides/generate-infrastructure/) |
 | 0:38 | **Standards built in.** The generated code follows the organization’s conventions: private networking, secrets in a vault, least-privilege roles, and deletion locks. | [Customize prompts](../guides/customize-prompts/) |
 | 0:54 | **Drift fixed on the way.** Kumoss finds network rules that were changed outside the code and updates the code to match, in the same pull request. | [Remediate drift](../guides/remediate-drift/) |
-| 1:10 | **A plan that passes.** Kumoss runs a real OpenTofu or Terraform plan, feeds any errors back to the agent, and audits the result for compliance. | [Generate infrastructure](../guides/generate-infrastructure/) |
+| 1:10 | **A plan that passes.** Kumoss runs a real OpenTofu or Terraform plan, feeds any errors back to the agent, and checks the result for compliance. | [Generate infrastructure](../guides/generate-infrastructure/) |
 | 1:25 | **A report anyone can read.** The summary, the impact, and the estimated monthly cost, followed by the explanation of the drift fix and the generated code. | [Follow a session](../guides/follow-a-session/) |
 | 2:00 | **Pull request and apply.** The developer opens the pull request, approves it, and confirms the apply. Kumoss applies exactly the plan that was reviewed. | [Merge and apply](../guides/merge-and-apply/) |
 | 2:15 | **Live in the cloud.** The new resources appear in the cloud console, and every agent step is recorded as a trace. | [Monitor with Langfuse](../guides/monitor-with-langfuse/) |
@@ -1859,7 +1865,7 @@ The checks run at the end of every **generate** round, after the plan has been v
 
 Two switches in `config.yaml` decide which checks run; both default to `false` in code, and the shipped `config.yaml` turns both on:
 
-- `orchestration.enable_compliance_checker` runs the compliance policy and the compliance audit.
+- `orchestration.enable_compliance_checker` runs the compliance policy and the intent check.
 - `orchestration.block_on_high_impact` lets a high-impact verdict lock the session.
 
 See [Configuration](../../reference/configuration/).
@@ -1869,14 +1875,14 @@ See [Configuration](../../reference/configuration/).
 | Check | Deterministic | What it does | Defined in |
 | --- | --- | --- | --- |
 | **Compliance policy** | Yes | Open Policy Agent evaluates Rego policies against the plan’s JSON: the general policy, and the policy of each provider the root module declares. Fails closed: a policy that cannot be evaluated locks the round too. | Prompts `general/policies/compliance` and `<provider>/policies/compliance` |
-| **Compliance audit** | No | A language model compares the plan with every request of the session and with your conventions: `scope_exceeded`, `scope_incomplete`, and convention findings. | Prompts `general/compliance/report` and the convention prompts |
+| **Intent check** | No | A language model judges only whether the plan does what every request of the session asks: `scope_exceeded` (a change nobody asked for) and `scope_incomplete` (a part of a request left out), both of severity `error`. It does not judge safety, conventions, deletions, or versions, and a change the user asked for is never a violation. | Prompt `general/intent/rules` |
 | **High impact** | No | The report model rates the change `low`, `medium`, or `high` from written criteria. | Prompt `general/compliance/impact` |
 
-Only the policy check is deterministic: it reads attributes of the plan, so the same plan always gets the same verdict. The audit and the impact rating depend on what the request means and on what a change implies, which only a model can judge, so their verdicts can vary between runs. Rules that can be stated as a condition on the plan therefore belong in the policies, and are not restated in the prompts the audit reads. For what each check looks for, why, and where to adapt it, see [Why a session is locked](../../guides/resolve-a-locked-session/#why).
+Only the policy check is deterministic: it reads attributes of the plan, so the same plan always gets the same verdict. The intent check and the impact rating depend on what the request means and on what a change implies, which only a model can judge, so their verdicts can vary between runs. Rules that can be stated as a condition on the plan therefore belong in the policies. Your conventions (the guideline and resource prompts) only guide generation: no check reviews a plan against them afterwards except what a policy enforces. For what each check looks for, why, and where to adapt it, see [Why a session is locked](../../guides/resolve-a-locked-session/#why).
 
 ## From findings to a lock
 
-1. The core evaluates the policies, then runs the audit, and merges both into one **compliance report** for the round. Each finding carries its source (`opa` for the policies, `llm` for the audit), a rule id, a severity, and the resource it concerns.
+1. The core evaluates the policies, then runs the intent check, and merges both into one **compliance report** for the round; only this merge produces a verdict. Each finding carries its source (`opa` for the policies, `intent` for the intent check), a rule id, a severity, and, when it concerns one, the resource.
 2. The report fails when either source has a finding of severity `error` or `critical`. Findings of severity `warning` are reported only.
 3. The core sets the session’s lock from that round alone: locked when the report failed, or when the impact is `high` and `block_on_high_impact` is on; unlocked otherwise. A later clean round therefore clears an earlier lock.
 4. When the report failed, or a high impact locked the session, the notifications sidecar, if enabled, alerts the session owner and every user with the panel role `editor` or higher.
@@ -1885,7 +1891,7 @@ The compliance report is stored as the round’s **Compliance Check** artifact, 
 
 ## What a lock does
 
-While a session is locked, its owner can still read everything, continue the conversation, and create the pull request, but merging the pull request and applying the plan are refused with `409`. The web application shows the **Deployment Blocked** screen with the findings that caused the lock.
+While a session is locked, its owner can still read everything, continue the conversation, and create the pull request, but merging the pull request and applying the plan are refused with `409`. The web application shows the **Deployment Blocked** screen with the findings that caused the lock, each badged **policy** or **intent** by its source.
 
 A lock is cleared in one of two ways:
 
@@ -1913,7 +1919,7 @@ This page describes what each of Kumoss’s data stores holds: core-db, Langfuse
 
 ## core-db
 
-**core-db (PostgreSQL 17)** is the system of record for the application domain. Thirteen tables: `users` (unique on `(issuer, subject)`, with `email`, `display_name`, `operation_role`, nullable `panel_role`), `sessions` (owned by a `user_id`, including the `in_flight` concurrency flag and the `is_blocked` compliance lock that gates apply), `workspaces`, `terraform_providers`, `pull_requests`, `histories`, `statuses`, `rounds`, and the artifact-metadata tables `artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the audit verdict plus its stored findings), and `code_changes`. Roles are managed from the admin panel or, for the first administrator on IdPs that emit no `email_verified` claim, by a one-off SQL update (see [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin)). The schema is versioned with Alembic and migrated by the core at startup (see [Changing the schema](../../reference/database-schema/#changing-the-schema)). A `core_db_data` volume from a pre-auth stack (sessions keyed by a `username` column, no `users` table) is too old to migrate: the core refuses to start on it, so migrate it by hand or recreate it.
+**core-db (PostgreSQL 17)** is the system of record for the application domain. Thirteen tables: `users` (unique on `(issuer, subject)`, with `email`, `display_name`, `operation_role`, nullable `panel_role`), `sessions` (owned by a `user_id`, including the `in_flight` concurrency flag and the `is_blocked` compliance lock that gates apply), `workspaces`, `terraform_providers`, `pull_requests`, `histories`, `statuses`, `rounds`, and the artifact-metadata tables `artifacts`, `terraform_plans`, `reports`, `compliance_checks` (the compliance verdict plus its stored findings), and `code_changes`. Roles are managed from the admin panel or, for the first administrator on IdPs that emit no `email_verified` claim, by a one-off SQL update (see [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin)). The schema is versioned with Alembic and migrated by the core at startup (see [Changing the schema](../../reference/database-schema/#changing-the-schema)). A `core_db_data` volume from a pre-auth stack (sessions keyed by a `username` column, no `users` table) is too old to migrate: the core refuses to start on it, so migrate it by hand or recreate it.
 
 For the table-by-table breakdown, the enumerated columns, and how deletion cascades, see [Database schema](../../reference/database-schema/).
 
@@ -2358,7 +2364,7 @@ The stack is designed as one core process. These are the consequences to plan fo
 - **Contract-first sidecars.** OpenAPI specifications are the authoritative boundary, with generated clients on one side and, on the other, intentionally minimal bundled implementations for IaC, notifications and mapping, inviting substitution in enterprise deployments; the authorization contract ships without an implementation, as an optional extension point you implement yourself.
 - **Deliberately direct execution.** Pipelines run as in-process background tasks with a database compare-and-set as the only concurrency control; sidecar calls are synchronous HTTP with job polling rather than event-driven messaging; SSE progress derives from status polling. These are visible trade-offs, not accidents.
 - **Deep, centralized telemetry.** Model calls, tool executions, and engine runs are traced to Langfuse, which doubles as the runtime prompt registry, making prompt management an operational concern rather than a code change. No tracing decorator exports anything when the wrapped call raises: most of them build the span only **after** the call returns, and the chain decorator, which does create its span first, never ends it on an exception. Failures are therefore visible in the logs and the session status, not as error spans, and the sidecars are not instrumented at all.
-- **LLM audits LLM, code decides.** The compliance auditor is a separate agent loop with no repository access at all — its only tool is the sentinel `report_compliance_findings`; the pass/fail verdict is computed deterministically from the structured violations it reports, and the resulting database lock is what actually stops a non-compliant plan from being applied. The compliance policy, evaluated by OPA before the auditor, adds findings that do not depend on a model at all.
+- **LLM checks LLM, code decides.** The intent check is a separate agent loop with no repository access at all — its only tool is the sentinel `report_intent_findings`, and it judges only whether the plan does what the session’s requests ask; the pass/fail verdict is computed deterministically from the structured violations it reports, and the resulting database lock is what actually stops a non-compliant plan from being applied. The compliance policy, evaluated by OPA before the intent check, adds findings that do not depend on a model at all.
 - **Stateless, local identity.** The core trusts only a signed JWT from the single configured issuer, validates it on every request without an introspection round-trip, and keeps users, roles, and session ownership in its own database, so federation, MFA, and session policy stay the identity provider’s concern.
 
 ---
@@ -3094,7 +3100,7 @@ Full mechanism, including the fingerprint that makes reading an existing plan sa
 
 ## Phase 7: report and artifacts
 
-![Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance audit](../../_images/flow-phases-7-8.png)
+![Kumoss request flow, phases 7 and 8: report and artifacts, then the independent compliance check](../../_images/flow-phases-7-8.png)
 
 Pan, zoom, search, follow a message, switch themes. [Open in a new tab](../../_attachments/flow-phases-7-8.html)
 
@@ -3438,13 +3444,13 @@ Messages 26 to 34; the diagram also covers phase 8.
 | Report Generator (`report`) | The main model turns the final plan into a JSON report: create, update, delete and recreate counts, detailed changes, an impact banner (`low`, `medium`, `high`) assigned with the `general/compliance/impact` criteria, and cost estimates. |
 | Artifacts | Report, plans, drift JSON and code changes go to object storage under `sessions/<session>/rounds/<round>/`, where `<round>` is the round’s **database primary key**, not its ordinal in the session. The key patterns are `reports/<report type>-<token>.json`, `plans/plan-<token>.txt`, `plans/drift-<token>.txt` and `changes/<token>-<sanitized file name>`. Metadata goes to PostgreSQL; the UI receives presigned URLs. |
 
-## Phase 8: compliance audit
+## Phase 8: compliance check
 
 | Step | What happens |
 | --- | --- |
 | Compliance policy | With `orchestration.enable_compliance_checker` on, the core first evaluates the Rego policies from Langfuse with OPA against the final plan’s `show -json`, deterministically: `general/policies/compliance` and the `<provider>/policies/compliance` of every provider the root module declares (a provider without one is skipped), in one evaluation. Its `deny` findings block; `warn` findings do not. A policy that cannot be evaluated yields a blocking `policy_unavailable` finding: the check fails closed. Contract: [Compliance policy](../../reference/compliance-policy/). |
-| Compliance Auditor | Then a second, independent small-model agent reads the session’s first request and the raw plan output — not the report JSON — alongside the `general/compliance/report` rules and the cloud guidelines. It has no repository tools and must answer through its only tool, `report_compliance_findings`: rule id, severity, resource, message, suggested fix. Both parts' findings, each tagged with its `source` (`opa` or `llm`), are merged into one report, stored like any other artifact, at `compliance/check-<token>.json` with a `compliance_checks` row holding the verdict, so the session detail and the portal can show them. |
-| Verdict in code | The tool handler recomputes `passed` from the severities: any `error` or `critical` finding fails the audit regardless of the model’s own claim. The merged report fails when either part has one. |
+| Intent check | Then a second, independent small-model agent reads every request of the session and the raw plan output — not the report JSON — alongside the `general/intent/rules` rules. It judges only whether the plan does what the requests ask (`scope_exceeded`, `scope_incomplete`), not the conventions. It has no repository tools and must answer through its only tool, `report_intent_findings`: rule id, severity, resource, message, suggested fix. Both parts' findings, each tagged with its `source` (`opa` or `intent`), are merged into one report, stored like any other artifact, at `compliance/check-<token>.json` with a `compliance_checks` row holding the verdict, so the session detail and the portal can show them. |
+| Verdict in code | The model reports findings only, never a verdict: the merged report computes `passed` from the severities, and fails when either part has an `error` or `critical` finding. |
 | Lock or release, then pin | The handler first writes `is_blocked`, which decides whether apply and pull-request merge are available, and notifies on failure; only then does the validated workspace with `session.plan` become the session’s pinned plan, replacing any earlier pin. A failed lock write therefore leaves the round unpinned. Configuration, exact formula and effect: [Compliance gate](#compliance). |
 
 ## Phase 9: pull request and review
@@ -4187,7 +4193,7 @@ Every message into the agents lane is one of the agents below. Each is an orches
 | Drift Task Splitter | main | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history`, `web_search`, `terraform_docs` | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions |
 | Reconciliation Filter Agent | small | `read_file`, `list_dir`, `bulk_grep_search`, `diff_history` (it **must** call `diff_history`) | `report_decomposed_task_operations` | Phase 6 only, generate rounds |
 | Drift Exception Filter Agent | small | None besides its sentinel; rendered with the providers' `drift_exceptions` prompts | `report_decomposed_task_operations` | Phase 6 and dedicated drift sessions, after the reconciliation filter |
-| Compliance Auditor Agent | small | none besides its sentinel; input is the first request and the raw plan output | `report_compliance_findings` | Phase 8, generate rounds, when the checker is enabled |
+| Intent Checker Agent | small | none besides its sentinel; input is every request of the session and the raw plan output | `report_intent_findings` | Phase 8, generate rounds, when the checker is enabled |
 | PR Title & Description Agent | small | none | `generate_pull_request` | Phase 9 |
 
 Agents never delegate to one another and there is no supervisor agent: the handler classes call each in a fixed order, and every loop has a configured ceiling (`orchestration.max_tool_agent_executions`, `max_validation_iteration`, `max_drift_reports`, `drift_group_operations`; the drift pre-check inside a generate round is fixed at two iterations).
@@ -4231,7 +4237,7 @@ A round leaves the session in one of three statuses, or writes none at all. Only
 
 | Outcome | Reached when | Side effects |
 | --- | --- | --- |
-| **Validated, unlocked** — phase 8 | The audit passed or the checker is off, and the report’s impact banner is not `high` or `orchestration.block_on_high_impact` is off | `is_blocked = false`, plan pinned. Apply and pull-request merge are available. |
+| **Validated, unlocked** — phase 8 | The compliance check passed or the checker is off, and the report’s impact banner is not `high` or `orchestration.block_on_high_impact` is off | `is_blocked = false`, plan pinned. Apply and pull-request merge are available. |
 | **Validated, locked** — phase 8 | Any `error` or `critical` compliance finding, or a `high` impact banner with `orchestration.block_on_high_impact` on | `is_blocked = true`, plan pinned; `iac.compliance.failed` or `iac.impact.high` notification. Apply and merge answer `409` until a later passing, non-high round clears the lock or a panel `editor` toggles it. |
 | **Applied** — phase 10 | The engine’s apply exited with code zero | `apply` report written; pinned plan discarded. |
 | **Apply failed** — phase 10 | The engine’s apply exited with a non-zero code | Not an exception: the handler writes an `apply` report whose status is the model’s classification of the engine output (normally `Failed`), sends `iac.apply.failure` — the deterministic, exit-code-gated signal — and returns. Pinned plan discarded; no retry. |
@@ -4299,7 +4305,7 @@ The generate flow advances through the statuses the progress stream reports — 
 | Model role | Used by |
 | --- | --- |
 | `llm.model` (main) | Infrastructure generation, target calculation, report writing, drift task splitting |
-| `llm.small_model` (small) | Request filtering, prompt composition, status messages, pull-request text, the reconciliation filter, the drift exception filter, the compliance audit |
+| `llm.small_model` (small) | Request filtering, prompt composition, status messages, pull-request text, the reconciliation filter, the drift exception filter, the intent check |
 
 ### IaC and mapping sidecars
 
@@ -4332,7 +4338,7 @@ The loop has two entry points, differing in **what** they target and **whether**
 | Entry point | Targets | Behavior |
 | --- | --- | --- |
 | **Pre-check inside every generate round** | The session’s own validated targets | At most two iterations, filtered. The Reconciliation Filter agent must call `diff_history` — the branch’s committed diff against the default branch plus untracked files — then drops any operation that would merely revert a session change, trims mixed operations to their genuine-drift part, and keeps the rest. An empty survivor list ends the loop without invoking the generator. The GENERATE report is written from the pre-check’s final plan, and the first detection reuses the validation loop’s plan rather than planning again. |
-| **Dedicated drift session** — `POST /api/v1/iac/drift` | Full drift takes the whole root module, an empty target list. Partial drift takes the targets the Drift Target Generator chooses after the request filter. | Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has no intended changes of its own. It writes a DRIFT report from the branch diff (see below) and plans for itself on the first iteration. The drift handler never touches the session lock, does not run the compliance audit and does not pin the workspace — drift never pins — so an apply after a drift-only round fails until a generate round pins a plan. |
+| **Dedicated drift session** — `POST /api/v1/iac/drift` | Full drift takes the whole root module, an empty target list. Partial drift takes the targets the Drift Target Generator chooses after the request filter. | Up to `max_drift_reports` (3) iterations, unfiltered — a drift session has no intended changes of its own. It writes a DRIFT report from the branch diff (see below) and plans for itself on the first iteration. The drift handler never touches the session lock, does not run the compliance check and does not pin the workspace — drift never pins — so an apply after a drift-only round fails until a generate round pins a plan. |
 
 **How the DRIFT report is written.** The drift report is the one report the generator does not receive as a text to summarize: it reads the branch for itself. The report service gives the drift report the workspace-inspection tool set instead of `web_search` and `terraform_docs`, and the drift branch of the report layout makes `diff_history` a required first call and the sole source of truth for the remediation. That works because every reconciliation group commits and pushes inside the validation loop before the report runs, so the branch’s committed diff against the default branch, plus untracked files, **is** the reconciliation; no remediated resource may be named that the diff does not show. The drift handler therefore no longer serializes the session history into the report query and passes only what the remediation left out, in two labeled blocks that map one-to-one onto optional report fields:
 
@@ -4350,11 +4356,11 @@ The pre-check replaced an earlier design in which a **predictive** target agent 
 | Aspect | Detail |
 | --- | --- |
 | Where it runs | Only in the generate handler, after the report is written, behind `orchestration.enable_compliance_checker` (`true` in the checked-in `config.yaml`; the built-in default is `false`). The drift handler no longer runs it, and the apply handler never calls it. Disabled, the check short-circuits to an empty passing report and stores nothing. The gate has no progress status of its own. |
-| Policy | First, the core evaluates the Rego policies (fetched from Langfuse with the `environment` label) with one run of the `opa` binary against the final plan’s `show -json`: `general/policies/compliance`, plus the `<provider>/policies/compliance` of each provider the root module declares that has one. `deny` findings have severity `error` or `critical`, `warn` findings `warning`. A policy that cannot be evaluated — fetch failure, broken policy, malformed decision, timeout — adds a blocking `policy_unavailable` finding instead, and the LLM audit still runs. With the checker on, the core refuses to start if the general policy or the policy of a provider that ships a seed fails against an empty plan. Contract: [Compliance policy](../../reference/compliance-policy/). |
-| How it audits | Then a second, independent small-model agent loop. Its query is the session’s first user request plus the raw plan output, rendered into the local compliance-checker layout with the `general/compliance/report` rules and the cloud guidelines from Langfuse. It has no repository access and one tool, the sentinel `report_compliance_findings`, whose arguments — `rule_id`, `severity`, `resource`, `message` and `suggested_fix` per violation — are parsed into a typed report. The rules are applied by the model; only the verdict is computed in code. The policy decision and the audit are then merged into one report: policy findings first (`source: "opa"`), then the model’s (`source: "llm"`), with `policy_revisions` listing the policy versions that ran as `"<prompt name>@<version>"`, the general policy first, for example `["general/policies/compliance@3", "aws/policies/compliance@1"]`. |
+| Policy | First, the core evaluates the Rego policies (fetched from Langfuse with the `environment` label) with one run of the `opa` binary against the final plan’s `show -json`: `general/policies/compliance`, plus the `<provider>/policies/compliance` of each provider the root module declares that has one. `deny` findings have severity `error` or `critical`, `warn` findings `warning`. A policy that cannot be evaluated — fetch failure, broken policy, malformed decision, timeout — adds a blocking `policy_unavailable` finding instead, and the intent check still runs. With the checker on, the core refuses to start if the general policy or the policy of a provider that ships a seed fails against an empty plan. Contract: [Compliance policy](../../reference/compliance-policy/). |
+| Intent check | Then a second, independent small-model agent loop. Its query is every user request of the session plus the raw plan output, against the local intent-checker layout with the `general/intent/rules` rules from Langfuse. It judges only whether the plan does what the requests ask (`scope_exceeded`, `scope_incomplete`); it receives no conventions, so nothing audits the plan against them beyond the policies. It has no repository access and one tool, the sentinel `report_intent_findings`, whose arguments — `rule_id`, `severity`, `resource`, `message` and `suggested_fix` per violation — are parsed into a typed intent check with no verdict of its own. The rules are applied by the model; only the verdict is computed in code. The policy decision and the intent check are then merged into one report: policy findings first (`source: "opa"`), then the model’s (`source: "intent"`; stored reports with the former `"llm"` load as `"intent"`), with `policy_revisions` listing the policy versions that ran as `"<prompt name>@<version>"`, the general policy first, for example `["general/policies/compliance@3", "aws/policies/compliance@1"]`. |
 | Persistence | The report is stored in object storage under the round, as `compliance/check-<token>.json`, with a `compliance_checks` row holding the `passed` verdict. The session detail returns it in the round’s `compliance_checks`, and the portal renders it in the session view and, when the session is locked, in the blocked pull-request view. |
-| Verdict in code | The tool handler recomputes `passed` from the reported severities: any `error` or `critical` violation fails the check regardless of the model’s own claim. The merged report fails if either source has such a violation. |
-| Effect | Every generate round writes `is_blocked = (audit failed) or (high impact)`, high impact meaning `orchestration.block_on_high_impact` is on and the report’s banner is `high`. Failure sends `iac.compliance.failed`, or `iac.impact.high`, to the notifications sidecar. Apply and pull-request merge refuse blocked sessions with `409`; pull-request **creation** is not lock-checked, and the audited code is already on the working branch, so the lock guards the apply boundary specifically. A later passing generate round with a non-high impact clears the lock, drift rounds leave it untouched, and a panel `editor` can toggle it from the admin panel. |
+| Verdict in code | The model reports findings only: the merged report computes `passed` from the severities, and fails if either source has an `error` or `critical` violation. |
+| Effect | Every generate round writes `is_blocked = (check failed) or (high impact)`, high impact meaning `orchestration.block_on_high_impact` is on and the report’s banner is `high`. Failure sends `iac.compliance.failed`, or `iac.impact.high`, to the notifications sidecar. Apply and pull-request merge refuse blocked sessions with `409`; pull-request **creation** is not lock-checked, and the checked code is already on the working branch, so the lock guards the apply boundary specifically. A later passing generate round with a non-high impact clears the lock, drift rounds leave it untouched, and a panel `editor` can toggle it from the admin panel. |
 
 ### Progress and persistence
 
@@ -4435,7 +4441,7 @@ A lock (`is_blocked` on the session) prevents two actions by the owner: apply (`
 
 Locks are set in two ways:
 
-- **Automatically** at the end of a generate round, from two independent triggers, each behind its own switch: the compliance check fails — the compliance policy denies the plan or could not be evaluated (`policy_unavailable`), or the LLM audit finds an `error` or `critical` violation (only when `orchestration.enable_compliance_checker` is `true`; a disabled checker always passes) — or the report’s impact banner is `high` (only when `orchestration.block_on_high_impact` is `true`). Both default to `false` in code and the shipped `config.yaml` turns both on, so a configuration that omits the `orchestration` block disables both triggers. A later generate round that passes cleanly clears the lock again. Notifications are sent when the notifications sidecar is enabled.
+- **Automatically** at the end of a generate round, from two independent triggers, each behind its own switch: the compliance check fails — the compliance policy denies the plan or could not be evaluated (`policy_unavailable`), or the intent check finds an `error` or `critical` violation (only when `orchestration.enable_compliance_checker` is `true`; a disabled checker always passes) — or the report’s impact banner is `high` (only when `orchestration.block_on_high_impact` is `true`). Both default to `false` in code and the shipped `config.yaml` turns both on, so a configuration that omits the `orchestration` block disables both triggers. A later generate round that passes cleanly clears the lock again. Notifications are sent when the notifications sidecar is enabled.
 - **Manually** by a panel editor or admin, in either direction, from the admin panel.
 
 The lock is recomputed at the end of **every** generate round from that round’s compliance and impact result, unconditionally. A manual lock or unlock therefore lasts only until the owner’s next generate round on that session, which sets the flag afresh; drift rounds never change it.
@@ -4462,7 +4468,7 @@ The lock is recomputed at the end of **every** generate round from that round’
 
 Use a lock when a report looks risky but the automatic lock did not trigger, or when a change must wait for an out-of-band approval. Use an unlock after the automatic lock (failed compliance or `high` impact) has been reviewed and accepted.
 
-When the notifications sidecar is enabled, editors receive the lock notifications of every session. Before unlocking, read the round’s **Compliance Check** artifact: findings with a **policy** badge come from the compliance policy, the others from the LLM audit. For what each cause means, see [Why a session is locked](../resolve-a-locked-session/#why).
+When the notifications sidecar is enabled, editors receive the lock notifications of every session. Before unlocking, read the round’s **Compliance Check** artifact: findings with a **policy** badge come from the compliance policy, those with an **intent** badge from the intent check. For what each cause means, see [Why a session is locked](../resolve-a-locked-session/#why).
 
 1. Admin panel, Sessions tab. Find the session (search by user e-mail, project, or session id).
 2. Press **Lock apply** or **Unlock apply** in the Apply column, or open the detail panel and toggle **Apply Open** / **Apply Locked**. [![Admin panel Sessions tab with the locked session’s detail panel open and the Apply Locked button highlighted](../../_images/admin-unlock-session.png)](../../_images/admin-unlock-session.png) Figure 1. The detail panel of a locked session; pressing **Apply Locked** unlocks it and the button changes to **Apply Open**
@@ -4738,7 +4744,7 @@ A repository without a `.gitignore` is not the cause: the seeded file is honored
 
 Source: https://inditextech.github.io/kumoss/prerelease/main/guides/customize-prompts/
 
-Kumoss does not hard-code cloud knowledge. Its agents read your organization’s standards (naming, tagging, networking, permissions, compliance rules, and exceptions) from **prompts** stored in [Langfuse](https://langfuse.com/docs/prompt-management). This guide shows what each prompt controls and how to change it. How the registry works underneath, including seeding and the shipped inventory, is in [Prompt registry](../../reference/prompt-registry/).
+Kumoss does not hard-code cloud knowledge. Its agents read your organization’s standards (naming, tagging, networking, permissions, intent rules, compliance policies, and exceptions) from **prompts** stored in [Langfuse](https://langfuse.com/docs/prompt-management). This guide shows what each prompt controls and how to change it. How the registry works underneath, including seeding and the shipped inventory, is in [Prompt registry](../../reference/prompt-registry/).
 
 ## Prerequisites
 
@@ -4753,7 +4759,7 @@ Every prompt is named `<scope>/<type>/<name>`, where the scope is `general` or a
 
 | Prompt | What it controls |
 | --- | --- |
-| `general/guidelines/terraform` | Organization-wide Terraform standards: structure, providers, state, and style. Followed by the code generator and checked by the compliance audit. Do not write into it bans a compliance policy enforces; see [Change a compliance policy](#compliance-policy). |
+| `general/guidelines/terraform` | Organization-wide Terraform standards: structure, providers, state, and style. Followed by the code generator; no check reads it. Do not write into it bans a compliance policy enforces; see [Change a compliance policy](#compliance-policy). |
 | `general/guidelines/requests` | Which requests the request filter accepts, declines, or answers. |
 | `general/guidelines/targeting_policies` | Resources a partial drift round must never plan. Ships as a placeholder with no exclusions. |
 
@@ -4763,9 +4769,9 @@ One set per provider, at `<provider>/guidelines/<name>`:
 
 | Prompt | What it controls |
 | --- | --- |
-| `resource_creation` | General conventions for creating resources: tags, naming, and defaults. Followed by the generator and checked by the audit. |
-| `networking` | Networking conventions: address plans, exposure rules, and private endpoints. Followed by the generator and checked by the audit. |
-| `permissions` | Identity and access conventions: least privilege and role assignment patterns. Followed by the generator and checked by the audit. |
+| `resource_creation` | General conventions for creating resources: tags, naming, and defaults. Followed by the generator. |
+| `networking` | Networking conventions: address plans, exposure rules, and private endpoints. Followed by the generator. |
+| `permissions` | Identity and access conventions: least privilege and role assignment patterns. Followed by the generator. |
 | `abbreviations` | Short prefixes for resource names. |
 | `resources_list` | The catalog of resource prompts the session may use; see [Add a resource prompt](#add-a-resource-prompt). |
 | `drift_exceptions` | What drift remediation must never touch; see [Write drift exception rules](#drift-exception-rules). |
@@ -4779,7 +4785,7 @@ One set per provider, at `<provider>/guidelines/<name>`:
 
 | Prompt | What it controls |
 | --- | --- |
-| `general/compliance/report` | The business rules the compliance audit checks a plan against, each with a rule id and a severity. Ships with `scope_exceeded` and `scope_incomplete`. A failed check locks the session. |
+| `general/intent/rules` | The rules the intent check judges a plan against, each with a rule id and a severity: only whether the plan does what the session’s requests ask. Ships with `scope_exceeded` and `scope_incomplete`, both `error`. An `error` or `critical` finding locks the session. Its prompt type is `intent`. |
 | `general/compliance/impact` | What counts as a low, medium, or high impact change. A high impact locks the session when `orchestration.block_on_high_impact` is `true`. |
 | `general/policies/compliance` | The general deterministic compliance policy, in Rego, evaluated on every generate round; see [Change a compliance policy](#compliance-policy). |
 | `<provider>/policies/compliance` | A provider’s compliance policy, in Rego, evaluated with the general policy when the root module declares that provider; see [Change a compliance policy](#compliance-policy). |
@@ -4901,7 +4907,7 @@ Each ID withholds that one resource only. Listing a resource group does not with
 
 The compliance policies are Rego modules evaluated by Open Policy Agent, not read by a model: `general/policies/compliance` on every generate round, and `<provider>/policies/compliance` on the rounds whose root module declares that provider. Kumoss ships one for `aws`, `azurerm`, `google`, `kubernetes`, `oci`, and `vsphere`; give another provider a policy by creating its prompt in Langfuse. Change a policy like any other prompt, with the steps in [Change a prompt](#change-a-prompt), but test every version before you move the label: a broken version locks every generate round it applies to (every round for the general policy, every round of a module declaring the provider for a provider policy) until the label is on a working one. To write, test, and publish a rule, see [Write a policy rule](../write-a-policy-rule/); the input and decision a policy works with, and the shipped rules, are in [Compliance policy](../../reference/compliance-policy/).
 
-What a policy enforces is not restated in the guideline and resource prompts. Those prompts feed both the IaC generator and the compliance audit, so a ban written there would also be enforced by the model, possibly differently from the policy. The shipped prompts keep positive defaults (`allow_privilege_escalation = false`, S3 Block Public Access fully enabled, outputs carrying secrets marked `sensitive = true`) and leave the bans to Rego: they no longer tell the generator to avoid `null_resource`, provisioners and `data "external"`, internet-open ingress, basic roles or service account keys, `cluster-admin` or `Allow any-user` grants, or `allow_unverified_ssl`. A round that generates one of those is locked by a policy rather than written correctly in the first place. If you add a rule to a policy, do not also write it into a prompt; if you would rather the generator avoid a pattern up front, phrase the prompt as the default to produce, not as a prohibition.
+What a policy enforces is not restated in the guideline and resource prompts. Those prompts feed only the IaC generator, and no check reads them, so a ban written there would be applied by the model at generation time, possibly differently from the policy, and never checked afterwards. The shipped prompts keep positive defaults (`allow_privilege_escalation = false`, S3 Block Public Access fully enabled, outputs carrying secrets marked `sensitive = true`) and leave the bans to Rego: they no longer tell the generator to avoid `null_resource`, provisioners and `data "external"`, internet-open ingress, basic roles or service account keys, `cluster-admin` or `Allow any-user` grants, or `allow_unverified_ssl`. A round that generates one of those is locked by a policy rather than written correctly in the first place. If you add a rule to a policy, do not also write it into a prompt; if you would rather the generator avoid a pattern up front, phrase the prompt as the default to produce, not as a prohibition.
 
 ## If something goes wrong
 
@@ -4919,7 +4925,7 @@ Its name is not in `<provider>/guidelines/resources_list`, or does not match the
 
 ## Checklist for operators
 
-- Review every shipped prompt before relying on a deployment: the naming conventions, security defaults, and compliance rules encode a policy, not yours.
+- Review every shipped prompt before relying on a deployment: the naming conventions, security defaults, and intent rules encode a policy, not yours.
 - Write the prohibitions your organization needs as rules in the compliance policies: `<provider>/policies/compliance` for a provider’s resources, `general/policies/compliance` for rules that span providers. No prompt lists forbidden actions any more; the shipped policies deny standalone deletions, removed customer-managed keys and command execution, and three critical misconfigurations per shipped provider (public ingress, admin grants and the like), nothing else. Review them before relying on them.
 - Do not restate a policy rule in a prompt; see [Change a compliance policy](#compliance-policy). Guidance the shipped prompts dropped along with those bans, and that no policy checks (no secrets in user data, Owner or User Access Administrator at narrower scopes, scoping other ingress to known CIDRs, tags or security groups, the alternatives to service account keys, credentials in the `vsphere` provider block, locking down the OCI default security list, OCI delete-protection defaults), is now checked by nothing: write it back into your own prompts, as a default, if you need it. `null_resource`, provisioners and `data "external"` are denied by the general policy’s `command_execution` rule only when the compliance check is on; see [Deploy to production](../deploy-to-production/).
 - Decide who may edit prompts. Anyone who can edit prompts in the Langfuse project can change what the agents generate; give others a viewer role.
@@ -5627,7 +5633,7 @@ Every file the session has created or modified so far, across rounds, as diffs.
 
 ### Compliance findings
 
-When the compliance check runs, its findings are stored as the round’s **Compliance Check** artifact in the session details: a summary, each violation with its severity, rule id, and resource, and the rules that passed. Findings from the compliance policy carry a **policy** badge. When a finding locks the session, the same findings appear under **Why** on the **Deployment Blocked** screen; see [Resolve a locked session](../resolve-a-locked-session/).
+When the compliance check runs, its findings are stored as the round’s **Compliance Check** artifact in the session details: a summary, each violation with its severity, rule id, and resource, and the rules that passed. Findings from the compliance policy carry a **policy** badge, findings from the intent check an **intent** badge. When a finding locks the session, the same findings appear under **Why** on the **Deployment Blocked** screen; see [Resolve a locked session](../resolve-a-locked-session/).
 
 ## Return to a session later
 
@@ -5691,7 +5697,7 @@ Create or modify Terraform code from a description: "add a private storage bucke
 3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
 4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the providers' `drift_exceptions` rules are then dropped before anything is remediated, and logged.
 5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
-6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). Two checks, merged into one compliance report. First, OPA evaluates the compliance policies (the Rego prompts `general/policies/compliance` and the `<provider>/policies/compliance` of each provider of the root module) against the plan; the shipped policies deny standalone deletions, removed customer-managed encryption keys and command execution (`null_resource`, provisioners, `data "external"`), warn about credential outputs not marked sensitive, and deny, per provider, critical misconfigurations such as ingress open to the internet. A policy that cannot be evaluated adds a blocking `policy_unavailable` finding. Then a small-model auditor checks the plan against the rules in the `general/compliance/report` prompt. See [Compliance policy](../../reference/compliance-policy/). The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
+6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). Two checks, merged into one compliance report. First, OPA evaluates the compliance policies (the Rego prompts `general/policies/compliance` and the `<provider>/policies/compliance` of each provider of the root module) against the plan; the shipped policies deny standalone deletions, removed customer-managed encryption keys and command execution (`null_resource`, provisioners, `data "external"`), warn about credential outputs not marked sensitive and provider versions not pinned as `~> X.Y`, and deny, per provider, critical misconfigurations such as ingress open to the internet. A policy that cannot be evaluated adds a blocking `policy_unavailable` finding. Then the intent check, a small-model agent, judges only whether the plan does what the requests ask, with the rules in the `general/intent/rules` prompt; it does not check the conventions. See [Compliance policy](../../reference/compliance-policy/). It reads every request of the session, oldest first, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the session’s requests as a whole, a later one refining an earlier one.
 7. **Lock decision.** The session is locked when either compliance check has an `error` or `critical` finding or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
 8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
 
@@ -5769,7 +5775,7 @@ The Kumoss web application offers two import modes: Partial Import, for the unma
 
 **State.** Changed **during the round**. `terraform import` writes to the state as soon as each import succeeds, before any pull request exists; a resource imported in a round stays in the state even if the round later fails.
 
-**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labeled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance audit and never set the lock.
+**Plan pinned, apply, pull requests, compliance, locks.** No plan is pinned and no apply follows. You can create a pull request from the branch; in the web application the merge button is labeled for merging only, and merging ends the session with "Pull Request merged. The imported resources are now managed from your repository." Import rounds run no compliance check and never set the lock.
 
 **Example.** "Import the storage account `stappdev001` and the key vault `kv-app-dev`." Kumoss finds both among the unmanaged resources in the subscription, writes an `azurerm_storage_account` and an `azurerm_key_vault` block, and imports them. The storage account imports; the key vault is rejected because its import ID was built in a form the provider does not parse. The engine’s error goes back to the generator, which leaves the storage account’s block untouched, the address agent rebuilds the key vault’s import ID from its listed ID, and the next attempt imports only the key vault. The report shows both resources imported and `Succeeded`.
 
@@ -5889,7 +5895,7 @@ If the **Deployment Blocked** screen opens instead of the merge controls, the se
 
 [![Deployment Blocked screen listing the high-impact reason and two blocking compliance findings](../../_images/deployment-blocked.png)](../../_images/deployment-blocked.png)
 
-Figure 1. The Deployment Blocked screen with **Why** expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the compliance audit
+Figure 1. The Deployment Blocked screen with **Why** expanded: a high-impact verdict, a `critical_deletion` finding from the compliance policy, and a `scope_exceeded` finding from the intent check
 
 See [Resolve a locked session](../resolve-a-locked-session/) for what each cause means and how to get the session unlocked.
 
@@ -5970,7 +5976,7 @@ Kumoss instruments four kinds of work with decorators in the domain layer; each 
 
 ### 1. Agent observations
 
-- **Name:** `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`, `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain - REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain - COMPLIANCE_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain - TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain - FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
+- **Name:** `Chain - <prompt type>`, for example `Chain - IAC_GENERATOR`, `Chain - REQUESTS_FILTER`, `Chain - TARGET_GENERATOR`, `Chain - REPORT_GENERATOR`, `Chain - PR_GENERATOR`, `Chain - INTENT_CHECKER`, `Chain - PROMPT_COMPOSITOR`, `Chain - TASK_SPLITTER`, `Chain - FILTER_RECONCILIATION`, `Chain - FILTER_DRIFT_EXCEPTIONS`, `Chain - STATUS_UPDATE`.
 - **Type:** `AGENT`.
 - **Input:** the query handed to the chain.
 - **Output:** the chain’s result, unwrapped to its `summary`, `explanation`, or `description` field when it is a tool result.
@@ -6096,7 +6102,7 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 
 **Plan pinned.** **No.** Drift sessions do not pin a plan, so apply on a drift-only session is accepted with `202`, and then the background round fails with `No reviewed plan is pinned for this session; run a generate or drift round before applying.` Take the "or drift" in that message with a pinch of salt — only a generate round pins a plan, so a drift round does not clear the error. That marks the **session** `FAILED`, not just the round, so it can no longer be continued, applied, or reused — only a new session will do.
 
-**Apply, pull requests, compliance, locks.** You can create a pull request from the branch. Drift rounds run no compliance audit and never set the lock. Apply is unavailable until a generate round pins a plan. In the web application a drift session therefore ends at the pull-request merge: the merge button is labeled for merging only, and no apply is triggered afterwards.
+**Apply, pull requests, compliance, locks.** You can create a pull request from the branch. Drift rounds run no compliance check and never set the lock. Apply is unavailable until a generate round pins a plan. In the web application a drift session therefore ends at the pull-request merge: the merge button is labeled for merging only, and no apply is triggered afterwards.
 
 **Example.** "Resolve the drift on security group `sg-web-demo`; someone opened port 8080 in the console." Kumoss plans with `-target` on that security group, detects the extra ingress rule, and generates code that restores the declared rules. You review the drift report and open a pull request.
 
@@ -6118,7 +6124,7 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 
 **Targets.** None; whole workspace.
 
-**Artifacts, plan pinning, apply, compliance, locks.** As for partial drift: artifacts and a `drift` report, no pinned plan, no compliance audit, no lock, apply unavailable until a generate round pins a plan, and the web application ends the session at the pull-request merge.
+**Artifacts, plan pinning, apply, compliance, locks.** As for partial drift: artifacts and a `drift` report, no pinned plan, no compliance check, no lock, apply unavailable until a generate round pins a plan, and the web application ends the session at the pull-request merge.
 
 **Example.** "Reconcile everything in `envs/dev`." Kumoss plans the whole root, finds two drifted resources, generates the reconciling changes, and reports `Succeeded`.
 
@@ -6144,11 +6150,127 @@ The last two sections appear only when the round left drift behind. For the rest
 
 ---
 
+# Resolve a locked session
+
+Source: https://inditextech.github.io/kumoss/prerelease/main/guides/resolve-a-locked-session/
+
+Kumoss checks every generate round before it lets you merge and apply. When a check fails, the session is locked: you can keep working on it, but merge and apply are refused until the lock is cleared. This guide explains why a session gets locked, what you see, and the two ways to get it unlocked.
+
+## Prerequisites
+
+- A session whose latest generate round finished, reached by following [Follow a session](../follow-a-session/).
+- To unlock a session yourself, the panel role `editor` or `admin`; see [Roles and permissions](../../reference/roles-and-permissions/). Without it, you need a follow-up request or a reviewer who has it.
+
+## Why a session is locked
+
+Three independent checks run at the end of every generate round, and any one of them can lock the session. Only the first is deterministic: the same plan always gets the same verdict. The other two are judgments made by a language model, because they depend on what you asked for and on what a change means, which no fixed rule over the plan can capture. For the mechanism as a whole, see [How compliance works](../../architecture/compliance/). Drift and import rounds are never checked and never lock a session.
+
+| Check | Deterministic | Defined in | How to adapt it |
+| --- | --- | --- | --- |
+| [Compliance policy](#compliance-policy) | Yes | Rego policies `general/policies/compliance` and `<provider>/policies/compliance`, evaluated by Open Policy Agent | Write or change rules in Rego; see [Write a policy rule](../write-a-policy-rule/) |
+| [Intent check](#intent-check) | No | Prompt `general/intent/rules`, read by a model | Edit the intent rules in prose; see [Compliance prompts](../customize-prompts/#compliance-prompts) |
+| [High impact](#high-impact) | No | Prompt `general/compliance/impact`, read by the report model | Edit the impact criteria in prose; see [Compliance prompts](../customize-prompts/#compliance-prompts) |
+
+All three are prompts in Langfuse, seeded from `core/prompts/seed/general/` (and, for the provider policies, from `core/prompts/seed/<provider>/`). A change takes effect on the next generate round once its new version carries your environment’s label. Which checks run at all is set by your operator with the `orchestration` switches; see [Configuration](../../reference/configuration/).
+
+### Compliance policy (deterministic)
+
+**What locks.** Open Policy Agent evaluates your organization’s [compliance policies](../../reference/compliance-policy/), Rego modules, against the plan’s JSON: the general policy, and one policy for each provider the module declares. Any `deny` finding locks the session; `warn` findings are reported but do not.
+
+- The general policy’s `critical_deletion` rule denies any resource that is destroyed without being recreated, **even when you asked for the deletion**. Replacements are allowed.
+- The other shipped rules deny removing a customer-managed key, having Terraform run commands (provisioners, `null_resource`, external data sources), and provider-specific risks such as public ingress or wildcard admin roles; see [The shipped rules](../../reference/compliance-policy/#shipped-rules).
+- If a policy cannot be evaluated at all, the round gets a `policy_unavailable` finding and is locked too: the policies [fail closed](../../reference/compliance-policy/#failure).
+
+Findings from this check carry a **policy** badge.
+
+**Why it is deterministic.** No model is involved: the rules are code that reads resource types, actions, and attribute values from the plan. The same plan always gets the same verdict, and every rule can be tested with `opa test` before it is rolled out.
+
+**Where to change it.** The general policy is the Langfuse prompt `general/policies/compliance`, and each provider’s is `<provider>/policies/compliance`, seeded from `core/prompts/seed/<scope>/policies/compliance.rego`. To add a rule, such as allowed regions, no public storage, or no owner role assignments, write it in the policy of the provider it concerns (or in the general policy when it spans providers), test it, and publish it as a new version in Langfuse; see [Write a policy rule](../write-a-policy-rule/). The input a policy receives and the decision it must return are in [Compliance policy](../../reference/compliance-policy/).
+
+Use the policies for every rule you can state as a condition on the plan: they are the only check that cannot miss a case or flag one by mistake.
+
+### Intent check (not deterministic)
+
+**What locks.** A language-model agent judges only whether the plan does what the requests of the session ask, every request and not just the first. It reports violations with a rule id and a severity; a finding of severity `error` or `critical` locks the session, and `warning` is reported only. The shipped rules, both of severity `error`, are:
+
+- `scope_exceeded`: the plan changes something you did not ask for, for example it removes a block or sets an attribute to null. A removal is never accepted as a side effect of an addition.
+- `scope_incomplete`: part of your request has no matching change in the plan.
+
+The intent check does not judge safety, conventions, deletions, or versions, and a change you asked for is never an intent violation. Your organization’s conventions only guide generation: nothing checks a plan against them afterwards except the rules of the compliance policy.
+
+Findings from this check carry an **intent** badge.
+
+**Why it is not deterministic.** Whether a change is "what you asked for" depends on the meaning of your request, written in natural language; there is no attribute in the plan to test. A model can read it, but two runs on the same plan can disagree, so a finding can be wrong. When you think it is, rephrase the request to be explicit about what must change and what must stay, or ask a reviewer to check it.
+
+**Where to adapt it.** The prompt `general/intent/rules` defines the rules, each with a `rule_id` and a severity. Edit `scope_exceeded` and `scope_incomplete` to match how strict your organization wants to be, or add your own rules about intent in the same format; see [Compliance prompts](../customize-prompts/#compliance-prompts).
+
+To enforce a convention, such as a mandatory tag, write it as a rule of the [compliance policy](../../reference/compliance-policy/): it then always holds, without depending on the model.
+
+### High impact (not deterministic)
+
+**What locks.** While writing the report, the report model groups the changes and labels each group `low`, `medium`, or `high`, and the report shows the overall level as its impact banner. When the level is `high` and your deployment enables `orchestration.block_on_high_impact`, the session is locked. The banner is shown on every report either way.
+
+**Why it is not deterministic.** Whether a change causes downtime or touches something critical depends on the resource, the attribute, and its context: renaming a tag and changing a firewall rule are both in-place updates in the plan. A model makes that judgment from written criteria, so the same plan can be rated differently on two runs.
+
+**Where to adapt it.** The criteria are the prompt `general/compliance/impact`. The shipped criteria are: high for destructive actions, restarts, service downtime, or critical networking changes; medium for configuration updates that change behavior without guaranteed downtime; low for isolated new resources or non-disruptive updates such as tags or locks. Rewrite them to match your organization’s change-management standards, for example to rate any change to a production network as high; see [Compliance prompts](../customize-prompts/#compliance-prompts).
+
+If a specific change must always be stopped, such as any change to a firewall, write it as a rule of the [compliance policy](../../reference/compliance-policy/): a high-impact verdict is a model’s judgment and is not guaranteed.
+
+## What you see
+
+When you continue to the pull request, the **Deployment Blocked** screen opens instead of the merge controls; see the screenshot in [Merge and apply](../merge-and-apply/#session-locked).
+
+- Expand **Why** to see the cause: **High impact** with the impact summary, **Compliance** with each blocking finding (severity, rule id, resource, and a **policy** or **intent** badge), or both. **Show all findings** adds the warnings and the suggested fixes.
+- **Check again** reads the lock state again, for example after a reviewer unlocked the session.
+- **Back to Report** returns to the report. **Contact Team** sends a support request.
+
+The full compliance report, including the rules that passed, is also in the session details, as the round’s **Compliance Check** artifact.
+
+While locked, you can still read everything, continue the conversation, and create the pull request so reviewers can read the diff. Merge and apply are refused with `409`. Your sessions list shows the lock in the **Apply** column.
+
+## Who is notified
+
+When the notifications sidecar is enabled, Kumoss sends a "Compliance check failed" notification, a "High impact changes detected" notification, or both. They go to you and to every user with the panel role `editor` or higher, so a reviewer usually knows about the lock before you ask.
+
+If your browser tab is hidden when the round finishes, you also get a "Session blocked" browser notification.
+
+## Unlock the session
+
+Choose one of the two ways:
+
+1. **Fix the request.** Read the findings under **Why**, then send a follow-up request that addresses them, for example "keep the existing bucket and only add the tag". When the new round passes all three checks, the lock clears and the merge controls return.
+2. **Ask a reviewer.** A user with the panel role `editor` or `admin` reviews the findings in the admin panel and unlocks the session; see [Lock or unlock the apply of a session](../administer-users-and-locks/#unlock-a-session). When they are done, choose **Check again**. [![Admin panel Sessions tab with the locked session’s detail panel open and the Apply Locked button highlighted](../../_images/admin-unlock-session.png)](../../_images/admin-unlock-session.png) Figure 1. A reviewer opens the locked session from the admin panel’s Sessions tab and presses **Apply Locked** to unlock it
+
+> **Note**
+> A reviewer’s unlock lasts only until your next generate round on
+> the session. That round runs the checks again and sets the lock afresh.
+
+## Verify
+
+The **Deployment Blocked** screen no longer opens when you continue to the pull request, the **Apply** column of your sessions list shows the session unlocked, and **Approve PR and Apply** is available. Continue with [Merge and apply](../merge-and-apply/).
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) to merge the pull request and apply the plan.
+- [Compliance policy](../../reference/compliance-policy/) to write your own policy rules.
+- [Customize prompts](../customize-prompts/) to change the conventions that guide generation, or the intent rules.
+
+---
+
 # Upgrade notes
 
 Source: https://inditextech.github.io/kumoss/prerelease/main/guides/upgrade-notes/
 
 This page lists the changes that need action from an operator, an integrator or a custom sidecar implementation when upgrading. Read it before rolling out a new core image.
+
+## Intent check replaces the LLM compliance audit
+
+The LLM half of the compliance check is now the **intent check**: it judges only whether the plan does what the session’s requests ask (`scope_exceeded`, `scope_incomplete`, same ids and severities). It no longer receives or audits the conventions — the Terraform guidelines, the providers' `resource_creation`, `networking` and `permissions` guidelines, and the resource prompts. Those still guide generation, but after generation only the compliance policies enforce rules. The `orchestration.enable_compliance_checker` switch is unchanged and still gates both halves; see [How compliance works](../../architecture/compliance/). What changes:
+
+- **Prompt moved.** The rules prompt is now `general/intent/rules`, seeded on the next boot from `core/prompts/seed/general/intent/rules.yaml`. `general/compliance/report` is no longer read and can be deleted from Langfuse; `general/compliance/impact` is unchanged. If you customized `general/compliance/report`, port your changes to a new version of `general/intent/rules` and move the environment label to it; see [Change a prompt](../customize-prompts/#change-a-prompt). Rules about conventions rather than intent belong in a [compliance policy](../../reference/compliance-policy/) now.
+- **Tool and trace names.** The agent’s sentinel tool is `report_intent_findings` (was `report_compliance_findings`), without a `passed` argument: the verdict is computed from the severities. Its Langfuse observation is `Chain - INTENT_CHECKER` (was `Chain - COMPLIANCE_CHECKER`).
+- **Finding source.** Findings of the intent check carry `source: "intent"` (was `"llm"`). Stored reports keep loading: `"llm"` is read as `"intent"`. The web UI marks them with an **intent** badge, next to the **policy** badge of policy findings.
+- **New warning.** The general policy gains `provider_version_pin`, a `warn` for every root module provider with no version constraint or one not of the form `~> X.Y`, such as an exact pin. It never locks a session, but workspaces with missing or exact provider pins start reporting it. A general policy you customized does not get it; see [The shipped rules](../../reference/compliance-policy/#shipped-rules).
 
 ## Project identifier; IaC contract 2.1.0
 
@@ -6364,8 +6486,8 @@ Send a request that creates a storage account with public network access. The ro
 - **Values known only after apply are not in `after`.** They are listed in `after_unknown`; a rule cannot check their final value.
 - **Never put attribute values in a message.** The plan JSON carries sensitive values unmasked, and messages end up in the compliance report, the session’s artifacts, and the notification. Name the resource address and the attribute instead.
 - **Keep rule ids stable.** They appear in reports, and they are what reviewers and users search for.
-- **Do not restate a rule in a prompt.** The guideline and resource prompts feed both the code generator and the compliance audit, so a ban written there would be enforced a second time, by a model; see [Change a compliance policy](../customize-prompts/#compliance-policy).
-- **Use the policies for conditions on the plan only.** Rules that depend on what the user asked for belong in the compliance audit; see [Compliance audit](../resolve-a-locked-session/#compliance-audit).
+- **Do not restate a rule in a prompt.** The guideline and resource prompts feed only the code generator, so a ban written there would be applied a second time, by a model, possibly differently from the policy; see [Change a compliance policy](../customize-prompts/#compliance-policy).
+- **Use the policies for conditions on the plan only.** Rules that depend on what the user asked for belong in the intent check; see [Intent check](../resolve-a-locked-session/#intent-check).
 
 ## Next steps
 
@@ -6398,7 +6520,7 @@ At the end of every generate round, when `orchestration.enable_compliance_checke
 1. The core fetches the general policy and the policy of every provider the root module declares in `required_providers` (the session’s providers), each from the version that carries your environment’s label in Langfuse. A provider whose policy prompt does not exist, or has no version with that label, is left out: a module declaring `random` gets no `random` policy, and no error. Nothing is cached, so a label moved in Langfuse applies to the next round.
 2. It builds the [input document](#input) from the round’s final plan and the root module’s providers, and runs all the fetched policies in one `opa` process (OPA 1.22.4, shipped in the core image) that queries `data.kumoss`, so the general package and every provider package are read from a single result: ``` opa eval --stdin-input --strict-builtin-errors --format json \ --data general.rego --data aws.rego ... data.kumoss ```
 3. It reads each policy’s [decision](#decision): blocking `deny` findings, non-blocking `warn` findings, and the list of rules checked.
-4. The language-model audit runs next, and both results are merged into one compliance report for the round; see [How findings appear in the report](#report).
+4. The intent check, the language-model half, runs next, and both results are merged into one compliance report for the round; see [How findings appear in the report](#report).
 5. If either part has an `error` or `critical` finding, the session is locked and the compliance failure notification is sent.
 
 Errors name the prompt and the line they come from, for example `aws/policies/compliance:12: …​`.
@@ -6451,16 +6573,16 @@ Each policy’s package, `data.kumoss.compliance` or `data.kumoss.providers.<pro
 
 ## How findings appear in the report
 
-The policies' decisions and the language-model audit are merged into one compliance report per round:
+The policies' decisions and the intent check’s findings are merged into one compliance report per round; only this merge produces the verdict:
 
-- Each policy violation carries `source: "opa"`; findings of the audit carry `"llm"`, and reports stored before the policy existed have no `source`. The web application marks policy findings with a **policy** badge.
+- Each policy violation carries `source: "opa"`; findings of the intent check carry `"intent"`. Reports stored with the former value `"llm"`, or before the policy existed with no `source`, load as intent findings. The web application marks policy findings with a **policy** badge and intent check findings with an **intent** badge, in the **Compliance Check** artifact and in the **Why** list of the **Deployment Blocked** screen.
 - The policies' findings come first.
 - `policy_revisions` lists the versions that ran, each as `"<prompt name>@<version>"`, the general policy first, for example `["general/policies/compliance@3", "aws/policies/compliance@1"]`, or is empty when no policy ran. Reports stored when there was only the general policy carry a single `policy_revision` string; they are read into the list.
 - `passed` is `false` when either source has an `error` or `critical` finding, and the session is then locked as for any failed compliance check. When the policies are what blocks, the summary starts with `Blocked by the compliance policy: N finding(s) (<rule ids>).`
 
 ## When a policy cannot be evaluated
 
-The policies fail closed. If one cannot be evaluated, the round gets a blocking `policy_unavailable` finding (severity `error`) whose message gives the reason, so the session is locked and the compliance failure notification is sent. The language-model audit still runs, and its findings are in the same report.
+The policies fail closed. If one cannot be evaluated, the round gets a blocking `policy_unavailable` finding (severity `error`) whose message gives the reason, so the session is locked and the compliance failure notification is sent. The intent check still runs, and its findings are in the same report.
 
 Since all the policies run in one evaluation, one broken provider policy blocks every round of a module that declares that provider, and a broken general policy blocks every round.
 
@@ -6490,7 +6612,7 @@ When `enable_compliance_checker` is `true`, the core, after seeding the prompts,
 
 ### General policy
 
-The general seed defines four rules that apply whatever the provider. `critical_deletion` looks at every managed resource; the other three look only at what the plan creates or updates (a replacement included), so a resource the round leaves alone is not judged.
+The general seed defines five rules that apply whatever the provider. `critical_deletion` looks at every managed resource and `provider_version_pin` at the root module’s provider configuration; the other three look only at what the plan creates or updates (a replacement included), so a resource the round leaves alone is not judged.
 
 | Rule id | Decision | Finds |
 | --- | --- | --- |
@@ -6498,6 +6620,7 @@ The general seed defines four rules that apply whatever the provider. `critical_
 | `customer_managed_key_removed` | `deny`, `error` | A resource the plan updates or replaces that loses its customer-managed encryption key: an attribute named `kms_key_id`, `kms_key_arn`, `kms_master_key_id`, `kms_key_name`, `kms_key_self_link`, `default_kms_key_name`, `customer_managed_key`, `disk_encryption_set_id` or `key_vault_key_id`, at any nesting depth, is set before the change and empty or absent after it. Switching to another key is allowed, and a key whose new value is only known at apply time is not judged. |
 | `command_execution` | `deny`, `error` | Terraform running commands: a `null_resource`, or a provisioner of any kind (`local-exec`, `remote-exec`, `file`) on a resource the plan creates or updates, child modules included; and any `data "external"` data source anywhere in the configuration, changed or not, since it runs its program on every plan. A resource with a provisioner that the round leaves untouched is not flagged. |
 | `unprotected_credential_output` | `warn` | A root module output the plan creates or updates whose name contains, case-insensitively, `password`, `passwd`, `secret`, `token`, `private_key`, `api_key`, `access_key`, `credential` or `connection_string`, and that is not marked `sensitive = true`. The name is only a hint, hence a warning; the message carries the output’s name, never its value. |
+| `provider_version_pin` | `warn` | A root module provider (an entry of the plan’s `configuration.provider_config` without `module_address`; the built-in `terraform.io/builtin/*` providers are skipped) with no version constraint, or one that is not of the form `~> X.Y`: an exact pin such as `= 4.63.0` (which the plan shows as `4.63.0`), an open range such as `>= 5.0`, or `~> 6.1.0`. The finding has no `resource`; the message carries the provider’s full name. A warning, since an existing pin is never changed as a side effect and a workspace may keep one on purpose; child modules pin for themselves. |
 
 `critical_deletion`, the rule a custom policy most often starts from:
 
@@ -6522,7 +6645,7 @@ deny contains finding if {
 }
 ```
 
-The seed declares its four ids in one `rules contains rule if some rule in {…​}` statement; the excerpt above declares only its own. The code is explained line by line in [How a rule works](../../guides/write-a-policy-rule/#how-a-rule-works).
+The seed declares its five ids in one `rules contains rule if some rule in {…​}` statement; the excerpt above declares only its own. The code is explained line by line in [How a rule works](../../guides/write-a-policy-rule/#how-a-rule-works).
 
 `data "external"` runs its program while the plan is made, so by the time `command_execution` locks the round the program has already run in the IaC sidecar; the rule keeps the code from being applied and merged. Provisioners and `null_resource` commands run at apply and are stopped before they run.
 
@@ -6768,8 +6891,8 @@ Iteration limits and behavior switches for the core’s agent loops. Raise the l
 
 | YAML path | Type | Code default | Shipped `config.yaml` | Requirement | Meaning and effect |
 | --- | --- | --- | --- | --- | --- |
-| `orchestration.enable_compliance_checker` | boolean | `false` | `true` | Optional | Runs the compliance check once a generate round has been validated and its report written, in two parts merged into one report. First the core evaluates the Rego policies with OPA against the final plan’s `show -json`: `general/policies/compliance` and the `<provider>/policies/compliance` of every provider the root module declares that has one; a policy that cannot be evaluated adds a blocking `policy_unavailable` finding, see [Compliance policy](../compliance-policy/). Then a second, independent small-model agent reads the session’s first request and the raw plan, and checks them against the rules in the `general/compliance/report` prompt. The session is **locked** if any finding of either part has severity `error` or `critical`; `warning` findings are recorded in the report but do not lock. The report is stored as a round artifact and shown in the portal. A lock also sends an `iac.compliance.failed` notification. When `false` the audit is skipped entirely and reported as an empty passing result, so it can never lock and nothing is stored. Generate rounds only — drift rounds do not audit, and apply does not re-audit. When `true`, the core evaluates the general policy and the policies of the providers that ship a seed at startup against an empty plan and refuses to start if that fails (no `opa` binary, a broken policy, Langfuse unreachable). |
-| `orchestration.block_on_high_impact` | boolean | `false` | `true` | Optional | **Locks** the session when the generate report’s impact banner comes back `high`, and sends an `iac.impact.high` notification. The banner itself — `low`, `medium`, or `high`, judged against the `general/compliance/impact` prompt criteria — is part of every report either way; this flag decides only whether it gates. It is evaluated independently of the auditor above: the round ends locked if **either** condition fires. |
+| `orchestration.enable_compliance_checker` | boolean | `false` | `true` | Optional | Runs the compliance check once a generate round has been validated and its report written, in two parts merged into one report. First the core evaluates the Rego policies with OPA against the final plan’s `show -json`: `general/policies/compliance` and the `<provider>/policies/compliance` of every provider the root module declares that has one; a policy that cannot be evaluated adds a blocking `policy_unavailable` finding, see [Compliance policy](../compliance-policy/). Then the intent check, a second, independent small-model agent, reads every request of the session and the raw plan, and judges only whether the plan does what the requests ask, against the rules in the `general/intent/rules` prompt; it does not check the conventions. The session is **locked** if any finding of either part has severity `error` or `critical`; `warning` findings are recorded in the report but do not lock. The report is stored as a round artifact and shown in the portal. A lock also sends an `iac.compliance.failed` notification. When `false` the check is skipped entirely and reported as an empty passing result, so it can never lock and nothing is stored. Generate rounds only — drift rounds are not checked, and apply does not re-check. When `true`, the core evaluates the general policy and the policies of the providers that ship a seed at startup against an empty plan and refuses to start if that fails (no `opa` binary, a broken policy, Langfuse unreachable). |
+| `orchestration.block_on_high_impact` | boolean | `false` | `true` | Optional | **Locks** the session when the generate report’s impact banner comes back `high`, and sends an `iac.impact.high` notification. The banner itself — `low`, `medium`, or `high`, judged against the `general/compliance/impact` prompt criteria — is part of every report either way; this flag decides only whether it gates. It is evaluated independently of the compliance check above: the round ends locked if **either** condition fires. |
 | `orchestration.max_drift_reports` | integer | `3` | `3` | Optional | Maximum detect-and-remediate iterations in a drift session. |
 | `orchestration.max_validation_iteration` | integer | `8` | `5` | Optional | Maximum generate-then-validate attempts per generation task before the round fails with `Validation loop exceeded.` |
 | `orchestration.max_import_iteration` | integer | `5` | `5` | Optional | Maximum generate-then-import attempts in an import round. A failed plan or a rejected import is fed back to the generator and counts as one attempt. When the attempts run out after a passing plan, the round still reports what did import and lists what did not. |
@@ -6778,7 +6901,7 @@ Iteration limits and behavior switches for the core’s agent loops. Raise the l
 | `orchestration.drift_group_operations` | integer | `8` | `8` | Optional | How many drift operations are grouped into one remediation task. |
 | `orchestration.pull_request_readiness_seconds` | integer | `10` | `10` | Optional | How many one-second polls the GitHub provider performs waiting for a pull request to become mergeable before failing with `readiness polling exhausted`. |
 
-**What the two gates lock, and what they do not.** Both switches write the same session flag, so their effect is identical: a locked session answers `409` to `POST /v1/iac/apply` and to `PUT /v1/repository/pr/merge`. *Creating* a pull request is not lock-checked, and the audited code has already been pushed to the working branch by then, so the gate guards the apply boundary rather than the commit. The lock clears when a later generate round passes with a non-`high` banner, or when a panel `editor` toggles it in the [admin panel](../../guides/administer-users-and-locks/); drift rounds never set or clear it. Because both default to `false` in code and `true` in the shipped file, an `orchestration` block that omits them silently turns both gates off — spell them out in any file you write yourself. The full round-by-round flow is in [Compliance gate](../../architecture/end-to-end-flow/#compliance).
+**What the two gates lock, and what they do not.** Both switches write the same session flag, so their effect is identical: a locked session answers `409` to `POST /v1/iac/apply` and to `PUT /v1/repository/pr/merge`. *Creating* a pull request is not lock-checked, and the checked code has already been pushed to the working branch by then, so the gate guards the apply boundary rather than the commit. The lock clears when a later generate round passes with a non-`high` banner, or when a panel `editor` toggles it in the [admin panel](../../guides/administer-users-and-locks/); drift rounds never set or clear it. Because both default to `false` in code and `true` in the shipped file, an `orchestration` block that omits them silently turns both gates off — spell them out in any file you write yourself. The full round-by-round flow is in [Compliance gate](../../architecture/end-to-end-flow/#compliance).
 
 Requires restart: yes. See [Guides](../../guides-overview/) for where each limit applies.
 
@@ -7430,7 +7553,7 @@ Every table follows the same three rules, so they are stated once here rather th
 | `artifacts` | — | Metadata for one stored object: its `uri` in object storage, its `content_type`, and its `file_size_bytes`. Shared, not session-scoped. |
 | `terraform_plans` | `rounds` and `artifacts` | A plan produced by a round, with the `targets` it was narrowed to. |
 | `reports` | `rounds` and `artifacts` | A report produced by a round, tagged with its `type`. |
-| `compliance_checks` | `rounds` and `artifacts` | The compliance audit of a generate round: its `passed` verdict, with the full findings in the stored object. |
+| `compliance_checks` | `rounds` and `artifacts` | The compliance check of a generate round: its `passed` verdict, with the full findings in the stored object. |
 | `code_changes` | `rounds` and `artifacts` | One generated or modified file, by `file_name`. |
 
 The four artifact-metadata tables — `terraform_plans`, `reports`, `compliance_checks`, and `code_changes` — each point at both a round and an artifact. The round says which turn produced it; the artifact says where the bytes are. The bytes themselves are never in the database.
@@ -7872,7 +7995,7 @@ Kumoss configures two model roles in `config.yaml`. Both are applied by the core
 | Key | Role | Used for |
 | --- | --- | --- |
 | `llm.model` | High-quality model | The IaC generator chain (writing and fixing Terraform code), the target generator chain (choosing plan targets), the report generator chain, and the task splitter chain (turning a drift report into remediation operations). |
-| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, drift reconciliation filtering, drift exception filtering, prompt composition, pull-request text, the compliance checker, status messages, and the LLM calls that some tools make internally (for example web search). |
+| `llm.small_model` | Fast, cheaper model | Every other chain: request filtering, drift reconciliation filtering, drift exception filtering, prompt composition, pull-request text, the intent check, status messages, and the LLM calls that some tools make internally (for example web search). |
 
 Three extra settings apply to both roles:
 
@@ -8209,7 +8332,7 @@ The first request of a session provides the repository URL (`https://` only; it 
 
 Source: https://inditextech.github.io/kumoss/prerelease/main/reference/prompt-registry/
 
-Kumoss’s agents read their conventions, compliance rules, and exception lists from prompts stored in the prompt management of [Langfuse](https://langfuse.com/docs/prompt-management). This page is the reference for how that registry works: where prompts live, the seed file conventions, how seeding and runtime lookup work, which agent reads which prompt, and the shipped inventory. To change a prompt, see [Customize prompts](../../guides/customize-prompts/).
+Kumoss’s agents read their conventions, intent rules, impact criteria, and exception lists from prompts stored in the prompt management of [Langfuse](https://langfuse.com/docs/prompt-management). This page is the reference for how that registry works: where prompts live, the seed file conventions, how seeding and runtime lookup work, which agent reads which prompt, and the shipped inventory. To change a prompt, see [Customize prompts](../../guides/customize-prompts/).
 
 ## Where prompts live
 
@@ -8230,7 +8353,7 @@ core/prompts/seed/<scope>/policies/<name>.rego
 ```
 
 - `<scope>` is `general` or a Terraform provider type name, the last segment of the provider’s source address, such as `azurerm` for `hashicorp/azurerm`. It must match `^[a-z0-9][a-z0-9_-]{0,63}$`. The shipped seeds use `general`, `aws`, `azurerm`, `google`, `oci`, `kubernetes`, and `vsphere`; any other provider (`helm`, `datadog`…​) can be given prompts by adding a folder with its type name.
-- `<type>` is one of `guidelines`, `resources`, `compliance`, or `policies`. Seeds of type `policies` are `.rego` files; every other type is a `.yaml` file.
+- `<type>` is one of `guidelines`, `resources`, `compliance`, `intent`, or `policies`. Seeds of type `policies` are `.rego` files; every other type is a `.yaml` file.
 - `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits, and underscores).
 
 The loader rejects any other depth, scope, type, or name at startup
@@ -8258,7 +8381,7 @@ Langfuse shows each `/` as a folder, so its **Prompts** view is laid out like `c
 | `aws/resources/s3_bucket.yaml` | `aws/resources/s3_bucket` |
 | `azurerm/resources/storage_account.yaml` | `azurerm/resources/storage_account` |
 | `general/guidelines/terraform.yaml` | `general/guidelines/terraform` |
-| `general/compliance/report.yaml` | `general/compliance/report` |
+| `general/intent/rules.yaml` | `general/intent/rules` |
 | `general/policies/compliance.rego` | `general/policies/compliance` |
 | `aws/policies/compliance.rego` | `aws/policies/compliance` |
 
@@ -8320,7 +8443,7 @@ For a generate or drift round, the core builds the round’s conventions in two 
 | --- | --- |
 | Prompt compositor (every generate and drift round) | `<provider>/guidelines/abbreviations`, `<provider>/guidelines/resources_list`, and the selected `<provider>/resources/*` |
 | IaC generator | `general/guidelines/terraform`; each provider’s `resource_creation`, `networking`, and `permissions`; the selected `<provider>/resources/*` and abbreviations |
-| Compliance checker (generate rounds, when `orchestration.enable_compliance_checker` is `true`) | The same as the IaC generator, plus `general/compliance/report` |
+| Intent checker (generate rounds, when `orchestration.enable_compliance_checker` is `true`) | `general/intent/rules` only; none of the conventions, which guide generation and are not checked by any agent |
 | Compliance policies (same condition; evaluated by OPA, not a model) | `general/policies/compliance`, and `<provider>/policies/compliance` for each provider the root module declares that has one |
 | Report generator (generate reports) | `general/compliance/impact` |
 | Request filter | `general/guidelines/requests` |
@@ -8341,15 +8464,15 @@ Every shipped `resources_list` names all of its provider’s resource seeds. The
 
 The `aws`, `azurerm`, `google`, and `oci` scopes ship the same seven guideline prompts; `kubernetes` and `vsphere` ship six, without `import_exceptions`. The resource prompts differ per provider. Every scope, `general` included, also ships one policy, `policies/compliance.rego`.
 
-| Scope | `guidelines` | `resources` | `compliance` |
-| --- | --- | --- | --- |
-| `general` | `requests`, `targeting_policies`, `terraform` | None | `impact`, `report` |
-| `aws` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aurora`, `auto_scaling_group`, `bedrock`, `cloudwatch`, `dynamodb`, `ebs_volume`, `ec2`, `ecr_repository`, `ecs_fargate_service`, `efs`, `eks_cluster`, `elasticache_redis`, `iam_role`, `internet_gateway`, `kms_key`, `lambda`, `launch_template`, `load_balancer`, `nat_gateway`, `rds`, `redshift`, `route53`, `route_table`, `s3_bucket`, `sagemaker`, `secrets_manager`, `security_group`, `sns_topic`, `sqs_queue`, `subnet`, `vpc`, `vpc_endpoint`, `waf_web_acl` | None |
-| `azurerm` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aks_cluster`, `application_gateway`, `application_insights`, `azure_openai`, `bastion`, `container_app`, `container_registry`, `cosmosdb`, `diagnostic_setting`, `function`, `key_vault`, `load_balancer`, `log_analytics_workspace`, `managed_disk`, `nat_gateway`, `network_security_group`, `postgres_flexible_server`, `private_dns_zone`, `private_endpoint`, `public_ip`, `redis_managed`, `resource_group`, `role_assignment`, `service_bus`, `storage_account`, `subnet`, `user_assigned_identity`, `virtual_machine`, `virtual_network`, `vm_scale_set`, `webapp` | None |
-| `google` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `artifact_registry`, `bigquery`, `cloud_armor`, `cloud_dns`, `cloud_functions`, `cloud_kms`, `cloud_nat`, `cloud_router`, `cloud_run`, `cloud_sql_postgres`, `compute_instance`, `firewall`, `gke_autopilot`, `gke_standard`, `instance_template`, `load_balancer`, `managed_instance_group`, `memorystore_redis`, `persistent_disk`, `project`, `pubsub`, `secret_manager`, `service_account`, `spanner`, `storage_bucket`, `subnetwork`, `vertex`, `vpc_network` | None |
-| `oci` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `autonomous_database`, `bastion`, `block_volume`, `certificate`, `compartment`, `compute_instance`, `container_repository`, `dns_zone`, `drg`, `dynamic_group`, `file_storage`, `functions`, `iam_policy`, `instance_configuration`, `instance_pool`, `internet_gateway`, `load_balancer`, `logging`, `mysql_db_system`, `nat_gateway`, `network_security_group`, `object_storage`, `oke_cluster`, `route_table`, `security_list`, `service_gateway`, `subnet`, `vault`, `vcn` | None |
-| `kubernetes` | `abbreviations`, `drift_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`, `daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`, `job`, `limit_range`, `namespace`, `network_policy`, `persistent_volume_claim`, `pod_disruption_budget`, `priority_class`, `resource_quota`, `role`, `role_binding`, `secret`, `service`, `service_account`, `stateful_set`, `storage_class` | None |
-| `vsphere` | `abbreviations`, `drift_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `compute_cluster`, `compute_cluster_host_group`, `compute_cluster_vm_affinity_rule`, `compute_cluster_vm_anti_affinity_rule`, `compute_cluster_vm_group`, `compute_cluster_vm_host_rule`, `content_library`, `content_library_item`, `datastore_cluster`, `distributed_port_group`, `distributed_virtual_switch`, `drs_vm_override`, `entity_permissions`, `folder`, `ha_vm_override`, `resource_pool`, `role`, `tag`, `virtual_disk`, `virtual_machine`, `vm_storage_policy` | None |
+| Scope | `guidelines` | `resources` | `compliance` | `intent` |
+| --- | --- | --- | --- | --- |
+| `general` | `requests`, `targeting_policies`, `terraform` | None | `impact` | `rules` |
+| `aws` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aurora`, `auto_scaling_group`, `bedrock`, `cloudwatch`, `dynamodb`, `ebs_volume`, `ec2`, `ecr_repository`, `ecs_fargate_service`, `efs`, `eks_cluster`, `elasticache_redis`, `iam_role`, `internet_gateway`, `kms_key`, `lambda`, `launch_template`, `load_balancer`, `nat_gateway`, `rds`, `redshift`, `route53`, `route_table`, `s3_bucket`, `sagemaker`, `secrets_manager`, `security_group`, `sns_topic`, `sqs_queue`, `subnet`, `vpc`, `vpc_endpoint`, `waf_web_acl` | None | None |
+| `azurerm` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `aks_cluster`, `application_gateway`, `application_insights`, `azure_openai`, `bastion`, `container_app`, `container_registry`, `cosmosdb`, `diagnostic_setting`, `function`, `key_vault`, `load_balancer`, `log_analytics_workspace`, `managed_disk`, `nat_gateway`, `network_security_group`, `postgres_flexible_server`, `private_dns_zone`, `private_endpoint`, `public_ip`, `redis_managed`, `resource_group`, `role_assignment`, `service_bus`, `storage_account`, `subnet`, `user_assigned_identity`, `virtual_machine`, `virtual_network`, `vm_scale_set`, `webapp` | None | None |
+| `google` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `artifact_registry`, `bigquery`, `cloud_armor`, `cloud_dns`, `cloud_functions`, `cloud_kms`, `cloud_nat`, `cloud_router`, `cloud_run`, `cloud_sql_postgres`, `compute_instance`, `firewall`, `gke_autopilot`, `gke_standard`, `instance_template`, `load_balancer`, `managed_instance_group`, `memorystore_redis`, `persistent_disk`, `project`, `pubsub`, `secret_manager`, `service_account`, `spanner`, `storage_bucket`, `subnetwork`, `vertex`, `vpc_network` | None | None |
+| `oci` | `abbreviations`, `drift_exceptions`, `import_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `autonomous_database`, `bastion`, `block_volume`, `certificate`, `compartment`, `compute_instance`, `container_repository`, `dns_zone`, `drg`, `dynamic_group`, `file_storage`, `functions`, `iam_policy`, `instance_configuration`, `instance_pool`, `internet_gateway`, `load_balancer`, `logging`, `mysql_db_system`, `nat_gateway`, `network_security_group`, `object_storage`, `oke_cluster`, `route_table`, `security_list`, `service_gateway`, `subnet`, `vault`, `vcn` | None | None |
+| `kubernetes` | `abbreviations`, `drift_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`, `daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`, `job`, `limit_range`, `namespace`, `network_policy`, `persistent_volume_claim`, `pod_disruption_budget`, `priority_class`, `resource_quota`, `role`, `role_binding`, `secret`, `service`, `service_account`, `stateful_set`, `storage_class` | None | None |
+| `vsphere` | `abbreviations`, `drift_exceptions`, `networking`, `permissions`, `resource_creation`, `resources_list` | `compute_cluster`, `compute_cluster_host_group`, `compute_cluster_vm_affinity_rule`, `compute_cluster_vm_anti_affinity_rule`, `compute_cluster_vm_group`, `compute_cluster_vm_host_rule`, `content_library`, `content_library_item`, `datastore_cluster`, `distributed_port_group`, `distributed_virtual_switch`, `drs_vm_override`, `entity_permissions`, `folder`, `ha_vm_override`, `resource_pool`, `role`, `tag`, `virtual_disk`, `virtual_machine`, `vm_storage_policy` | None | None |
 
 The `oci` import exception list ships but is not read: only Azure, GCP, and AWS scopes can be listed for import.
 
@@ -9215,7 +9338,7 @@ Items the repository leaves to the platform. Apply them; none is optional for a 
 - Artifacts bucket private except for presigned reads; lifecycle rules.
 - State bucket private with no public path at all, versioning and soft delete enabled, no lifecycle expiry, access limited to the core (bucket creation) and the IaC sidecar (read/write).
 - Git token scoped to the repositories in scope; LLM provider configured under acceptable data-handling terms.
-- Seeded prompts reviewed and adapted before the first user session; they encode a generic policy, including the compliance rules. No prompt lists forbidden actions: write your prohibitions as rules in the compliance policies, the general one or a provider’s ([Customize prompts](../../customize-prompts/), [Compliance policy](../../../reference/compliance-policy/)).
+- Seeded prompts reviewed and adapted before the first user session; they encode a generic policy, including the intent rules. No prompt lists forbidden actions: write your prohibitions as rules in the compliance policies, the general one or a provider’s ([Customize prompts](../../customize-prompts/), [Compliance policy](../../../reference/compliance-policy/)). The conventions in the guideline and resource prompts only guide generation: no check audits a plan against them afterwards, so anything that must hold belongs in a policy.
 - With `orchestration.enable_compliance_checker` on, the core starts only if the general compliance policy and the policies of the providers that ship a seed evaluate; keep Langfuse reachable and the policies valid. Keep the checker on: the shipped prompts no longer forbid what the policies deny, so with it off nothing stops `null_resource`, provisioners, `data "external"`, internet-open ingress or admin grants in generated code.
 
 ---
@@ -10193,7 +10316,7 @@ Prefix `/v1/sessions`. Two routes, both open to any signed-in user.
 
 The envelope carries `items`, `total`, `page`, `page_size`, and `total_pages`. Each item resolves server-side everything the list view renders: `uuid`, `username`, `operation`, `providers`, `first_query`, `workspace` (URI, branch, root path), `current_status`, the `in_flight` and `is_blocked` flags, and the timestamps. `username` is the owning user’s e-mail, or `user-<id>` when the user has none; the name is historical, and it is a response field only — there is no `username` query parameter. `providers` lists the Terraform providers of the session’s root module as `[{"name": "azurerm", "scope_id": "<subscription id>"}]`, with a null `scope_id` for providers that have no scope; it is empty until the session’s first call has set the manifest up. It replaces the former `provider` and `scope_id` fields.
 
-`GET /api/v1/sessions?id={session_id}` returns the full session aggregate: the summary fields and one entry in `rounds` per generation round. Each round carries its own statuses, its `reports`, `compliance_checks`, `plans`, and `code_changes` artifacts as client-fetchable URLs, oldest first, and its `pull_requests`. Each `compliance_checks` entry also carries the audit’s `passed` verdict; the list is empty when the round was not audited.
+`GET /api/v1/sessions?id={session_id}` returns the full session aggregate: the summary fields and one entry in `rounds` per generation round. Each round carries its own statuses, its `reports`, `compliance_checks`, `plans`, and `code_changes` artifacts as client-fetchable URLs, oldest first, and its `pull_requests`. Each `compliance_checks` entry also carries the check’s `passed` verdict; the list is empty when the round was not checked.
 
 Pass `include_chat_history=true` to also populate `chat_history` with the session’s conversation: one `{"user": …, "assistant": …}` turn per finished round, oldest first. The `user` side is the query as the caller typed it; the `assistant` side states how that round turned out and what the caller can do next. A round whose reply could not be produced contributes no turn, so the list can be shorter than `rounds`. That variant always reads fresh from the database, so status polling should stay on the default. The caller must be the owner or hold a panel role; an unknown session is `404`.
 
@@ -12989,152 +13112,6 @@ Remember that granting a panel role does not change what the user can do to infr
 
 ---
 
-# Repository layout
-
-Source: https://inditextech.github.io/kumoss/stable/main/reference/repository-layout/
-
-When a repository URL is entered, Kumoss looks inside it for the directories that hold Terraform-compatible code and offers them as the session’s **IaC path**. This page is the complete reference for that detection.
-
-## How Kumoss finds Terraform roots
-
-After the repository URL is entered, the wizard calls `POST /api/v1/repository/parse`. The core accepts only `https://` URLs, validates the URL with `git ls-remote`, clones only the repository metadata (`--filter=blob:none --no-checkout`, 60-second limit), lists every file committed on the **default branch** with `git ls-tree -r HEAD --name-only`, and applies these rules to the directory paths. File contents are never read, and the temporary clone is deleted afterwards.
-
-1. A directory is a **candidate** when it contains at least one `.tf` file.
-2. A candidate is **dropped** when any segment of its path is `modules`, `examples`, `example`, or `.terraform`.
-3. A candidate is a **root** when it contains a marker file — `main.tf`, `provider.tf`, `providers.tf`, `backend.tf`, `terraform.tf`, `versions.tf` — or any `.tfvars` / `.tfvars.json` file.
-4. A candidate without a marker is still a root when it is the deepest `.tf` directory on its branch of the tree and does not sit under a directory that already qualified. Directories nested under a qualifying root are absorbed into it and are not offered separately.
-5. The result is the sorted list of repository-relative paths. `.tf` files at the repository top level make the repository root itself a root, offered as `.`. The repository root absorbs nothing, though: the nesting test compares path prefixes, and no path begins with `./`, so a repository with top-level `.tf` files **and** a qualifying `envs/dev/main.tf` offers both `.` and `envs/dev`.
-
-With no result the wizard shows "No IaC paths found in this repository."; with exactly one it skips the "Which IaC path?" step; with several it asks the user to pick. The chosen path becomes the session’s IaC path: it is fixed on the first request, the engine runs `init`, `validate`, `plan`, and `apply` inside that directory, and it is one of the three inputs that identify the project’s state when Kumoss manages state (see [State keys](../../guides/state-backends/kumoss-managed/#state-keys)). The web application offers only detected paths; API callers may pass any repository-relative `iac_path` that contains no `..` segment and resolves, symlinks included, to an existing directory inside the repository; an omitted `iac_path` means the repository root. The agents' file tools are confined to that directory (see [Agent tool loop](../../architecture/end-to-end-flow/#agent-tool-loop)).
-
-| Repository files (default branch) | Offered IaC paths | Why |
-| --- | --- | --- |
-| `envs/dev/main.tf`, `envs/prod/main.tf`, `modules/network/vpc.tf`, `modules/network/examples/basic/main.tf` | `envs/dev`, `envs/prod` | Both `envs/*` directories have a marker; everything under `modules/` is skipped as shared module code. |
-| `platform/main.tf`, `platform/network/subnets.tf`, `platform/storage/buckets.tf` | `platform` | `platform` has a marker, so its two subdirectories are absorbed. The wizard skips the path step. |
-| `lib/iam/policies.tf`, `lib/iam/roles.tf`, `README.md` | `lib/iam` | No marker, but it is the deepest `.tf` directory and nothing above it qualifies. |
-| `main.tf`, `variables.tf`, `modules/net/vpc.tf` | `.` | Top-level `.tf` files make the repository root the only root. |
-| `main.tf`, `envs/dev/main.tf` | `.`, `envs/dev` | The repository root is a root, but it absorbs no subdirectory, so `envs/dev` is offered as well and the wizard asks the user to pick. |
-
-If a directory is missing from the offered list, check that its `.tf` files are committed on the default branch and that no parent directory is named `modules`, `examples`, `example`, or `.terraform`. The rules live in `core/src/infrastructure/filesystem/iac_root_detector.py`.
-
-## Next steps
-
-- [Make a request](../../guides/make-a-request/) to see this detection from the wizard’s side.
-- [Guides](../../guides-overview/) for the rest of the session inputs.
-
----
-
-# Roles and permissions
-
-Source: https://inditextech.github.io/kumoss/stable/main/reference/roles-and-permissions/
-
-Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
-
-Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
-
-## Two independent role groups
-
-The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
-
-### Operation roles
-
-Operation roles are hierarchical, and every user has one.
-
-| Operation role | Grants |
-| --- | --- |
-| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
-| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
-
-### Admin-panel roles
-
-Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
-
-| Panel role | Grants |
-| --- | --- |
-| none | Own sessions only. |
-| `viewer` | Read-only view of every user’s sessions in the admin panel. |
-| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
-| `admin` | `editor`, plus user and role management. |
-
-### Session access rules
-
-The API enforces these rules regardless of role:
-
-- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
-- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
-- Everyone else receives `403 Not the session owner`.
-
-## Roles at a glance
-
-| Route | Minimum operation role | Extra condition |
-| --- | --- | --- |
-| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
-| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
-| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
-| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
-| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
-| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
-
-The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
-
-## Permission matrix
-
-The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
-
-| Capability | No panel role | `viewer` | `editor` | `admin` |
-| --- | --- | --- | --- | --- |
-| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
-| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
-| Open the admin panel | no | yes | yes | yes |
-| List sessions across all users, paginated | no | yes | yes | yes |
-| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
-| Open any user’s session detail, including conversation history | no | yes | yes | yes |
-| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
-| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
-| Receive support requests sent from the web application’s header | no | no | yes | yes |
-| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
-| List and search users | no | no | no | yes |
-| Assign operation roles | no | no | no | yes |
-| Assign or remove panel roles | no | no | no | yes |
-| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
-| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
-| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
-
-Backend routes behind the matrix:
-
-| Route | Who |
-| --- | --- |
-| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
-| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
-| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
-| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
-| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
-
-Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
-
-## Who gets which roles
-
-**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
-
-**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
-
-- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
-- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
-
-After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and restart the core first if a real demotion is needed.
-
-With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
-
-Do not confuse this with the authorization sidecar. An authorization service you implement may keep users and roles of its own, but the core never reads them; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
-
-## Next steps
-
-- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
-- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
-
----
-
 # LLM providers and models
 
 Source: https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/
@@ -13432,6 +13409,152 @@ OPENAI_API_KEY=placeholder-for-boot-validation
 ## Running outside Docker
 
 `litellm` calls `load_dotenv()` at import time unless `LITELLM_MODE` is set to `PRODUCTION`. Running the core, or `pytest`, on your workstation (rather than inside the container) therefore silently loads `core/.env` into the process environment — including any real secrets it holds — even though nothing in Kumoss’s own code does this. The working directory does not matter: python-dotenv searches upwards from the directory of the **calling package**, so with the virtual environment at `core/.venv` the file `core/.env` is found from any directory. Variables already present in the environment are not overwritten by the file. To reproduce a clean-environment boot, set `LITELLM_MODE=PRODUCTION`, move `core/.env` aside, or use a virtual environment outside `core/`; otherwise a variable you think is unset may actually be coming from `core/.env`.
+
+---
+
+# Repository layout
+
+Source: https://inditextech.github.io/kumoss/stable/main/reference/repository-layout/
+
+When a repository URL is entered, Kumoss looks inside it for the directories that hold Terraform-compatible code and offers them as the session’s **IaC path**. This page is the complete reference for that detection.
+
+## How Kumoss finds Terraform roots
+
+After the repository URL is entered, the wizard calls `POST /api/v1/repository/parse`. The core accepts only `https://` URLs, validates the URL with `git ls-remote`, clones only the repository metadata (`--filter=blob:none --no-checkout`, 60-second limit), lists every file committed on the **default branch** with `git ls-tree -r HEAD --name-only`, and applies these rules to the directory paths. File contents are never read, and the temporary clone is deleted afterwards.
+
+1. A directory is a **candidate** when it contains at least one `.tf` file.
+2. A candidate is **dropped** when any segment of its path is `modules`, `examples`, `example`, or `.terraform`.
+3. A candidate is a **root** when it contains a marker file — `main.tf`, `provider.tf`, `providers.tf`, `backend.tf`, `terraform.tf`, `versions.tf` — or any `.tfvars` / `.tfvars.json` file.
+4. A candidate without a marker is still a root when it is the deepest `.tf` directory on its branch of the tree and does not sit under a directory that already qualified. Directories nested under a qualifying root are absorbed into it and are not offered separately.
+5. The result is the sorted list of repository-relative paths. `.tf` files at the repository top level make the repository root itself a root, offered as `.`. The repository root absorbs nothing, though: the nesting test compares path prefixes, and no path begins with `./`, so a repository with top-level `.tf` files **and** a qualifying `envs/dev/main.tf` offers both `.` and `envs/dev`.
+
+With no result the wizard shows "No IaC paths found in this repository."; with exactly one it skips the "Which IaC path?" step; with several it asks the user to pick. The chosen path becomes the session’s IaC path: it is fixed on the first request, the engine runs `init`, `validate`, `plan`, and `apply` inside that directory, and it is one of the three inputs that identify the project’s state when Kumoss manages state (see [State keys](../../guides/state-backends/kumoss-managed/#state-keys)). The web application offers only detected paths; API callers may pass any repository-relative `iac_path` that contains no `..` segment and resolves, symlinks included, to an existing directory inside the repository; an omitted `iac_path` means the repository root. The agents' file tools are confined to that directory (see [Agent tool loop](../../architecture/end-to-end-flow/#agent-tool-loop)).
+
+| Repository files (default branch) | Offered IaC paths | Why |
+| --- | --- | --- |
+| `envs/dev/main.tf`, `envs/prod/main.tf`, `modules/network/vpc.tf`, `modules/network/examples/basic/main.tf` | `envs/dev`, `envs/prod` | Both `envs/*` directories have a marker; everything under `modules/` is skipped as shared module code. |
+| `platform/main.tf`, `platform/network/subnets.tf`, `platform/storage/buckets.tf` | `platform` | `platform` has a marker, so its two subdirectories are absorbed. The wizard skips the path step. |
+| `lib/iam/policies.tf`, `lib/iam/roles.tf`, `README.md` | `lib/iam` | No marker, but it is the deepest `.tf` directory and nothing above it qualifies. |
+| `main.tf`, `variables.tf`, `modules/net/vpc.tf` | `.` | Top-level `.tf` files make the repository root the only root. |
+| `main.tf`, `envs/dev/main.tf` | `.`, `envs/dev` | The repository root is a root, but it absorbs no subdirectory, so `envs/dev` is offered as well and the wizard asks the user to pick. |
+
+If a directory is missing from the offered list, check that its `.tf` files are committed on the default branch and that no parent directory is named `modules`, `examples`, `example`, or `.terraform`. The rules live in `core/src/infrastructure/filesystem/iac_root_detector.py`.
+
+## Next steps
+
+- [Make a request](../../guides/make-a-request/) to see this detection from the wizard’s side.
+- [Guides](../../guides-overview/) for the rest of the session inputs.
+
+---
+
+# Roles and permissions
+
+Source: https://inditextech.github.io/kumoss/stable/main/reference/roles-and-permissions/
+
+Every user record in Kumoss’s database carries two roles from two independent groups: an **operation role**, which decides which Infrastructure as Code (IaC) actions the user may run on their own sessions, and an **admin-panel role**, which decides what the user may do in the admin panel. See [Glossary](../../glossary/) for the short definitions of both terms; this page is the complete reference: every grant each level carries, the permission matrix the API enforces, and who receives which role by default.
+
+Roles live in the core database, not in the authorization sidecar. The authorization sidecar is consulted only by `POST /api/v1/auth/authorize`, which calls the sidecar’s `POST /v1/check` to decide whether the caller may work against a given cloud project — a check that is disabled by default (`services.authz.enabled: false`) and has no bearing on operation or panel roles. See [Deploy to production](../../guides/deploy-to-production/) for when to enable it.
+
+## Two independent role groups
+
+The two groups solve different problems and do not affect each other. A panel `admin` with operation role `developer` cannot run drift remediation, and cannot apply or merge a pull request on somebody else’s session — acting on a session belongs to its owner only, whatever the panel role. Conversely, a `devops` user with no panel role sees only their own sessions.
+
+### Operation roles
+
+Operation roles are hierarchical, and every user has one.
+
+| Operation role | Grants |
+| --- | --- |
+| `developer` | Generate Infrastructure, create and merge pull requests, and apply a pinned plan on sessions they own. |
+| `devops` | Everything `developer` can do, plus Partial and Full Drift Remediation. The web application also reserves the Partial Import and Full Import modes for `devops`. |
+
+### Admin-panel roles
+
+Admin-panel roles are hierarchical too, and optional: most users have no panel role and see only their own sessions.
+
+| Panel role | Grants |
+| --- | --- |
+| none | Own sessions only. |
+| `viewer` | Read-only view of every user’s sessions in the admin panel. |
+| `editor` | `viewer`, plus lock and unlock apply and pull-request merge on any session (see [Session locks](../../guides/administer-users-and-locks/#session-locks)). |
+| `admin` | `editor`, plus user and role management. |
+
+### Session access rules
+
+The API enforces these rules regardless of role:
+
+- The **owner** can always read a session and is the only one who can act on it (continue it, create or merge its pull request, apply).
+- A user with **any panel role** can read any session, both through the admin routes and through the regular session routes, including its live event stream.
+- Everyone else receives `403 Not the session owner`.
+
+## Roles at a glance
+
+| Route | Minimum operation role | Extra condition |
+| --- | --- | --- |
+| `POST /api/v1/iac/generate` | `developer` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/drift` | `devops` | Owner only when continuing an existing session |
+| `POST /api/v1/iac/import` | `developer` | Owner only when continuing an existing session. The web application offers the import modes only to `devops`. |
+| `POST /api/v1/iac/apply` | `developer` | Owner only; session not locked (`409`). A pinned plan must exist, otherwise the round the `202` opened fails and the session ends `failed`. |
+| `POST /api/v1/repository/parse` (list Terraform roots in a repository) | `developer` | None; the wizard calls it on every new session, immediately after the repository URL is entered |
+| `PUT /api/v1/repository/pr` (create pull request) | `developer` | Owner only |
+| `PUT /api/v1/repository/pr/merge` | `developer` | Owner only; session not locked |
+
+The web application is stricter than the API in one place: it disables Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import for users below `devops`, showing the hint "Requires the devops operation role." The API itself accepts an import from any `developer`. With authentication disabled (blank `oidc.issuer_url`), the local development identity holds `devops` and sees every mode.
+
+## Permission matrix
+
+The matrix reflects what the backend enforces. The web application hides or disables controls accordingly.
+
+| Capability | No panel role | `viewer` | `editor` | `admin` |
+| --- | --- | --- | --- | --- |
+| Sign in, run sessions allowed by the operation role | yes | yes | yes | yes |
+| View own sessions, details, artifacts, lock state; reopen own sessions | yes | yes | yes | yes |
+| Open the admin panel | no | yes | yes | yes |
+| List sessions across all users, paginated | no | yes | yes | yes |
+| Filter by type and status; search by user e-mail, project, query text, or session id | no | yes | yes | yes |
+| Open any user’s session detail, including conversation history | no | yes | yes | yes |
+| View any session’s statuses, reports, plans, code-change artifacts, repository link, pull-request links, lock state | no | yes | yes | yes |
+| Open Phoenix from the admin sessions tab | no | yes | yes | yes |
+| Receive support requests sent from the web application’s header | no | no | yes | yes |
+| Lock or unlock apply and pull-request merge on a session | no | no | yes | yes |
+| List and search users | no | no | no | yes |
+| Assign operation roles | no | no | no | yes |
+| Assign or remove panel roles | no | no | no | yes |
+| Remove one’s own panel `admin` role | no | no | no | **no** (`409`) |
+| Act on another user’s session (continue, create or merge a pull request, apply) | no | no | no | no (owner only) |
+| Delete a user or a session | not implemented | not implemented | not implemented | not implemented |
+
+Backend routes behind the matrix:
+
+| Route | Who |
+| --- | --- |
+| `GET /api/v1/sessions/list`, `GET /api/v1/sessions?id={session_id}` | Any signed-in user; the list is always scoped to the caller, the detail is owner or any panel role |
+| `GET /api/v1/events/subscribe/{session_id}` | Owner or any panel role |
+| `GET /api/v1/admin/sessions/list`, `GET /api/v1/admin/sessions?id={session_id}` | panel `viewer` or higher |
+| `PATCH /api/v1/admin/sessions/{session_id}/toggle_lock` | panel `editor` or higher |
+| `GET /api/v1/admin/users`, `PUT /api/v1/admin/users/{user_id}/roles` | panel `admin` |
+
+Missing or invalid credentials yield `401`; an insufficient panel role yields `403 Requires admin-panel role '<role>' or higher`.
+
+## Who gets which roles
+
+**With authentication disabled** (blank `oidc.issuer_url`, the checked-in default), every request runs as the built-in local development identity, which holds `devops` and panel `admin`. Anyone who can reach the stack has full access to both views; use this only on an isolated workstation.
+
+**With OIDC enabled**, a new user is created on first login with operation role `developer` and no panel role: they can generate infrastructure and see their own sessions, nothing more. The first administrator comes from one of two places:
+
+- `admin.default_root_email` in `config.yaml`: the user whose token carries that e-mail with `email_verified: true` is elevated to `devops` and panel `admin` at login. The elevation is one-way and is re-checked on every request. Only identity providers that emit `email_verified` in access tokens (Keycloak, for instance) can use this path.
+- A one-off database grant for providers that never emit `email_verified` (Entra ID, Auth0, Okta). See [Grant the first administrator access](../../guides/enable-authentication/#bootstrap-admin).
+
+After that, the administrator manages everyone else from the Users tab. The bootstrap elevation is re-applied on every request of the root user, so demoting that user from the Users tab is undone the next time they call the API; clear `admin.default_root_email` and restart the core first if a real demotion is needed.
+
+With authentication disabled there is no identity provider to sign out of, but the "Log out" action still works locally: it clears the user in the browser and shows the login screen. Pressing **Sign In** re-fetches `GET /api/v1/users/me` and puts the browser straight back in as the dev identity.
+
+Do not confuse this with the authorization sidecar. An authorization service you implement may keep users and roles of its own, but the core never reads them; the sidecar is consulted only for the cloud-project authorization check described above, and only when `services.authz.enabled` is `true`.
+
+## Next steps
+
+- [Administer users and locks](../../guides/administer-users-and-locks/) to perform the tasks this reference describes.
+- [Enable authentication](../../guides/enable-authentication/) to configure OIDC and the first administrator.
 
 ---
 
@@ -15774,6 +15897,59 @@ Everyone else is then managed from the admin panel’s Users tab.
 
 ---
 
+# Generate infrastructure
+
+Source: https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/
+
+Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
+
+## Prerequisites
+
+- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
+- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
+
+## Use case
+
+Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
+
+## Workflow
+
+1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
+2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
+3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
+4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
+5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
+6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
+7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
+8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
+
+## What generate produces
+
+- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
+- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
+- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
+- **Plan pinned.** Yes.
+
+## Apply, pull requests, and locks
+
+After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
+
+## Example
+
+Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
+
+## Limitations
+
+- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
+- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
+- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
+
+## Next steps
+
+- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
+
+---
+
 # Follow a session
 
 Source: https://inditextech.github.io/kumoss/stable/main/guides/follow-a-session/
@@ -15842,59 +16018,6 @@ Only you and reviewers with a panel role can see your sessions. Nobody else can 
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) once you are ready to act on the results.
-
----
-
-# Generate infrastructure
-
-Source: https://inditextech.github.io/kumoss/stable/main/guides/generate-infrastructure/
-
-Generate Infrastructure is the default mode in the Kumoss web application. It turns a natural-language request into validated Terraform code on a new branch, with a plan, a report, and optional compliance checks. This guide describes what happens during a generate round, what it produces, and its limits.
-
-## Prerequisites
-
-- The `developer` operation role, assigned per user and checked by the API on every request. See [Roles and permissions](../../reference/roles-and-permissions/) for the complete role matrix.
-- A repository URL, the target cloud, a scope id, and request text, as covered in [Make a request](../make-a-request/). The IaC path is optional.
-
-## Use case
-
-Create or modify Terraform code from a description: "add a private storage bucket for application logs", "open port 443 on the web security group", "rename the staging subnet".
-
-## Workflow
-
-1. **Filtering.** A small-model chain with read-only workspace tools classifies the request. A change request proceeds. A question is answered in the conversation and the round ends `uncompleted`. An out-of-scope, prohibited, or ambiguous request is declined with an explanation and the round ends `uncompleted`.
-2. **Prompt composition.** The compositor selects the relevant resource prompts and abbreviations for the target cloud from Phoenix, in two passes (see [Customize prompts](../customize-prompts/)).
-3. **Generate and validate loop.** The main model edits files in the workspace; changed files are uploaded as code-change artifacts and committed to the session branch. The target generator picks the Terraform targets for this round from the diff history. The IaC sidecar runs `init`, `validate`, and `plan -out session.plan` with those targets. Validation feedback is fed back to the model for up to `orchestration.max_validation_iteration` attempts (5 in the shipped `config.yaml`) before the round fails with `Validation loop exceeded.`
-4. **Drift pre-check.** Two detect-and-reconcile iterations run on the session targets. The first reads its drift out of the plan artifact the previous step left in the workspace rather than planning again. Drift that corresponds to the session’s own changes is filtered out; anything else is reconciled so that the plan reflects only intended changes. Operations covered by the cloud’s `drift_exceptions` rules are then dropped before anything is remediated, and logged.
-5. **Report.** The main model turns the plan into a JSON report with a change summary (create, update, delete, recreate), detailed changes, an impact banner (`low`, `medium`, `high`), and cost estimates.
-6. **Compliance check** (when `orchestration.enable_compliance_checker` is `true`). A small-model auditor checks the plan against the rules in the `general-compliance-report` prompt. The auditor judges the plan against the session’s **first** request, not the current round’s, so in a follow-up round `scope_exceeded` and `scope_incomplete` are measured against the original request.
-7. **Lock decision.** The session is locked when the compliance check fails or, with `orchestration.block_on_high_impact`, when the impact banner is `high`. A clean round clears an earlier lock. Notifications are sent for both conditions when the notifications sidecar is enabled.
-8. **Pin.** The validated workspace, including the plan file, becomes the session’s pinned plan, replacing any earlier pin.
-
-## What generate produces
-
-- **Inspects existing IaC and state.** Yes: the generator reads the repository, and `plan` runs against the configured backend state.
-- **Targets.** Generated by the target generator chain from the diff history; no manual target list is accepted.
-- **Artifacts and reports.** Code-change files, plan text, drift pre-check reports, a `generate` JSON report, a pushed branch, and a pull-request link once you create one.
-- **Plan pinned.** Yes.
-
-## Apply, pull requests, and locks
-
-After reviewing the report you can create a pull request, merge it, and apply, as covered in [Merge and apply](../merge-and-apply/). Apply and merge are refused with `409` while the lock is set; a reviewer with the appropriate panel role can unlock the session, or another generate round that passes cleanly clears the lock.
-
-## Example
-
-Repository `https://git.example.invalid/platform/demo-iac.git`, cloud `aws`, scope `123456789012`, IaC path `envs/dev`. Request: "Create a private S3 bucket named `demo-platform-logs` with versioning and default encryption for application logs." The round produces `s3_logs.tf` on branch `Kumoss/2026-09-11_101500`, a plan with one resource to create, a report with a `low` impact banner, and a passing compliance check. You create the pull request, merge it, and apply.
-
-## Limitations
-
-- Validation and plan run against the credentials in `services/iac/.env`; missing cloud credentials surface as engine errors in the session, not at startup.
-- Every cloud scope needs its seven guideline prompts in Phoenix; a missing one aborts the round with `Prompt not found`. See [Guideline prompts](../customize-prompts/#guideline-prompts) for the list every cloud scope must provide.
-- A `high` impact or a failed compliance check does not stop the round, it locks the session; review the report before asking for an unlock.
-
-## Next steps
-
-- [Merge and apply](../merge-and-apply/) once you have reviewed the report.
 
 ---
 
@@ -16686,135 +16809,6 @@ A repository without a `.gitignore` is not the cause: the seeded file is honored
 
 ---
 
-# Development
-
-Source: https://inditextech.github.io/kumoss/stable/main/guides/development/
-
-This guide covers contributing to Kumoss itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Kumoss; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
-
-## Prerequisites
-
-Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
-
-## Repository layout
-
-The repository is a monorepo: the FastAPI core in `core/`, the IaC and notifications sidecar services in `services/`, the React web application in `client/web/`, the sidecar OpenAPI contracts in `contracts/`, and the Helm chart in `charts/kumoss/`. See [Architecture](../../architecture/) for how they fit together.
-
-## Running the stack for development
-
-Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide. `--build` matters: without it, Compose runs the published release images (`ghcr.io/inditextech/kumoss-*`) instead of your checkout. A `docker compose pull` later replaces locally built images with the published ones again.
-
-After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`. An edit to `config.yaml` needs only `docker compose restart core`, because Compose bind-mounts that file.
-
-### Local Compose overrides
-
-Settings that belong to your machine rather than to the project go in `docker-compose.override.yml`, which Compose loads automatically and git ignores. `docker-compose.override.example.yml` is the tracked template — copy it rather than editing it in place:
-
-```
-cp docker-compose.override.example.yml docker-compose.override.yml
-```
-
-### Behind a TLS-inspecting proxy
-
-On a corporate network that inspects HTTPS, most outbound container requests fail while a few domains keep working: `web_search` returns engine snippets instead of page content, and `docker compose logs core` shows the reads failing before any HTTP request is sent.
-
-```
-Page read for '<url>' failed, falling back to the engine snippet:
-PageReadError("could not render '<url>'")
-(RuntimeError('[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify
-failed: self-signed certificate in certificate chain'))
-```
-
-The proxy terminates TLS and re-signs it with its own root, which the containers do not trust; the domains that still work are the ones the proxy passes through untouched. Confirm it by looking at who signed what you received:
-
-```
-docker compose exec core sh -c \
-  'echo | openssl s_client -connect example.com:443 \
-   -servername example.com 2>/dev/null | openssl x509 -noout -issuer'
-```
-
-An `issuer` naming your company rather than a public CA confirms the interception. The fix is two-part, both wired in the override template above, and keeps the certificates on your machine:
-
-- **Build** — the core downloads Chromium, so the roots are needed at build time too. The override points the `host-certs` build context at the host directory holding them.
-- **Runtime** — the override mounts that directory at `KUMOSS_CA_DIR`, and each entrypoint merges its certificates into a bundle and points the HTTP clients at it before starting the server.
-
-A **hostname mismatch** is not a trust problem: the proxy is sinkholing that domain under its filtering policy, and the certificate honestly belongs to the sinkhole. No configuration fixes that one.
-
-## Core tests
-
-Python 3.14, `uv`. `pytest` and `pytest-cov` are part of the `tooling` dependency group, so sync the project first:
-
-```
-cd core
-uv sync --frozen --group tooling
-uv run --no-sync pytest tests/
-```
-
-Async tests use `unittest.IsolatedAsyncioTestCase` (no pytest-asyncio plugin, no `--asyncio-mode` flag). `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
-
-## Type checking
-
-`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
-
-```
-cd core
-uv pip install --system --group tooling -r pyproject.toml
-basedpyright
-```
-
-`pyrightconfig.json` only includes `src/` — tests are not type-checked.
-
-## Frontend checks
-
-Node 24:
-
-```
-cd client/web
-npm ci
-npm run lint
-npm run test:ci
-npm run build
-```
-
-## Sidecar tests
-
-Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
-
-```
-cd services/<name>
-uv sync --group tooling
-uv run pytest
-```
-
-## Linting and formatting
-
-`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
-
-## Continuous integration
-
-Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request. **Neither is the Helm chart**: after changing it, or the `config.yaml`, `nginx/nginx.conf`, or `services/searxng/settings.yml` it renders, run `helm lint charts/kumoss` and install it on a kind cluster with `charts/kind-up.sh` ([Try it on kind](../deploy-with-helm/#try-it-on-kind)). Publishing a release lints the chart and pushes it to `oci://ghcr.io/inditextech/charts/kumoss`.
-
-## Regenerating sidecar clients
-
-Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
-
-```
-uv run --group tooling openapi-python-client generate \
-  --path ../contracts/openapi/<service>.v1.yaml \
-  --config ../contracts/openapi-python-client.yaml \
-  --meta none \
-  --output-path src/clients/<service> \
-  --overwrite
-```
-
-Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
-
-## Pull requests
-
-Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
-
----
-
 # Customize prompts
 
 Source: https://inditextech.github.io/kumoss/stable/main/guides/customize-prompts/
@@ -17164,6 +17158,135 @@ To **change** an existing prompt (a naming rule, a security default, a complianc
 
 ---
 
+# Development
+
+Source: https://inditextech.github.io/kumoss/stable/main/guides/development/
+
+This guide covers contributing to Kumoss itself — running the repository’s own test suites, checks, and tooling. It does not cover deploying or operating Kumoss; for that, see [Quickstart](../../quickstart/) and [Deploy to production](../deploy-to-production/).
+
+## Prerequisites
+
+Before contributing, read [Contributing](../../contributing/) for the Contributor License Agreement, the code of conduct, and the process for proposing a change.
+
+## Repository layout
+
+The repository is a monorepo: the FastAPI core in `core/`, the IaC and notifications sidecar services in `services/`, the React web application in `client/web/`, the sidecar OpenAPI contracts in `contracts/`, and the Helm chart in `charts/kumoss/`. See [Architecture](../../architecture/) for how they fit together.
+
+## Running the stack for development
+
+Copy each `env.sample` to a `.env` next to it (`core/.env` is required), set the two model strings in `config.yaml`, and run `docker compose up --build`. [Quickstart](../../quickstart/) is the step-by-step guide. `--build` matters: without it, Compose runs the published release images (`ghcr.io/inditextech/kumoss-*`) instead of your checkout. A `docker compose pull` later replaces locally built images with the published ones again.
+
+After a code change, rebuild and recreate the affected service, for example `docker compose up -d --build core`. An edit to `config.yaml` needs only `docker compose restart core`, because Compose bind-mounts that file.
+
+### Local Compose overrides
+
+Settings that belong to your machine rather than to the project go in `docker-compose.override.yml`, which Compose loads automatically and git ignores. `docker-compose.override.example.yml` is the tracked template — copy it rather than editing it in place:
+
+```
+cp docker-compose.override.example.yml docker-compose.override.yml
+```
+
+### Behind a TLS-inspecting proxy
+
+On a corporate network that inspects HTTPS, most outbound container requests fail while a few domains keep working: `web_search` returns engine snippets instead of page content, and `docker compose logs core` shows the reads failing before any HTTP request is sent.
+
+```
+Page read for '<url>' failed, falling back to the engine snippet:
+PageReadError("could not render '<url>'")
+(RuntimeError('[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify
+failed: self-signed certificate in certificate chain'))
+```
+
+The proxy terminates TLS and re-signs it with its own root, which the containers do not trust; the domains that still work are the ones the proxy passes through untouched. Confirm it by looking at who signed what you received:
+
+```
+docker compose exec core sh -c \
+  'echo | openssl s_client -connect example.com:443 \
+   -servername example.com 2>/dev/null | openssl x509 -noout -issuer'
+```
+
+An `issuer` naming your company rather than a public CA confirms the interception. The fix is two-part, both wired in the override template above, and keeps the certificates on your machine:
+
+- **Build** — the core downloads Chromium, so the roots are needed at build time too. The override points the `host-certs` build context at the host directory holding them.
+- **Runtime** — the override mounts that directory at `KUMOSS_CA_DIR`, and each entrypoint merges its certificates into a bundle and points the HTTP clients at it before starting the server.
+
+A **hostname mismatch** is not a trust problem: the proxy is sinkholing that domain under its filtering policy, and the certificate honestly belongs to the sinkhole. No configuration fixes that one.
+
+## Core tests
+
+Python 3.14, `uv`. `pytest` and `pytest-cov` are part of the `tooling` dependency group, so sync the project first:
+
+```
+cd core
+uv sync --frozen --group tooling
+uv run --no-sync pytest tests/
+```
+
+Async tests use `unittest.IsolatedAsyncioTestCase` (no pytest-asyncio plugin, no `--asyncio-mode` flag). `core/tests/conftest.py` supplies placeholder values for the LLM credential, the database URL and the mandatory `KUMOSS_IAC_TOKEN` that the configuration module validates at import; suites that talk to PostgreSQL or Redis need the compose stack (or point `KUMOSS_SQL_DATABASE_URL` and `KUMOSS_REDIS_URL` at your own instances).
+
+## Type checking
+
+`basedpyright` lives in the `tooling` dependency group, which the project install above does not include; install the group first:
+
+```
+cd core
+uv pip install --system --group tooling -r pyproject.toml
+basedpyright
+```
+
+`pyrightconfig.json` only includes `src/` — tests are not type-checked.
+
+## Frontend checks
+
+Node 24:
+
+```
+cd client/web
+npm ci
+npm run lint
+npm run test:ci
+npm run build
+```
+
+## Sidecar tests
+
+Each sidecar service has its own `tooling` dependency group with `pytest` and its test helpers (the exact set differs per service):
+
+```
+cd services/<name>
+uv sync --group tooling
+uv run pytest
+```
+
+## Linting and formatting
+
+`pre-commit run --all-files` runs Ruff (`ruff check` and `ruff format`), the REUSE check, and gitleaks secret scanning. Install the hooks once with `pre-commit install`.
+
+## Continuous integration
+
+Pull requests run Repolinter, the REUSE compliance check, the Conventional Commits check, and an offline Markdown link and anchor check, plus a Verify workflow: frontend type check, tests, and production build, and the pytest suite of each sidecar service. **The core suite is not run in CI**, so run it locally against the compose stack before opening a pull request. **Neither is the Helm chart**: after changing it, or the `config.yaml`, `nginx/nginx.conf`, or `services/searxng/settings.yml` it renders, run `helm lint charts/kumoss` and install it on a kind cluster with `charts/kind-up.sh` ([Try it on kind](../deploy-with-helm/#try-it-on-kind)). Publishing a release lints the chart and pushes it to `oci://ghcr.io/inditextech/charts/kumoss`.
+
+## Regenerating sidecar clients
+
+Changing a sidecar’s behavior means updating its spec in `contracts/openapi/`, its conformance suite in `contracts/conformance/`, and regenerating the core’s client for that service. From `core/`, once per service:
+
+```
+uv run --group tooling openapi-python-client generate \
+  --path ../contracts/openapi/<service>.v1.yaml \
+  --config ../contracts/openapi-python-client.yaml \
+  --meta none \
+  --output-path src/clients/<service> \
+  --overwrite
+```
+
+Regeneration drops the SPDX headers from the generated files; re-add them afterwards. Do not hand-edit anything under `core/src/clients/{authz,iac,mapping,notifications}/`.
+
+## Pull requests
+
+Once your change is ready, [Contributing](../../contributing/) covers the pull-request process and the checks it must pass.
+
+---
+
 # Merge and apply
 
 Source: https://inditextech.github.io/kumoss/stable/main/guides/merge-and-apply/
@@ -17412,6 +17535,55 @@ The Kumoss web application offers two drift modes: Partial Drift Remediation, fo
 ## Next steps
 
 - [Merge and apply](../merge-and-apply/) to open and merge the pull request; a drift session ends there.
+
+---
+
+# Operating modes
+
+Source: https://inditextech.github.io/kumoss/stable/main/reference/operating-modes/
+
+Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
+
+> **Note**
+> The import modes are supported on Azure, GCP and AWS only. On
+> OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
+> import round ends with a report that says so and imports nothing.
+
+## Session inputs
+
+The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`), a scope identifier (for example a subscription, project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
+
+## How a session runs
+
+**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
+
+**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
+
+**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
+
+**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
+
+**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
+
+**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
+
+## Comparing the operating modes
+
+|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
+| --- | --- | --- | --- | --- | --- |
+| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
+| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
+| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
+| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
+| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
+| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
+| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
+| Compliance check | yes, when enabled | no | no | no | no |
+| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
+| Report type | `generate` | `drift` | `drift` | `import` | `import` |
+| Pins a plan | yes | no | no | no | no |
+| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
+| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
 
 ---
 
@@ -17771,55 +17943,6 @@ VSPHERE_SERVER=vcenter.example.invalid
 VSPHERE_USER=svc-kumoss@vsphere.example.invalid
 VSPHERE_PASSWORD=<service-account-password>
 ```
-
----
-
-# Operating modes
-
-Source: https://inditextech.github.io/kumoss/stable/main/reference/operating-modes/
-
-Kumoss’s web application offers five operating modes in its header: Generate Infrastructure, Partial Drift Remediation, Full Drift Remediation, Partial Import, and Full Import. This page is the lookup material behind them: the inputs every session provides, the lifecycle every session follows, and a table that compares what each mode does today. The task guides for each mode are [Generate infrastructure](../../guides/generate-infrastructure/), [Remediate drift](../../guides/remediate-drift/), and [Import infrastructure](../../guides/import-infrastructure/).
-
-> **Note**
-> The import modes are supported on Azure, GCP and AWS only. On
-> OCI, Kubernetes and VMware vSphere the scope cannot be listed, so an
-> import round ends with a report that says so and imports nothing.
-
-## Session inputs
-
-The first request of a session provides the repository URL (`https://` only; it may carry a userinfo username but no password or token), the target cloud (`azure`, `gcp`, `aws`, `oci`, `kubernetes`, or `vmware`), a scope identifier (for example a subscription, project, account id, or vSphere datacenter name), an optional path to the Terraform root inside the repository (see [Repository layout](../repository-layout/#terraform-roots)), and the request text. The scope is stored with the session, sent to the iac sidecar on every `init`, `plan`, `apply`, and `import`, hashed together with the repository URL and the IaC path into the state project id when Kumoss manages state, and shown in the session detail view. Later requests in the same session send only the session id and the new text. When the mapping sidecar is enabled and its catalogue knows the repository, it may also answer the provider and the scope; the wizard then skips those two questions, so a mapper must answer `null` for anything it is not sure of.
-
-## How a session runs
-
-**Authorization preflight.** Before the first request is sent, the wizard calls `POST /api/v1/auth/authorize`. With the shipped configuration (`services.authz.enabled: false`) no external check runs at all: the core answers "authorized" without contacting anything. When the sidecar is enabled, the core sends the cloud, the **repository URL** as the project name, and the **IaC path** as the environment — the scope id is never part of that check.
-
-**Asynchronous execution.** Every IaC route answers `202 Accepted` with a session id immediately and runs in the background. Progress arrives through server-sent events (`GET /api/v1/events/subscribe/{session_id}`), which the web application streams; a subscription closes after roughly three hours (`orchestration.max_session_events_iteration` polls of 4-5 seconds).
-
-**One operation per session.** The API accepts every request with `202` before the background run starts. If the session already has an operation in flight, or its last round failed, the run never starts: the core logs `Session …​ already has an operation in flight.` or `Session …​ is finished and cannot be resumed.` and nothing changes in the session. The web application prevents this in practice by disabling submission while a run is in progress; a failed session must be replaced by a new one.
-
-**Statuses.** A round moves through `started`, `filtering`, `generating`, `validating`, `report`, `apply`, and ends in `completed`, `uncompleted` (the request was declined or answered without changes), or `failed`.
-
-**Artifacts.** The core uploads artifacts to object storage under `sessions/<session>/rounds/<round>/` — code-change files, plan text, drift reports, and JSON reports — and the session detail view renders them inline, fetched through presigned URLs; nothing is offered as a file download. Panel users can also see them in the admin panel (see [Administer users and locks](../../guides/administer-users-and-locks/)).
-
-**Pull requests.** Creating a pull request is a separate action ("Create Pull Request" in the results view). The core writes a title and description with the small model and opens the pull request from the session branch using the `GIT_TOKEN` credentials. Merging it from the web application calls the merge route, which is blocked while the session is locked.
-
-## Comparing the operating modes
-
-|   | Generate Infrastructure | Partial Drift Remediation | Full Drift Remediation | Partial Import | Full Import |
-| --- | --- | --- | --- | --- | --- |
-| Core route | `POST /api/v1/iac/generate` | `POST /api/v1/iac/drift` with `is_partial: true` | `POST /api/v1/iac/drift` with `is_partial: false` | `POST /api/v1/iac/import` with `is_partial: true` | `POST /api/v1/iac/import` with `is_partial: false` |
-| Minimum operation role (API) | `developer` | `devops` | `devops` | `developer` | `developer` |
-| Selectable by roles below `devops` in the UI | yes | no (shown disabled) | no (shown disabled) | no (shown disabled) | no (shown disabled) |
-| Request text | required, classified by the filter | required, classified by the drift filter | required by the API, not used for filtering | required, classified by the import filter | fixed "Import all the infrastructure", not used for filtering |
-| Reads existing code and state | yes | yes | yes | yes, plus the cloud scope inventory | yes, plus the cloud scope inventory |
-| Terraform targets | generated from the diff history | generated from the request | none (whole root) | generated from the diff history | generated from the diff history |
-| Drift handling | two-iteration pre-check on session targets | up to `max_drift_reports` iterations | up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations | convergence after import, up to `max_drift_reports` iterations |
-| Compliance check | yes, when enabled | no | no | no | no |
-| Can lock the session | yes (high impact or failed compliance) | no | no | no | no |
-| Report type | `generate` | `drift` | `drift` | `import` | `import` |
-| Pins a plan | yes | no | no | no | no |
-| Enables apply | yes | no | no | no (the state is written during the round) | no (the state is written during the round) |
-| Pull request | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch | create and merge from the branch |
 
 ---
 
@@ -18648,6 +18771,131 @@ To check all three layers in a deployed environment, see [Find the active state]
 
 ---
 
+# Authorization sidecar API
+
+Source: https://inditextech.github.io/kumoss/stable/main/reference/api/authz/
+
+The authorization service answers **may this user operate on this cloud resource?** — a question about a subscription, a project, or an account, asked before Kumoss runs anything against a live environment.
+
+Contract: `contracts/openapi/authz.v1.yaml`. Kumoss bundles no implementation of it: authorization is an optional extension point you implement yourself and point `services.authz.endpoint` at. Bearer token: the value of the variable named by `services.authz.token_env`, `KUMOSS_AUTHZ_TOKEN` by default. The service is **optional** and ships disabled (`services.authz.enabled: false`, `endpoint: ""`).
+
+> **Important**
+> **Kumoss’s own roles do not live here.** The operation roles (`developer` < `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide what a signed-in user can do are rows in the core database, managed from the admin panel. The contract’s user and role endpoints describe an implementation’s own store, which has no effect on any of that. See [Roles and permissions](../../roles-and-permissions/).
+
+## What the core actually calls
+
+The contract describes seven paths. **The core calls one of them.**
+
+`POST /api/v1/auth/authorize` — and nothing else in the core — forwards to `POST /v1/check`. The other five `/v1` paths exist for callers of this service directly, or for an implementation that keeps a role store of its own, to administer that service’s own users and roles. The generated client contains methods for them; nothing in the core invokes them.
+
+When `services.authz.enabled` is `false`, the shipped default, the core does not call out at all and answers authorized. When it is enabled, the core **never** fails open:
+
+| Situation | What the core answers |
+| --- | --- |
+| Sidecar unreachable, or the call times out | `502` or `504` |
+| Sidecar returns a `4xx` or `5xx` | `502` |
+| Sidecar returns `200` | The decision it computed, passed through |
+
+A `422` from the sidecar is therefore visible at the browser as a `502`, which matters for one specific shape of request:
+
+> **Warning**
+> **A long IaC path produces a `502`.** The web application sends the repository URL as `project` and the IaC path as `environment`. The contract caps `environment` at 32 characters, so a longer path fails schema validation with `422` — which the core, refusing to fail open, surfaces as `502`. This only bites when `services.authz.enabled` is `true`.
+
+## Endpoints
+
+| Endpoint | What it does |
+| --- | --- |
+| `POST /v1/check` | Decides whether a user may operate on a named cloud resource. **The only endpoint Kumoss uses.** |
+| `GET /v1/users/me` | Returns the calling user’s record and roles, creating an empty record if none exists. |
+| `GET /v1/roles` | Lists the role names the service knows. |
+| `GET /v1/users` | Lists all known users. Caller must hold the `admin` role. |
+| `POST /v1/users/{user_id}/roles` | Assigns a role. `204` on success, `404` if the role is not in the catalogue. Caller must hold `admin`. |
+| `DELETE /v1/users/{user_id}/roles/{role}` | Revokes a role. `204` on success, and also `204` if the role was already absent. Caller must hold `admin`. |
+| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. |
+
+### Asserted identity
+
+The administrative endpoints take identity from **headers**, not from a token this service validates. The two are declared unevenly:
+
+- `X-User-Id` — caller-asserted user identifier. Optional. Declared on four operations: `GET /v1/users/me`, `GET /v1/users`, `POST /v1/users/{user_id}/roles`, and `DELETE /v1/users/{user_id}/roles/{role}`. The contract advertises no maximum length, deliberately, so that a boundary caller does not get a hard `4xx`; an implementation may clamp it instead.
+- `X-User-Email` — caller-asserted email. Optional. Declared on `GET /v1/users/me` alone.
+
+`GET /v1/roles` declares no parameters at all and therefore takes neither header.
+
+OIDC token validation lives entirely in the core, so this service makes no assumption about the upstream identity provider and does not verify the assertion. That is only safe because the service is reachable from the core alone. **The core sends neither header on any live path** — they matter only if you call these endpoints yourself.
+
+## POST /v1/check
+
+```
+{
+  "user_id": "someone@example.com",
+  "cloud": "azure",
+  "project": "my-project",
+  "environment": "dev"
+}
+```
+
+`cloud` and `project` are required; `user_id` and `environment` are nullable. `additionalProperties` is `false`.
+
+| Field | Limits | Meaning |
+| --- | --- | --- |
+| `user_id` | 1-1024 chars, nullable | The user to check. Null for an anonymous flow. The core sends the caller’s email, falling back to the token subject when there is no email. |
+| `cloud` | 1-32 chars, required | `azure`, `gcp`, and so on. |
+| `project` | 1-256 chars, required | The resource being checked. |
+| `environment` | 1-32 chars, nullable | Deployment dimension — `dev`, `pro`. |
+
+The response:
+
+```
+{
+  "authorized": true,
+  "portal_url": null,
+  "reason": null
+}
+```
+
+A policy-backed implementation puts its own explanation in `reason` and a console deep link in `portal_url`; both may be null.
+
+| Field | Meaning |
+| --- | --- |
+| `authorized` | Required boolean. The decision. |
+| `portal_url` | Nullable, ≤2048 chars. A link to the cloud console for the resource. Null when the implementation has no portal-URL convention. The core passes it through as `portalUrl`. |
+| `reason` | Nullable, ≤1024 chars. Human-readable explanation, useful in the UI and in debugging. |
+
+A denial is still `200`: the decision was computed, and it was "no". The error statuses are for cases where no decision could be reached.
+
+| Status | Meaning |
+| --- | --- |
+| `200` | A decision was computed, granted or denied. |
+| `400` | The body could not be parsed at the transport layer. |
+| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
+| `422` | Well-formed JSON that failed schema validation. |
+| `502` | The downstream identity or cloud backend returned an error. |
+
+## Conformance
+
+The implementation-agnostic Schemathesis suite at `contracts/conformance/authz/` runs against any implementation of this contract:
+
+```
+cd contracts/conformance/authz
+uv sync
+uv run pytest \
+  --service-url=https://authz.your.example \
+  --service-token=$YOUR_TOKEN
+```
+
+`--service-token` is needed only if the implementation enforces authentication.
+
+The suite checks schema conformance of the responses and that invalid bodies do not produce undocumented `5xx` answers. It cannot check that the decisions are **correct** — a permissive implementation that grants everything passes it. Correctness of the policy is your own test suite’s job.
+
+## Next steps
+
+- [Roles and permissions](../../roles-and-permissions/) for the roles that actually gate Kumoss.
+- [Core API](../core/) for the one core route that consults this service.
+- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
+
+---
+
 # HTTP APIs
 
 Source: https://inditextech.github.io/kumoss/stable/main/reference/api/
@@ -18840,131 +19088,6 @@ The suite generates requests from the OpenAPI document and checks that response 
 - [Core API](../core/) for the core route that wraps this one.
 - [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
 - [Deploy to production](../../../guides/deploy-to-production/) for the decision of whether to run the bundled implementation at all.
-
----
-
-# Authorization sidecar API
-
-Source: https://inditextech.github.io/kumoss/stable/main/reference/api/authz/
-
-The authorization service answers **may this user operate on this cloud resource?** — a question about a subscription, a project, or an account, asked before Kumoss runs anything against a live environment.
-
-Contract: `contracts/openapi/authz.v1.yaml`. Kumoss bundles no implementation of it: authorization is an optional extension point you implement yourself and point `services.authz.endpoint` at. Bearer token: the value of the variable named by `services.authz.token_env`, `KUMOSS_AUTHZ_TOKEN` by default. The service is **optional** and ships disabled (`services.authz.enabled: false`, `endpoint: ""`).
-
-> **Important**
-> **Kumoss’s own roles do not live here.** The operation roles (`developer` < `devops`) and panel roles (`viewer` < `editor` < `admin`) that decide what a signed-in user can do are rows in the core database, managed from the admin panel. The contract’s user and role endpoints describe an implementation’s own store, which has no effect on any of that. See [Roles and permissions](../../roles-and-permissions/).
-
-## What the core actually calls
-
-The contract describes seven paths. **The core calls one of them.**
-
-`POST /api/v1/auth/authorize` — and nothing else in the core — forwards to `POST /v1/check`. The other five `/v1` paths exist for callers of this service directly, or for an implementation that keeps a role store of its own, to administer that service’s own users and roles. The generated client contains methods for them; nothing in the core invokes them.
-
-When `services.authz.enabled` is `false`, the shipped default, the core does not call out at all and answers authorized. When it is enabled, the core **never** fails open:
-
-| Situation | What the core answers |
-| --- | --- |
-| Sidecar unreachable, or the call times out | `502` or `504` |
-| Sidecar returns a `4xx` or `5xx` | `502` |
-| Sidecar returns `200` | The decision it computed, passed through |
-
-A `422` from the sidecar is therefore visible at the browser as a `502`, which matters for one specific shape of request:
-
-> **Warning**
-> **A long IaC path produces a `502`.** The web application sends the repository URL as `project` and the IaC path as `environment`. The contract caps `environment` at 32 characters, so a longer path fails schema validation with `422` — which the core, refusing to fail open, surfaces as `502`. This only bites when `services.authz.enabled` is `true`.
-
-## Endpoints
-
-| Endpoint | What it does |
-| --- | --- |
-| `POST /v1/check` | Decides whether a user may operate on a named cloud resource. **The only endpoint Kumoss uses.** |
-| `GET /v1/users/me` | Returns the calling user’s record and roles, creating an empty record if none exists. |
-| `GET /v1/roles` | Lists the role names the service knows. |
-| `GET /v1/users` | Lists all known users. Caller must hold the `admin` role. |
-| `POST /v1/users/{user_id}/roles` | Assigns a role. `204` on success, `404` if the role is not in the catalogue. Caller must hold `admin`. |
-| `DELETE /v1/users/{user_id}/roles/{role}` | Revokes a role. `204` on success, and also `204` if the role was already absent. Caller must hold `admin`. |
-| `GET /healthz` | Liveness probe, answers `{"status":"ok"}`. |
-
-### Asserted identity
-
-The administrative endpoints take identity from **headers**, not from a token this service validates. The two are declared unevenly:
-
-- `X-User-Id` — caller-asserted user identifier. Optional. Declared on four operations: `GET /v1/users/me`, `GET /v1/users`, `POST /v1/users/{user_id}/roles`, and `DELETE /v1/users/{user_id}/roles/{role}`. The contract advertises no maximum length, deliberately, so that a boundary caller does not get a hard `4xx`; an implementation may clamp it instead.
-- `X-User-Email` — caller-asserted email. Optional. Declared on `GET /v1/users/me` alone.
-
-`GET /v1/roles` declares no parameters at all and therefore takes neither header.
-
-OIDC token validation lives entirely in the core, so this service makes no assumption about the upstream identity provider and does not verify the assertion. That is only safe because the service is reachable from the core alone. **The core sends neither header on any live path** — they matter only if you call these endpoints yourself.
-
-## POST /v1/check
-
-```
-{
-  "user_id": "someone@example.com",
-  "cloud": "azure",
-  "project": "my-project",
-  "environment": "dev"
-}
-```
-
-`cloud` and `project` are required; `user_id` and `environment` are nullable. `additionalProperties` is `false`.
-
-| Field | Limits | Meaning |
-| --- | --- | --- |
-| `user_id` | 1-1024 chars, nullable | The user to check. Null for an anonymous flow. The core sends the caller’s email, falling back to the token subject when there is no email. |
-| `cloud` | 1-32 chars, required | `azure`, `gcp`, and so on. |
-| `project` | 1-256 chars, required | The resource being checked. |
-| `environment` | 1-32 chars, nullable | Deployment dimension — `dev`, `pro`. |
-
-The response:
-
-```
-{
-  "authorized": true,
-  "portal_url": null,
-  "reason": null
-}
-```
-
-A policy-backed implementation puts its own explanation in `reason` and a console deep link in `portal_url`; both may be null.
-
-| Field | Meaning |
-| --- | --- |
-| `authorized` | Required boolean. The decision. |
-| `portal_url` | Nullable, ≤2048 chars. A link to the cloud console for the resource. Null when the implementation has no portal-URL convention. The core passes it through as `portalUrl`. |
-| `reason` | Nullable, ≤1024 chars. Human-readable explanation, useful in the UI and in debugging. |
-
-A denial is still `200`: the decision was computed, and it was "no". The error statuses are for cases where no decision could be reached.
-
-| Status | Meaning |
-| --- | --- |
-| `200` | A decision was computed, granted or denied. |
-| `400` | The body could not be parsed at the transport layer. |
-| `401` | Missing or invalid bearer token. Carries a `WWW-Authenticate: Bearer` challenge. |
-| `422` | Well-formed JSON that failed schema validation. |
-| `502` | The downstream identity or cloud backend returned an error. |
-
-## Conformance
-
-The implementation-agnostic Schemathesis suite at `contracts/conformance/authz/` runs against any implementation of this contract:
-
-```
-cd contracts/conformance/authz
-uv sync
-uv run pytest \
-  --service-url=https://authz.your.example \
-  --service-token=$YOUR_TOKEN
-```
-
-`--service-token` is needed only if the implementation enforces authentication.
-
-The suite checks schema conformance of the responses and that invalid bodies do not produce undocumented `5xx` answers. It cannot check that the decisions are **correct** — a permissive implementation that grants everything passes it. Correctness of the policy is your own test suite’s job.
-
-## Next steps
-
-- [Roles and permissions](../../roles-and-permissions/) for the roles that actually gate Kumoss.
-- [Core API](../core/) for the one core route that consults this service.
-- [the `services` section](../../configuration/#config-services) of the configuration reference for enabling the sidecar.
 
 ---
 

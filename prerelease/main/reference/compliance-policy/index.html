@@ -1030,8 +1030,9 @@ read from a single result:</p>
 findings, non-blocking <code>warn</code> findings, and the list of rules checked.</p>
 </li>
 <li>
-<p>The language-model audit runs next, and both results are merged into
-one compliance report for the round; see <a href="#report">How findings appear in the report</a>.</p>
+<p>The intent check, the language-model half, runs next, and both
+results are merged into one compliance report for the round; see
+<a href="#report">How findings appear in the report</a>.</p>
 </li>
 <li>
 <p>If either part has an <code>error</code> or <code>critical</code> finding, the session is
@@ -1199,16 +1200,20 @@ present, is a string, usually the resource address.</p>
 <h2 id="report"><a class="anchor" href="#report"></a>How findings appear in the report</h2>
 <div class="sectionbody">
 <div class="paragraph">
-<p>The policies' decisions and the language-model audit are merged into
-one compliance report per round:</p>
+<p>The policies' decisions and the intent check&#8217;s findings are merged
+into one compliance report per round; only this merge produces the
+verdict:</p>
 </div>
 <div class="ulist">
 <ul>
 <li>
-<p>Each policy violation carries <code>source: "opa"</code>; findings of the audit
-carry <code>"llm"</code>, and reports stored before the policy existed have no
-<code>source</code>. The web application marks policy findings with a <strong>policy</strong>
-badge.</p>
+<p>Each policy violation carries <code>source: "opa"</code>; findings of the intent
+check carry <code>"intent"</code>. Reports stored with the former value <code>"llm"</code>,
+or before the policy existed with no <code>source</code>, load as intent
+findings. The web application marks policy findings with a <strong>policy</strong>
+badge and intent check findings with an <strong>intent</strong> badge, in the
+<strong>Compliance Check</strong> artifact and in the <strong>Why</strong> list of the <strong>Deployment
+Blocked</strong> screen.</p>
 </li>
 <li>
 <p>The policies' findings come first.</p>
@@ -1238,8 +1243,8 @@ check. When the policies are what blocks, the summary starts with
 <p>The policies fail closed. If one cannot be evaluated, the round gets a
 blocking <code>policy_unavailable</code> finding (severity <code>error</code>) whose message
 gives the reason, so the session is locked and the compliance failure
-notification is sent. The language-model audit still runs, and its
-findings are in the same report.</p>
+notification is sent. The intent check still runs, and its findings
+are in the same report.</p>
 </div>
 <div class="paragraph">
 <p>Since all the policies run in one evaluation, one broken provider
@@ -1321,10 +1326,12 @@ applies to.</p>
 <div class="sect2">
 <h3 id="general-policy"><a class="anchor" href="#general-policy"></a>General policy</h3>
 <div class="paragraph">
-<p>The general seed defines four rules that apply whatever the provider.
-<code>critical_deletion</code> looks at every managed resource; the other three
-look only at what the plan creates or updates (a replacement included),
-so a resource the round leaves alone is not judged.</p>
+<p>The general seed defines five rules that apply whatever the provider.
+<code>critical_deletion</code> looks at every managed resource and
+<code>provider_version_pin</code> at the root module&#8217;s provider configuration; the
+other three look only at what the plan creates or updates (a
+replacement included), so a resource the round leaves alone is not
+judged.</p>
 </div>
 <div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
 <colgroup>
@@ -1380,6 +1387,19 @@ case-insensitively, <code>password</code>, <code>passwd</code>, <code>secret</co
 name is only a hint, hence a warning; the message carries the output&#8217;s
 name, never its value.</p></td>
 </tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>provider_version_pin</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>warn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">A root module provider (an entry of the plan&#8217;s
+<code>configuration.provider_config</code> without <code>module_address</code>; the built-in
+<code>terraform.io/builtin/*</code> providers are skipped) with no version
+constraint, or one that is not of the form <code>~&gt; X.Y</code>: an exact pin such
+as <code>= 4.63.0</code> (which the plan shows as <code>4.63.0</code>), an open range such as
+<code>&gt;= 5.0</code>, or <code>~&gt; 6.1.0</code>. The finding has no <code>resource</code>; the message
+carries the provider&#8217;s full name. A warning, since an existing pin is
+never changed as a side effect and a workspace may keep one on purpose;
+child modules pin for themselves.</p></td>
+</tr>
 </tbody>
 </table></div></div>
 <div class="paragraph">
@@ -1408,7 +1428,7 @@ name, never its value.</p></td>
 </div>
 </div>
 <div class="paragraph">
-<p>The seed declares its four ids in one <code>rules contains rule if some rule
+<p>The seed declares its five ids in one <code>rules contains rule if some rule
 in {&#8230;&#8203;}</code> statement; the excerpt above declares only its own. The code
 is explained line by line in
 <a href="../../guides/write-a-policy-rule/#how-a-rule-works" class="xref page">How a rule
