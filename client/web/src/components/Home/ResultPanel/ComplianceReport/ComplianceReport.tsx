@@ -26,6 +26,20 @@ export function sortedViolations(
   );
 }
 
+/** Which half of the compliance check reported a finding. Older reports
+ *  carry "llm" or no source at all; both are the intent check's. */
+export function violationSource(violation: ComplianceViolation): "intent" | "opa" {
+  return violation.source === "opa" ? "opa" : "intent";
+}
+
+const SOURCE_BADGES = {
+  opa: { label: "policy", title: "Reported by the OPA compliance policy" },
+  intent: {
+    label: "intent",
+    title: "Reported by the intent check: the plan does not match the requests",
+  },
+} as const;
+
 function plural(count: number, noun: string) {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
 }
@@ -115,16 +129,14 @@ export function ComplianceViolations({
               <Typography variant="subtitleSemiBold" component="span" className={styles.ruleId}>
                 {violation.rule_id}
               </Typography>
-              {violation.source === "opa" && (
-                <Typography
-                  variant="micro"
-                  component="span"
-                  className={styles.source}
-                  title="Reported by the OPA compliance policy"
-                >
-                  policy
-                </Typography>
-              )}
+              <Typography
+                variant="micro"
+                component="span"
+                className={styles.source}
+                title={SOURCE_BADGES[violationSource(violation)].title}
+              >
+                {SOURCE_BADGES[violationSource(violation)].label}
+              </Typography>
             </div>
             {violation.resource && (
               <Typography variant="subtitle2" className={styles.resource}>
