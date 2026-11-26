@@ -4,7 +4,7 @@
 
 [project]
 name = "kumoss-mapping"
-version = "1.0.8"
+version = "1.1.0"
 description = "Reference implementation of contracts/openapi/mapping.v1.yaml — repository name prefix resolution."
 requires-python = ">=3.15"
 dependencies = [
