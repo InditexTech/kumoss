@@ -1,0 +1,468 @@
+= Prompt registry
+:description: How Kumoss stores, seeds, names, and fetches its prompts in Langfuse, which agent reads which prompt, and the prompts that ship with each provider.
+
+Kumoss's agents read their conventions, compliance rules, and exception
+lists from prompts stored in the prompt management of
+https://langfuse.com/docs/prompt-management[Langfuse]. This page is the
+reference for how that registry works: where prompts live, the seed file
+conventions, how seeding and runtime lookup work, which agent reads
+which prompt, and the shipped inventory. To change a prompt, see
+xref:main:guides/customize-prompts.adoc[Customize prompts].
+
+[#where-prompts-live]
+== Where prompts live
+
+[cols="1,2,2,3",options="header"]
+|===
+|Layer |Where |Who changes it |When it takes effect
+
+|*Runtime prompts*
+|Langfuse prompt management (*Prompts* in the Langfuse UI, on port 3000
+in the default stack; persisted in `langfuse-db`)
+|Prompt maintainers, in the Langfuse UI or API
+|Immediately on the next request; the core caches nothing
+
+|*Seed files*
+|`core/prompts/seed/<scope>/<type>/<name>.yaml` (`.rego` for policies)
+in the repository, copied into the core image
+|Contributors, and operators preparing a new deployment
+|At core startup: missing prompts are created, and a changed seed is
+published to the environments still on the previous seed (see
+<<how-seeding-works>>)
+|===
+
+The seed files are the initial content of the registry, nothing more.
+The core always reads Langfuse; it never falls back to a seed file at
+runtime.
+
+[#seed-files]
+== Seed file conventions
+
+[#seed-path]
+=== Path
+
+[source]
+----
+core/prompts/seed/<scope>/<type>/<name>.yaml
+core/prompts/seed/<scope>/policies/<name>.rego
+----
+
+* `<scope>` is `general` or a Terraform provider type name, the last
+  segment of the provider's source address, such as `azurerm` for
+  `hashicorp/azurerm`. It must match `^[a-z0-9][a-z0-9_-]{0,63}$`. The
+  shipped seeds use `general`, `aws`, `azurerm`, `google`, `oci`,
+  `kubernetes`, and `vsphere`; any other provider (`helm`, `datadog`...)
+  can be given prompts by adding a folder with its type name.
+* `<type>` is one of `guidelines`, `resources`, `compliance`, or
+  `policies`. Seeds of type `policies` are `.rego` files; every other
+  type is a `.yaml` file.
+* `<name>` must match `^[a-z0-9_]+$` (lowercase letters, digits, and
+  underscores).
+
+The loader rejects any other depth, scope, type, or name at startup
+with a `PromptSeedLoadError`, for example `Invalid prompt name
+'Bad-Name' in ...; must match ^[a-z0-9_]+$`. A `.rego` file under a type
+other than `policies`, or a `.yaml` file under `policies`, is rejected
+too. The loader only globs `*.yaml` and `*.rego`, so a `.yml` file, or
+any other extension, is skipped without an error: a typo in the
+extension produces a missing prompt, not a failed boot.
+
+[#qualified-name]
+=== Qualified name
+
+The Langfuse prompt name is derived from the path, never declared inside
+the file, so a misfiled prompt cannot misreport its identity:
+
+[source]
+----
+<scope>/<type>/<name>
+----
+
+Langfuse shows each `/` as a folder, so its *Prompts* view is laid out
+like `core/prompts/seed/`: a folder per scope, and in it one per type.
+A prompt you create by hand must carry the full name, slashes included,
+to be found.
+
+[cols="2,3",options="header"]
+|===
+|File |Langfuse prompt name
+
+|`aws/guidelines/networking.yaml`
+|`aws/guidelines/networking`
+
+|`aws/guidelines/resources_list.yaml`
+|`aws/guidelines/resources_list`
+
+|`aws/resources/s3_bucket.yaml`
+|`aws/resources/s3_bucket`
+
+|`azurerm/resources/storage_account.yaml`
+|`azurerm/resources/storage_account`
+
+|`general/guidelines/terraform.yaml`
+|`general/guidelines/terraform`
+
+|`general/compliance/report.yaml`
+|`general/compliance/report`
+
+|`general/policies/compliance.rego`
+|`general/policies/compliance`
+
+|`aws/policies/compliance.rego`
+|`aws/policies/compliance`
+|===
+
+Two files that would produce the same qualified name abort the boot
+with `Duplicate qualified name ...`.
+
+[#seed-content]
+=== Content
+
+[cols="1,1,1,4",options="header"]
+|===
+|Key |Required |Type |Meaning
+
+|`body`
+|Yes
+|Non-empty string
+|The prompt text, usually Markdown. Stored as a Langfuse *text* prompt.
+
+|`description`
+|No
+|String
+|The commit message of each version the seeder creates, shown in the
+Langfuse version history.
+|===
+
+Every shipped seed provides both keys and starts with the repository's
+SPDX comment header. The loader reads `body` and `description` and
+ignores every other key.
+
+A `.rego` seed has no keys: the whole file, comments included, is the
+body, so `opa fmt` and `opa test` run on the very file that is seeded.
+It must not be empty. The commit message of its versions is generated
+(`Rego policy evaluated by OPA (<name>).`).
+
+[#how-seeding-works]
+== How seeding works
+
+A Langfuse prompt has numbered versions, and *labels* that each point
+at one version at a time: setting a label on a version takes it off any
+other. Langfuse keeps the `latest` label on the newest version itself.
+Kumoss uses one label per `environment` value and one of its own,
+`seed`.
+
+At every core startup, after the database, Redis, and object storage
+have been initialized, the seeder:
+
+. Loads every seed file, sorted and validated as above.
+. Makes an authenticated read against Langfuse at
+  `telemetry.langfuse_url`, retrying for about 90 seconds while Langfuse
+  does not answer. If it stays unreachable, the boot fails with
+  `Langfuse unreachable after 15 attempts`; if it rejects the key pair,
+  with `Langfuse refused the API key pair (401)`. Langfuse must
+  therefore be available whenever the core starts.
+. For each seed, reads the prompt's version labeled `seed`, the one the
+  seeder last pushed. A prompt without that label gets it on its latest
+  version first.
+. If the prompt does not exist, creates it as a text prompt whose first
+  version carries every `environment` value as a label (`development`,
+  `staging`, and `production`) plus `seed`.
+. If the text of the `seed` version differs from the seed file, creates
+  a new version with the seed's text and moves to it, in one request,
+  every environment label that is still on the `seed` version, together
+  with `seed`. A label on any other version, or a label you removed, is
+  left alone. If the latest version already holds the seed's text
+  because you saved it by hand, the labels move to it instead of to a
+  copy.
+. Logs `Prompt seeding complete: N created, M updated, K unchanged`.
+
+Only the text counts: the seeder compares the `seed` version's text
+with the seed file and ignores its config and commit message.
+
+What this means in practice:
+
+* *Seeding never moves a label off your versions.* A seed changed by a
+  release reaches every environment label that is still on the `seed`
+  version. Once you move a label to your own version, that label keeps
+  it on every later boot, and seed changes for it are yours to merge by
+  hand. Do not move `seed` onto your own version, and do not remove it:
+  without it, the seeder takes the latest version as its own, which may
+  be yours.
+* *New seed files are pushed too.* Adding a seed file and restarting the
+  core creates the new prompt, even on an existing deployment.
+* *A write fails whole.* A version is created together with its labels,
+  and labels move in one request, so a failed write leaves the prompt as
+  it was. The boot fails with an error naming the prompt (and, for a
+  label move, the version and labels), and the next boot tries again.
+* *The environment label matters.* Seeded versions carry all three
+  environment labels, so changing `environment` keeps working for them.
+  It does not for prompts you created by hand, or for labels you
+  removed: the seeder never adds a label it did not find on its `seed`
+  version.
+
+[#runtime-lookup]
+== Runtime lookup
+
+Each time an agent runs, the core fetches the prompts it needs from
+Langfuse by `<scope>/<type>/<name>` and the `environment` label, and
+reads the version's text: the text of a text prompt, or the content of
+a chat prompt holding a single message. Any other shape is an error. The
+text is used as it is: Langfuse's `+{{variable}}+` placeholders are not
+filled in. There is no cache: every session sees the version the label
+is on now, so a change in Langfuse takes effect on the next run without
+rebuilding or restarting the core.
+
+Which provider prompts a session uses depends on its root module: the
+core asks for the `<provider>/*` prompts of every provider the module's
+`required_providers` declares.
+
+* A missing *provider* prompt is skipped. A provider without prompts,
+  such as `random`, `helm`, or a module that declares no provider yet,
+  gets the `general/*` prompts only.
+* A missing *general* prompt, or one without a version carrying the
+  environment label, stops the run with `prompt_name=<name>. No version
+  labeled '<environment>'`. The session does not fail visibly; see
+  xref:main:guides/customize-prompts.adoc#session-stops[A session stops
+  without an error].
+* When several providers of a module have the same guideline, for
+  example `azurerm` and `kubernetes` both have `permissions`, the agent
+  receives all of them, each as a section headed by its provider name.
+* A resource prompt the compositor picks is taken from the first
+  provider that has it.
+
+[#prompt-composition]
+== Which agent reads which prompt
+
+For a generate or drift round, the core builds the round's conventions
+in two model passes and then gives each agent its prompts:
+
+. *First compositor pass.* The prompt compositor receives the
+  `resources_list` and `abbreviations` of every provider of the root
+  module that has them. The small model reads the request and calls the
+  `construct_information` tool with the resource names and
+  abbreviations it considers relevant. Names must match the
+  `resources_list` entries exactly.
+. *Second compositor pass.* The compositor runs again with the full text
+  of the resource prompts selected in the first pass, looks for
+  dependencies (a subnet needs a network, a function needs a storage
+  account), and returns more resources and abbreviations. Both passes
+  are merged into the round's conventions.
+. *Prompts for each agent*, as in the table below.
+
+[cols="2,3",options="header"]
+|===
+|Agent |Prompts it receives
+
+|Prompt compositor (every generate and drift round)
+|`<provider>/guidelines/abbreviations`,
+`<provider>/guidelines/resources_list`, and the selected
+`<provider>/resources/*`
+
+|IaC generator
+|`general/guidelines/terraform`; each provider's `resource_creation`,
+`networking`, and `permissions`; the selected `<provider>/resources/*`
+and abbreviations
+
+|Compliance checker (generate rounds, when
+`orchestration.enable_compliance_checker` is `true`)
+|The same as the IaC generator, plus `general/compliance/report`
+
+|Compliance policies (same condition; evaluated by OPA, not a model)
+|`general/policies/compliance`, and `<provider>/policies/compliance`
+for each provider the root module declares that has one
+
+|Report generator (generate reports)
+|`general/compliance/impact`
+
+|Request filter
+|`general/guidelines/requests`
+
+|Drift target generator (partial drift rounds)
+|`general/guidelines/targeting_policies`
+
+|Drift exception filter (every drift round and every generate round's
+drift pre-check)
+|Each provider's `drift_exceptions`
+
+|Import scope diff (import rounds that find unmanaged resources; parsed
+by the core, not a model)
+|Each provider's `import_exceptions`
+|===
+
+[#resources-list-discovery]
+=== Discovery depends on `resources_list`
+
+Nothing enumerates the `<provider>/resources/*` prompts that exist in
+Langfuse. The compositor can only pick names that appear in
+`resources_list`:
+
+* A name listed in `resources_list` without a matching resource prompt
+  is logged as a warning, and its conventions are missing from the
+  round.
+* A resource prompt that exists but is not named in its provider's
+  `resources_list` is never selected. The loader does not cross-check
+  the seed files against `resources_list` at startup.
+
+Every shipped `resources_list` names all of its provider's resource
+seeds. The name only needs to appear in the body: the AWS, Azure, GCP,
+OCI, and vSphere lists name entries in backticks with a description,
+while the Kubernetes list uses plain bullets (`- namespace`). Follow the
+style of the file you edit.
+
+[#shipped-seed-inventory]
+== Shipped seed inventory
+
+The `aws`, `azurerm`, `google`, and `oci` scopes ship the same seven
+guideline prompts; `kubernetes` and `vsphere` ship six, without
+`import_exceptions`. The resource prompts differ per provider. Every
+scope, `general` included, also ships one policy,
+`policies/compliance.rego`.
+
+[cols="1,3,4,1",options="header"]
+|===
+|Scope |`guidelines` |`resources` |`compliance`
+
+|`general`
+|`requests`, `targeting_policies`, `terraform`
+|None
+|`impact`, `report`
+
+|`aws`
+|`abbreviations`, `drift_exceptions`, `import_exceptions`,
+`networking`, `permissions`, `resource_creation`, `resources_list`
+|`aurora`, `auto_scaling_group`, `bedrock`, `cloudwatch`, `dynamodb`,
+`ebs_volume`, `ec2`, `ecr_repository`, `ecs_fargate_service`, `efs`,
+`eks_cluster`, `elasticache_redis`, `iam_role`, `internet_gateway`,
+`kms_key`, `lambda`, `launch_template`, `load_balancer`,
+`nat_gateway`, `rds`, `redshift`, `route53`, `route_table`,
+`s3_bucket`, `sagemaker`, `secrets_manager`, `security_group`,
+`sns_topic`, `sqs_queue`, `subnet`, `vpc`, `vpc_endpoint`,
+`waf_web_acl`
+|None
+
+|`azurerm`
+|`abbreviations`, `drift_exceptions`, `import_exceptions`,
+`networking`, `permissions`, `resource_creation`, `resources_list`
+|`aks_cluster`, `application_gateway`, `application_insights`,
+`azure_openai`, `bastion`, `container_app`, `container_registry`,
+`cosmosdb`, `diagnostic_setting`, `function`, `key_vault`,
+`load_balancer`, `log_analytics_workspace`, `managed_disk`,
+`nat_gateway`, `network_security_group`, `postgres_flexible_server`,
+`private_dns_zone`, `private_endpoint`, `public_ip`, `redis_managed`,
+`resource_group`, `role_assignment`, `service_bus`, `storage_account`,
+`subnet`, `user_assigned_identity`, `virtual_machine`,
+`virtual_network`, `vm_scale_set`, `webapp`
+|None
+
+|`google`
+|`abbreviations`, `drift_exceptions`, `import_exceptions`,
+`networking`, `permissions`, `resource_creation`, `resources_list`
+|`artifact_registry`, `bigquery`, `cloud_armor`, `cloud_dns`,
+`cloud_functions`, `cloud_kms`, `cloud_nat`, `cloud_router`,
+`cloud_run`, `cloud_sql_postgres`, `compute_instance`, `firewall`,
+`gke_autopilot`, `gke_standard`, `instance_template`,
+`load_balancer`, `managed_instance_group`, `memorystore_redis`,
+`persistent_disk`, `project`, `pubsub`, `secret_manager`,
+`service_account`, `spanner`, `storage_bucket`, `subnetwork`,
+`vertex`, `vpc_network`
+|None
+
+|`oci`
+|`abbreviations`, `drift_exceptions`, `import_exceptions`,
+`networking`, `permissions`, `resource_creation`, `resources_list`
+|`autonomous_database`, `bastion`, `block_volume`, `certificate`,
+`compartment`, `compute_instance`, `container_repository`, `dns_zone`,
+`drg`, `dynamic_group`, `file_storage`, `functions`, `iam_policy`,
+`instance_configuration`, `instance_pool`, `internet_gateway`,
+`load_balancer`, `logging`, `mysql_db_system`, `nat_gateway`,
+`network_security_group`, `object_storage`, `oke_cluster`,
+`route_table`, `security_list`, `service_gateway`, `subnet`, `vault`,
+`vcn`
+|None
+
+|`kubernetes`
+|`abbreviations`, `drift_exceptions`, `networking`, `permissions`,
+`resource_creation`, `resources_list`
+|`cluster_role`, `cluster_role_binding`, `config_map`, `cron_job`,
+`daemon_set`, `deployment`, `horizontal_pod_autoscaler`, `ingress`,
+`job`, `limit_range`, `namespace`, `network_policy`,
+`persistent_volume_claim`, `pod_disruption_budget`, `priority_class`,
+`resource_quota`, `role`, `role_binding`, `secret`, `service`,
+`service_account`, `stateful_set`, `storage_class`
+|None
+
+|`vsphere`
+|`abbreviations`, `drift_exceptions`, `networking`, `permissions`,
+`resource_creation`, `resources_list`
+|`compute_cluster`, `compute_cluster_host_group`,
+`compute_cluster_vm_affinity_rule`,
+`compute_cluster_vm_anti_affinity_rule`, `compute_cluster_vm_group`,
+`compute_cluster_vm_host_rule`, `content_library`,
+`content_library_item`, `datastore_cluster`, `distributed_port_group`,
+`distributed_virtual_switch`, `drs_vm_override`, `entity_permissions`,
+`folder`, `ha_vm_override`, `resource_pool`, `role`, `tag`,
+`virtual_disk`, `virtual_machine`, `vm_storage_policy`
+|None
+|===
+
+The `oci` import exception list ships but is not read: only Azure, GCP,
+and AWS scopes can be listed for import.
+
+[#seed-examples]
+== Seed file examples
+
+A provider guideline, `core/prompts/seed/aws/guidelines/networking.yaml`
+(shipped; body shortened), producing `aws/guidelines/networking`:
+
+[source,yaml]
+----
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS networking conventions (VPCs, subnets, gateways, security groups).
+body: |
+  # AWS Networking Guidelines
+
+  ## Topology
+  - Default to a multi-AZ VPC with public and private subnets per
+    availability zone.
+
+  ## Address space
+  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs
+    or other VPCs that will be peered.
+  - Allocate `/16` per VPC by default; carve `/24` subnets within.
+----
+
+A resource prompt, `core/prompts/seed/aws/resources/s3_bucket.yaml`
+(shipped; body shortened), producing `aws/resources/s3_bucket`:
+
+[source,yaml]
+----
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+
+description: AWS S3 Bucket default configuration (encryption, versioning, public access, lifecycle, logging).
+body: |
+  # AWS S3 Bucket
+
+  For an S3 Bucket, unless explicitly requested otherwise, use the
+  following default configuration:
+
+  - Naming convention: `<project>-<purpose>-<environment>`. Bucket
+    names are globally unique, lowercase, 3-63 characters.
+  - Versioning must be enabled.
+  - Server-side encryption must use aws:kms with bucket key enabled.
+----
+
+== Related pages
+
+* xref:main:guides/customize-prompts.adoc[Customize prompts] to change
+  a prompt, add a resource prompt, or write exception lists.
+* xref:main:reference/compliance-policy.adoc[Compliance policy] for
+  the contract of `general/policies/compliance` and the provider
+  policies.
+* xref:main:guides/monitor-with-langfuse.adoc[Monitor with Langfuse] for
+  where Langfuse runs and how to log in.

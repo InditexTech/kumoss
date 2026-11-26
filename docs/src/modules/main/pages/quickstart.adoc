@@ -16,7 +16,7 @@ with Helm].
 Before you begin, make sure you meet the
 xref:main:prerequisites.adoc[prerequisites].
 
-== Step by step
+== Steps
 
 === 1. Clone the repository and create the environment files
 
@@ -33,13 +33,13 @@ cp services/mapping/env.sample services/mapping/.env
 Each `env.sample` documents its own variables and is the source of truth
 for their names. Every `.env` file is gitignored; never commit one.
 
-=== 2. Write config.yaml
+=== 2. Write `config.yaml`
 
 `config.yaml` at the repository root is the single configuration file.
 Compose mounts it into the core container, and the core reads it at
 startup, so every edit needs `docker compose restart core`.
 
-==== What to Edit vs. Keep as Default
+==== What to edit and what to keep
 
 * *Must Modify / Verify:*
 ** `llm.model`: set your primary LLM provider model string.
@@ -69,13 +69,13 @@ git:
 * *Keep as Default:*
 ** All unmentioned configuration fields automatically fall back to core code defaults.
 
-=== 3. Fill in core/.env
+=== 3. Fill in `core/.env`
 
 The `core/.env` passes mandatory runtime secrets such as LLM API keys and Git access tokens. The core will not run without them.
 
 WARNING: every `.env` file is gitignored by default. Never commit a `.env` file containing real credentials to version control.
 
-==== What to Edit vs. Keep as Default
+==== What to edit and what to keep
 
 * *Variables you MUST set:*
 ** *LLM provider credentials:* set the specific API key or authentication variables required by LiteLLM for the provider prefixes configured in `llm.model` and `llm.small_model`. See examples below. For more info see xref:main:reference/llm-providers.adoc#provider-credentials[provider credential variables].
@@ -85,7 +85,7 @@ WARNING: every `.env` file is gitignored by default. Never commit a `.env` file 
 
 TIP: if you modify `core/.env` after the stack is already running, recreate the container using `docker compose up -d core` to apply changes. Running `docker compose restart` will *not* reload `.env` variables.
 
-==== Brief core/.env examples
+==== Examples
 
 [.example]
 --
@@ -119,13 +119,13 @@ GIT_TOKEN="ghp_xxxxxxxxxxxxxxxxxxxxxxxx"
 ----
 --
 
-=== 4. Fill in services/iac/.env
+=== 4. Fill in `services/iac/.env`
 
 The `services/iac/.env` file passes your cloud provider access keys and execution engine settings directly to the IaC sidecar.
 
 NOTE: missing or invalid cloud credentials in `services/iac/.env` do not stop the container. The engine runs anyway, but authentication errors will appear inside the session as a failed `init`, `plan`, or `apply` operation.
 
-==== What to Edit vs. Keep as Default
+==== What to edit and what to keep
 
 * *Variables you MUST set:*
 ** *Cloud provider credentials:* set the specific authentication variables required by your OpenTofu or Terraform providers. See xref:main:reference/terraform-providers.adoc[terraform providers] for the minimum set per cloud and authentication method.
@@ -136,7 +136,7 @@ NOTE: missing or invalid cloud credentials in `services/iac/.env` do not stop th
 
 TIP: recreate the sidecar using `docker compose up -d iac` whenever you update `services/iac/.env`.
 
-==== Brief services/iac/.env examples
+==== Examples
 
 [.example]
 --
@@ -335,8 +335,9 @@ RustFS.
   that `git.provider` matches the repository host, and the token's
   permissions.
 * *A session aborts because a prompt is missing.* The prompt is absent from
-  Langfuse or has no version labelled with the `environment` value. See
-  xref:main:guides/customize-prompts.adoc[Customize prompts].
+  Langfuse or has no version labeled with the `environment` value. See
+  xref:main:guides/customize-prompts.adoc#session-stops[A session stops
+  without an error].
 * *The browser cannot download an artifact.* Port 9000 must be reachable
   from the browser under the host in `storage.public_endpoint_url`.
 * *LLM calls fail although the core booted.* Not every provider can be

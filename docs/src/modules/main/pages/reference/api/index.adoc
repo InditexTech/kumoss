@@ -19,7 +19,7 @@ and notifications under `services/`, while mapping and authorization
 are optional extension points you implement yourself — the core calls
 every service through a generated client and never imports an
 implementation directly. Each sidecar page below documents its
-contract and, where Kumoss bundles one, the behaviour of the bundled
+contract and, where Kumoss bundles one, the behavior of the bundled
 implementation.
 
 [cards,columns="1 s:2 m:3"]

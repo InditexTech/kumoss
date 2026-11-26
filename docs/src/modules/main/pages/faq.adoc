@@ -15,7 +15,7 @@ xref:main:additional-information.adoc#support-requests[Support requests].
 
 [accordion,aria-label="Access and roles frequently asked questions"]
 --
-.Why are the drift and import modes greyed out?
+.Why are the drift and import modes grayed out?
 [%collapsible]
 ====
 They require the `devops` operation role. New users start as
@@ -108,7 +108,7 @@ xref:main:reference/repository-layout.adoc#terraform-roots[Repository
 layout].
 ====
 
-.Why is my directory not offered as an root module path?
+.Why is my directory not offered as a root module path?
 [%collapsible]
 ====
 Either it sits under an excluded directory name, or it is nested
@@ -211,9 +211,13 @@ the total. Use it to compare options, not as a quote.
 .Where are the compliance findings?
 [%collapsible]
 ====
-They are not displayed in the application. The audit's outcome is
-visible as the lock; the reviewers who receive the notification see
-the summary. Ask them for the rule-level detail.
+In the session details, as the round's *Compliance Check* artifact:
+a summary, each violation with its severity, rule id, and resource, and
+the rules that passed. When a finding locks the session, the same
+findings appear under *Why* on the *Deployment Blocked* screen. Findings
+from the compliance policy carry a *policy* badge. See
+xref:main:guides/follow-a-session.adoc#compliance-findings[Compliance
+findings].
 ====
 
 .Can I download the plan or the report?
@@ -237,9 +241,11 @@ the default rules: changes outside the scope of your request, parts of
 the request left undone, a standalone deletion, a removed
 customer-managed encryption key, a `null_resource`, provisioner or
 `data "external"`, or one of the provider policies' prohibitions such
-as a port open to the internet),
-a compliance policy could not be evaluated, or the impact was
-rated High in a deployment that locks on high impact.
+as a port open to the internet), a compliance policy could not be
+evaluated, or the impact was rated High in a deployment that locks on
+high impact. See
+xref:main:guides/resolve-a-locked-session.adoc#why[Why a session is
+locked].
 ====
 
 .What can I do while locked?
@@ -255,7 +261,10 @@ refused.
 ====
 A reviewer with the editor or admin panel role unlocks the session
 from the admin panel, or a new request in the same session produces a
-result that passes cleanly.
+result that passes cleanly. A reviewer's unlock lasts until
+your next generate round. See
+xref:main:guides/resolve-a-locked-session.adoc#unlock[Unlock the
+session].
 ====
 
 .Why is a deletion I explicitly asked for flagged?
@@ -265,7 +274,8 @@ The compliance policy denies any standalone deletion as a critical
 violation regardless of the request; only a recreate of the same
 resource is allowed. The check is deterministic, so rephrasing does not
 help. A reviewer can unlock the session after looking at it, and your
-organization can adapt the policy.
+organization can adapt the policy; see
+xref:main:guides/write-a-policy-rule.adoc[Write a policy rule].
 ====
 --
 

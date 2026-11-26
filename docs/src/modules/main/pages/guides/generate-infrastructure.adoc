@@ -116,8 +116,8 @@ create the pull request, merge it, and apply.
   that have them in Langfuse; a provider without prompts gets only the
   `general/*` ones, and a missing `general/*` prompt aborts the round
   with `Prompt not found`. See
-  xref:main:guides/customize-prompts.adoc#guideline-prompts[Guideline
-  prompts].
+  xref:main:reference/prompt-registry.adoc#runtime-lookup[Runtime
+  lookup].
 * A `high` impact or a failed compliance check does not stop the round,
   it locks the session; review the report before asking for an unlock.
 

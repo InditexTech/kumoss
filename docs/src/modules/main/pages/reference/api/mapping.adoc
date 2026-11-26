@@ -147,7 +147,7 @@ challenge.
 |The token is valid but not authorized for this endpoint.
 
 |`404`
-|The identifier is not in the catalogue. The contract reserves this
+|The identifier is not in the catalog. The contract reserves this
 for a clean negative answer, *distinct* from a transient backend
 failure, which is a `5xx`.
 
@@ -156,10 +156,10 @@ failure, which is a `5xx`.
 other than `identifier` (such as the pre-2.0 `terraform_provider`).
 
 |`502`
-|The downstream catalogue or CMDB returned an error.
+|The downstream catalog or CMDB returned an error.
 |===
 
-The `404`-versus-`502` split is the one design decision a catalogue
+The `404`-versus-`502` split is the one design decision a catalog
 implementation should get right: it is what lets the core tell a user
 "no such project" instead of "try again later".
 
@@ -188,7 +188,7 @@ xref:main:reference/api/core.adoc#infrastructure-as-code[Core API].
 
 == Providing your own implementation
 
-A catalogue-backed implementation looks the identifier up in a CMDB,
+A catalog-backed implementation looks the identifier up in a CMDB,
 Backstage, or a shared spreadsheet and returns the canonical IaC
 repository. The contract carries the result and says
 nothing about where the lookup data lives. Point
@@ -197,7 +197,7 @@ set `KUMOSS_MAPPING_TOKEN` in `core/.env`, and drop the bundled
 `mapping` service from your deployment; the core refuses to boot when
 an enabled service has no endpoint or an empty token. Answer `404` with
 a `detail` written for the end user when an identifier is not in the
-catalogue.
+catalog.
 
 [#conformance]
 == Conformance
@@ -220,7 +220,7 @@ authentication.
 
 The suite generates requests from the OpenAPI document and checks
 schema conformance of the responses. It cannot check that the
-identifiers your catalogue resolves are the *right* repositories —
+identifiers your catalog resolves are the *right* repositories —
 that is what the implementation's own tests are for.
 
 == Next steps

@@ -93,7 +93,7 @@ do.
 from the branch. Drift rounds run no compliance audit and never set the
 lock. Apply is unavailable until a generate round pins a plan. In the web
 application a drift session therefore ends at the pull-request merge:
-the merge button is labelled for merging only, and no apply is triggered
+the merge button is labeled for merging only, and no apply is triggered
 afterwards.
 
 *Example.* "Resolve the drift on security group `sg-web-demo`; someone

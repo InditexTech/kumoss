@@ -341,6 +341,6 @@ uid `10001`.
 |A run stopped without a failure message
 |A prompt was missing in Langfuse for the deployment's `environment`
 label.
-|See xref:main:guides/customize-prompts.adoc#runtime-lookup[Runtime
-lookup].
+|See xref:main:guides/customize-prompts.adoc#session-stops[A session
+stops without an error].
 |===

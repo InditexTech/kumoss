@@ -51,7 +51,7 @@ Ten paths, all under `/v1` except the liveness probe.
 
 |`POST /v1/validate`
 |`validate` in the workspace. The workspace must already be
-initialised.
+initialized.
 
 |`POST /v1/plan`
 |`plan -out <plan_file>`, with optional `-target=` filters.
@@ -507,7 +507,7 @@ state answers `[]`. A `state pull` that exits 0 but prints something
 other than a state document ends the job with exit code 1 and `state
 pull returned an unparsable state document`; a non-zero `state pull`
 is passed through with its own exit code, its `stderr`, and an empty
-`stdout`. The workspace must already be initialised.
+`stdout`. The workspace must already be initialized.
 
 `POST /v1/import/scope-resource-ids` talks to each cloud's inventory
 API directly over HTTPS. No `az`, `gcloud`, or `aws` binary is
@@ -561,7 +561,7 @@ would put Terraform in a fight it loses.
   `"hidden-link` drops the row too, and it is applied to resources
   only — resource groups and role assignments are not tag filtered.
 * *GCP* — the project asset itself, both the Resource Manager and the
-  Compute one; anything labelled `goog-*`, which covers GKE-created
+  Compute one; anything labeled `goog-*`, which covers GKE-created
   disks and `goog-terraform-provisioned`; resources whose name ends in
   a `gke-*` segment, meaning node instances, instance groups,
   templates, and firewall rules; and Dataproc, Cloud Functions, Cloud
@@ -885,7 +885,7 @@ It does not check that every documented status is reachable — a status
 the implementation never emits, such as the submission-time `503`,
 leaves the run green. Nor does it check that the commands the jobs run
 produce accurate output for your modules, cloud-provider
-authentication semantics, or behaviour under concurrency.
+authentication semantics, or behavior under concurrency.
 
 The bundled implementation has its own unit test suite, separate from
 this one; see xref:main:guides/development.adoc[Development].

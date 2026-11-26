@@ -1,32 +1,18 @@
 = Reference
-:description: Lookup material for Kumoss: operating modes, every config.yaml field, the compliance policy contract, every environment variable, the LLM provider tables, roles, repository layout, Terraform providers, and the HTTP APIs.
+:description: Lookup material for Kumoss: configuration and environment variables, LLM and Terraform providers, operating modes, the compliance policy, the prompt registry, roles, the database schema, and the HTTP APIs.
 
-This section is the lookup material for Kumoss: the operating modes,
-every configuration field, every environment variable, the LLM provider
-and model tables, roles, repository layout, Terraform providers, and the
-HTTP APIs, described exhaustively.
+This section is the lookup material for Kumoss, described exhaustively
+and grouped by what you are looking up. For step-by-step tasks, see
+xref:main:guides-overview.adoc[Guides].
+
+== Configure
 
 [cards,columns="1 s:2 m:3"]
 ====
 [card]
-.xref:main:reference/operating-modes.adoc[Operating modes]
-What each operating mode does today, the inputs every session takes, and
-how a session runs.
-
-[card]
 .xref:main:reference/configuration.adoc[Configuration]
 Every `config.yaml` section and field: type, default, validation rule,
 and effect.
-
-[card]
-.xref:main:reference/compliance-policy.adoc[Compliance policy]
-The Rego policy OPA evaluates on every generate round's plan: input,
-decision contract, failure semantics, and how to test it.
-
-[card]
-.xref:main:reference/database-schema.adoc[Database schema]
-The thirteen tables of core-db, what each records, the enumerated columns,
-and how rows are deleted.
 
 [card]
 .xref:main:reference/environment-variables.adoc[Environment variables and secrets]
@@ -40,19 +26,29 @@ How Kumoss selects LiteLLM models, provider credential tables, and the
 `llm.model_list` router escape hatch.
 
 [card]
-.xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
-The two independent role groups, the complete permission matrix, and
-who gets which role by default.
-
-[card]
-.xref:main:reference/repository-layout.adoc[Repository layout]
-How Kumoss finds Terraform roots in a repository: the detection rules
-and the wizard's zero/one/many behavior.
-
-[card]
 .xref:main:reference/terraform-providers.adoc[Terraform providers]
 Minimum environment variables per cloud and state backend, plus the
 exhaustive variable reference.
+====
+
+== Behavior
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:reference/operating-modes.adoc[Operating modes]
+What each operating mode does today, the inputs every session takes, and
+how a session runs.
+
+[card]
+.xref:main:reference/compliance-policy.adoc[Compliance policy]
+The Rego policy OPA evaluates on every generate round's plan: input,
+decision contract, failure semantics, and testing commands.
+
+[card]
+.xref:main:reference/prompt-registry.adoc[Prompt registry]
+How prompts are stored, seeded, and fetched in Langfuse, which agent
+reads which prompt, and the prompts that ship with each provider.
 
 [card]
 .xref:main:reference/root-module-manifest.adoc[Root module manifest]
@@ -60,10 +56,30 @@ How Kumoss reads a root module's providers and inputs, asks for its
 scopes and variable values once, and keeps them in `kumoss.yaml`.
 
 [card]
+.xref:main:reference/repository-layout.adoc[Repository layout]
+How Kumoss finds Terraform roots in a repository: the detection rules
+and the wizard's zero/one/many behavior.
+
+[card]
+.xref:main:reference/roles-and-permissions.adoc[Roles and permissions]
+The two independent role groups, the complete permission matrix, and
+who gets which role by default.
+====
+
+== Data and APIs
+
+[cards,columns="1 s:2 m:3"]
+====
+[card]
+.xref:main:reference/database-schema.adoc[Database schema]
+The thirteen tables of core-db, what each records, the enumerated columns,
+and how rows are deleted.
+
+[card]
 .xref:main:reference/api/index.adoc[HTTP APIs]
-Every route the core exposes under `/api/v1`, and the sidecar
-OpenAPI contracts it consumes as a client (IaC, searxng as search enginge, notifications,
-repository mapping, authorization).
+Every route the core exposes under `/api/v1`, and the sidecar OpenAPI
+contracts it consumes as a client: IaC, the SearXNG search engine,
+notifications, repository mapping, and authorization.
 ====
 
 == Limits at a glance
@@ -82,13 +98,13 @@ repository mapping, authorization).
 |500 characters
 
 |Generate-and-validate attempts per request
-|8
+|5 in the shipped `config.yaml` (`orchestration.max_validation_iteration`)
 
 |Drift check inside a generate round
 |2 passes
 
 |Drift remediation session
-|5 iterations
+|3 iterations (`orchestration.max_drift_reports`)
 
 |One operation per session at a time
 |A second request while one is running is ignored until it finishes
