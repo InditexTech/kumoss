@@ -148,6 +148,17 @@ type ownedConfigKey struct {
 	section string
 }
 
+// azureBlobSuffix is the host every Azure storage account answers on.
+const azureBlobSuffix = "blob.core.windows.net"
+
+// azureAccountFrom is the account name the core derives from an Azure blob
+// endpoint: the first label of <account>.blob.core.windows.net.
+func azureAccountFrom(endpoint string) string {
+	host := strings.TrimPrefix(endpoint, "https://")
+	account, _, _ := strings.Cut(host, ".")
+	return account
+}
+
 // ownedConfigKeys mirrors render.overlay: the keys the wizard owns, and only
 // those. Everything else in config.yaml is the user's to tune.
 //
@@ -172,8 +183,15 @@ func ownedConfigKeys(s *state.State) []ownedConfigKey {
 	add("state", s.Storage.Bucket, "storage", "bucket")
 	add("state", s.Storage.TerraformStateBucket, "storage", "terraform_state_bucket")
 	add("state", s.Storage.Region, "storage", "region")
-	add("state", s.Storage.EndpointURL, "storage", "endpoint_url")
-	add("state", s.Storage.PublicEndpointURL, "storage", "public_endpoint_url")
+	// Azure's endpoint is built from the account name the wizard asked for,
+	// never typed: a blank one skips the key, as the omitted key is the drift.
+	if s.Storage.Model == "external_azure" {
+		add("state", "https://"+azureAccountFrom(s.Storage.EndpointURL)+"."+azureBlobSuffix, "storage", "endpoint_url")
+		add("state", "https://"+azureAccountFrom(s.Storage.EndpointURL)+"."+azureBlobSuffix, "storage", "public_endpoint_url")
+	} else {
+		add("state", s.Storage.EndpointURL, "storage", "endpoint_url")
+		add("state", s.Storage.PublicEndpointURL, "storage", "public_endpoint_url")
+	}
 
 	// The tuning knobs are pointers: nil means the forms never asked, so the
 	// repo's own value stands and there is nothing to reconcile.

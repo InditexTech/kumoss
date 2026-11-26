@@ -96,10 +96,6 @@ type KubernetesAuth struct {
 // Engine is the IaC engine the stack runs.
 type Engine struct {
 	Binary string `yaml:"-" json:"-"` // → services/iac/.env IAC_BINARY (tofu | terraform)
-
-	// Wizard-only consent gate for Terraform's BUSL-1.1 license. Not persisted:
-	// the form itself will not submit while this is false (tui.acknowledgeTerraform).
-	BUSLAcknowledged bool `yaml:"-" json:"-"`
 }
 
 // Storage maps to config.yaml's `storage:` block. Its credentials are env vars

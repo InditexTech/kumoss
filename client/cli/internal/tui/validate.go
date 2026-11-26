@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -98,14 +99,16 @@ func intMin(min int) func(string) error {
 	}
 }
 
-// acknowledgeTerraform rejects an unacknowledged Terraform choice. Nothing
-// downstream reads the answer, so the prompt must hold the form itself.
-func acknowledgeTerraform(ok bool) error {
-	if !ok {
-		return errors.New("Terraform is licensed under BUSL-1.1; acknowledge to continue, or go back and choose OpenTofu")
+// azureAccount accepts an Azure storage account name: 3-24 lowercase letters
+// and digits, as the portal enforces.
+func azureAccount(v string) error {
+	if !azureAccountPattern.MatchString(strings.TrimSpace(v)) {
+		return errors.New("3-24 lowercase letters and digits")
 	}
 	return nil
 }
+
+var azureAccountPattern = regexp.MustCompile(`^[a-z0-9]{3,24}$`)
 
 // minLen rejects a value shorter than n characters, after trimming: the
 // RustFS entrypoint trims before the binary sees it, so padding is not length.

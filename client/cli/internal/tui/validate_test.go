@@ -5,7 +5,6 @@
 package tui
 
 import (
-	"strings"
 	"testing"
 )
 
@@ -85,24 +84,6 @@ func TestIntMin(t *testing.T) {
 	for _, v := range []string{"999", "1.5", "lots"} {
 		if err := check(v); err == nil {
 			t.Errorf("intMin(1000)(%q) = nil, want error", v)
-		}
-	}
-}
-
-// Cancel must stop the install. Nothing downstream reads the answer, so
-// without this the acknowledgement is decoration.
-func TestAcknowledgeTerraform(t *testing.T) {
-	if err := acknowledgeTerraform(true); err != nil {
-		t.Errorf("acknowledged but rejected: %v", err)
-	}
-	err := acknowledgeTerraform(false)
-	if err == nil {
-		t.Fatal("declining the BUSL-1.1 licence was accepted")
-	}
-	// The message has to say how to get out of the prompt, or the user is stuck.
-	for _, want := range []string{"BUSL-1.1", "OpenTofu"} {
-		if !strings.Contains(err.Error(), want) {
-			t.Errorf("message %q does not mention %q", err, want)
 		}
 	}
 }

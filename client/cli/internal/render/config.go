@@ -131,17 +131,22 @@ func storageBlock(doc map[string]any, s *state.State) map[string]any {
 	if s.Storage.Bucket != "" {
 		block["bucket"] = s.Storage.Bucket
 	}
-	// Empty string is meaningful: repository-declared state. Never a YAML null.
+	// Empty string is meaningful: a repo-declared backend, kept on Azure. Never
+	// a YAML null.
 	if s.Storage.Provider != "" {
 		block["terraform_state_bucket"] = s.Storage.TerraformStateBucket
 	}
 	if s.Storage.Region != "" {
 		block["region"] = s.Storage.Region
 	}
-	if s.Storage.EndpointURL != "" {
+	// Azure's endpoint is built from the account name, not typed: an endpoint
+	// the wizard did not derive (a reconfigure, a hand-edited state) must not
+	// reach the file.
+	azure := s.Storage.Model == "external_azure"
+	if s.Storage.EndpointURL != "" && !azure {
 		block["endpoint_url"] = s.Storage.EndpointURL
 	}
-	if s.Storage.PublicEndpointURL != "" {
+	if s.Storage.PublicEndpointURL != "" && !azure {
 		block["public_endpoint_url"] = s.Storage.PublicEndpointURL
 	}
 	return block

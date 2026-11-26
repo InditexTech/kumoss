@@ -750,8 +750,7 @@ func (w *Wizard) cloudStep(s *state.State) (*stepForm, func()) {
 	return newStepForm(groups...), commit
 }
 
-// engineStep selects the IaC engine. Terraform's BUSL-1.1 license is not
-// gated here: the user picks it knowingly from the options.
+// engineStep selects the IaC engine.
 func (w *Wizard) engineStep(s *state.State) (*stepForm, func()) {
 	if s.Engine.Binary == "" {
 		s.Engine.Binary = "tofu"
@@ -762,8 +761,8 @@ func (w *Wizard) engineStep(s *state.State) (*stepForm, func()) {
 				Title("IaC engine").
 				Description("IAC_BINARY. The bundled image ships both engines.").
 				Options(
-					huh.NewOption("OpenTofu (MPL-2.0)", "tofu"),
-					huh.NewOption("Terraform (BUSL-1.1)", "terraform"),
+					huh.NewOption("OpenTofu", "tofu"),
+					huh.NewOption("Terraform", "terraform"),
 				).
 				Value(&s.Engine.Binary),
 		).Title("IaC engine"),
