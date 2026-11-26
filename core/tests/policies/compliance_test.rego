@@ -83,7 +83,7 @@ update(address, before, after, unknown) := {
 }
 
 test_rules_lists_the_general_rules if {
-	compliance.rules == {"critical_deletion", "customer_managed_key_removed", "command_execution", "unprotected_credential_output"}
+	compliance.rules == {"critical_deletion", "customer_managed_key_removed", "command_execution", "unprotected_credential_output", "provider_version_pin"}
 }
 
 test_a_removed_customer_managed_key_is_denied if {
@@ -121,5 +121,47 @@ test_the_real_plan_flags_commands_but_not_untouched_legacy if {
 
 test_only_unprotected_credential_outputs_warn if {
 	findings := compliance.warn with input as data.fixtures.general
-	[f.message | some f in findings] == [`Output "db_password" looks like a credential; mark it sensitive = true.`]
+	[f.message | some f in findings; f.rule_id == "unprotected_credential_output"] == [`Output "db_password" looks like a credential; mark it sensitive = true.`]
+}
+
+provider(name, extra) := object.union({"name": name, "full_name": sprintf("registry.opentofu.org/hashicorp/%s", [name])}, extra)
+
+providers_input(config) := {"plan": {"configuration": {"provider_config": config}}, "kumoss": kumoss}
+
+pin_warnings(findings) := {f.message | some f in findings; f.rule_id == "provider_version_pin"}
+
+test_unpinned_providers_of_the_real_plan_warn if {
+	findings := compliance.warn with input as data.fixtures.general
+	pin_warnings(findings) == {
+		"Provider registry.terraform.io/hashicorp/external has no version constraint; pin its major version with `~> X.0`.",
+		"Provider registry.terraform.io/hashicorp/null has no version constraint; pin its major version with `~> X.0`.",
+	}
+}
+
+test_exact_and_open_constraints_warn if {
+	findings := compliance.warn with input as providers_input({
+		"azurerm": provider("azurerm", {"version_constraint": "4.63.0"}),
+		"aws": provider("aws", {"version_constraint": ">= 5.0"}),
+		"google": provider("google", {"version_constraint": "~> 6.1.0"}),
+		"null": provider("null", {}),
+	})
+	pin_warnings(findings) == {
+		"Provider registry.opentofu.org/hashicorp/azurerm is constrained to \"4.63.0\"; pin its major version with `~> X.0` (or `~> X.Y`).",
+		"Provider registry.opentofu.org/hashicorp/aws is constrained to \">= 5.0\"; pin its major version with `~> X.0` (or `~> X.Y`).",
+		"Provider registry.opentofu.org/hashicorp/google is constrained to \"~> 6.1.0\"; pin its major version with `~> X.0` (or `~> X.Y`).",
+		"Provider registry.opentofu.org/hashicorp/null has no version constraint; pin its major version with `~> X.0`.",
+	}
+}
+
+test_major_and_minor_pins_builtins_and_child_modules_pass if {
+	count(compliance.warn) == 0 with input as providers_input({
+		"azurerm": provider("azurerm", {"version_constraint": "~> 4.0"}),
+		"aws": provider("aws", {"version_constraint": "~>5.31"}),
+		"terraform": {"name": "terraform", "full_name": "terraform.io/builtin/terraform"},
+		"child:random": provider("random", {"module_address": "module.child"}),
+	})
+}
+
+test_a_plan_without_configuration_does_not_warn if {
+	count(compliance.warn) == 0 with input as {"plan": {"resource_changes": []}, "kumoss": kumoss}
 }
