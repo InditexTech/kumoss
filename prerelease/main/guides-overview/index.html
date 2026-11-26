@@ -75,7 +75,7 @@
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/guides-overview/">
     <link rel="prev" href="../quickstart/">
     <link rel="next" href="../guides/make-a-request/">
-    <meta name="description" content="Task guides for using, operating, and developing Kumoss, grouped by what you want to do.">
+    <meta name="description" content="Task guides for using, reviewing, customizing, deploying, and developing Kumoss, grouped by what you want to do.">
     <meta name="generator" content="Antora 3.2.3">
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -275,6 +275,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../architecture/compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../architecture/data-and-state/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
       </a>
@@ -342,9 +351,19 @@
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/make-a-request/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
       </a>
@@ -353,16 +372,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/generate-infrastructure/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/follow-a-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
       </a>
@@ -371,7 +381,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/merge-and-apply/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
       </a>
@@ -380,16 +390,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/resolve-a-locked-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -398,93 +424,64 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/import-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/enable-authentication/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/administer-users-and-locks/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/monitor-with-langfuse/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/customize-prompts/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item side-menu__item--branch">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/configure-state-backends/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
-      </a>
-      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
-        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../_/img/icons.svg#icon-chevron-down"></use></svg>
-      </button>
-    </div>
-
-<ul class="dt-list side-menu__list" data-depth="1">
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../guides/state-backends/repository-declared/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+        href="../guides/write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../guides/state-backends/kumoss-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
     </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../guides/state-backends/sidecar-supplied/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
-      </a>
-    </div>
-
-  </li>
-</ul>
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/deploy-to-production/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
       </a>
@@ -493,10 +490,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../guides/production/secrets-and-credentials/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
       </a>
@@ -505,7 +502,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../guides/production/networking-and-tls/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
       </a>
@@ -514,7 +511,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../guides/production/hardening/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
       </a>
@@ -523,7 +520,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../guides/production/operations/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
       </a>
@@ -534,7 +531,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/deploy-with-helm/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
       </a>
@@ -543,21 +540,80 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../guides/upgrade-notes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
       </a>
     </div>
 
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
   <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
@@ -575,18 +631,19 @@
     </div>
 
   </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../reference/operating-modes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
-      </a>
-    </div>
+  <li class="side-menu__item side-menu__item--group">
 
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
       </a>
@@ -595,16 +652,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../reference/compliance-policy/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/environment-variables/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
       </a>
@@ -613,7 +661,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/llm-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
       </a>
@@ -622,34 +670,50 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../reference/roles-and-permissions/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../reference/repository-layout/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../reference/operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../reference/compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../reference/prompt-registry/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/root-module-manifest/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
@@ -658,7 +722,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../reference/repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../reference/roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/database-schema/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
       </a>
@@ -667,7 +756,7 @@
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../reference/api/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
       </a>
@@ -676,10 +765,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../reference/api/core/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
       </a>
@@ -688,7 +777,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../reference/api/iac/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
       </a>
@@ -697,7 +786,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../reference/api/notifications/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
       </a>
@@ -706,7 +795,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../reference/api/mapping/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
       </a>
@@ -715,12 +804,14 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../reference/api/authz/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
 </ul>
   </li>
@@ -752,8 +843,26 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../roadmap/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -770,22 +879,6 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../contributing/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item side-menu__item--label">
-    <div class="side-menu__row">
-      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
-      </span>
-    </div>
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../events/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -826,7 +919,7 @@
   <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Overview</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">Guides</h1>
-        <p class="hero__excerpt dt-text dt-text--body-l">Task guides for using, operating, and developing Kumoss, grouped by what you want to do.</p>
+        <p class="hero__excerpt dt-text dt-text--body-l">Task guides for using, reviewing, customizing, deploying, and developing Kumoss, grouped by what you want to do.</p>
       </div>
       <div class="hero__aside">
         <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
@@ -849,10 +942,8 @@
 <div class="sectionbody">
 <div class="paragraph">
 <p>These guides show how to accomplish specific tasks with Kumoss. Pick the
-group that matches your role, then the guide that states your goal. For
-what each operating mode does today, side by side, see
-<a href="../reference/operating-modes/" class="xref page">Operating modes</a>. To watch the
-main guides play out in one real session, see
+group that matches your role, then the guide that states your goal. To
+watch the main guides play out in one real session, see
 <a href="../see-it-in-action/" class="xref page">See Kumoss in action</a>.</p>
 </div>
 </div>
@@ -860,36 +951,77 @@ main guides play out in one real session, see
 <div class="sect1">
 <h2 id="use-kumoss"><a class="anchor" href="#use-kumoss"></a>Use Kumoss</h2>
 <div class="sectionbody">
-<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/make-a-request/" class="xref page">Make a request</a></div><p>Open a session and phrase a request the filter accepts.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/generate-infrastructure/" class="xref page">Generate infrastructure</a></div><p>Turn a request into validated Terraform code, reviewed as a plan and
-report before you apply it.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/follow-a-session/" class="xref page">Follow a session</a></div><p>Track progress and read the plan, code, and report.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/merge-and-apply/" class="xref page">Merge and apply</a></div><p>Open, merge, and apply the pull request of a session.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/resolve-a-locked-session/" class="xref page">Resolve a locked session</a></div><p>Find out why a session is locked and get it unlocked.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/remediate-drift/" class="xref page">Remediate drift</a></div><p>Detect and reconcile drift for a set of resources or a whole Terraform
+<div class="paragraph">
+<p>For developers who ask Kumoss for infrastructure changes.</p>
+</div>
+<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/make-a-request/" class="xref page">Make a request</a></div><p>Open a session and phrase a request the filter accepts.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/follow-a-session/" class="xref page">Follow a session</a></div><p>Track progress and read the report, plan, and code.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/merge-and-apply/" class="xref page">Merge and apply</a></div><p>Open, merge, and apply the pull request of a session.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/resolve-a-locked-session/" class="xref page">Resolve a locked session</a></div><p>Find out why a session is locked and get it unlocked.</p></div></div></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="operating-modes"><a class="anchor" href="#operating-modes"></a>Operating modes</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>What each kind of session does, from the request to the merge. For the
+three side by side, see
+<a href="../reference/operating-modes/" class="xref page">Operating modes</a>.</p>
+</div>
+<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/generate-infrastructure/" class="xref page">Generate infrastructure</a></div><p>Turn a request into validated Terraform code, reviewed as a plan and
+report before you apply it.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/remediate-drift/" class="xref page">Remediate drift</a></div><p>Detect and reconcile drift for a set of resources or a whole Terraform
 root.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/import-infrastructure/" class="xref page">Import infrastructure</a></div><p>Bring existing, unmanaged cloud resources under Terraform management,
 for a specific set of resources or across a whole scope.</p></div></div></div></div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="operate-kumoss"><a class="anchor" href="#operate-kumoss"></a>Operate Kumoss</h2>
+<h2 id="review-and-administer"><a class="anchor" href="#review-and-administer"></a>Review and administer</h2>
 <div class="sectionbody">
-<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/enable-authentication/" class="xref page">Enable authentication</a></div><p>Connect an OIDC identity provider and grant the first administrator
-access.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/administer-users-and-locks/" class="xref page">Administer users and locks</a></div><p>Review any user&#8217;s sessions, and manage session locks and roles from the
-admin panel.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/monitor-with-langfuse/" class="xref page">Monitor with Langfuse</a></div><p>Read Kumoss&#8217;s traces in Langfuse, and know what a trace contains and
-omits.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/customize-prompts/" class="xref page">Customize prompts</a></div><p>Manage the prompt registry that encodes your conventions and compliance
-rules.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a></div><p>Choose who owns Terraform and OpenTofu state:
-<a href="../guides/state-backends/repository-declared/" class="xref page">the repository</a>,
-<a href="../guides/state-backends/kumoss-managed/" class="xref page">Kumoss</a>, or
-<a href="../guides/state-backends/sidecar-supplied/" class="xref page">the deployment</a>.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/deploy-to-production/" class="xref page">Deploy to production</a></div><p>Plan a production deployment, then work through
+<div class="paragraph">
+<p>For reviewers and administrators with a panel role.</p>
+</div>
+<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/administer-users-and-locks/" class="xref page">Administer users and locks</a></div><p>Review any user&#8217;s sessions, and manage session locks and roles from the
+admin panel.</p></div></div></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="customize"><a class="anchor" href="#customize"></a>Customize</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For platform and security teams adapting Kumoss to their standards.</p>
+</div>
+<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/customize-prompts/" class="xref page">Customize prompts</a></div><p>Adapt Kumoss to your organization&#8217;s standards by editing its prompts in
+Langfuse.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/write-a-policy-rule/" class="xref page">Write a policy rule</a></div><p>Add a deterministic rule to the compliance policy, test it, and publish
+it.</p></div></div></div></div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="deploy-and-operate"><a class="anchor" href="#deploy-and-operate"></a>Deploy and operate</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For operators who install and run Kumoss.</p>
+</div>
+<div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/deploy-to-production/" class="xref page">Deploy to production</a></div><p>Plan a production deployment, then work through
 <a href="../guides/production/secrets-and-credentials/" class="xref page">secrets and
 credentials</a>,
 <a href="../guides/production/networking-and-tls/" class="xref page">networking and TLS</a>,
 <a href="../guides/production/hardening/" class="xref page">hardening</a>, and
 <a href="../guides/production/operations/" class="xref page">operations</a>.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/deploy-with-helm/" class="xref page">Deploy with Helm</a></div><p>Install Kumoss on Kubernetes with the bundled chart, try it on a local
-kind cluster, and bind cloud credentials through workload identity.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/upgrade-notes/" class="xref page">Upgrade notes</a></div><p>Breaking changes to act on when upgrading: providers read from the root
-module, renamed provider names, sidecar contracts 2.0.0, and the new
-managed state key.</p></div></div></div></div>
+kind cluster, and bind cloud credentials through workload identity.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/enable-authentication/" class="xref page">Enable authentication</a></div><p>Connect an OIDC identity provider and grant the first administrator
+access.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/configure-state-backends/" class="xref page">Configure state backends</a></div><p>Choose who owns Terraform and OpenTofu state:
+<a href="../guides/state-backends/repository-declared/" class="xref page">the repository</a>,
+<a href="../guides/state-backends/kumoss-managed/" class="xref page">Kumoss</a>, or
+<a href="../guides/state-backends/sidecar-supplied/" class="xref page">the deployment</a>.</p></div></div></div><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/monitor-with-langfuse/" class="xref page">Monitor with Langfuse</a></div><p>Read Kumoss&#8217;s traces in Langfuse, and know what a trace contains and
+omits.</p></div></div></div></div>
+<div class="paragraph">
+<p>Before upgrading an existing deployment, read
+<a href="../guides/upgrade-notes/" class="xref page">Upgrade notes</a>.</p>
+</div>
 </div>
 </div>
 <div class="sect1">
-<h2 id="develop-kumoss"><a class="anchor" href="#develop-kumoss"></a>Develop Kumoss</h2>
+<h2 id="develop"><a class="anchor" href="#develop"></a>Develop</h2>
 <div class="sectionbody">
+<div class="paragraph">
+<p>For contributors to Kumoss itself.</p>
+</div>
 <div class="docouture-card-grid docouture-card-grid--cols-1 docouture-card-grid--cols-s-2 docouture-card-grid--cols-m-3 docouture-card-grid--width-content"><div class="dt-card dt-card--vertical docouture-card"><div class="dt-card__content"><div class="docouture-card__main"><div class="docouture-card__title"><a href="../guides/development/" class="xref page">Development</a></div><p>Run the stack for development, test, type-check, lint, and regenerate the
 sidecar clients.</p></div></div></div></div>
 </div>

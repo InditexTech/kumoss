@@ -74,7 +74,7 @@
 
     <link rel="canonical" href="https://inditextech.github.io/kumoss/stable/main/reference/llm-providers/">
     <link rel="prev" href="../environment-variables/">
-    <link rel="next" href="../roles-and-permissions/">
+    <link rel="next" href="../terraform-providers/">
     <meta name="description" content="How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.">
     <meta name="generator" content="Antora 3.2.3">
 
@@ -275,6 +275,15 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../architecture/data-and-state/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
       </a>
@@ -342,9 +351,19 @@
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/make-a-request/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
       </a>
@@ -353,16 +372,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/generate-infrastructure/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/follow-a-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
       </a>
@@ -371,7 +381,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/merge-and-apply/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
       </a>
@@ -380,16 +390,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/resolve-a-locked-session/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/remediate-drift/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
       </a>
@@ -398,93 +424,64 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/import-infrastructure/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/enable-authentication/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/administer-users-and-locks/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/monitor-with-langfuse/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
     </div>
-
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/customize-prompts/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item side-menu__item--branch">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/configure-state-backends/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
-      </a>
-      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
-        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
-      </button>
-    </div>
-
-<ul class="dt-list side-menu__list" data-depth="1">
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/repository-declared/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+        href="../../guides/write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
       </a>
     </div>
 
   </li>
-  <li class="side-menu__item">
+  <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/kumoss-managed/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
-      </a>
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
     </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
-        href="../../guides/state-backends/sidecar-supplied/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
-      </a>
-    </div>
-
-  </li>
-</ul>
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/deploy-to-production/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
       </a>
@@ -493,10 +490,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/secrets-and-credentials/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
       </a>
@@ -505,7 +502,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/networking-and-tls/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
       </a>
@@ -514,7 +511,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/hardening/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
       </a>
@@ -523,7 +520,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../../guides/production/operations/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
       </a>
@@ -534,7 +531,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/deploy-with-helm/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
       </a>
@@ -543,21 +540,80 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../guides/upgrade-notes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
       </a>
     </div>
 
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../../guides/development/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
   <li class="side-menu__item side-menu__item--label">
     <div class="side-menu__row">
@@ -575,18 +631,19 @@
     </div>
 
   </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../operating-modes/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
-      </a>
-    </div>
+  <li class="side-menu__item side-menu__item--group">
 
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../configuration/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
       </a>
@@ -595,16 +652,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../compliance-policy/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../environment-variables/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
       </a>
@@ -613,7 +661,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="./" aria-current="page">
         <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
       </a>
@@ -622,34 +670,50 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../roles-and-permissions/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../repository-layout/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../terraform-providers/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
       </a>
     </div>
 
   </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../prompt-registry/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../root-module-manifest/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
       </a>
@@ -658,7 +722,32 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../database-schema/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
       </a>
@@ -667,7 +756,7 @@
   </li>
   <li class="side-menu__item side-menu__item--branch">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
         href="../api/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
       </a>
@@ -676,10 +765,10 @@
       </button>
     </div>
 
-<ul class="dt-list side-menu__list" data-depth="1">
+<ul class="dt-list side-menu__list" data-depth="2">
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../api/core/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
       </a>
@@ -688,7 +777,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../api/iac/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
       </a>
@@ -697,7 +786,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../api/notifications/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
       </a>
@@ -706,7 +795,7 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../api/mapping/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
       </a>
@@ -715,12 +804,14 @@
   </li>
   <li class="side-menu__item">
     <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
         href="../api/authz/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
       </a>
     </div>
 
+  </li>
+</ul>
   </li>
 </ul>
   </li>
@@ -752,8 +843,26 @@
   <li class="side-menu__item">
     <div class="side-menu__row">
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../roadmap/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -770,22 +879,6 @@
       <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
         href="../../contributing/">
         <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
-      </a>
-    </div>
-
-  </li>
-  <li class="side-menu__item side-menu__item--label">
-    <div class="side-menu__row">
-      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
-      </span>
-    </div>
-  </li>
-  <li class="side-menu__item">
-    <div class="side-menu__row">
-      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
-        href="../../events/">
-        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
       </a>
     </div>
 
@@ -823,7 +916,8 @@
 
 <nav class="dt-breadcrumbs" aria-label="Breadcrumb">
   <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
-  <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">LLM providers and models</span></div>
+  <div class="dt-breadcrumb-item"><span class="dt-breadcrumb-item__content">Reference</span></div>
+    <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">LLM providers and models</span></div>
 </nav>
         <h1 class="hero__title dt-text dt-text--title-xl">LLM providers and models</h1>
         <p class="hero__excerpt dt-text dt-text--body-l">How Kumoss selects LLM models through LiteLLM, where credentials go, what the core checks at startup, and the llm.model_list router escape hatch.</p>
@@ -1134,7 +1228,7 @@ through <code>os.environ/&#8230;&#8203;</code>. See the note under
 </ul>
 </div>
 <div class="paragraph">
-<p>The exact behaviour depends on the installed LiteLLM version (the core
+<p>The exact behavior depends on the installed LiteLLM version (the core
 pins <code>litellm&gt;=1.93.0</code>).</p>
 </div>
 </div>
@@ -1459,7 +1553,7 @@ if the server does not check it.</p></td>
 <div class="sectionbody">
 <div class="paragraph">
 <p>A single direct provider, both roles on the same vendor, no router
-customisation. This is the checked-in setup, and the simplest working
+customization. This is the checked-in setup, and the simplest working
 one.</p>
 </div>
 <div class="listingblock">
@@ -1771,9 +1865,9 @@ may actually be coming from <code>core/.env</code>.</p>
         <span class="pagination__label-short">Prev</span>
       </span>
     </a>
-    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../roles-and-permissions/">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../terraform-providers/">
       <span class="dt-button__content">
-        <span class="pagination__label-full">Roles and permissions</span>
+        <span class="pagination__label-full">Terraform providers</span>
         <span class="pagination__label-short">Next</span>
         <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
       </span>

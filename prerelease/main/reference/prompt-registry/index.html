@@ -1,0 +1,1681 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+
+
+<meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <script>
+      /*
+       * Theme bootstrap. Runs before first paint so the page never flashes the
+       * wrong theme. Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/08-theme.ts, which owns the same storage key and class names.
+       *
+       * IDS switches theme with a class on <html>, not a data attribute, so an
+       * attribute here would style nothing.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('dt-theme') } catch (e) {}
+        var theme = stored === 'light' || stored === 'dark'
+          ? stored
+          : window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        var root = document.documentElement
+        root.classList.add('dt-theme-' + theme, 'dt-scale-medium')
+        root.style.colorScheme = theme
+      })()
+    </script>
+    <script>
+      /*
+       * Side-menu collapse bootstrap (GH-8). Runs before first paint so the
+       * 320px column never flashes in and reflows the article on navigation.
+       * Keep it inline, keep it tiny, and keep it in sync with
+       * src/js/01-nav.ts, which owns the same storage key and class name.
+       *
+       * A stored choice always wins; absent one, the menu starts collapsed
+       * on the home/landing page (matching Figma's "State=Home" toolbar
+       * variant, which is the only one that shows the toggle) and open
+       * everywhere else. With JavaScript disabled this script never runs, so
+       * the class is never added and the menu stays open unconditionally —
+       * the toggle that would reopen it is also never unhidden.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-side-menu') } catch (e) {}
+        var collapsed = stored === 'collapsed' || stored === 'open'
+          ? stored === 'collapsed'
+          : document.documentElement.hasAttribute('data-page-home')
+        if (collapsed) document.documentElement.classList.add('is-side-menu-collapsed')
+      })()
+    </script>
+    <script>
+      /*
+       * ToC collapse bootstrap (GH-10). Runs before first paint so a closed
+       * choice never flashes open for an instant. Keep it in sync with
+       * src/js/02-on-this-page.ts, which owns the same storage key and class
+       * name.
+       *
+       * Deliberately does NOT add `has-toc` — only 02-on-this-page.ts knows
+       * whether this page actually has a usable ToC (headings found, page
+       * not `-toc`), and every effect of the class added here is itself
+       * gated behind `has-toc` in toc.css, so there is nothing to flash
+       * either way before that script runs. This one exists only so a
+       * *closed* choice is already in place the moment it does.
+       */
+      (function () {
+        var stored
+        try { stored = localStorage.getItem('docouture-toc') } catch (e) {}
+        if (stored === 'closed') document.documentElement.classList.add('is-toc-closed')
+      })()
+    </script>
+
+<title>Prompt registry | Kumoss</title>
+
+    <link rel="prev" href="../compliance-policy/">
+    <link rel="next" href="../root-module-manifest/">
+    <meta name="description" content="How Kumoss stores, seeds, names, and fetches its prompts in Langfuse, which agent reads which prompt, and the prompts that ship with each provider.">
+    <meta name="generator" content="Antora 3.2.3">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&family=Noto+Sans+Mono:wght@100..900&display=swap">
+    <link rel="stylesheet" href="../../../../_/css/site.css">
+
+
+
+    <link rel="icon" href="../../../../_/favicon.ico">
+  </head>
+  <body class="article">
+
+
+
+<header class="header-toolbar">
+  <div class="dt-grid-layout dt-grid-layout--with-margin header-toolbar__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__left">
+      <button class="dt-button dt-button--ghost dt-button--icon-only side-menu-toggle" type="button" aria-controls="side-menu" hidden>
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-menu"></use></svg></span>
+        </span>
+      </button>
+      <a class="header-toolbar__brand" href="../../../../stable/">
+        <img class="header-toolbar__logo header-toolbar__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="header-toolbar__logo header-toolbar__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="header-toolbar__product-name dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+    </div>
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-6 dt-grid-layout__item--span-xs-3 header-toolbar__actions">
+      <button type="button" class="dt-button dt-button--ghost header-toolbar__search-trigger">
+        <span class="dt-button__content">
+          <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <span class="dt-text dt-text--label-l header-toolbar__search-label">Search</span>
+          <kbd class="header-toolbar__search-shortcut" aria-hidden="true">⌘K</kbd>
+        </span>
+      </button>
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--prerelease version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">prerelease</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </span>
+    <a class="version is-missing" href="../../../../stable/">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </a>
+  </div>
+</div>
+
+<a class="dt-button dt-button--ghost dt-button--icon-only header-toolbar__repo" href="https://github.com/InditexTech/kumoss" target="_blank" rel="noopener" aria-label="Repository">
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon header-toolbar__repo-icon" aria-hidden="true"></span>
+  </span>
+</a>
+
+<button class="dt-button dt-button--ghost dt-button--icon-only theme-toggle" type="button" hidden>
+  <span class="dt-button__content">
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--light" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-sun"></use></svg></span>
+    <span class="dt-button__icon dt-button__icon-icon theme-toggle-icon theme-toggle-icon--dark" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-moon"></use></svg></span>
+  </span>
+</button>
+    </div>
+  </div>
+</header>
+
+<dialog id="search-dialog" class="search-dialog" aria-label="Search" data-search-index="ROOT-prerelease.json">
+  <div class="dt-overlay dt-overlay--visible search-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--small search-dialog__panel">
+      <div class="dt-modal__container search-dialog__container">
+        <div class="dt-search-field-minimal dt-search-field-minimal--full-width search-dialog__field">
+          <span class="dt-search-field-minimal__icon-start" aria-hidden="true"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+          <div class="dt-search-field-minimal__input-wrapper">
+            <div class="dt-search-field-minimal__input-container">
+              <input type="search" class="dt-search-field-minimal__input" placeholder="Search the docs" aria-label="Search the docs"
+                role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-autocomplete="list"
+                aria-controls="search-dialog-listbox" disabled>
+            </div>
+          </div>
+          <button type="button" class="dt-button dt-button--ghost dt-button--icon-only search-dialog__close" aria-label="Close search" disabled>
+            <span class="dt-button__content">
+              <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+            </span>
+          </button>
+        </div>
+        <div id="search-dialog-listbox" class="dt-modal__content dt-modal__content--scrollable search-dialog__results" role="listbox" aria-label="Search results"></div>
+        <div class="search-dialog__status" aria-live="polite"></div>
+        <div class="dt-modal__footer dt-modal__footer--horizontal search-dialog__footer">
+          <span class="dt-modal__footer-left dt-text dt-text--detail-m search-dialog__hints">
+            <kbd>&uarr;&darr;</kbd> navigate &middot; <kbd>&crarr;</kbd> select &middot; <kbd>esc</kbd> close
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+</dialog>
+<div class="dt-floating-button-wrapper dt-floating-button-wrapper--viewport dt-floating-button-wrapper--end search-fab">
+  <button type="button" class="dt-button dt-button--ghost dt-button--icon-only dt-floating-button search-fab__trigger" aria-label="Search" aria-haspopup="dialog" aria-controls="search-dialog">
+    <span class="dt-button__content">
+      <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-search"></use></svg></span>
+    </span>
+  </button>
+</div>
+
+<dialog id="image-zoom-dialog" class="image-zoom-dialog" aria-label="Zoomed image">
+  <div class="dt-overlay dt-overlay--visible image-zoom-dialog__overlay">
+    <div class="dt-overlay__content"></div>
+    <div class="dt-modal dt-modal--fullscreen image-zoom-dialog__panel">
+      <div class="dt-modal__container image-zoom-dialog__container">
+        <button type="button" class="dt-button dt-button--ghost dt-button--icon-only image-zoom-dialog__close" aria-label="Close zoomed image">
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></span>
+          </span>
+        </button>
+        <div class="image-zoom-dialog__content"></div>
+      </div>
+    </div>
+  </div>
+</dialog>
+
+<div class="body">
+
+<div id="side-menu" class="side-menu" data-component="ROOT" data-version="prerelease" data-module="main">
+  <div class="side-menu__header">
+    <div class="side-menu__header-start">
+      <img class="side-menu__header-logo side-menu__header-logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+      <img class="side-menu__header-logo side-menu__header-logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+      <span class="side-menu__header-title dt-text dt-text--title-s">Kumoss</span>
+    </div>
+    <button class="side-menu__close" type="button" aria-label="Close navigation"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-x"></use></svg></button>
+  </div>
+
+<div class="side-menu__brand">
+  <a class="side-menu__brand-link" href="../../../../stable/">
+    <img class="side-menu__brand-logo side-menu__brand-logo--light" src="../../../../_/product-logo.png" width="40" height="40" alt="">
+    <img class="side-menu__brand-logo side-menu__brand-logo--dark" src="../../../../_/product-logo-dark.png" width="40" height="40" alt="">
+    <span class="side-menu__brand-title dt-text dt-text--title-m">Kumoss</span>
+  </a>
+</div>
+
+  <nav class="side-menu__nav" aria-label="Site navigation">
+
+
+<ul class="dt-list side-menu__list" data-depth="0">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../about/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">About</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../see-it-in-action/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">See it in action</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../architecture/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Architecture</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Architecture">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/end-to-end-flow/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">End-to-end flow</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/compliance/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">How compliance works</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/data-and-state/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../architecture/deployment-view/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deployment view</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../glossary/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Glossary</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Getting started</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../prerequisites/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prerequisites</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../quickstart/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Quickstart</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Guides</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Use Kumoss</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/make-a-request/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Make a request</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/follow-a-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Follow a session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/merge-and-apply/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Merge and apply</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/resolve-a-locked-session/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Resolve a locked session</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/generate-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Generate infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/remediate-drift/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Remediate drift</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/import-infrastructure/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Import infrastructure</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Review and administer</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/administer-users-and-locks/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Administer users and locks</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/customize-prompts/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Customize prompts</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/write-a-policy-rule/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Write a policy rule</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy and operate</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/deploy-to-production/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy to production</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Deploy to production">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/secrets-and-credentials/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Secrets and credentials</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/networking-and-tls/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Networking and TLS</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/hardening/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Hardening</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/production/operations/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operations</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/deploy-with-helm/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Deploy with Helm</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/enable-authentication/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Enable authentication</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/configure-state-backends/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure state backends</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle Configure state backends">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/repository-declared/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository-declared backend</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/kumoss-managed/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Kumoss-managed state</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../../guides/state-backends/sidecar-supplied/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Sidecar-supplied backend</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/monitor-with-langfuse/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Monitor with Langfuse</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Develop</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../../guides/development/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Development</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Reference</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../reference-overview/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--group">
+
+<ul class="dt-list side-menu__list" data-depth="1">
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configure</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../configuration/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Configuration</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../environment-variables/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Environment variables</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../llm-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">LLM providers and models</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../terraform-providers/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Terraform providers</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Behavior</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../operating-modes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Operating modes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../compliance-policy/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Compliance policy</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="./" aria-current="page">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Prompt registry</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../root-module-manifest/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Root module manifest</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../repository-layout/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Repository layout</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../roles-and-permissions/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roles and permissions</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-1">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Data and APIs</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../database-schema/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Database schema</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--branch">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-1"
+        href="../api/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">HTTP APIs</span></span>
+      </a>
+      <button class="side-menu__toggle" type="button" aria-expanded="true" aria-label="Toggle HTTP APIs">
+        <svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg>
+      </button>
+    </div>
+
+<ul class="dt-list side-menu__list" data-depth="2">
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/core/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Core API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/iac/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">IaC sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/notifications/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Notifications sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/mapping/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Mapping sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-2"
+        href="../api/authz/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Authorization sidecar API</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </li>
+</ul>
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Additional information</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../additional-information/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Overview</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../faq/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">FAQ</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../guides/upgrade-notes/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Upgrade notes</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../roadmap/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Roadmap</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../events/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Events</span></span>
+      </a>
+    </div>
+
+  </li>
+  <li class="side-menu__item side-menu__item--label">
+    <div class="side-menu__row">
+      <span class="dt-list-item side-menu__link--label dt-list-item--tree--level-0">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </span>
+    </div>
+  </li>
+  <li class="side-menu__item">
+    <div class="side-menu__row">
+      <a class="dt-list-item side-menu__link dt-list-item--tree--level-0"
+        href="../../contributing/">
+        <span class="dt-list-item__text"><span class="dt-list-item__label">Contributing</span></span>
+      </a>
+    </div>
+
+  </li>
+</ul>
+  </nav>
+  <div class="side-menu__version">
+
+<div class="page-versions">
+  <button type="button" class="dt-tag dt-tag--solid dt-tag--selected header-toolbar__version header-toolbar__version--prerelease version-menu-toggle" title="Show other versions of page" aria-expanded="false">
+    <span class="dt-tag__label">prerelease</span>
+    <span class="dt-tag__icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-chevron-down"></use></svg></span>
+  </button>
+  <div class="version-menu">
+    <span class="version is-current" aria-current="page">
+      <span class="version__label">prerelease</span>
+      <span class="dt-label dt-label--orange"><span class="dt-label__content">Prerelease</span></span>
+    </span>
+    <a class="version is-missing" href="../../../../stable/">
+      <span class="version__label">stable</span>
+      <span class="dt-label dt-label--green"><span class="dt-label__content">Latest</span></span>
+          </a>
+  </div>
+</div>
+  </div>
+</div>
+<div class="side-menu-scrim"></div>
+
+<main class="article">
+
+<div class="hero">
+  <div class="dt-grid-layout dt-grid-layout--with-margin hero__grid">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full hero__row">
+      <div class="hero__main">
+
+<nav class="dt-breadcrumbs" aria-label="Breadcrumb">
+  <a class="dt-breadcrumb-item dt-breadcrumb-item--link" href="../../../"><span class="dt-breadcrumb-item__content">Kumoss</span></a>
+  <div class="dt-breadcrumb-item"><span class="dt-breadcrumb-item__content">Reference</span></div>
+    <div class="dt-breadcrumb-item dt-breadcrumb-item--active" aria-current="page"><span class="dt-breadcrumb-item__content">Prompt registry</span></div>
+</nav>
+        <h1 class="hero__title dt-text dt-text--title-xl">Prompt registry</h1>
+        <p class="hero__excerpt dt-text dt-text--body-l">How Kumoss stores, seeds, names, and fetches its prompts in Langfuse, which agent reads which prompt, and the prompts that ship with each provider.</p>
+      </div>
+      <div class="hero__aside">
+        <button class="dt-button dt-button--ghost dt-button--icon-only toc-toggle" type="button" aria-controls="on-this-page" aria-expanded="true" hidden>
+          <span class="dt-button__content">
+            <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-panel-left"></use></svg></span>
+          </span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+  <div class="content dt-grid-layout dt-grid-layout--with-margin">
+
+<aside id="on-this-page" class="toc" data-title="On this page" data-levels="4">
+  <div class="toc-menu"></div>
+</aside>
+
+<article class="doc">
+<div id="preamble">
+<div class="sectionbody">
+<div class="paragraph">
+<p>Kumoss&#8217;s agents read their conventions, compliance rules, and exception
+lists from prompts stored in the prompt management of
+<a href="https://langfuse.com/docs/prompt-management">Langfuse</a>. This page is the
+reference for how that registry works: where prompts live, the seed file
+conventions, how seeding and runtime lookup work, which agent reads
+which prompt, and the shipped inventory. To change a prompt, see
+<a href="../../guides/customize-prompts/" class="xref page">Customize prompts</a>.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="where-prompts-live"><a class="anchor" href="#where-prompts-live"></a>Where prompts live</h2>
+<div class="sectionbody">
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 12.5%;">
+<col style="width: 25%;">
+<col style="width: 25%;">
+<col style="width: 37.5%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Layer</th>
+<th class="tableblock halign-left valign-top">Where</th>
+<th class="tableblock halign-left valign-top">Who changes it</th>
+<th class="tableblock halign-left valign-top">When it takes effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Runtime prompts</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Langfuse prompt management (<strong>Prompts</strong> in the Langfuse UI, on port 3000
+in the default stack; persisted in <code>langfuse-db</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt maintainers, in the Langfuse UI or API</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Immediately on the next request; the core caches nothing</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><strong>Seed files</strong></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>core/prompts/seed/&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;.yaml</code> (<code>.rego</code> for policies)
+in the repository, copied into the core image</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Contributors, and operators preparing a new deployment</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">At core startup: missing prompts are created, and a changed seed is
+published to the environments still on the previous seed (see
+<a href="#how-seeding-works">How seeding works</a>)</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The seed files are the initial content of the registry, nothing more.
+The core always reads Langfuse; it never falls back to a seed file at
+runtime.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="seed-files"><a class="anchor" href="#seed-files"></a>Seed file conventions</h2>
+<div class="sectionbody">
+<div class="sect2">
+<h3 id="seed-path"><a class="anchor" href="#seed-path"></a>Path</h3>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>core/prompts/seed/&#x3C;scope>/&#x3C;type>/&#x3C;name>.yaml</span></span>
+<span class="line"><span>core/prompts/seed/&#x3C;scope>/policies/&#x3C;name>.rego</span></span></span></code></pre>
+</div>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><code>&lt;scope&gt;</code> is <code>general</code> or a Terraform provider type name, the last
+segment of the provider&#8217;s source address, such as <code>azurerm</code> for
+<code>hashicorp/azurerm</code>. It must match <code>^[a-z0-9][a-z0-9_-]{0,63}$</code>. The
+shipped seeds use <code>general</code>, <code>aws</code>, <code>azurerm</code>, <code>google</code>, <code>oci</code>,
+<code>kubernetes</code>, and <code>vsphere</code>; any other provider (<code>helm</code>, <code>datadog</code>&#8230;&#8203;)
+can be given prompts by adding a folder with its type name.</p>
+</li>
+<li>
+<p><code>&lt;type&gt;</code> is one of <code>guidelines</code>, <code>resources</code>, <code>compliance</code>, or
+<code>policies</code>. Seeds of type <code>policies</code> are <code>.rego</code> files; every other
+type is a <code>.yaml</code> file.</p>
+</li>
+<li>
+<p><code>&lt;name&gt;</code> must match <code>^[a-z0-9_]+$</code> (lowercase letters, digits, and
+underscores).</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>The loader rejects any other depth, scope, type, or name at startup
+with a <code>PromptSeedLoadError</code>, for example <code>Invalid prompt name
+'Bad-Name' in &#8230;&#8203;; must match ^[a-z0-9_]+$</code>. A <code>.rego</code> file under a type
+other than <code>policies</code>, or a <code>.yaml</code> file under <code>policies</code>, is rejected
+too. The loader only globs <code><strong>.yaml</code> and <code></strong>.rego</code>, so a <code>.yml</code> file, or
+any other extension, is skipped without an error: a typo in the
+extension produces a missing prompt, not a failed boot.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="qualified-name"><a class="anchor" href="#qualified-name"></a>Qualified name</h3>
+<div class="paragraph">
+<p>The Langfuse prompt name is derived from the path, never declared inside
+the file, so a misfiled prompt cannot misreport its identity:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span>&#x3C;scope>/&#x3C;type>/&#x3C;name></span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>Langfuse shows each <code>/</code> as a folder, so its <strong>Prompts</strong> view is laid out
+like <code>core/prompts/seed/</code>: a folder per scope, and in it one per type.
+A prompt you create by hand must carry the full name, slashes included,
+to be found.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">File</th>
+<th class="tableblock halign-left valign-top">Langfuse prompt name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/networking.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/networking</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/resources_list.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/guidelines/resources_list</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/resources/s3_bucket.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws/resources/s3_bucket</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm/resources/storage_account.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm/resources/storage_account</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report.yaml</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/report</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance.rego</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Two files that would produce the same qualified name abort the boot
+with <code>Duplicate qualified name &#8230;&#8203;</code>.</p>
+</div>
+</div>
+<div class="sect2">
+<h3 id="seed-content"><a class="anchor" href="#seed-content"></a>Content</h3>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 14.2857%;">
+<col style="width: 57.1429%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Key</th>
+<th class="tableblock halign-left valign-top">Required</th>
+<th class="tableblock halign-left valign-top">Type</th>
+<th class="tableblock halign-left valign-top">Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>body</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Yes</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Non-empty string</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The prompt text, usually Markdown. Stored as a Langfuse <strong>text</strong> prompt.</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>description</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">No</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">String</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The commit message of each version the seeder creates, shown in the
+Langfuse version history.</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>Every shipped seed provides both keys and starts with the repository&#8217;s
+SPDX comment header. The loader reads <code>body</code> and <code>description</code> and
+ignores every other key.</p>
+</div>
+<div class="paragraph">
+<p>A <code>.rego</code> seed has no keys: the whole file, comments included, is the
+body, so <code>opa fmt</code> and <code>opa test</code> run on the very file that is seeded.
+It must not be empty. The commit message of its versions is generated
+(<code>Rego policy evaluated by OPA (&lt;name&gt;).</code>).</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="how-seeding-works"><a class="anchor" href="#how-seeding-works"></a>How seeding works</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A Langfuse prompt has numbered versions, and <strong>labels</strong> that each point
+at one version at a time: setting a label on a version takes it off any
+other. Langfuse keeps the <code>latest</code> label on the newest version itself.
+Kumoss uses one label per <code>environment</code> value and one of its own,
+<code>seed</code>.</p>
+</div>
+<div class="paragraph">
+<p>At every core startup, after the database, Redis, and object storage
+have been initialized, the seeder:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p>Loads every seed file, sorted and validated as above.</p>
+</li>
+<li>
+<p>Makes an authenticated read against Langfuse at
+<code>telemetry.langfuse_url</code>, retrying for about 90 seconds while Langfuse
+does not answer. If it stays unreachable, the boot fails with
+<code>Langfuse unreachable after 15 attempts</code>; if it rejects the key pair,
+with <code>Langfuse refused the API key pair (401)</code>. Langfuse must
+therefore be available whenever the core starts.</p>
+</li>
+<li>
+<p>For each seed, reads the prompt&#8217;s version labeled <code>seed</code>, the one the
+seeder last pushed. A prompt without that label gets it on its latest
+version first.</p>
+</li>
+<li>
+<p>If the prompt does not exist, creates it as a text prompt whose first
+version carries every <code>environment</code> value as a label (<code>development</code>,
+<code>staging</code>, and <code>production</code>) plus <code>seed</code>.</p>
+</li>
+<li>
+<p>If the text of the <code>seed</code> version differs from the seed file, creates
+a new version with the seed&#8217;s text and moves to it, in one request,
+every environment label that is still on the <code>seed</code> version, together
+with <code>seed</code>. A label on any other version, or a label you removed, is
+left alone. If the latest version already holds the seed&#8217;s text
+because you saved it by hand, the labels move to it instead of to a
+copy.</p>
+</li>
+<li>
+<p>Logs <code>Prompt seeding complete: N created, M updated, K unchanged</code>.</p>
+</li>
+</ol>
+</div>
+<div class="paragraph">
+<p>Only the text counts: the seeder compares the <code>seed</code> version&#8217;s text
+with the seed file and ignores its config and commit message.</p>
+</div>
+<div class="paragraph">
+<p>What this means in practice:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p><strong>Seeding never moves a label off your versions.</strong> A seed changed by a
+release reaches every environment label that is still on the <code>seed</code>
+version. Once you move a label to your own version, that label keeps
+it on every later boot, and seed changes for it are yours to merge by
+hand. Do not move <code>seed</code> onto your own version, and do not remove it:
+without it, the seeder takes the latest version as its own, which may
+be yours.</p>
+</li>
+<li>
+<p><strong>New seed files are pushed too.</strong> Adding a seed file and restarting the
+core creates the new prompt, even on an existing deployment.</p>
+</li>
+<li>
+<p><strong>A write fails whole.</strong> A version is created together with its labels,
+and labels move in one request, so a failed write leaves the prompt as
+it was. The boot fails with an error naming the prompt (and, for a
+label move, the version and labels), and the next boot tries again.</p>
+</li>
+<li>
+<p><strong>The environment label matters.</strong> Seeded versions carry all three
+environment labels, so changing <code>environment</code> keeps working for them.
+It does not for prompts you created by hand, or for labels you
+removed: the seeder never adds a label it did not find on its <code>seed</code>
+version.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="runtime-lookup"><a class="anchor" href="#runtime-lookup"></a>Runtime lookup</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>Each time an agent runs, the core fetches the prompts it needs from
+Langfuse by <code>&lt;scope&gt;/&lt;type&gt;/&lt;name&gt;</code> and the <code>environment</code> label, and
+reads the version&#8217;s text: the text of a text prompt, or the content of
+a chat prompt holding a single message. Any other shape is an error. The
+text is used as it is: Langfuse&#8217;s <code>{{variable}}</code> placeholders are not
+filled in. There is no cache: every session sees the version the label
+is on now, so a change in Langfuse takes effect on the next run without
+rebuilding or restarting the core.</p>
+</div>
+<div class="paragraph">
+<p>Which provider prompts a session uses depends on its root module: the
+core asks for the <code>&lt;provider&gt;/*</code> prompts of every provider the module&#8217;s
+<code>required_providers</code> declares.</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A missing <strong>provider</strong> prompt is skipped. A provider without prompts,
+such as <code>random</code>, <code>helm</code>, or a module that declares no provider yet,
+gets the <code>general/*</code> prompts only.</p>
+</li>
+<li>
+<p>A missing <strong>general</strong> prompt, or one without a version carrying the
+environment label, stops the run with <code>prompt_name=&lt;name&gt;. No version
+labeled '&lt;environment&gt;'</code>. The session does not fail visibly; see
+<a href="../../guides/customize-prompts/#session-stops" class="xref page">A session stops
+without an error</a>.</p>
+</li>
+<li>
+<p>When several providers of a module have the same guideline, for
+example <code>azurerm</code> and <code>kubernetes</code> both have <code>permissions</code>, the agent
+receives all of them, each as a section headed by its provider name.</p>
+</li>
+<li>
+<p>A resource prompt the compositor picks is taken from the first
+provider that has it.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="prompt-composition"><a class="anchor" href="#prompt-composition"></a>Which agent reads which prompt</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>For a generate or drift round, the core builds the round&#8217;s conventions
+in two model passes and then gives each agent its prompts:</p>
+</div>
+<div class="olist arabic">
+<ol class="arabic">
+<li>
+<p><strong>First compositor pass.</strong> The prompt compositor receives the
+<code>resources_list</code> and <code>abbreviations</code> of every provider of the root
+module that has them. The small model reads the request and calls the
+<code>construct_information</code> tool with the resource names and
+abbreviations it considers relevant. Names must match the
+<code>resources_list</code> entries exactly.</p>
+</li>
+<li>
+<p><strong>Second compositor pass.</strong> The compositor runs again with the full text
+of the resource prompts selected in the first pass, looks for
+dependencies (a subnet needs a network, a function needs a storage
+account), and returns more resources and abbreviations. Both passes
+are merged into the round&#8217;s conventions.</p>
+</li>
+<li>
+<p><strong>Prompts for each agent</strong>, as in the table below.</p>
+</li>
+</ol>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 40%;">
+<col style="width: 60%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Agent</th>
+<th class="tableblock halign-left valign-top">Prompts it receives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Prompt compositor (every generate and drift round)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>&lt;provider&gt;/guidelines/abbreviations</code>,
+<code>&lt;provider&gt;/guidelines/resources_list</code>, and the selected
+<code>&lt;provider&gt;/resources/*</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">IaC generator</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/terraform</code>; each provider&#8217;s <code>resource_creation</code>,
+<code>networking</code>, and <code>permissions</code>; the selected <code>&lt;provider&gt;/resources/*</code>
+and abbreviations</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance checker (generate rounds, when
+<code>orchestration.enable_compliance_checker</code> is <code>true</code>)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">The same as the IaC generator, plus <code>general/compliance/report</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Compliance policy (same condition; evaluated by OPA, not a model)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/policies/compliance</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Report generator (generate reports)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/compliance/impact</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Request filter</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/requests</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Drift target generator (partial drift rounds)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general/guidelines/targeting_policies</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Drift exception filter (every drift round and every generate round&#8217;s
+drift pre-check)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Each provider&#8217;s <code>drift_exceptions</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Import scope diff (import rounds that find unmanaged resources; parsed
+by the core, not a model)</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">Each provider&#8217;s <code>import_exceptions</code></p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="sect2">
+<h3 id="resources-list-discovery"><a class="anchor" href="#resources-list-discovery"></a>Discovery depends on <code>resources_list</code></h3>
+<div class="paragraph">
+<p>Nothing enumerates the <code>&lt;provider&gt;/resources/*</code> prompts that exist in
+Langfuse. The compositor can only pick names that appear in
+<code>resources_list</code>:</p>
+</div>
+<div class="ulist">
+<ul>
+<li>
+<p>A name listed in <code>resources_list</code> without a matching resource prompt
+is logged as a warning, and its conventions are missing from the
+round.</p>
+</li>
+<li>
+<p>A resource prompt that exists but is not named in its provider&#8217;s
+<code>resources_list</code> is never selected. The loader does not cross-check
+the seed files against <code>resources_list</code> at startup.</p>
+</li>
+</ul>
+</div>
+<div class="paragraph">
+<p>Every shipped <code>resources_list</code> names all of its provider&#8217;s resource
+seeds. The name only needs to appear in the body: the AWS, Azure, GCP,
+OCI, and vSphere lists name entries in backticks with a description,
+while the Kubernetes list uses plain bullets (<code>- namespace</code>). Follow the
+style of the file you edit.</p>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="shipped-seed-inventory"><a class="anchor" href="#shipped-seed-inventory"></a>Shipped seed inventory</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>The <code>aws</code>, <code>azurerm</code>, <code>google</code>, and <code>oci</code> scopes ship the same seven
+guideline prompts; <code>kubernetes</code> and <code>vsphere</code> ship six, without
+<code>import_exceptions</code>. The resource prompts differ per provider. The
+<code>general</code> scope also ships the one policy, <code>policies/compliance.rego</code>.</p>
+</div>
+<div class="tableblock-wrap"><div class="tablecontainer"><table class="tableblock frame-all grid-all stretch">
+<colgroup>
+<col style="width: 11.1111%;">
+<col style="width: 33.3333%;">
+<col style="width: 44.4444%;">
+<col style="width: 11.1112%;">
+</colgroup>
+<thead>
+<tr>
+<th class="tableblock halign-left valign-top">Scope</th>
+<th class="tableblock halign-left valign-top"><code>guidelines</code></th>
+<th class="tableblock halign-left valign-top"><code>resources</code></th>
+<th class="tableblock halign-left valign-top"><code>compliance</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>general</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>requests</code>, <code>targeting_policies</code>, <code>terraform</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>impact</code>, <code>report</code></p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aws</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aurora</code>, <code>auto_scaling_group</code>, <code>bedrock</code>, <code>cloudwatch</code>, <code>dynamodb</code>,
+<code>ebs_volume</code>, <code>ec2</code>, <code>ecr_repository</code>, <code>ecs_fargate_service</code>, <code>efs</code>,
+<code>eks_cluster</code>, <code>elasticache_redis</code>, <code>iam_role</code>, <code>internet_gateway</code>,
+<code>kms_key</code>, <code>lambda</code>, <code>launch_template</code>, <code>load_balancer</code>,
+<code>nat_gateway</code>, <code>rds</code>, <code>redshift</code>, <code>route53</code>, <code>route_table</code>,
+<code>s3_bucket</code>, <code>sagemaker</code>, <code>secrets_manager</code>, <code>security_group</code>,
+<code>sns_topic</code>, <code>sqs_queue</code>, <code>subnet</code>, <code>vpc</code>, <code>vpc_endpoint</code>,
+<code>waf_web_acl</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>azurerm</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>aks_cluster</code>, <code>application_gateway</code>, <code>application_insights</code>,
+<code>azure_openai</code>, <code>bastion</code>, <code>container_app</code>, <code>container_registry</code>,
+<code>cosmosdb</code>, <code>diagnostic_setting</code>, <code>function</code>, <code>key_vault</code>,
+<code>load_balancer</code>, <code>log_analytics_workspace</code>, <code>managed_disk</code>,
+<code>nat_gateway</code>, <code>network_security_group</code>, <code>postgres_flexible_server</code>,
+<code>private_dns_zone</code>, <code>private_endpoint</code>, <code>public_ip</code>, <code>redis_managed</code>,
+<code>resource_group</code>, <code>role_assignment</code>, <code>service_bus</code>, <code>storage_account</code>,
+<code>subnet</code>, <code>user_assigned_identity</code>, <code>virtual_machine</code>,
+<code>virtual_network</code>, <code>vm_scale_set</code>, <code>webapp</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>google</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>artifact_registry</code>, <code>bigquery</code>, <code>cloud_armor</code>, <code>cloud_dns</code>,
+<code>cloud_functions</code>, <code>cloud_kms</code>, <code>cloud_nat</code>, <code>cloud_router</code>,
+<code>cloud_run</code>, <code>cloud_sql_postgres</code>, <code>compute_instance</code>, <code>firewall</code>,
+<code>gke_autopilot</code>, <code>gke_standard</code>, <code>instance_template</code>,
+<code>load_balancer</code>, <code>managed_instance_group</code>, <code>memorystore_redis</code>,
+<code>persistent_disk</code>, <code>project</code>, <code>pubsub</code>, <code>secret_manager</code>,
+<code>service_account</code>, <code>spanner</code>, <code>storage_bucket</code>, <code>subnetwork</code>,
+<code>vertex</code>, <code>vpc_network</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>oci</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>import_exceptions</code>,
+<code>networking</code>, <code>permissions</code>, <code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>autonomous_database</code>, <code>bastion</code>, <code>block_volume</code>, <code>certificate</code>,
+<code>compartment</code>, <code>compute_instance</code>, <code>container_repository</code>, <code>dns_zone</code>,
+<code>drg</code>, <code>dynamic_group</code>, <code>file_storage</code>, <code>functions</code>, <code>iam_policy</code>,
+<code>instance_configuration</code>, <code>instance_pool</code>, <code>internet_gateway</code>,
+<code>load_balancer</code>, <code>logging</code>, <code>mysql_db_system</code>, <code>nat_gateway</code>,
+<code>network_security_group</code>, <code>object_storage</code>, <code>oke_cluster</code>,
+<code>route_table</code>, <code>security_list</code>, <code>service_gateway</code>, <code>subnet</code>, <code>vault</code>,
+<code>vcn</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>kubernetes</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>networking</code>, <code>permissions</code>,
+<code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>cluster_role</code>, <code>cluster_role_binding</code>, <code>config_map</code>, <code>cron_job</code>,
+<code>daemon_set</code>, <code>deployment</code>, <code>horizontal_pod_autoscaler</code>, <code>ingress</code>,
+<code>job</code>, <code>limit_range</code>, <code>namespace</code>, <code>network_policy</code>,
+<code>persistent_volume_claim</code>, <code>pod_disruption_budget</code>, <code>priority_class</code>,
+<code>resource_quota</code>, <code>role</code>, <code>role_binding</code>, <code>secret</code>, <code>service</code>,
+<code>service_account</code>, <code>stateful_set</code>, <code>storage_class</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+</tr>
+<tr>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>vsphere</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>abbreviations</code>, <code>drift_exceptions</code>, <code>networking</code>, <code>permissions</code>,
+<code>resource_creation</code>, <code>resources_list</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock"><code>compute_cluster</code>, <code>compute_cluster_host_group</code>,
+<code>compute_cluster_vm_affinity_rule</code>,
+<code>compute_cluster_vm_anti_affinity_rule</code>, <code>compute_cluster_vm_group</code>,
+<code>compute_cluster_vm_host_rule</code>, <code>content_library</code>,
+<code>content_library_item</code>, <code>datastore_cluster</code>, <code>distributed_port_group</code>,
+<code>distributed_virtual_switch</code>, <code>drs_vm_override</code>, <code>entity_permissions</code>,
+<code>folder</code>, <code>ha_vm_override</code>, <code>resource_pool</code>, <code>role</code>, <code>tag</code>,
+<code>virtual_disk</code>, <code>virtual_machine</code>, <code>vm_storage_policy</code></p></td>
+<td class="tableblock halign-left valign-top"><p class="tableblock">None</p></td>
+</tr>
+</tbody>
+</table></div></div>
+<div class="paragraph">
+<p>The <code>oci</code> import exception list ships but is not read: only Azure, GCP,
+and AWS scopes can be listed for import.</p>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="seed-examples"><a class="anchor" href="#seed-examples"></a>Seed file examples</h2>
+<div class="sectionbody">
+<div class="paragraph">
+<p>A provider guideline, <code>core/prompts/seed/aws/guidelines/networking.yaml</code>
+(shipped; body shortened), producing <code>aws/guidelines/networking</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">#</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-License-Identifier: Apache-2.0</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">AWS networking conventions (VPCs, subnets, gateways, security groups).</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # AWS Networking Guidelines</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  ## Topology</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Default to a multi-AZ VPC with public and private subnets per</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    availability zone.</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  ## Address space</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Use RFC1918 ranges. Avoid overlapping with on-premises CIDRs</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    or other VPCs that will be peered.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Allocate `/16` per VPC by default; carve `/24` subnets within.</span></span></span></code></pre>
+</div>
+</div>
+<div class="paragraph">
+<p>A resource prompt, <code>core/prompts/seed/aws/resources/s3_bucket.yaml</code>
+(shipped; body shortened), producing <code>aws/resources/s3_bucket</code>:</p>
+</div>
+<div class="listingblock">
+<div class="content">
+<pre class="shiki highlight"><code data-lang="yaml"><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4;--shiki-light-bg:#1E1E1E;--shiki-dark-bg:#1E1E1E"><span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955">#</span></span>
+<span class="line"><span style="--shiki-light:#6A9955;--shiki-dark:#6A9955"># SPDX-License-Identifier: Apache-2.0</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">description</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">AWS S3 Bucket default configuration (encryption, versioning, public access, lifecycle, logging).</span></span>
+<span class="line"><span style="--shiki-light:#569CD6;--shiki-dark:#569CD6">body</span><span style="--shiki-light:#D4D4D4;--shiki-dark:#D4D4D4">: </span><span style="--shiki-light:#C586C0;--shiki-dark:#C586C0">|</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  # AWS S3 Bucket</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  For an S3 Bucket, unless explicitly requested otherwise, use the</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  following default configuration:</span></span>
+<span class="line"></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Naming convention: `&#x3C;project>-&#x3C;purpose>-&#x3C;environment>`. Bucket</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">    names are globally unique, lowercase, 3-63 characters.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Versioning must be enabled.</span></span>
+<span class="line"><span style="--shiki-light:#CE9178;--shiki-dark:#CE9178">  - Server-side encryption must use aws:kms with bucket key enabled.</span></span></span></code></pre>
+</div>
+</div>
+</div>
+</div>
+<div class="sect1">
+<h2 id="related-pages"><a class="anchor" href="#related-pages"></a>Related pages</h2>
+<div class="sectionbody">
+<div class="ulist">
+<ul>
+<li>
+<p><a href="../../guides/customize-prompts/" class="xref page">Customize prompts</a> to change
+a prompt, add a resource prompt, or write exception lists.</p>
+</li>
+<li>
+<p><a href="../compliance-policy/" class="xref page">Compliance policy</a> for
+the contract of <code>general/policies/compliance</code>.</p>
+</li>
+<li>
+<p><a href="../../guides/monitor-with-langfuse/" class="xref page">Monitor with Langfuse</a> for
+where Langfuse runs and how to log in.</p>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</article>
+  </div>
+</main>
+</div>
+
+
+<footer class="page-footer">
+  <div class="page-footer__nav">
+
+<div class="dt-grid-layout dt-grid-layout--with-margin pagination">
+  <div class="dt-grid-layout__item dt-grid-layout__item--span-full pagination__row">
+    <div class="pagination__buttons">
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-icon pagination__prev" href="../compliance-policy/">
+      <span class="dt-button__content">
+        <span class="dt-button__icon dt-button__icon-icon"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-left"></use></svg></span>
+        <span class="pagination__label-full">Compliance policy</span>
+        <span class="pagination__label-short">Prev</span>
+      </span>
+    </a>
+    <a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action pagination__next" href="../root-module-manifest/">
+      <span class="dt-button__content">
+        <span class="pagination__label-full">Root module manifest</span>
+        <span class="pagination__label-short">Next</span>
+        <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-arrow-right"></use></svg></span>
+      </span>
+    </a>
+    </div>
+  </div>
+</div>
+  </div>
+  <div class="dt-grid-layout dt-grid-layout--with-margin page-footer__feedback">
+    <div class="dt-grid-layout__item dt-grid-layout__item--span-full page-footer__contribute">
+      <div class="page-footer__contribute-copy">
+        <p class="dt-text dt-text--title-s">Help us make these docs great!</p>
+        <p class="dt-text dt-text--body-m">See something that is wrong or unclear? Collaborate with us! Submit a pull request</p>
+      </div>
+      <div class="page-footer__contribute-buttons">
+
+<a class="dt-button dt-button--ghost dt-button--icon-and-label dt-button--icon-action page-footer__propose-change" href="https://github.com/InditexTech/kumoss/edit/main/docs/src/modules/main/pages/reference/prompt-registry.adoc">
+  <span class="dt-button__content">
+    Propose a change
+    <span class="dt-button__icon dt-button__icon-action"><svg class="dt-icon" aria-hidden="true" focusable="false"><use href="../../../../_/img/icons.svg#icon-external-link"></use></svg></span>
+  </span>
+</a>
+      </div>
+    </div>
+  </div>
+</footer>
+
+
+<script id="site-script" src="../../../../_/js/site.js" data-ui-root-path="../../../../_"></script>
+
+<footer class="site-footer">
+  <div class="dt-grid-layout dt-grid-layout--with-margin site-footer__grid">
+    <div class="dt-grid-layout__item site-footer__col site-footer__brand">
+      <a class="site-footer__brand-link" href="../../../../stable/">
+        <img class="site-footer__logo site-footer__logo--light" src="../../../../_/product-logo.png" width="24" height="24" alt="">
+        <img class="site-footer__logo site-footer__logo--dark" src="../../../../_/product-logo-dark.png" width="24" height="24" alt="">
+        <span class="dt-text dt-text--label-l-high">Kumoss</span>
+      </a>
+      <span class="dt-text dt-text--detail-m site-footer__legal">&#169; 2026 InditexTech</span>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Resources</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../../">Home</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../quickstart/">Quickstart</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../faq/">FAQ</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Documentation</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../guides-overview/">Guides</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../reference-overview/">Reference</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../architecture/">Architecture</a>
+    </div>
+    <div class="dt-grid-layout__item site-footer__col site-footer__links">
+      <span class="dt-text dt-text--label-l site-footer__heading">Project</span>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../contributing/">Contributing</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../glossary/">Glossary</a>
+      <a class="dt-text dt-text--body-l site-footer__link" href="../../additional-information/">Additional information</a>
+    </div>
+  </div>
+</footer>
+  </body>
+</html>
