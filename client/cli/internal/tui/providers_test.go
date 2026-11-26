@@ -108,7 +108,7 @@ func TestSharedOpenAIPrefixRowsAreInterchangeable(t *testing.T) {
 // stops the user checking what they typed. AWS_SECRET_ACCESS_KEY beside it is
 // the one that has to be hidden.
 func secretByName(name string) bool {
-	if strings.HasSuffix(name, "_ID") {
+	if strings.HasSuffix(name, "_ID") || name == "RUSTFS_ACCESS_KEY" {
 		return false
 	}
 	return strings.Contains(name, "_KEY") ||
@@ -117,8 +117,8 @@ func secretByName(name string) bool {
 		strings.Contains(name, "CREDENTIALS")
 }
 
-// Only a credential is masked. A project id, a region or an API base must stay
-// readable while it is typed, so anything not named like a secret is visible.
+// A RUSTFS_ACCESS_KEY is a key id, like AWS_ACCESS_KEY_ID, and the test says
+// so: it stays visible while typed, the secret beside it does not.
 func TestOnlyCredentialsAreMasked(t *testing.T) {
 	all := func() []credential {
 		var out []credential
@@ -150,6 +150,8 @@ func TestSecretByName(t *testing.T) {
 		"VERTEXAI_PROJECT":      false,
 		"VERTEXAI_CREDENTIALS":  true,
 		"STORAGE_ACCOUNT_KEY":   true,
+		"RUSTFS_ACCESS_KEY":     false,
+		"RUSTFS_SECRET_KEY":     true,
 		"KUMOSS_IAC_TOKEN":      true,
 	} {
 		if got := secretByName(name); got != want {
@@ -184,9 +186,10 @@ func TestStorageModelByName(t *testing.T) {
 	if m := storageModelByName("bundled"); !m.Managed || len(m.Credentials) != 0 {
 		t.Errorf("bundled = %+v", m)
 	}
-	// Repository-declared state is unmanaged: the bucket must stay empty.
-	if m := storageModelByName("repository"); m.Managed {
-		t.Error("repository state marked managed")
+	// Repository-declared state is no longer offered: the wizard always owns
+	// the Terraform state bucket.
+	if storageModelByName("repository") != nil {
+		t.Error("repository state is still offered as a storage model")
 	}
 }
 

@@ -175,9 +175,11 @@ func prefixOf(model string) string {
 // storageModel is the CLI discriminator driving storage.provider and whether
 // terraform_state_bucket is empty.
 type storageModel struct {
-	Name              string // select key
-	Model             string // state.Storage.Model
-	Provider          string // → storage.provider enum
+	Name     string // select key
+	Model    string // state.Storage.Model
+	Provider string // → storage.provider enum
+	// No model is unmanaged now, but the flag stays the single place that
+	// decides whether terraform_state_bucket is asked for or left empty.
 	Managed           bool   // false = repository-declared state (empty terraform_state_bucket)
 	Region            bool   // whether the region field is relevant
 	EndpointURL       string // in-cluster address the core writes to
@@ -193,17 +195,18 @@ var storageModels = []storageModel{
 	},
 	{
 		Name: "External S3-compatible", Model: "external_s3", Provider: "S3", Managed: true, Region: true,
-		// Blank credentials: a static key defeats boto3's default chain.
-		Credentials: nil,
+		// AWS S3, Google Cloud Storage's S3 interoperability or any S3 API
+		// (MinIO, Ceph): the same fields answer all of them. The keys are the
+		// ones the core signs with, RUSTFS_ACCESS_KEY/SECRET_KEY; the endpoint
+		// is the provider's own host, so only the public one is asked.
+		Credentials: []credential{
+			{"RUSTFS_ACCESS_KEY", "S3 access key", false},
+			{"RUSTFS_SECRET_KEY", "S3 secret key", true},
+		},
 	},
 	{
 		Name: "Azure Storage Account", Model: "external_azure", Provider: "STORAGE_ACCOUNT", Managed: true,
 		Credentials: []credential{{"STORAGE_ACCOUNT_KEY", "Storage account shared key", true}},
-	},
-	{
-		Name: "Repository-declared state", Model: "repository", Provider: "S3", Managed: false, Region: true,
-		// Backend credentials go to services/iac/.env, not core/.env.
-		Credentials: nil,
 	},
 }
 
