@@ -202,7 +202,7 @@ Treat this check as a convenience, not a guarantee:
   through `os.environ/...`. See the note under
   <<advanced-routing-with-llmmodel_list,Advanced routing>>.
 
-The exact behaviour depends on the installed LiteLLM version (the core
+The exact behavior depends on the installed LiteLLM version (the core
 pins `litellm>=1.93.0`).
 
 [#provider-credentials]
@@ -428,7 +428,7 @@ if the server does not check it.
 == Minimal configuration example
 
 A single direct provider, both roles on the same vendor, no router
-customisation. This is the checked-in setup, and the simplest working
+customization. This is the checked-in setup, and the simplest working
 one.
 
 [source,yaml]

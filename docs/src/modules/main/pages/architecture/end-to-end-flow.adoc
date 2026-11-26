@@ -353,7 +353,7 @@ its phases use.
 |===
 |Participant |Meaning
 
-|*User / reviewer* (grey)
+|*User / reviewer* (gray)
 |Human actor. Only a human starts a request, creates or merges a pull
 request, or applies.
 
@@ -370,7 +370,7 @@ decision happens here.
 |*LLM agents* (green)
 |Prompt-driven agent loops. Each message into this participant names the
 agent and its model role (`main` = `llm.model`, `small` =
-`llm.small_model`); see the xref:#agent-catalogue[agent catalogue].
+`llm.small_model`); see the xref:#agent-catalogue[agent catalog].
 
 |*core-db* (purple)
 |The PostgreSQL rows the gates read and write: the session, its status,
@@ -389,10 +389,10 @@ through the notifications sidecar, and the cloud platform.
 |===
 |Element |Meaning
 
-|Solid grey arrow (`default message`)
+|Solid gray arrow (`default message`)
 |A call or hand-over in the direction of the arrow.
 
-|Dashed grey arrow (`return`)
+|Dashed gray arrow (`return`)
 |A result flowing back: engine output, structured findings, an HTTP
 status, a message shown to the user.
 
@@ -435,7 +435,7 @@ operations per drift batch.
 |===
 
 [#agent-catalogue]
-== Agent catalogue
+== Agent catalog
 
 Every message into the agents lane is one of the agents below. Each is
 an orchestration loop rendered from a Jinja layout with
@@ -558,7 +558,7 @@ the budget is spent on work rather than on repeats:
 
 [cols="1,3",options="header"]
 |===
-|Guard |Behaviour
+|Guard |Behavior
 
 |Last turn
 |The final turn of the budget offers only the sentinel tool, with a note
@@ -769,7 +769,7 @@ Before rendering, the SPA fetches the only unauthenticated route,
 
 [cols="1,3",options="header"]
 |===
-|Mode |Behaviour
+|Mode |Behavior
 
 |*Disabled* — blank `oidc.issuer_url`, the checked-in default
 |The SPA mounts a dev provider, and the core resolves every request to a
@@ -883,7 +883,7 @@ job — and does all the sequencing itself.
 
 [cols="1,3",options="header"]
 |===
-|Behaviour |Detail
+|Behavior |Detail
 
 |Three verbs over the plan artifact
 |`plan` runs `init → validate → plan -out` and returns a reference naming
@@ -912,7 +912,7 @@ repository step into a repository URL. `POST /api/v1/repository/parse`
 calls it before cloning and answers the resolved `repo_url`, which the
 wizard sends on every later call. The bundled implementation appends a
 bare repository name to `MAPPING_PREFIX_IDENTIFIER` with a `.git`
-suffix and passes full `https://` URLs through; a catalogue-backed one
+suffix and passes full `https://` URLs through; a catalog-backed one
 can replace it. While it is disabled the core treats the input as the
 repository URL (identity passthrough). Contract 2.0.0 answers the
 repository only: providers and scopes come from the root module and
@@ -963,7 +963,7 @@ The loop has two entry points, differing in *what* they target and
 
 [cols="1,2,3",options="header"]
 |===
-|Entry point |Targets |Behaviour
+|Entry point |Targets |Behavior
 
 |*Pre-check inside every generate round*
 |The session's own validated targets
@@ -989,7 +989,7 @@ generate round pins a plan.
 |===
 
 *How the DRIFT report is written.* The drift report is the one report the
-generator does not receive as a text to summarise: it reads the branch for
+generator does not receive as a text to summarize: it reads the branch for
 itself. The report service gives the drift report the workspace-inspection
 tool set instead of `web_search` and `terraform_docs`, and the drift branch of the report
 layout makes `diff_history` a required first call and the sole source of
@@ -997,9 +997,9 @@ truth for the remediation. That works because every reconciliation group
 commits and pushes inside the validation loop before the report runs, so
 the branch's committed diff against the default branch, plus untracked
 files, *is* the reconciliation; no remediated resource may be named that
-the diff does not show. The drift handler therefore no longer serialises
+the diff does not show. The drift handler therefore no longer serializes
 the session history into the report query and passes only what the
-remediation left out, in two labelled blocks that map one-to-one onto
+remediation left out, in two labeled blocks that map one-to-one onto
 optional report fields:
 
 [cols="2,2,3,2",options="header"]

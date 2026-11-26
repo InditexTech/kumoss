@@ -156,7 +156,7 @@ incoming webhook. It exists to be useful out of the box and to be a
 readable worked example for anyone writing a Teams, email, or
 PagerDuty implementation of the same contract.
 
-A notification becomes a Slack attachment, colour-coded by severity,
+A notification becomes a Slack attachment, color-coded by severity,
 with an action button per link. Two limits shape the rendering, one
 Slack's and one the service's own:
 
