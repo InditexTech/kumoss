@@ -89,18 +89,21 @@ func TestStateStepsOrder(t *testing.T) {
 	}
 
 	// The model is picked first, because the fields below it depend on which
-	// model was chosen. The bundled store's form is skipped, so use an external
-	// one to reach the fields step.
+	// model was chosen. The selector is hidden for now, so the bundled store is
+	// what it sets.
 	s := &state.State{Storage: state.Storage{Model: "external_s3"}}
 	if err := steps[0](s); err != nil {
 		t.Fatalf("storage model step returned %v", err)
 	}
-	if s.Storage.Model == "" {
-		t.Error("the first step did not pick a storage model")
+	if s.Storage.Model != "bundled" {
+		t.Errorf("storage model = %q, want the bundled default", s.Storage.Model)
 	}
 	if s.Storage.Provider != "" {
 		t.Error("the first step already set the provider, so it is not the model step")
 	}
+	// The bundled store's fields are defaults, so its form is skipped; an
+	// external model reaches the fields step with the provider set.
+	s.Storage.Model = "external_s3"
 	if err := steps[1](s); err != nil {
 		t.Fatalf("storage fields step returned %v", err)
 	}

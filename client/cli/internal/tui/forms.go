@@ -557,9 +557,10 @@ func (w *Wizard) gitStep(s *state.State) (*stepForm, func()) {
 	return form, func() {}
 }
 
-// storageModelStep picks the storage model. It is its own form because the
-// fields below depend on it: a model picked in the same form would leave the
-// credential and region fields of the previous one on screen.
+// storageModelStep picks the storage model. Its form is hidden for now: the
+// bundled RustFS is the only option wired end to end, so it is set directly.
+// The other rows in storageModels stay and this form comes back with them,
+// when their setup lands.
 func (w *Wizard) storageModelStep(s *state.State) error {
 	model := pickStorage(s)
 	picked := model.Model
@@ -572,15 +573,23 @@ func (w *Wizard) storageModelStep(s *state.State) error {
 				Value(&picked),
 		).Title("Storage"),
 	)
-	err := w.execStep(form)
-	// Picked before the next step reads it, so its fields follow this choice.
-	// Kept on a back too, or stepping away to fix an earlier answer would
-	// quietly revert the model.
-	if err == nil || errors.Is(err, errBack) {
-		s.Storage.Model = picked
+	if !storageModelFormHidden {
+		err := w.execStep(form)
+		// Picked before the next step reads it, so its fields follow this choice.
+		// Kept on a back too, or stepping away to fix an earlier answer would
+		// quietly revert the model.
+		if err == nil || errors.Is(err, errBack) {
+			s.Storage.Model = picked
+		}
+		return err
 	}
-	return err
+	s.Storage.Model = storageModels[0].Model
+	return nil
 }
+
+// storageModelFormHidden keeps the storage model selector off the wizard while
+// only the bundled store is offered. Flip it back with the other models.
+const storageModelFormHidden = true
 
 // storageStep collects the storage model's settings.
 func (w *Wizard) storageStep(s *state.State) (*stepForm, func()) {
