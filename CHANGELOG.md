@@ -2,7 +2,29 @@
 
 ## [1.1.0](https://github.com/InditexTech/kumoss/compare/v1.0.9...v1.1.0) (2026-11-26)
 
-Compliance release, with breaking changes. Generate rounds now check the final plan against Rego policies evaluated with OPA, one general policy plus one per declared provider, and the LLM half of the check is narrowed to an intent check: does the plan do what the session's requests ask. Langfuse replaces Arize Phoenix for traces and prompts. Providers, scopes and input variables are read from a `kumoss.yaml` manifest in the root module instead of being asked for in the wizard, authorization moves to the OpenID AuthZEN 1.0 standard, and the IaC, authorization and mapping sidecar contracts move to 2.0.0 together. Sessions now keep a user-facing chat history. The core now runs Alembic migrations at startup, ships a mapping sidecar, and runs on Python 3.15. **Read the [upgrade notes](https://inditextech.github.io/kumoss/stable/main/guides/upgrade-notes/) before rolling out:** custom sidecars must be upgraded with the core, Phoenix prompts have to be migrated, the `forbidden_actions` prompts are no longer enforced, and Kumoss-managed Terraform state must be copied to its new keys.
+> [!WARNING]
+> This release contains **breaking changes**. Read the [upgrade notes](https://inditextech.github.io/kumoss/stable/main/guides/upgrade-notes/) before rolling out.
+
+### Highlights
+
+- **Deterministic compliance with OPA.** Generate rounds now check the final plan against Rego policies evaluated with Open Policy Agent: one general policy plus one per declared provider.
+- **Intent check.** The LLM half of the compliance check is narrowed to an intent check: does the plan do what the session's requests ask?
+- **Langfuse replaces Arize Phoenix** for traces and prompts.
+- **Root module manifest.** Providers, scopes, and input variables are read from a `kumoss.yaml` manifest in the root module instead of being asked for in the wizard.
+- **Sidecar contracts 2.0.0.** The IaC, authorization, and mapping sidecar contracts move to 2.0.0 together.
+
+### Platform
+
+- The core runs **Alembic migrations** at startup.
+- A **mapping sidecar** now ships with Kumoss.
+- The core runs on **Python 3.15**.
+
+### Before you upgrade
+
+- **Custom sidecars** must be upgraded together with the core.
+- **Phoenix prompts** have to be migrated to Langfuse.
+- **`forbidden_actions` prompts** are no longer enforced.
+- **Kumoss-managed Terraform state** must be copied to its new keys.
 
 
 ### ⚠ BREAKING CHANGES
