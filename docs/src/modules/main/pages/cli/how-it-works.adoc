@@ -161,7 +161,7 @@ output contains real generated tokens, so treat it as a secret.
 `--foreground` keeps the stack attached instead of detaching: logs stream until
 Ctrl-C, which also stops the stack.
 
-`--host-certs` trusts this host's CA roots inside the core and SearXNG
+`--certs` trusts this host's CA roots inside the core and SearXNG
 containers, for a machine behind a TLS-inspecting proxy (example a company VPN).
 
 === kumoss run
