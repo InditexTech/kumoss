@@ -1,0 +1,123 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package cmd
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+
+	"github.com/InditexTech/kumoss/client/cli/internal/cli"
+	"github.com/spf13/cobra"
+)
+
+// newTestRoot rebuilds the real tree: importing NewRootCmd would be a cycle.
+func newTestRoot() *cobra.Command {
+	var flags cli.Flags
+	root := &cobra.Command{Use: "kumoss"}
+	NewInitCmd(root, &flags)
+	NewRunCmd(root, &flags)
+	NewHomeCmd(root, &flags)
+	NewSelfInstallCmd(root, &flags)
+	NewVersionCmd(root, &flags)
+	NewStatusCmd(root, &flags)
+	NewLogsCmd(root, &flags)
+	NewConfigCmd(root, &flags)
+	NewDoctorCmd(root, &flags)
+	NewHelpCmd(root, &flags)
+	return root
+}
+
+// runHelp executes the help command with args and returns its output.
+func runHelp(t *testing.T, root *cobra.Command, args ...string) string {
+	t.Helper()
+	var out bytes.Buffer
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(append([]string{"help"}, args...))
+	if err := root.Execute(); err != nil {
+		t.Fatalf("help %v: %v", args, err)
+	}
+	return out.String()
+}
+
+// --all groups flags per command, and still lists the flagless ones.
+func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
+	got := runHelp(t, newTestRoot(), "--all")
+
+	for _, want := range []string{
+		"Flags by command:",
+		"\ninit\n",
+		"--foreground",
+		"--certs",
+		"\nlogs\n",
+		"--since string",
+		"config, doctor, home, self-install, status, version",
+		"(no flags)",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+	// --home and --reset are gone: one home per user is the supported setup.
+	for _, gone := range []string{"--home", "--reset"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("output advertises %s:\n%s", gone, got)
+		}
+	}
+	// cobra's own commands are not ours to advertise.
+	if strings.Contains(got, "completion") {
+		t.Errorf("output lists cobra's completion command:\n%s", got)
+	}
+	// Nor a hidden one: that would undo its Hidden.
+	hidden := &cobra.Command{Use: "secret", Hidden: true, RunE: func(*cobra.Command, []string) error { return nil }}
+	hidden.Flags().String("token", "", "a flag nobody should be told about")
+	root := newTestRoot()
+	root.AddCommand(hidden)
+	if all := runHelp(t, root, "--all"); strings.Contains(all, "secret") {
+		t.Errorf("output lists a hidden command:\n%s", all)
+	}
+}
+
+// A command argument wins over --all.
+func TestHelpWithCommandStillPrintsThatCommand(t *testing.T) {
+	got := runHelp(t, newTestRoot(), "--all", "init")
+	if strings.Contains(got, "Flags by command:") {
+		t.Errorf("--all overrode the command argument:\n%s", got)
+	}
+	if !strings.Contains(got, "kumoss init [flags]") {
+		t.Errorf("init help not printed:\n%s", got)
+	}
+}
+
+// The listing comes from the live tree, so a new command needs no edit here.
+func TestHelpAllReflectsNewCommands(t *testing.T) {
+	root := newTestRoot()
+	extra := &cobra.Command{Use: "extra", RunE: func(*cobra.Command, []string) error { return nil }}
+	extra.Flags().String("thing", "", "a thing")
+	root.AddCommand(extra)
+
+	got := runHelp(t, root, "--all")
+	if !strings.Contains(got, "--thing string") {
+		t.Errorf("new command's flag missing:\n%s", got)
+	}
+}
+
+// --certs is the short spelling; --host-certs is kept so a script that already
+// uses it keeps working. Both must set the same flag.
+func TestInitCertsFlagAndItsOldName(t *testing.T) {
+	for _, spelling := range []string{"--certs", "--host-certs"} {
+		var flags cli.Flags
+		root := &cobra.Command{Use: "kumoss"}
+		cmd := NewInitCmd(root, &flags)
+
+		if err := cmd.Flags().Parse([]string{spelling}); err != nil {
+			t.Fatalf("%s: %v", spelling, err)
+		}
+		if !flags.HostCerts {
+			t.Errorf("%s did not set HostCerts", spelling)
+		}
+	}
+}

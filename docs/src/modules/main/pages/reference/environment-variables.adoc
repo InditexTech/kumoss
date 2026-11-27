@@ -705,7 +705,9 @@ entirely.
   `LANGFUSE_CLICKHOUSE_PASSWORD` and `LANGFUSE_REDIS_PASSWORD`. Do not
   change `LANGFUSE_SALT` or `LANGFUSE_ENCRYPTION_KEY` once Langfuse has
   stored data with them. The RustFS web console is disabled
-  (`RUSTFS_CONSOLE_ENABLE=false`); enabling it is up to you, see
+  (`RUSTFS_CONSOLE_ENABLE=false`) unless the `kumoss` CLI was asked to
+  enable it, which binds it to loopback for a workstation; for anything
+  else enabling it is up to you, see
   xref:main:guides/production/operations.adoc#rustfs-console[RustFS
   console].
 * *Restrict who can reach the stack while OIDC is disabled.* With a

@@ -1,0 +1,494 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package pipeline
+
+import (
+	"context"
+	"io"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/InditexTech/kumoss/client/cli/internal/docker"
+	"github.com/InditexTech/kumoss/client/cli/internal/home"
+	"github.com/InditexTech/kumoss/client/cli/internal/render"
+	"github.com/InditexTech/kumoss/client/cli/internal/state"
+	"github.com/InditexTech/kumoss/client/cli/internal/tui"
+)
+
+// stubUI answers with fixed values and records what it was asked.
+type stubUI struct {
+	mode     tui.Mode
+	regen    bool
+	run      bool
+	askedReg []string
+}
+
+func (s *stubUI) SelectStateAction() (tui.Mode, error)         { return s.mode, nil }
+func (s *stubUI) Configure(tui.Mode, *state.State) error       { return nil }
+func (s *stubUI) RotateSecrets([]tui.Secret) ([]string, error) { return nil, nil }
+func (s *stubUI) ConfirmRegenerate(what string) (bool, error) {
+	s.askedReg = append(s.askedReg, what)
+	return s.regen, nil
+}
+func (s *stubUI) RunDocker() (bool, error) { return s.run, nil }
+
+func (s *stubUI) SetDefaults(map[string]any) {}
+
+// stubDocker satisfies docker.Runner; no test starts the stack.
+// stubDocker records the calls and never runs compose: the tests that edit a
+// home have a compose file, and the real runner would shell out to it.
+type stubDocker struct{ recreated []string }
+
+func (*stubDocker) PS(context.Context) ([]docker.PS, error) { return nil, nil }
+func (*stubDocker) Pull(context.Context) error              { return nil }
+func (*stubDocker) Up(context.Context, bool, bool) error    { return nil }
+func (s *stubDocker) Recreate(_ context.Context, services ...string) error {
+	s.recreated = services
+	return nil
+}
+
+var _ docker.Runner = (*stubDocker)(nil)
+
+// install writes the files an existing install owns, to catch a run that
+// touches them.
+func install(t *testing.T) (home.Home, map[string]string) {
+	t.Helper()
+	h := home.Home{Root: t.TempDir()}
+	files := map[string]string{
+		h.StateFile():                 "schema_version: 1\nllm:\n  model: keep/me\n",
+		h.ConfigYAML():                "# hand edited config\n",
+		h.ComposeOverride():           "# hand edited override\n",
+		h.CoreEnv():                   "KUMOSS_IAC_TOKEN=keep\n",
+		h.ServiceEnv("iac"):           "KUMOSS_IAC_TOKEN=keep\n",
+		h.ServiceEnv("notifications"): "KUMOSS_NOTIFICATIONS_TOKEN=keep\n",
+	}
+	for path, body := range files {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+	}
+	return h, files
+}
+
+// Keep must write nothing, and must not even ask about the override.
+func TestModeKeepLeavesEveryFileUntouched(t *testing.T) {
+	h, files := install(t)
+	ui := &stubUI{mode: tui.ModeKeep}
+
+	opts := Options{
+		Home:     h,
+		UI:       ui,
+		Docker:   &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+	}
+	if err := RunPipeline(context.Background(), opts); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	for path, want := range files {
+		got, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		if string(got) != want {
+			t.Errorf("%s changed:\n got %q\nwant %q", path, got, want)
+		}
+	}
+	if len(ui.askedReg) != 0 {
+		t.Errorf("override prompt shown in ModeKeep: %v", ui.askedReg)
+	}
+}
+
+// A reconfigure asks before replacing a hand-edited override.
+func TestReconfigureAsksBeforeOverwritingTheOverride(t *testing.T) {
+	h, files := install(t)
+	ui := &stubUI{mode: tui.ModeReconfigure, regen: false}
+
+	opts := Options{
+		Home:      h,
+		UI:        ui,
+		Docker:    &stubDocker{},
+		Download:  &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		HostCerts: true,
+	}
+	if err := RunPipeline(context.Background(), opts); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	if len(ui.askedReg) != 1 || ui.askedReg[0] != "compose.override.yml" {
+		t.Fatalf("override prompt = %v, want one for compose.override.yml", ui.askedReg)
+	}
+	got, err := os.ReadFile(h.ComposeOverride())
+	if err != nil {
+		t.Fatalf("read override: %v", err)
+	}
+	if string(got) != files[h.ComposeOverride()] {
+		t.Errorf("override rewritten despite declining: %q", got)
+	}
+}
+
+// noFetch answers only the compose file and config.yaml; everything else fails,
+// which keeps the test offline. A failed sample fetch is a warning, not fatal.
+func noFetch(_ context.Context, _, path string) ([]byte, error) {
+	switch path {
+	case "docker-compose.yml":
+		return []byte("services: {}\n"), nil
+	case "config.yaml":
+		return []byte("llm:\n  model: repo/default\n"), nil
+	}
+	return nil, os.ErrNotExist
+}
+
+// A reconfigure must keep the hand-edited keys the forms never ask about.
+// Rendering from the fetched default reset oidc, whose blank issuer_url turns
+// authentication off.
+func TestReconfigureKeepsTheHandEditedConfig(t *testing.T) {
+	h, _ := install(t)
+	edited := "llm:\n  model: keep/me\noidc:\n  issuer_url: https://login.example.com\n  client_id: kumoss\n"
+	if err := os.WriteFile(h.ConfigYAML(), []byte(edited), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	opts := Options{
+		Home:     h,
+		UI:       &stubUI{mode: tui.ModeReconfigure, regen: true},
+		Docker:   &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+	}
+	if err := RunPipeline(context.Background(), opts); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	got, err := os.ReadFile(h.ConfigYAML())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"issuer_url: https://login.example.com", "client_id: kumoss"} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("reconfigure dropped %q:\n%s", want, got)
+		}
+	}
+}
+
+// Enabling with no webhook must downgrade the flag: the service would not
+// boot, and the stack would be unstartable.
+func TestNotificationsEnabledWithoutWebhookIsDowngraded(t *testing.T) {
+	for _, c := range []struct {
+		name    string
+		webhook string
+		want    bool
+	}{
+		{"no webhook", "", false},
+		{"with webhook", "https://hooks.slack.com/services/x", true},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			h, _ := install(t)
+			ui := &stubUI{mode: tui.ModeReconfigure}
+			var warned strings.Builder
+			opts := Options{
+				Home: h,
+				UI: &notifyUI{
+					stubUI:  ui,
+					enabled: true,
+					webhook: c.webhook,
+				},
+				Docker:   &stubDocker{},
+				Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+				Warn:     &warned,
+			}
+			if err := RunPipeline(context.Background(), opts); err != nil {
+				t.Fatalf("RunPipeline: %v", err)
+			}
+
+			saved, err := state.Load(h.StateFile())
+			if err != nil {
+				t.Fatalf("load state: %v", err)
+			}
+			if saved.Notifications.Enabled != c.want {
+				t.Errorf("enabled = %v, want %v", saved.Notifications.Enabled, c.want)
+			}
+			if got := strings.Contains(warned.String(), "notifications disabled"); got == c.want {
+				t.Errorf("warning = %q, want warned=%v", warned.String(), !c.want)
+			}
+
+			cfg, err := os.ReadFile(h.ConfigYAML())
+			if err != nil {
+				t.Fatalf("read config: %v", err)
+			}
+			want := "enabled: false"
+			if c.want {
+				want = "enabled: true"
+			}
+			if !strings.Contains(string(cfg), want) {
+				t.Errorf("config does not carry %q:\n%s", want, cfg)
+			}
+		})
+	}
+}
+
+// notifyUI answers the notifications question the way the real wizard does.
+type notifyUI struct {
+	*stubUI
+	enabled bool
+	webhook string
+}
+
+func (n *notifyUI) Configure(_ tui.Mode, s *state.State) error {
+	s.Notifications.Enabled = n.enabled
+	s.Notifications.SlackWebhookURL = n.webhook
+	return nil
+}
+
+// A dry run asks everything and writes nothing at all.
+func TestDryRunWritesNothing(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "never-created")
+	h := home.Home{Root: root}
+	var out strings.Builder
+
+	opts := Options{
+		Home:        h,
+		PersistHome: true, // would normally write the pointer file
+		UI:          &stubUI{mode: tui.ModeFresh},
+		Docker:      &stubDocker{},
+		Download:    &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		DryRun:      true,
+		Out:         &out,
+	}
+	if err := RunPipeline(context.Background(), opts); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	if _, err := os.Stat(root); !os.IsNotExist(err) {
+		t.Errorf("dry run created %s", root)
+	}
+	if got := out.String(); !strings.Contains(got, "dry run: no file would be written") {
+		t.Errorf("report missing the header:\n%s", got)
+	}
+
+	// Every file a real run would write is reported, in order.
+	for _, path := range []string{
+		h.StateFile(),
+		h.ConfigYAML(),
+		h.CoreEnv(),
+		h.ServiceEnv("iac"),
+		h.ServiceEnv("notifications"),
+		h.ComposeOverride(),
+	} {
+		if !strings.Contains(out.String(), "==> "+path+" <==") {
+			t.Errorf("report does not mention %s", path)
+		}
+	}
+}
+
+// A preview that differs from the real run is worse than no preview.
+func TestDryRunPreviewMatchesTheRealRun(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "home")
+	h := home.Home{Root: root}
+	dl := &render.Download{Fetch: noFetch, Tag: "v1.0.0"}
+
+	var preview strings.Builder
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: &stubDocker{},
+		Download: dl, DryRun: true, Out: &preview,
+	}); err != nil {
+		t.Fatalf("dry run: %v", err)
+	}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeFresh}, Docker: &stubDocker{},
+		Download: dl,
+	}); err != nil {
+		t.Fatalf("real run: %v", err)
+	}
+
+	for _, path := range []string{h.ConfigYAML(), h.ComposeOverride()} {
+		written, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		// printSection indents every line by two spaces.
+		for _, line := range strings.Split(strings.TrimRight(string(written), "\n"), "\n") {
+			if !strings.Contains(preview.String(), "\n  "+line+"\n") {
+				t.Errorf("%s line %q is not in the preview", path, line)
+			}
+		}
+	}
+}
+
+// Keep writes nothing, so the report says so instead of listing files.
+func TestDryRunInKeepModeReportsNothingToWrite(t *testing.T) {
+	h, _ := install(t)
+	var out strings.Builder
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		DryRun:   true,
+		Out:      &out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if !strings.Contains(out.String(), "nothing would be written") {
+		t.Errorf("report = %q", out.String())
+	}
+}
+
+// Once the stack is up the user needs the addresses, not another command to
+// find them.
+func TestRunPipelinePrintsTheURLsAfterStarting(t *testing.T) {
+	h, _ := configured(t)
+	out := &strings.Builder{}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep, run: true}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	for _, want := range []string{"http://localhost/", "http://localhost/langfuse"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("output lacks %s:\n%s", want, out.String())
+		}
+	}
+	// Phoenix is gone and nginx has no /monitoring/ location, so the old line
+	// sent people to the SPA's index.html instead of to any monitoring UI.
+	if strings.Contains(out.String(), "/monitoring/") {
+		t.Errorf("output still advertises the Phoenix path:\n%s", out.String())
+	}
+	// The proxy redirects /langfuse to port 3000, so the port is nginx's
+	// business: printing it would pin an address the stack is free to move.
+	if strings.Contains(out.String(), "localhost:3000") {
+		t.Errorf("output names the Langfuse port instead of the proxy path:\n%s", out.String())
+	}
+	// The S3 API is what the core talks to, not an address to open: listing it
+	// only ever sent people to a page that means nothing to them.
+	if strings.Contains(out.String(), "localhost:9000") {
+		t.Errorf("output still advertises the S3 API:\n%s", out.String())
+	}
+	// The console is off in this state, so its line must not appear either.
+	if strings.Contains(out.String(), "console") {
+		t.Errorf("output advertises a console that is not enabled:\n%s", out.String())
+	}
+}
+
+// With the console on, its address is the one worth printing.
+func TestRunPipelinePrintsTheConsoleWhenEnabled(t *testing.T) {
+	h, st := configured(t)
+	st.Storage.ConsoleEnabled = true
+	if err := state.Save(h.StateFile(), st); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	out := &strings.Builder{}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep, run: true}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if !strings.Contains(out.String(), "http://localhost:9001/rustfs/console/") {
+		t.Errorf("output lacks the console address:\n%s", out.String())
+	}
+}
+
+// "Not now" starts nothing, so there is no stack to point at.
+func TestRunPipelineStaysQuietWhenNotStarting(t *testing.T) {
+	h, _ := configured(t)
+	out := &strings.Builder{}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: &stubUI{mode: tui.ModeKeep}, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      out,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+	if strings.Contains(out.String(), "Kumoss is up") {
+		t.Errorf("printed the URLs without starting:\n%s", out.String())
+	}
+}
+
+// Mount sources are relative to src/, the first -f file's directory — not the
+// home root. Rebasing on the root lands every mount one level too deep.
+func TestIACMountsResolveAgainstTheComposeProjectDir(t *testing.T) {
+	base := t.TempDir()
+	h := home.Home{Root: filepath.Join(base, ".kumoss")}
+	keyDir := filepath.Join(base, "gcp")
+	s := &state.State{Cloud: state.Cloud{
+		GCP: &state.GCPAuth{Method: "file", KeyFile: filepath.Join(keyDir, "sa.json")},
+	}}
+
+	mounts := iacMounts(h, s)
+	if len(mounts) != 1 {
+		t.Fatalf("mounts = %v, want exactly one", mounts)
+	}
+	if filepath.IsAbs(mounts[0].Source) {
+		t.Fatalf("Source = %q, want a path relative to src/", mounts[0].Source)
+	}
+	if got := filepath.Clean(filepath.Join(h.SrcDir(), mounts[0].Source)); got != filepath.Join(keyDir, "sa.json") {
+		t.Errorf("mount %q resolves to %s, want the key file", mounts[0].Source, got)
+	}
+}
+
+// A console key set on an earlier run must survive a reconfigure where the
+// user just walks past the form: it is seeded from the existing .env, so
+// pressing enter re-confirms it rather than resetting it to the default.
+func TestRunPipelineKeepsACustomConsoleKeyOnReconfigure(t *testing.T) {
+	h, st := configured(t)
+	st.Storage.Model = "bundled"
+	st.Storage.ConsoleEnabled = true
+	if err := state.Save(h.StateFile(), st); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	// What a previous run left behind.
+	write(t, h.CoreEnv(), "RUSTFS_ACCESS_KEY=mine\nRUSTFS_SECRET_KEY=mysecret\nKUMOSS_IAC_TOKEN=shared-iac\n")
+
+	// The wizard accepts whatever it was seeded with, as pressing enter does.
+	ui := &seedEchoUI{stubUI: stubUI{mode: tui.ModeReconfigure, run: false}}
+	if err := RunPipeline(context.Background(), Options{
+		Home: h, UI: ui, Docker: &stubDocker{},
+		Download: &render.Download{Fetch: noFetch, Tag: "v1.0.0"},
+		Out:      io.Discard, Warn: io.Discard,
+	}); err != nil {
+		t.Fatalf("RunPipeline: %v", err)
+	}
+
+	raw, err := os.ReadFile(h.ObjectStorageEnv())
+	if err != nil {
+		t.Fatalf("object-storage.env: %v", err)
+	}
+	if !strings.Contains(string(raw), "RUSTFS_ACCESS_KEY=mine") {
+		t.Errorf("the custom access key was reset:\n%s", raw)
+	}
+	if !strings.Contains(string(raw), "RUSTFS_SECRET_KEY=mysecret") {
+		t.Errorf("the custom secret key was reset:\n%s", raw)
+	}
+}
+
+// seedEchoUI leaves the secrets exactly as the pipeline seeded them, which is
+// what the real forms do when the user presses enter on a pre-filled box.
+type seedEchoUI struct {
+	stubUI
+	seeded state.Secrets
+}
+
+func (u *seedEchoUI) Configure(_ tui.Mode, s *state.State) error {
+	u.seeded = s.Secrets
+	s.Storage.Model = "bundled"
+	s.Storage.ConsoleEnabled = true
+	// What storageConsoleKeysStep does: seed the box from the state, fall back
+	// to the container default, and commit whatever the box ends up holding.
+	seed := func(v string) string {
+		if v == "" {
+			return "rustfsadmin"
+		}
+		return v
+	}
+	s.Secrets.RustFSAccessKey = seed(s.Secrets.RustFSAccessKey)
+	s.Secrets.RustFSSecretKey = seed(s.Secrets.RustFSSecretKey)
+	return nil
+}

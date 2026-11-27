@@ -10,6 +10,9 @@
 * Getting started
 * xref:main:prerequisites.adoc[Prerequisites]
 * xref:main:quickstart.adoc[Quickstart]
+* CLI
+* xref:main:cli/quickstart.adoc[CLI quickstart]
+* xref:main:cli/how-it-works.adoc[How the CLI works]
 * Guides
 * xref:main:guides-overview.adoc[Overview]
 // The second "Guides" (and "Reference" below) is a grouping node: the

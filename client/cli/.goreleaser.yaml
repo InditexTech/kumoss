@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+#
+# SPDX-License-Identifier: Apache-2.0
+#
+# Builds the kumoss CLI archives that install.sh downloads. Run by
+# release-please.yml when a release is created, in append mode: the GitHub
+# Release already exists and this only attaches the files.
+#
+#   goreleaser release --clean --config client/cli/.goreleaser.yaml
+#
+# The version is the tag without its v (v1.2.3 → 1.2.3), so an archive is
+# kumoss_1.2.3_linux_amd64.tar.gz and install.sh can build the name from it.
+
+version: 2
+
+project_name: kumoss
+
+builds:
+  - id: kumoss
+    dir: client/cli
+    main: .
+    binary: kumoss
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -X github.com/InditexTech/kumoss/client/cli/internal/buildinfo.Version={{ .Version }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: kumoss
+    formats: [tar.gz]
+    name_template: "kumoss_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+# No changelog section: release-please owns the Release notes.
+changelog:
+  disable: true

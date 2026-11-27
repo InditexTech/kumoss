@@ -1,0 +1,102 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package render
+
+import (
+	"context"
+	"strings"
+)
+
+// Sample is one env file's key set, from the repo's env.sample: it decides
+// which variables the file carries.
+type Sample struct {
+	// Vars are the uncommented KEY=VALUE pairs, in file order.
+	Vars []Var
+}
+
+// Var is one KEY=VALUE line of an env sample.
+type Var struct {
+	Key   string
+	Value string
+}
+
+// Lookup returns the sample value for key. Unused by the pipeline today.
+func (s *Sample) Lookup(key string) (string, bool) {
+	for _, v := range s.Vars {
+		if v.Key == key {
+			return v.Value, true
+		}
+	}
+	return "", false
+}
+
+// Keys returns the sample's keys in file order. Unused by the pipeline today.
+func (s *Sample) Keys() []string {
+	keys := make([]string, len(s.Vars))
+	for i, v := range s.Vars {
+		keys[i] = v.Key
+	}
+	return keys
+}
+
+// Samples are the three env samples, fetched once per run.
+type Samples struct {
+	Core          *Sample // core/env.sample
+	IAC           *Sample // services/iac/env.sample
+	Notifications *Sample // services/notifications/env.sample
+	Mapping       *Sample // services/mapping/env.sample
+}
+
+// FetchSamples downloads and parses the env samples. A failure is
+// returned, not fatal: the caller falls back to the built-in key list.
+func FetchSamples(ctx context.Context, d *Download) (*Samples, error) {
+	core, err := fetchSample(ctx, d, "core/env.sample")
+	if err != nil {
+		return nil, err
+	}
+	iac, err := fetchSample(ctx, d, "services/iac/env.sample")
+	if err != nil {
+		return nil, err
+	}
+	notifications, err := fetchSample(ctx, d, "services/notifications/env.sample")
+	if err != nil {
+		return nil, err
+	}
+	mapping, err := fetchSample(ctx, d, "services/mapping/env.sample")
+	if err != nil {
+		return nil, err
+	}
+	return &Samples{Core: core, IAC: iac, Notifications: notifications, Mapping: mapping}, nil
+}
+
+// fetchSample downloads one env.sample and parses it.
+func fetchSample(ctx context.Context, d *Download, path string) (*Sample, error) {
+	raw, err := d.File(ctx, path)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSample(string(raw)), nil
+}
+
+// ParseSample reads uncommented KEY=VALUE lines, stripping surrounding quotes
+// and ignoring any line with no `=`.
+func ParseSample(body string) *Sample {
+	s := &Sample{}
+	for line := range strings.SplitSeq(body, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		k, v, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		s.Vars = append(s.Vars, Var{
+			Key:   strings.TrimSpace(k),
+			Value: strings.Trim(strings.TrimSpace(v), `"'`),
+		})
+	}
+	return s
+}

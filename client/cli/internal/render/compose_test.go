@@ -1,0 +1,208 @@
+// SPDX-FileCopyrightText: 2026 INDUSTRIA DE DISEÑO TEXTIL S.A. (INDITEX S.A.)
+//
+// SPDX-License-Identifier: Apache-2.0
+
+package render
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"gopkg.in/yaml.v3"
+)
+
+func TestComposeOverrideRemapsTheConfigVolume(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compose.override.yml")
+	c := &Compose{Path: path, ConfigPath: "../config/config.yaml"}
+	if err := c.Write(); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	core := doc["services"].(map[string]any)["core"].(map[string]any)
+	volumes := core["volumes"].([]any)
+	if len(volumes) != 1 {
+		t.Fatalf("volumes = %v, want one entry", volumes)
+	}
+	// The container target must match the base file's, or compose adds a second
+	// mount instead of replacing the first.
+	want := "../config/config.yaml:/etc/kumoss/config.yaml:ro"
+	if volumes[0] != want {
+		t.Errorf("volume = %v, want %q", volumes[0], want)
+	}
+}
+
+func TestComposeOverrideHostCerts(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compose.override.yml")
+	c := &Compose{Path: path, ConfigPath: "../config/config.yaml", HostCerts: true}
+	if err := c.Write(); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+
+	// core keeps its config remap and gains the CA mount; losing the first
+	// would silently unconfigure it.
+	core := doc["services"].(map[string]any)["core"].(map[string]any)
+	volumes := core["volumes"].([]any)
+	if len(volumes) != 2 {
+		t.Fatalf("core volumes = %v, want config plus CA", volumes)
+	}
+	if volumes[0] != "../config/config.yaml:/etc/kumoss/config.yaml:ro" {
+		t.Errorf("config volume lost: %v", volumes[0])
+	}
+	if volumes[1] != hostCADir+":"+containerCADir+":ro" {
+		t.Errorf("CA volume = %v", volumes[1])
+	}
+	env := core["environment"].([]any)
+	if len(env) != 2 || env[0] != "KUMOSS_CONFIG="+ContainerConfigPath || env[1] != "KUMOSS_CA_DIR="+containerCADir {
+		t.Errorf("core environment = %v", env)
+	}
+	build := core["build"].(map[string]any)["additional_contexts"].(map[string]any)
+	if build["host-certs"] != hostCADir {
+		t.Errorf("host-certs context = %v", build)
+	}
+
+	// searxng only needs the CA wiring.
+	searxng := doc["services"].(map[string]any)["searxng"].(map[string]any)
+	if got := searxng["volumes"].([]any); len(got) != 1 || got[0] != hostCADir+":"+containerCADir+":ro" {
+		t.Errorf("searxng volumes = %v", got)
+	}
+}
+
+// Without the flag the override must not change: that CA directory is absent on
+// a normal network, and mounting it would break the stack.
+func TestComposeOverrideOmitsHostCertsByDefault(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "compose.override.yml")
+	c := &Compose{Path: path, ConfigPath: "../config/config.yaml"}
+	if err := c.Write(); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var doc map[string]any
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if _, ok := doc["x-host-ca"]; ok {
+		t.Error("x-host-ca present without --host-certs")
+	}
+	if _, ok := doc["services"].(map[string]any)["searxng"]; ok {
+		t.Error("searxng override present without --host-certs")
+	}
+}
+
+func TestDownloadSave(t *testing.T) {
+	dst := filepath.Join(t.TempDir(), "src", "docker-compose.yml")
+	d := &Download{Fetch: stubFetch("services: {}\n"), Tag: "v1.0.0"}
+
+	// stubFetch only answers config.yaml, so point it at that path.
+	if err := d.Save(context.Background(), "config.yaml", dst); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	raw, err := os.ReadFile(dst)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	if !strings.Contains(string(raw), "services") {
+		t.Errorf("saved bytes = %q", raw)
+	}
+}
+
+func TestDownloadSaveCreatesParent(t *testing.T) {
+	// The compose file lands in src/, which Ensure created — but Save must not
+	// assume it, so it creates the parent itself.
+	dst := filepath.Join(t.TempDir(), "a", "b", "c.yml")
+	d := &Download{Fetch: stubFetch("x: 1\n"), Tag: "v1.0.0"}
+	if err := d.Save(context.Background(), "config.yaml", dst); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if _, err := os.Stat(dst); err != nil {
+		t.Errorf("file not written: %v", err)
+	}
+}
+
+func TestComposeConsoleBlock(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml", Console: true}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := string(out)
+	for _, want := range []string{
+		"object-storage:",
+		"RUSTFS_CONSOLE_ENABLE=true",
+		"./object-storage.env",
+		"127.0.0.1:9001:9001",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("override is missing %q:\n%s", want, got)
+		}
+	}
+	// The keys belong in the 0600 env file, never in this 0644 one.
+	for _, never := range []string{"RUSTFS_ACCESS_KEY", "RUSTFS_SECRET_KEY"} {
+		if strings.Contains(got, never) {
+			t.Errorf("override names %q; the keys must stay in object-storage.env:\n%s", never, got)
+		}
+	}
+}
+
+// The pair belongs to langfuse-web's own file, so the override only names it.
+func TestComposeLangfuseBlock(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml", Langfuse: true}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "langfuse-web:") || !strings.Contains(got, "./langfuse.env") {
+		t.Errorf("override is missing the langfuse-web env_file:\n%s", got)
+	}
+	// Anything else here would override the base file's settings for it.
+	for _, never := range []string{"LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_INIT_PROJECT"} {
+		if strings.Contains(got, never) {
+			t.Errorf("override sets %q; only the env_file belongs here:\n%s", never, got)
+		}
+	}
+}
+
+func TestComposeNoLangfuseBlockWhenOff(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml"}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(string(out), "langfuse") {
+		t.Errorf("the override mentions langfuse with no pair collected:\n%s", out)
+	}
+}
+
+func TestComposeNoConsoleBlockWhenOff(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml"}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(string(out), "object-storage") {
+		t.Errorf("override touches object-storage with the console off:\n%s", out)
+	}
+}

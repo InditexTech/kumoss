@@ -1,0 +1,204 @@
+= CLI quickstart
+:description: Install the kumoss CLI and go from an empty machine to a running Kumoss stack in one wizard, then open the web application.
+
+IMPORTANT: The `kumoss` CLI is for *local development only*. It starts the
+bundled single-machine Compose stack and is not intended for production use.
+For a deployment, see
+xref:main:guides/deploy-to-production.adoc[Deploy to production] and
+xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].
+
+The `kumoss` CLI writes the files the manual setup asks you to write by hand -
+the three `.env` files, `config.yaml`, and the Compose override - from a short
+wizard, then starts the stack. This page goes from an empty machine to the
+running web application. For what the wizard does behind the scenes, see
+xref:main:cli/how-it-works.adoc[How the CLI works].
+
+TIP: The manual path is still supported and stays the reference:
+xref:main:quickstart.adoc[Quickstart] walks the same steps by hand.
+
+== Prerequisites
+
+The CLI needs what the stack needs: a machine with Docker, Docker Compose v2 or
+newer, and the model credentials your deployment will use. See
+xref:main:prerequisites.adoc[prerequisites].
+
+`kumoss doctor` checks the machine for you before anything is installed; run it
+if a step below fails.
+
+== Step by step
+
+=== 1. Install the CLI
+
+[source,bash]
+----
+curl -fsSL https://raw.githubusercontent.com/InditexTech/kumoss/main/install.sh | bash
+----
+
+The script detects the OS and architecture, downloads the release archive, and
+*verifies its SHA-256 before unpacking*. It never uses `sudo` and never writes
+outside your home. The binary lands in `~/.local/bin`.
+
+With no `KUMOSS_VERSION` set, it installs the latest release. To pin a specific
+one - for a script, a shared machine, or a rollback - set the version in the
+environment; the `v` is optional. The variable must reach `bash`, not `curl`, so
+it goes on the right of the pipe:
+
+[source,bash]
+----
+curl -fsSL https://raw.githubusercontent.com/InditexTech/kumoss/main/install.sh | KUMOSS_VERSION=1.2.3 bash
+----
+
+Re-running the script replaces the binary, so the same line is the upgrade and
+the downgrade; it never touches an existing stack.
+
+NOTE: The CLI ships in the 1.1.0 release. Earlier tags predate it, so pinning
+anything below that leaves you without a `kumoss` binary.
+
+If `~/.local/bin` is not on your `PATH`, add it or copy the binary somewhere
+that is:
+
+[source,bash]
+----
+export PATH="$HOME/.local/bin:$PATH"
+kumoss version
+----
+
+=== 2. Check the machine
+
+[source,bash]
+----
+kumoss doctor
+----
+
+[source,bash]
+----
+Kumoss 1.2.0 (stack main)
+
+ok   docker           /usr/bin/docker (Docker version 27.1.1, build abc)
+ok   docker compose   2.29.1
+ok   docker daemon    server 27.1.1
+ok   home             /home/me/.kumoss does not exist yet; init will create it
+
+No /home/me/.kumoss/kumoss.yaml yet. Run kumoss init.
+----
+
+The version, paths and Docker versions above are illustrative; yours will
+differ. Every line must read `ok`. A `FAIL` names what to fix; `doctor` only
+reads, so running it costs nothing.
+
+=== 3. Run the wizard
+
+[source,bash]
+----
+kumoss init
+----
+
+The wizard asks, in order:
+
+. *LLM* - one provider, or two to use a different vendor for the complex and
+  the cheap model, with each provider's credentials and its model strings.
+  The form starts from what `config.yaml` already holds.
+. *Git* - the host, the author identity, and the token used for pull requests.
+. *Storage* - the bundled RustFS, with its web console on or off. The other
+  storage models (an external S3-compatible store and an Azure Storage Account)
+  are not offered by the wizard yet.
+. *Cloud* - the clouds the IaC engine will target, with credentials. At least
+  one cloud is required.
+. *Engine* - OpenTofu (the default) or Terraform.
+. *Notifications* - whether to enable the Slack sidecar, and its webhook.
+. *Mapping* - whether to resolve bare repository names, and the prefix they are
+  appended to (for example `https://github.com/my-org/`). The prefix is
+  optional: left blank, only full `https://` repository URLs resolve.
+. *Langfuse* - the project key pair, optional. Left blank, the core uses the
+  development pair the bundled stack provisions. Langfuse creates a project's
+  keys on its first start only, so changing them later means copying a pair
+  from its UI.
+
+Then it offers to pull the images and start the stack.
+
+[NOTE]
+====
+Re-running `kumoss init` on an existing install offers *reconfigure* or *keep*.
+Keep writes nothing at all, so it is safe to answer when you only wanted to see
+the options.
+====
+
+=== 4. Watch it come up
+
+[source,bash]
+----
+kumoss status
+----
+
+[source,bash]
+----
+Kumoss 1.2.0 (stack main)
+
+SERVICE        STATE              UPTIME        RESTARTS
+core           running/healthy    Up 2 minutes  0
+core-db        running/healthy    Up 2 minutes  0
+iac            running/healthy    Up 2 minutes  0
+...
+
+core  http://localhost:80/api/v1/auth/config  ok
+iac   http://localhost:80/iac/healthz         ok
+----
+
+The table is `docker compose ps`; the lines under it are live probes. The core
+row proves the API answers, not merely that the container runs. As above, the
+version and the timings are illustrative.
+
+=== 5. Open the application
+
+Browse to http://localhost:80. With the default `config.yaml`, authentication is
+off and every request runs as a local development administrator; to turn it on,
+see xref:main:guides/enable-authentication.adoc[Enable authentication].
+
+The same stack also serves, on the host:
+
+* http://localhost:9000 - the RustFS S3 API, through the proxy; presigned
+  download links point here. An API, not a page to open: `kumoss init` does
+  not print it.
+* http://localhost/langfuse - the Langfuse UI for LLM traces and prompts. The
+  proxy redirects it to port 3000, which Langfuse needs because the stock image
+  cannot serve under a path; the address above is the one to remember.
+* http://localhost:9001/rustfs/console/ - the RustFS console, only if you
+  enabled it when picking the bundled store. Bound to loopback, and you sign
+  in with the keys the wizard asked for.
+
+`kumoss init` prints the addresses worth opening once the stack is up.
+
+== What just happened
+
+`kumoss init` created a managed home, `~/.kumoss` by default:
+
+[source,text]
+----
+~/.kumoss/
+├── kumoss.yaml            # your answers, secrets excluded (0600)
+├── src/
+│   ├── docker-compose.yml # downloaded at the CLI's release tag
+│   ├── core/.env          # generated (0600)
+│   ├── langfuse.env       # generated, only when you gave a key pair (0600)
+│   └── services/
+│       ├── iac/.env       # generated (0600)
+│       ├── mapping/.env   # generated (0600)
+│       └── notifications/.env
+├── config/
+│   ├── config.yaml        # generated, mounted into the core
+│   └── config.yaml.example
+└── compose.override.yml   # generated
+----
+
+Nothing here is hidden or compiled in: every file is plain text you can read,
+diff and review. See xref:main:cli/how-it-works.adoc[How the CLI works] for what
+each one holds and why.
+
+== Next steps
+
+* Change one thing without redoing the wizard:
+  `kumoss config llm`, `kumoss config cloud`, and the other sections.
+* Start the stack again later: `kumoss run`.
+* Follow the logs: `kumoss logs -f core`.
+* Remove everything: `kumoss uninstall`, which stops the stack and deletes the
+  managed home and its volumes.
