@@ -350,10 +350,20 @@ func TestRunPipelinePrintsTheURLsAfterStarting(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("RunPipeline: %v", err)
 	}
-	for _, want := range []string{"http://localhost/", "http://localhost/monitoring/"} {
+	for _, want := range []string{"http://localhost/", "http://localhost/langfuse"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %s:\n%s", want, out.String())
 		}
+	}
+	// Phoenix is gone and nginx has no /monitoring/ location, so the old line
+	// sent people to the SPA's index.html instead of to any monitoring UI.
+	if strings.Contains(out.String(), "/monitoring/") {
+		t.Errorf("output still advertises the Phoenix path:\n%s", out.String())
+	}
+	// The proxy redirects /langfuse to port 3000, so the port is nginx's
+	// business: printing it would pin an address the stack is free to move.
+	if strings.Contains(out.String(), "localhost:3000") {
+		t.Errorf("output names the Langfuse port instead of the proxy path:\n%s", out.String())
 	}
 	// The S3 API is what the core talks to, not an address to open: listing it
 	// only ever sent people to a page that means nothing to them.

@@ -154,12 +154,14 @@ Browse to http://localhost:80. With the default `config.yaml`, authentication is
 off and every request runs as a local development administrator; to turn it on,
 see xref:main:guides/enable-authentication.adoc[Enable authentication].
 
-The same stack also serves, on host ports:
+The same stack also serves, on the host:
 
 * http://localhost:9000 - the RustFS S3 API, through the proxy; presigned
   download links point here. An API, not a page to open: `kumoss init` does
   not print it.
-* http://localhost/monitoring/ - the Phoenix UI for LLM traces.
+* http://localhost/langfuse - the Langfuse UI for LLM traces and prompts. The
+  proxy redirects it to port 3000, which Langfuse needs because the stock image
+  cannot serve under a path; the address above is the one to remember.
 * http://localhost:9001/rustfs/console/ - the RustFS console, only if you
   enabled it when picking the bundled store. Bound to loopback, and you sign
   in with the keys the wizard asked for.

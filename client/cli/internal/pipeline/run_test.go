@@ -212,7 +212,7 @@ func TestRunStackPrintsTheAddresses(t *testing.T) {
 	if err := RunStack(context.Background(), opts); err != nil {
 		t.Fatalf("RunStack: %v", err)
 	}
-	for _, want := range []string{"Kumoss is up", "http://localhost/", "http://localhost/monitoring/"} {
+	for _, want := range []string{"Kumoss is up", "http://localhost/", "Langfuse", "http://localhost/langfuse"} {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("output lacks %q:\n%s", want, out.String())
 		}

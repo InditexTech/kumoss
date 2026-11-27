@@ -225,7 +225,8 @@ Install or reconfigure the stack. See [How it works](#how-it-works).
 | `--foreground`   | off          | Stream logs instead of detaching; Ctrl-C also stops the stack          |
 | `--certs`         | off          | Trust this host's CA roots in `core` and `searxng`, behind a TLS proxy |
 
-Once the stack is up it prints the app, RustFS API and Phoenix addresses. With
+Once the stack is up it prints the app and Langfuse addresses, and the RustFS
+console when you enabled it. With
 `--foreground` the logs own the terminal, so the list is not printed.
 
 ### `kumoss run`

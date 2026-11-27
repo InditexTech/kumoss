@@ -245,12 +245,19 @@ func RunPipeline(ctx context.Context, opts Options) error {
 //
 // The S3 API on 9000 is not listed: it is what the core talks to, not
 // something to open in a browser. The console is, when it is enabled.
+//
+// Langfuse replaced Phoenix as the monitoring UI. It listens on a port of its
+// own, because the stock image bakes its base path in at build time, but the
+// address printed here is the proxy's /langfuse, which redirects there: one
+// origin to remember, and the port stays an implementation detail. The old
+// /monitoring/ line pointed at a location nginx does not have, which fell
+// through to the SPA's index.html.
 func stackURLs(s *state.State) string {
 	out := "Kumoss is up:\n  app            http://localhost/\n"
 	if s.Storage.ConsoleEnabled {
 		out += "  RustFS console http://localhost:9001/rustfs/console/\n"
 	}
-	return out + "  Phoenix        http://localhost/monitoring/\n"
+	return out + "  Langfuse       http://localhost/langfuse\n"
 }
 
 // seedAskedSecrets pre-fills the secrets the wizard asks for rather than
