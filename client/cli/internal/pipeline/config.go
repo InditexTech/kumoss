@@ -143,6 +143,7 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 			{paths.Core, string(render.RenderEnvFile(envBefore[paths.Core])), string(render.RenderEnvFile(envAfter[paths.Core]))},
 			{paths.IAC, string(render.RenderEnvFile(envBefore[paths.IAC])), string(render.RenderEnvFile(envAfter[paths.IAC]))},
 			{paths.Notifications, string(render.RenderEnvFile(envBefore[paths.Notifications])), string(render.RenderEnvFile(envAfter[paths.Notifications]))},
+			{paths.Mapping, string(render.RenderEnvFile(envBefore[paths.Mapping])), string(render.RenderEnvFile(envAfter[paths.Mapping]))},
 			{opts.Home.ComposeOverride(), string(overrideBefore), string(overrideAfter)},
 		}, recreate)
 
@@ -172,6 +173,12 @@ func RunConfig(ctx context.Context, opts ConfigOptions) error {
 	// exist before the containers come back up.
 	if s.Storage.ConsoleEnabled {
 		if err := render.WriteObjectStorageEnv(opts.Home.ObjectStorageEnv(), s); err != nil {
+			return err
+		}
+	}
+	// Same reason: the override's langfuse-web block names this file.
+	if s.Secrets.LangfusePublicKey != "" {
+		if err := render.WriteLangfuseEnv(opts.Home.LangfuseEnv(), s); err != nil {
 			return err
 		}
 	}
@@ -219,7 +226,7 @@ func localSamples(p render.EnvPaths) *render.Samples {
 		}
 		return s
 	}
-	return &render.Samples{Core: local(p.Core), IAC: local(p.IAC), Notifications: local(p.Notifications)}
+	return &render.Samples{Core: local(p.Core), IAC: local(p.IAC), Notifications: local(p.Notifications), Mapping: local(p.Mapping)}
 }
 
 // fillEnvOnly restores what kumoss.yaml cannot hold: the values its yaml:"-"
@@ -236,6 +243,7 @@ func fillEnvOnly(s *state.State, p render.EnvPaths) {
 	s.Storage.BackendCredentials = fillFrom(s.Storage.BackendCredentials, iac)
 	s.Engine.Binary = first(s.Engine.Binary, iac["IAC_BINARY"])
 	s.Notifications.SlackWebhookURL = first(s.Notifications.SlackWebhookURL, render.ReadEnv(p.Notifications)["SLACK_WEBHOOK_URL"])
+	s.Mapping.Prefix = first(s.Mapping.Prefix, render.ReadEnv(p.Mapping)["MAPPING_PREFIX_IDENTIFIER"])
 }
 
 // fillFrom copies the env vars m does not already hold, so a key the user
@@ -272,7 +280,8 @@ var allServices = []string{"core", "iac", "notifications"}
 // container whose definition it considers identical.
 func sameDefinition(h home.Home, a, b *state.State) bool {
 	return fmt.Sprint(iacMounts(h, a)) == fmt.Sprint(iacMounts(h, b)) &&
-		a.Engine.Binary == b.Engine.Binary
+		a.Engine.Binary == b.Engine.Binary &&
+		(a.Secrets.LangfusePublicKey != "") == (b.Secrets.LangfusePublicKey != "")
 }
 
 // fileDiff is one generated file, before and after the edit.

@@ -140,3 +140,24 @@ func TestConsoleKeyValidatorsMatchRustFSMinimums(t *testing.T) {
 		t.Errorf("an 8-character secret key was rejected: %v", err)
 	}
 }
+
+// The mapping service refuses to start on a bad prefix, so the form must.
+// Empty is valid: only full https:// URLs resolve then.
+func TestOptionalMappingPrefix(t *testing.T) {
+	for _, ok := range []string{"", "https://github.com/my-org/", "https://github.com/my-org"} {
+		if err := optionalMappingPrefix(ok); err != nil {
+			t.Errorf("prefix %q was rejected: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{
+		"github.com/my-org/",
+		"http://github.com/my-org/",
+		"https://user:token@github.com/my-org/",
+		"https://github.com/my-org/?ref=main",
+		"https://github.com/my-org/#readme",
+	} {
+		if err := optionalMappingPrefix(bad); err == nil {
+			t.Errorf("prefix %q was accepted", bad)
+		}
+	}
+}

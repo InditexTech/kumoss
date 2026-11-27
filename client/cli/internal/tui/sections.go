@@ -29,6 +29,12 @@ func (w *Wizard) Storage(s *state.State) error { return w.runSequence(s, w.state
 // Notifications asks for the Slack webhook and whether to use it.
 func (w *Wizard) Notifications(s *state.State) error { return w.runSequence(s, w.notifySteps()) }
 
+// Mapping turns the repository-mapping sidecar on and takes its prefix.
+func (w *Wizard) Mapping(s *state.State) error { return w.runSequence(s, w.mappingSteps()) }
+
+// Langfuse takes the project key pair the core and langfuse-web must share.
+func (w *Wizard) Langfuse(s *state.State) error { return w.runSequence(s, w.langfuseSteps()) }
+
 func (w *Wizard) gitSteps() []step {
 	return []step{func(s *state.State) error { return w.formStep(w.gitStep, s) }}
 }
@@ -43,6 +49,14 @@ func (w *Wizard) engineSteps() []step {
 
 func (w *Wizard) notifySteps() []step {
 	return []step{func(s *state.State) error { return w.formStep(w.notificationsStep, s) }}
+}
+
+func (w *Wizard) mappingSteps() []step {
+	return []step{func(s *state.State) error { return w.formStep(w.mappingStep, s) }}
+}
+
+func (w *Wizard) langfuseSteps() []step {
+	return []step{func(s *state.State) error { return w.formStep(w.langfuseStep, s) }}
 }
 
 // stateSteps splits the model from its settings: the fields below depend on

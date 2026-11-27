@@ -46,9 +46,10 @@ type Samples struct {
 	Core          *Sample // core/env.sample
 	IAC           *Sample // services/iac/env.sample
 	Notifications *Sample // services/notifications/env.sample
+	Mapping       *Sample // services/mapping/env.sample
 }
 
-// FetchSamples downloads and parses the three env samples. A failure is
+// FetchSamples downloads and parses the env samples. A failure is
 // returned, not fatal: the caller falls back to the built-in key list.
 func FetchSamples(ctx context.Context, d *Download) (*Samples, error) {
 	core, err := fetchSample(ctx, d, "core/env.sample")
@@ -63,7 +64,11 @@ func FetchSamples(ctx context.Context, d *Download) (*Samples, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Samples{Core: core, IAC: iac, Notifications: notifications}, nil
+	mapping, err := fetchSample(ctx, d, "services/mapping/env.sample")
+	if err != nil {
+		return nil, err
+	}
+	return &Samples{Core: core, IAC: iac, Notifications: notifications, Mapping: mapping}, nil
 }
 
 // fetchSample downloads one env.sample and parses it.

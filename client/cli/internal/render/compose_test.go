@@ -166,6 +166,36 @@ func TestComposeConsoleBlock(t *testing.T) {
 	}
 }
 
+// The pair belongs to langfuse-web's own file, so the override only names it.
+func TestComposeLangfuseBlock(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml", Langfuse: true}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	got := string(out)
+	if !strings.Contains(got, "langfuse-web:") || !strings.Contains(got, "./langfuse.env") {
+		t.Errorf("override is missing the langfuse-web env_file:\n%s", got)
+	}
+	// Anything else here would override the base file's settings for it.
+	for _, never := range []string{"LANGFUSE_SALT", "LANGFUSE_ENCRYPTION_KEY", "LANGFUSE_INIT_PROJECT"} {
+		if strings.Contains(got, never) {
+			t.Errorf("override sets %q; only the env_file belongs here:\n%s", never, got)
+		}
+	}
+}
+
+func TestComposeNoLangfuseBlockWhenOff(t *testing.T) {
+	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml"}
+	out, err := c.Render()
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if strings.Contains(string(out), "langfuse") {
+		t.Errorf("the override mentions langfuse with no pair collected:\n%s", out)
+	}
+}
+
 func TestComposeNoConsoleBlockWhenOff(t *testing.T) {
 	c := &Compose{Path: filepath.Join(t.TempDir(), "o.yml"), ConfigPath: "../config/config.yaml"}
 	out, err := c.Render()

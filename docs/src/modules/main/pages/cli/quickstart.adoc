@@ -106,6 +106,13 @@ The wizard asks, in order:
   one cloud is required.
 . *Engine* - OpenTofu (the default) or Terraform.
 . *Notifications* - whether to enable the Slack sidecar, and its webhook.
+. *Mapping* - whether to resolve bare repository names, and the prefix they are
+  appended to (for example `https://github.com/my-org/`). The prefix is
+  optional: left blank, only full `https://` repository URLs resolve.
+. *Langfuse* - the project key pair, optional. Left blank, the core uses the
+  development pair the bundled stack provisions. Langfuse creates a project's
+  keys on its first start only, so changing them later means copying a pair
+  from its UI.
 
 Then it offers to pull the images and start the stack.
 
@@ -170,8 +177,10 @@ The same stack also serves, on host ports:
 ├── src/
 │   ├── docker-compose.yml # downloaded at the CLI's release tag
 │   ├── core/.env          # generated (0600)
+│   ├── langfuse.env       # generated, only when you gave a key pair (0600)
 │   └── services/
 │       ├── iac/.env       # generated (0600)
+│       ├── mapping/.env   # generated (0600)
 │       └── notifications/.env
 ├── config/
 │   ├── config.yaml        # generated, mounted into the core

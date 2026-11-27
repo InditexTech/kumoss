@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"regexp"
 	"strconv"
 	"strings"
@@ -19,6 +20,29 @@ import (
 func required(v string) error {
 	if strings.TrimSpace(v) == "" {
 		return errors.New("required")
+	}
+	return nil
+}
+
+// optionalMappingPrefix validates MAPPING_PREFIX_IDENTIFIER the way the
+// mapping service does at startup, so a bad prefix fails here instead of in a
+// crash-looping container. Empty is valid: only full URLs resolve then.
+func optionalMappingPrefix(v string) error {
+	raw := strings.TrimSpace(v)
+	if raw == "" {
+		return nil
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return errors.New("not a URL")
+	}
+	switch {
+	case u.Scheme != "https" || u.Host == "":
+		return errors.New("must be https:// with a host, e.g. https://github.com/my-org/")
+	case u.User != nil:
+		return errors.New("must not embed a password or token")
+	case strings.ContainsAny(raw, "?#"):
+		return errors.New("must not carry a query or fragment")
 	}
 	return nil
 }

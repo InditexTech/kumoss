@@ -97,7 +97,7 @@ kumoss init
 
 ### 🧭 What the CLI does for you
 
-- **Asks only what the local stack needs.** One LLM provider, or two to split the complex and the cheap model, with each one's credentials; Git host; cloud credentials; IaC engine; state backend; optional Slack notifications.
+- **Asks only what the local stack needs.** One LLM provider, or two to split the complex and the cheap model, with each one's credentials; Git host; cloud credentials; IaC engine; state backend; optional Slack notifications, repository mapping and Langfuse keys.
 - **Generates the shared secrets.** The core ↔ sidecar bearer tokens are random, written identically to both sides — nothing to paste twice or keep in step by hand.
 - **Keeps the repository authoritative.** `config.yaml` is overlaid, not replaced: every key the wizard does not own keeps the value and behaviour the project ships.
 - **Configuration without rebuilds.** The generated `config.yaml` is bind-mounted over the path the core already reads, so a change needs `docker compose up -d --force-recreate core`, never an image build.
@@ -133,7 +133,7 @@ Azure Container Apps, secret stores, TLS termination) is out of scope: see
 
 1. **You install.** One `curl … | bash` puts a checksum-verified binary in `~/.local/bin`.
 2. **The CLI checks the machine.** It detects the OS and architecture, then resolves the release to install.
-3. **You run `kumoss init`.** The wizard asks for the LLM providers, Git, cloud credentials, the IaC engine, the state backend and notifications.
+3. **You run `kumoss init`.** The wizard asks for the LLM providers, Git, cloud credentials, the IaC engine, the state backend, notifications, repository mapping and Langfuse keys.
 4. **It fetches the stack.** `docker-compose.yml`, `config.yaml` and the `env.sample` files come from the release tag the binary was built at.
 5. **It writes every file.** `kumoss.yaml`, `config/config.yaml`, three `.env` files and `compose.override.yml`, atomically, with `.env` files at `0600`.
 6. **It starts the stack.** Pulls the missing images and runs `docker compose up -d`, or attached with `--foreground`.
@@ -317,6 +317,8 @@ and recreates **only** the containers that read them.
 | `llm`, `git`    | `core`                 |
 | `cloud`, `engine` | `iac`                |
 | `storage`       | `core`, `iac`, `object-storage` |
+| `mapping`       | `core`, `mapping`      |
+| `langfuse`      | `core`, `langfuse-web` |
 | `notifications` | `core`, `notifications` |
 | `secrets`       | the token pairs        |
 

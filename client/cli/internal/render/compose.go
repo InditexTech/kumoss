@@ -36,12 +36,19 @@ type Compose struct {
 	// Console turns on the bundled RustFS web console: the base file disables
 	// it and publishes nothing, so this flips the variable and binds its port.
 	Console bool
+	// Langfuse hands langfuse-web the project key pair a form collected. The
+	// base file interpolates the same two variables from its own environment,
+	// so an env_file here is enough; the other Langfuse settings stay put.
+	Langfuse bool
 }
 
 // ObjectStorageEnvName is the credential file the console block hands to
 // object-storage. Relative to the BASE compose file, like every other path in
 // this override, so it names src/object-storage.env from src/.
 const ObjectStorageEnvName = "./object-storage.env"
+
+// LangfuseEnvName is the same for langfuse-web's key pair.
+const LangfuseEnvName = "./langfuse.env"
 
 // consoleAddress binds the console to loopback. RustFS serves it on 9001 and
 // nothing publishes or proxies that today; loopback is what the operations
@@ -108,6 +115,11 @@ func (c *Compose) Render() ([]byte, error) {
 	if c.Console {
 		services := doc["services"].(map[string]any)
 		services["object-storage"] = objectStorageConsole()
+		doc["services"] = services
+	}
+	if c.Langfuse {
+		services := doc["services"].(map[string]any)
+		services["langfuse-web"] = map[string]any{"env_file": []string{LangfuseEnvName}}
 		doc["services"] = services
 	}
 	if c.HostCerts {

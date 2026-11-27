@@ -13,6 +13,7 @@ type State struct {
 	Cloud         Cloud         `yaml:"cloud,omitempty" json:"cloud,omitempty"`
 	Engine        Engine        `yaml:"-"              json:"-"`
 	Storage       Storage       `yaml:"storage"        json:"storage"`
+	Mapping       Mapping       `yaml:"mapping"        json:"mapping"`
 	Notifications Notifications `yaml:"notifications"  json:"notifications"`
 	Secrets       Secrets       `yaml:"-"              json:"-"`
 }
@@ -126,6 +127,15 @@ type Storage struct {
 	ConsoleEnabled bool `yaml:"console_enabled,omitempty" json:"console_enabled,omitempty"`
 }
 
+// Mapping is the bundled repository-mapping sidecar.
+type Mapping struct {
+	Enabled bool `yaml:"enabled" json:"enabled"` // → config.yaml services.mapping.enabled
+
+	// → services/mapping/.env MAPPING_PREFIX_IDENTIFIER. Optional: empty
+	// resolves full https:// URLs only, and bare names then answer 404.
+	Prefix string `yaml:"prefix,omitempty" json:"prefix,omitempty"`
+}
+
 type Notifications struct {
 	Enabled bool `yaml:"enabled" json:"enabled"` // → config.yaml services.notifications.enabled
 
@@ -202,4 +212,9 @@ type Secrets struct {
 	CoreDBPassword  string // embedded in KUMOSS_SQL_DATABASE_URL
 	RustFSAccessKey string // RUSTFS_ACCESS_KEY
 	RustFSSecretKey string // RUSTFS_SECRET_KEY
+
+	// → core/.env and langfuse.env, which langfuse-web reads. Blank keeps the
+	// Compose development pair, the only one a default install ever has.
+	LangfusePublicKey string // LANGFUSE_PUBLIC_KEY
+	LangfuseSecretKey string // LANGFUSE_SECRET_KEY
 }

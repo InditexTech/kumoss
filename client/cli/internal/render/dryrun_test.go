@@ -69,8 +69,8 @@ func TestEnvFilesDoesNotTouchTheDisk(t *testing.T) {
 	e := &Env{Samples: &Samples{Core: ParseSample("KUMOSS_IAC_TOKEN=\n"), IAC: ParseSample(""), Notifications: ParseSample("")}}
 
 	files := e.Files(p, s)
-	if len(files) != 3 {
-		t.Fatalf("files = %d, want 3", len(files))
+	if len(files) != 4 {
+		t.Fatalf("files = %d, want 4", len(files))
 	}
 	if s.Secrets.IACToken == "" {
 		t.Error("Files did not generate the token it shows")

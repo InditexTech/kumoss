@@ -59,6 +59,8 @@ func (w *Wizard) allSteps() []step {
 		w.cloudSteps(),
 		w.engineSteps(),
 		w.notifySteps(),
+		w.mappingSteps(),
+		w.langfuseSteps(),
 	} {
 		all = append(all, section...)
 	}
@@ -827,6 +829,59 @@ func (w *Wizard) notificationsStep(s *state.State) (*stepForm, func()) {
 // notificationsWebhookHidden is the rule the form uses, kept callable so a test
 // checks it without a terminal.
 func notificationsWebhookHidden(s *state.State) bool { return !s.Notifications.Enabled }
+
+// mappingStep turns the repository-mapping sidecar on and, when it is on, takes
+// the prefix bare repository names are appended to. The prefix is optional: an
+// empty one still resolves full https:// URLs.
+func (w *Wizard) mappingStep(s *state.State) (*stepForm, func()) {
+	form := newStepForm(
+		newStepGroup(
+			huh.NewConfirm().
+				Title("Let users type a repository name instead of its URL?").
+				Description("services.mapping.enabled. Useful with a single repository: `foo` becomes a full repository URL. With IaC spread over several repositories, leave it off: a full URL to another repository is rejected and users can only paste the whole https:// URL.").
+				Affirmative("Yes").
+				Negative("No").
+				Value(&s.Mapping.Enabled),
+		).Title("Repository mapping"),
+		newStepGroup(
+			huh.NewInput().
+				Title(titled("Repository prefix", false)).
+				Description("MAPPING_PREFIX_IDENTIFIER, e.g. https://github.com/my-org/ — `foo` then resolves to https://github.com/my-org/foo.git. Blank keeps full https:// URLs only.").
+				Placeholder("https://github.com/my-org/").
+				Value(&s.Mapping.Prefix).
+				Validate(func(v string) error {
+					if s.Mapping.Enabled {
+						return optionalMappingPrefix(v)
+					}
+					return nil
+				}),
+		).WithHideFunc(func() bool { return mappingPrefixHidden(s) }),
+	)
+	return form, func() {}
+}
+
+// mappingPrefixHidden is the rule the form uses, kept callable so a test
+// checks it without a terminal.
+func mappingPrefixHidden(s *state.State) bool { return !s.Mapping.Enabled }
+
+// langfuseStep takes the Langfuse project key pair. Optional: blank keeps the
+// development pair docker-compose.yml provisions.
+func (w *Wizard) langfuseStep(s *state.State) (*stepForm, func()) {
+	form := newStepForm(
+		newStepGroup(
+			huh.NewInput().
+				Title(titled("Langfuse public key", true)).
+				Description("LANGFUSE_PUBLIC_KEY, pk-lf-…. Blank keeps the development pair. Langfuse creates the project keys on its first start only: after that, copy a pair from its UI.").
+				Value(&s.Secrets.LangfusePublicKey),
+			huh.NewInput().
+				Title(titled("Langfuse secret key", true)).
+				Description("LANGFUSE_SECRET_KEY, sk-lf-…. Written to core/.env and to langfuse-web's own file, or the core's traces are refused.").
+				EchoMode(huh.EchoModePassword).
+				Value(&s.Secrets.LangfuseSecretKey),
+		).Title("Langfuse"),
+	)
+	return form, func() {}
+}
 
 func cloudOptions() []huh.Option[string] {
 	opts := make([]huh.Option[string], len(clouds))

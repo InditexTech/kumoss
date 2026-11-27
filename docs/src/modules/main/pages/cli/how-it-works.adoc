@@ -66,6 +66,15 @@ cloud credentials the engine's providers read.
 |The notifications sidecar's environment: its bearer token, the Slack webhook
 and the log level.
 
+|`src/services/mapping/.env`
+|The mapping sidecar's environment: its bearer token, the repository prefix
+(`MAPPING_PREFIX_IDENTIFIER`, optional) and the log level.
+
+|`src/langfuse.env`
+|The Langfuse project key pair, `0600`. Written only when you give a pair; the
+same values are mirrored into `core/.env`. Langfuse provisions a project's keys
+on its first start only, so after that copy a pair from its UI.
+
 |`src/object-storage.env`
 |The bundled RustFS container's own access and secret keys, `0600`. Written
 only when you enable the storage console; the same pair is mirrored into
@@ -183,6 +192,8 @@ since moved offline. The sections and the containers each one recreates:
 |`cloud` |`iac`
 |`engine` |`iac`
 |`storage` |`core`, `iac`, `object-storage`
+|`mapping` |`core`, `mapping`
+|`langfuse` |`core`, `langfuse-web`
 |`notifications` |`core`, `notifications`
 |`secrets` |`core`, `iac`, `notifications`
 |===
@@ -314,6 +325,9 @@ and any backend credentials.
 
 |`services/notifications/.env`
 |`KUMOSS_NOTIFICATIONS_TOKEN`, `SLACK_WEBHOOK_URL` and `LOG_LEVEL`.
+
+|`services/mapping/.env`
+|`KUMOSS_MAPPING_TOKEN`, `MAPPING_PREFIX_IDENTIFIER` and `LOG_LEVEL`.
 |===
 
 The bearer tokens are the one deliberate overlap: each appears in `core/.env`
@@ -427,7 +441,7 @@ Being explicit about the boundary is part of the design:
   xref:main:guides/deploy-to-production.adoc[Deploy to production], not of this
   tool.
 * It does not edit the parts of `config.yaml` it does not own. Authentication,
-  roles, `llm.model_list` routing and the mapping and authorization sidecars
+  roles, `llm.model_list` routing and the authorization sidecar
   stay hand-edited.
 * It does not manage Kubernetes. For that, see
   xref:main:guides/deploy-with-helm.adoc[Deploy with Helm].

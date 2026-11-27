@@ -169,5 +169,18 @@ func servicesBlock(doc map[string]any, s *state.State) map[string]any {
 	}
 	notifications["enabled"] = s.Notifications.Enabled
 	block["notifications"] = notifications
+	mapping := map[string]any{}
+	if existing, ok := block["mapping"].(map[string]any); ok {
+		for k, v := range existing {
+			mapping[k] = v
+		}
+	}
+	// Only a turned-on answer is written: mapping defaults to on in the shipped
+	// config.yaml, so a state loaded before this section existed records false
+	// and would silently switch a hand-enabled service off.
+	if s.Mapping.Enabled {
+		mapping["enabled"] = true
+	}
+	block["mapping"] = mapping
 	return block
 }

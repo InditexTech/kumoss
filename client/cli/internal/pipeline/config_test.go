@@ -51,6 +51,8 @@ func (stubSection) Git(*state.State) error           { return nil }
 func (stubSection) Cloud(*state.State) error         { return nil }
 func (stubSection) Engine(*state.State) error        { return nil }
 func (stubSection) Storage(*state.State) error       { return nil }
+func (stubSection) Mapping(*state.State) error       { return nil }
+func (stubSection) Langfuse(*state.State) error      { return nil }
 func (stubSection) Notifications(*state.State) error { return nil }
 func (stubSection) RotateSecrets([]Secret) ([]string, error) {
 	return nil, nil
@@ -308,7 +310,10 @@ func TestSectionsMapToTheContainersThatReadThem(t *testing.T) {
 		"cloud":  "iac",
 		"engine": "iac",
 		// object-storage: the console answer changes its own definition.
-		"storage":       "core iac object-storage",
+		"storage": "core iac object-storage",
+		// langfuse-web: the key pair is part of its definition.
+		"mapping":       "core mapping",
+		"langfuse":      "core langfuse-web",
 		"notifications": "core notifications",
 		"secrets":       "core iac notifications",
 	}

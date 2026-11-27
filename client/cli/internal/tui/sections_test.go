@@ -128,11 +128,12 @@ func TestSingleFormSectionsHaveOneStep(t *testing.T) {
 
 func TestAllStepsConcatenatesSectionsInOrder(t *testing.T) {
 	w, _ := stubWizard()
-	// LLM 7, Git 1, State 4, Cloud 1, Engine 1, Notifications 1: the order
-	// Configure has always asked them in, now as one flat list so that going
-	// back at the top of a section reaches the last form of the one before.
-	if got := len(w.allSteps()); got != 15 {
-		t.Errorf("allSteps = %d steps, want 15", got)
+	// LLM 7, Git 1, State 4, Cloud 1, Engine 1, Notifications 1, Mapping 1,
+	// Langfuse 1: the order Configure has always asked them in, now as one flat
+	// list so that going back at the top of a section reaches the last form of
+	// the one before.
+	if got := len(w.allSteps()); got != 17 {
+		t.Errorf("allSteps = %d steps, want 17", got)
 	}
 }
 

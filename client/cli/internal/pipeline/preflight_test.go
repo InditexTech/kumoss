@@ -31,6 +31,8 @@ storage:
 services:
   notifications:
     enabled: false
+  mapping:
+    enabled: false
   iac:
     endpoint: http://iac:8082
 `
@@ -46,8 +48,9 @@ func configured(t *testing.T) (home.Home, *state.State) {
 	write(t, h.ComposeFile(), "services: {}\n")
 	write(t, h.ComposeOverride(), "services: {}\n")
 	write(t, h.ConfigYAML(), configuredConfigYAML)
-	write(t, h.CoreEnv(), "ANTHROPIC_API_KEY=sk-test\nKUMOSS_IAC_TOKEN=shared-iac\n")
+	write(t, h.CoreEnv(), "ANTHROPIC_API_KEY=sk-test\nKUMOSS_IAC_TOKEN=shared-iac\nKUMOSS_MAPPING_TOKEN=shared-mapping\n")
 	write(t, h.ServiceEnv("iac"), "KUMOSS_IAC_TOKEN=shared-iac\n")
+	write(t, h.ServiceEnv("mapping"), "KUMOSS_MAPPING_TOKEN=shared-mapping\n")
 
 	s := &state.State{
 		SchemaVersion: 1,
@@ -335,6 +338,57 @@ func TestPreflightReportsAMissingGeneratedFile(t *testing.T) {
 
 // The notifications env file only exists when the service is on, so demanding
 // it from a stack that disabled notifications would block a valid install.
+// A blank prefix is a supported setup, not a broken one, but it changes what
+// the user may type, so it is reported with the example.
+func TestPreflightWarnsAboutABlankMappingPrefix(t *testing.T) {
+	h, s := configured(t)
+	s.Mapping.Enabled = true
+	write(t, h.ConfigYAML(), strings.Replace(configuredConfigYAML, "mapping:\n    enabled: false", "mapping:\n    enabled: true", 1))
+
+	got := Preflight(h, s)
+	if !strings.Contains(messages(got), "MAPPING_PREFIX_IDENTIFIER is blank") {
+		t.Fatalf("a blank prefix was not reported:\n%s", messages(got))
+	}
+	if !strings.Contains(messages(got), "https://github.com/my-org/") {
+		t.Errorf("the report does not show how to write the prefix:\n%s", messages(got))
+	}
+
+	write(t, h.ServiceEnv("mapping"), "KUMOSS_MAPPING_TOKEN=shared-mapping\nMAPPING_PREFIX_IDENTIFIER=https://github.com/my-org/\n")
+	if got := Preflight(h, s); len(got) != 0 {
+		t.Errorf("a configured prefix still reported problems:\n%s", messages(got))
+	}
+}
+
+// A blank mapping token stops the core booting, like every other bearer token.
+func TestPreflightReportsAMappingTokenMismatch(t *testing.T) {
+	h, s := configured(t)
+	s.Mapping.Enabled = true
+	write(t, h.ConfigYAML(), strings.Replace(configuredConfigYAML, "mapping:\n    enabled: false", "mapping:\n    enabled: true", 1))
+	write(t, h.ServiceEnv("mapping"), "KUMOSS_MAPPING_TOKEN=other-token\nMAPPING_PREFIX_IDENTIFIER=https://github.com/my-org/\n")
+
+	if got := messages(Preflight(h, s)); !strings.Contains(got, "KUMOSS_MAPPING_TOKEN differs") {
+		t.Errorf("a differing mapping token was not reported:\n%s", got)
+	}
+}
+
+// Langfuse only provisions its keys on the first start, so a pair that
+// disagrees with core/.env would surface as a 401 at boot.
+func TestPreflightReportsALangfusePairMismatch(t *testing.T) {
+	h, s := configured(t)
+	write(t, h.CoreEnv(), "ANTHROPIC_API_KEY=sk-test\nKUMOSS_IAC_TOKEN=shared-iac\nKUMOSS_MAPPING_TOKEN=shared-mapping\nLANGFUSE_PUBLIC_KEY=pk-lf-a\nLANGFUSE_SECRET_KEY=sk-lf-a\n")
+	write(t, h.LangfuseEnv(), "LANGFUSE_INIT_PROJECT_PUBLIC_KEY=pk-lf-b\nLANGFUSE_INIT_PROJECT_SECRET_KEY=sk-lf-b\n")
+
+	got := messages(Preflight(h, s))
+	if !strings.Contains(got, "LANGFUSE_INIT_PROJECT_PUBLIC_KEY differs") {
+		t.Errorf("a mismatched key pair was not reported:\n%s", got)
+	}
+
+	write(t, h.LangfuseEnv(), "LANGFUSE_INIT_PROJECT_PUBLIC_KEY=pk-lf-a\nLANGFUSE_INIT_PROJECT_SECRET_KEY=sk-lf-a\n")
+	if got := Preflight(h, s); len(got) != 0 {
+		t.Errorf("a matching key pair reported problems:\n%s", messages(got))
+	}
+}
+
 func TestPreflightIgnoresTheNotificationsEnvWhenDisabled(t *testing.T) {
 	h, s := configured(t)
 

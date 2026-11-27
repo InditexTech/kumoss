@@ -75,6 +75,36 @@ func envProblems(h home.Home, s *state.State) []Problem {
 			})
 		}
 	}
+
+	if s.Mapping.Enabled {
+		mapping := render.ReadEnv(h.ServiceEnv("mapping"))
+		problems = append(problems, tokenProblem(core, mapping,
+			"KUMOSS_MAPPING_TOKEN", "services/mapping/.env")...)
+		// Not a failure: an empty prefix still resolves full URLs.
+		if mapping["MAPPING_PREFIX_IDENTIFIER"] == "" {
+			problems = append(problems, Problem{
+				Message: "MAPPING_PREFIX_IDENTIFIER is blank in services/mapping/.env, so repository names such as `foo` do not resolve; type the full https:// URL instead, or set a prefix such as https://github.com/my-org/",
+				Fix:     "kumoss config mapping",
+			})
+		}
+	}
+
+	// Langfuse provisions its project keys on the first start only, so the two
+	// files must agree before the core boots, not after a 401.
+	if pair := render.ReadEnv(h.LangfuseEnv()); len(pair) > 0 {
+		// The core reads the pair without the INIT_PROJECT_ prefix compose adds.
+		for _, k := range [][2]string{
+			{"LANGFUSE_INIT_PROJECT_PUBLIC_KEY", "LANGFUSE_PUBLIC_KEY"},
+			{"LANGFUSE_INIT_PROJECT_SECRET_KEY", "LANGFUSE_SECRET_KEY"},
+		} {
+			if pair[k[0]] != core[k[1]] {
+				problems = append(problems, Problem{
+					Message: k[0] + " differs from " + k[1] + " in core/.env, so the core's traces are refused; copy a pair from the Langfuse UI",
+					Fix:     "kumoss config langfuse",
+				})
+			}
+		}
+	}
 	return problems
 }
 
@@ -168,6 +198,7 @@ func azureAccountFrom(endpoint string) string {
 func ownedConfigKeys(s *state.State) []ownedConfigKey {
 	keys := []ownedConfigKey{
 		{[]string{"services", "notifications", "enabled"}, s.Notifications.Enabled, "notifications"},
+		{[]string{"services", "mapping", "enabled"}, s.Mapping.Enabled, "mapping"},
 	}
 	add := func(section string, value string, path ...string) {
 		if value != "" {

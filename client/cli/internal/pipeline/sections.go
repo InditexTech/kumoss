@@ -28,6 +28,8 @@ type SectionUI interface {
 	Cloud(s *state.State) error
 	Engine(s *state.State) error
 	Storage(s *state.State) error
+	Mapping(s *state.State) error
+	Langfuse(s *state.State) error
 	Notifications(s *state.State) error
 	// RotateSecrets returns the keys to regenerate; empty keeps them all.
 	RotateSecrets(found []Secret) ([]string, error)
@@ -45,6 +47,10 @@ var Sections = []Section{
 	// object-storage too: the console answer changes that service's own
 	// definition, not just what core and iac read.
 	{Name: "storage", Services: []string{"core", "iac", "object-storage"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Storage(s) }},
+	{Name: "mapping", Services: []string{"core", "mapping"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Mapping(s) }},
+	// langfuse-web too: the key pair is part of its definition, and a
+	// container whose definition changed only picks it up when recreated.
+	{Name: "langfuse", Services: []string{"core", "langfuse-web"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Langfuse(s) }},
 	{Name: "notifications", Services: []string{"core", "notifications"}, Ask: func(ui SectionUI, s *state.State) error { return ui.Notifications(s) }},
 	{Name: "secrets", Services: []string{"core", "iac", "notifications"}, Ask: rotateSecrets},
 }

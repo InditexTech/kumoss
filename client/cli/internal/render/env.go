@@ -23,6 +23,7 @@ type EnvPaths struct {
 	Core          string // src/core/.env
 	IAC           string // src/services/iac/.env
 	Notifications string // src/services/notifications/.env
+	Mapping       string // src/services/mapping/.env
 }
 
 // Env renders the three .env files from the answers. The key set comes from the
@@ -90,6 +91,8 @@ func LoadSecrets(p EnvPaths) (state.Secrets, bool) {
 		s.AuthzToken = first(s.AuthzToken, vars["KUMOSS_AUTHZ_TOKEN"])
 		s.RustFSAccessKey = first(s.RustFSAccessKey, vars["RUSTFS_ACCESS_KEY"])
 		s.RustFSSecretKey = first(s.RustFSSecretKey, vars["RUSTFS_SECRET_KEY"])
+		s.LangfusePublicKey = first(s.LangfusePublicKey, vars["LANGFUSE_PUBLIC_KEY"])
+		s.LangfuseSecretKey = first(s.LangfuseSecretKey, vars["LANGFUSE_SECRET_KEY"])
 		if pw := dbPassword(vars["KUMOSS_SQL_DATABASE_URL"]); pw != "" {
 			s.CoreDBPassword = first(s.CoreDBPassword, pw)
 		}
@@ -137,6 +140,8 @@ func Fill(s *state.State, existing state.Secrets, rotate []string) {
 	// Assigning outright would throw away the key the user had typed.
 	s.Secrets.RustFSAccessKey = first(s.Secrets.RustFSAccessKey, keep("RUSTFS_ACCESS_KEY", existing.RustFSAccessKey))
 	s.Secrets.RustFSSecretKey = first(s.Secrets.RustFSSecretKey, keep("RUSTFS_SECRET_KEY", existing.RustFSSecretKey))
+	s.Secrets.LangfusePublicKey = first(s.Secrets.LangfusePublicKey, keep("LANGFUSE_PUBLIC_KEY", existing.LangfusePublicKey))
+	s.Secrets.LangfuseSecretKey = first(s.Secrets.LangfuseSecretKey, keep("LANGFUSE_SECRET_KEY", existing.LangfuseSecretKey))
 	s.Secrets.CoreDBPassword = keep("KUMOSS_SQL_DATABASE_URL", existing.CoreDBPassword)
 }
 
@@ -146,7 +151,10 @@ func Fill(s *state.State, existing state.Secrets, rotate []string) {
 func (e *Env) generate(s *state.State) {
 	s.Secrets.IACToken = first(s.Secrets.IACToken, randomHex())
 	s.Secrets.NotificationsToken = first(s.Secrets.NotificationsToken, randomHex())
-	// Mapping and authz stay empty: contracts-only, disabled by default.
+	// Mapping is on by default and the core refuses to boot when it is enabled
+	// with a blank token, so mint one even before the section turns it off.
+	s.Secrets.MappingToken = first(s.Secrets.MappingToken, randomHex())
+	// Authz stays empty: contracts-only, and no bundled service reads it.
 }
 
 // files maps each env file to its vars, from the samples when they were
@@ -184,6 +192,7 @@ func (e *Env) files(p EnvPaths, s *state.State) map[string]map[string]string {
 		p.Core:          resolveSample(e.Samples.Core, owned, e.Extra, core),
 		p.IAC:           resolveSample(e.Samples.IAC, iacOwned, e.Extra, iac),
 		p.Notifications: resolveSample(e.Samples.Notifications, owned, e.Extra, []string{"KUMOSS_NOTIFICATIONS_TOKEN"}),
+		p.Mapping:       resolveSample(e.Samples.Mapping, owned, e.Extra, []string{"KUMOSS_MAPPING_TOKEN"}),
 	}
 }
 
@@ -208,6 +217,11 @@ func ownedKey(owned map[string]string, key string) bool {
 // so iterating the sample alone dropped every one (VERTEXAI_*, ANTHROPIC_*…).
 // extraKeys is how each file keeps only the keys that are its own.
 func resolveSample(sample *Sample, owned, extra map[string]string, extraKeys []string) map[string]string {
+	if sample == nil {
+		// A sample that failed to fetch, or a caller that does not know the
+		// file: extraKeys alone decide the content.
+		sample = &Sample{}
+	}
 	vars := make(map[string]string, len(sample.Vars))
 	seen := make(map[string]bool, len(sample.Vars))
 	for _, v := range sample.Vars {
@@ -252,12 +266,21 @@ func (e *Env) owned(s *state.State) map[string]string {
 		"GIT_TOKEN":                  s.Git.Token,
 		"IAC_BINARY":                 s.Engine.Binary,
 		"SLACK_WEBHOOK_URL":          s.Notifications.SlackWebhookURL,
+		"MAPPING_PREFIX_IDENTIFIER":  s.Mapping.Prefix,
 	}
 	// LLM credentials, keyed by env-var name. Blanks skipped, as below.
 	for k, v := range s.LLM.Credentials {
 		if v != "" {
 			owned[k] = v
 		}
+	}
+	// The Langfuse pair, when a form collected one. Blank is left to the
+	// sample, whose development pair is what the stack provisions.
+	if s.Secrets.LangfusePublicKey != "" {
+		owned["LANGFUSE_PUBLIC_KEY"] = s.Secrets.LangfusePublicKey
+	}
+	if s.Secrets.LangfuseSecretKey != "" {
+		owned["LANGFUSE_SECRET_KEY"] = s.Secrets.LangfuseSecretKey
 	}
 	// The bundled store's own keys, when a form collected them. Blank is left
 	// to the sample, whose value is the container's built-in default; writing
@@ -506,5 +529,22 @@ func ObjectStorageEnvVars(s *state.State) map[string]string {
 	return map[string]string{
 		"RUSTFS_ACCESS_KEY": first(s.Secrets.RustFSAccessKey, "rustfsadmin"),
 		"RUSTFS_SECRET_KEY": first(s.Secrets.RustFSSecretKey, "rustfsadmin"),
+	}
+}
+
+// WriteLangfuseEnv writes the key pair langfuse-web provisions its project
+// with, in its own file for the same reason as the console's: core/.env
+// carries secrets Langfuse has no business seeing. core/.env mirrors the pair,
+// because the core signs its traces and prompt reads with it.
+func WriteLangfuseEnv(path string, s *state.State) error {
+	return writeFile(path, RenderEnvFile(LangfuseEnvVars(s)), 0o600)
+}
+
+// LangfuseEnvVars is what that file holds. The INIT names are the ones
+// docker-compose.yml interpolates; the core reads the same values unprefixed.
+func LangfuseEnvVars(s *state.State) map[string]string {
+	return map[string]string{
+		"LANGFUSE_INIT_PROJECT_PUBLIC_KEY": s.Secrets.LangfusePublicKey,
+		"LANGFUSE_INIT_PROJECT_SECRET_KEY": s.Secrets.LangfuseSecretKey,
 	}
 }

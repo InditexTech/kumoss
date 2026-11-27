@@ -125,6 +125,13 @@ func (h Home) ObjectStorageEnv() string {
 	return filepath.Join(h.SrcDir(), "object-storage.env")
 }
 
+// LangfuseEnv holds the Langfuse project key pair, which core/.env mirrors:
+// the override hands it to langfuse-web with env_file, and core must sign with
+// the same pair. Written only when a form collected one.
+func (h Home) LangfuseEnv() string {
+	return filepath.Join(h.SrcDir(), "langfuse.env")
+}
+
 // CoreDir is src/core/ — the core's env file lives here.
 func (h Home) CoreDir() string { return filepath.Join(h.SrcDir(), "core") }
 

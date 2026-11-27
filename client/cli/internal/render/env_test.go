@@ -20,6 +20,7 @@ func envPathsIn(t *testing.T) EnvPaths {
 		Core:          filepath.Join(dir, "core", ".env"),
 		IAC:           filepath.Join(dir, "iac", ".env"),
 		Notifications: filepath.Join(dir, "notif", ".env"),
+		Mapping:       filepath.Join(dir, "mapping", ".env"),
 	}
 }
 
