@@ -330,16 +330,26 @@ func (e *Env) fallbackFiles(p EnvPaths, s *state.State) map[string]map[string]st
 
 	notifications := map[string]string{
 		"KUMOSS_NOTIFICATIONS_TOKEN": s.Secrets.NotificationsToken,
+		"LOG_LEVEL":                  "INFO",
 	}
 	// Carried here too, or a failed sample fetch writes the notifications file
 	// without its one required var.
 	if v := s.Notifications.SlackWebhookURL; v != "" {
 		notifications["SLACK_WEBHOOK_URL"] = v
 	}
+
+	mapping := map[string]string{
+		"KUMOSS_MAPPING_TOKEN": s.Secrets.MappingToken,
+		"LOG_LEVEL":            "INFO",
+	}
+	if v := s.Mapping.Prefix; v != "" {
+		mapping["MAPPING_PREFIX_IDENTIFIER"] = v
+	}
 	return map[string]map[string]string{
 		p.Core:          core,
 		p.IAC:           iac,
 		p.Notifications: notifications,
+		p.Mapping:       mapping,
 	}
 }
 

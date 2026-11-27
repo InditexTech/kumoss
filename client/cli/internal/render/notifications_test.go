@@ -129,3 +129,15 @@ func TestSlackWebhookIsNotPersisted(t *testing.T) {
 		t.Errorf("webhook survived the round-trip: %q", got.Notifications.SlackWebhookURL)
 	}
 }
+
+// The built-in key list has to carry the level too, or a failed sample fetch
+// writes the notifications env without it.
+func TestFallbackNotificationsKeepsTheDefaultLogLevel(t *testing.T) {
+	p := envPathsIn(t)
+	if err := (&Env{}).Write(p, &state.State{Notifications: state.Notifications{Enabled: true}}); err != nil {
+		t.Fatalf("Write: %v", err)
+	}
+	if got := ReadEnv(p.Notifications)["LOG_LEVEL"]; got != "INFO" {
+		t.Errorf("LOG_LEVEL = %q, want INFO", got)
+	}
+}
