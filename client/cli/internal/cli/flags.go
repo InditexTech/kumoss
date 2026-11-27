@@ -9,6 +9,7 @@ package cli
 import (
 	"github.com/InditexTech/kumoss/client/cli/internal/home"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // Flags is built once in the root's PersistentPreRunE, so no command resolves
@@ -28,8 +29,11 @@ type Flags struct {
 	HostCerts bool
 }
 
-// RegisterHome is local, not persistent: a global --home would be accepted by
-// commands that ignore it and silently do nothing.
+// RegisterHome adds --home. NOT called by any command today: one home per user
+// is the supported setup, so the flag is off everywhere and `kumoss init --home`
+// is rejected. The resolution order (flag, KUMOSS_HOME, pointer, default) is
+// unchanged, so re-enabling it means calling this from the commands that should
+// accept it — init and home are the two that act on the answer.
 func (f *Flags) RegisterHome(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&f.HomeOverride, "home", "", "managed home directory (default ~/.kumoss)")
 }
@@ -37,8 +41,15 @@ func (f *Flags) RegisterHome(cmd *cobra.Command) {
 // RegisterInit adds the flags only init acts on, local for the same reason.
 func (f *Flags) RegisterInit(cmd *cobra.Command) {
 	f.RegisterForeground(cmd)
-	cmd.Flags().BoolVar(&f.HostCerts, "host-certs", false,
+	cmd.Flags().BoolVar(&f.HostCerts, "certs", false,
 		"trust this host's CA roots in core and searxng (TLS-inspecting proxy)")
+	// The name it shipped under, so an existing script keeps working.
+	cmd.Flags().SetNormalizeFunc(func(_ *pflag.FlagSet, name string) pflag.NormalizedName {
+		if name == "host-certs" {
+			return "certs"
+		}
+		return pflag.NormalizedName(name)
+	})
 }
 
 // RegisterForeground is shared by init and run, the two commands that start

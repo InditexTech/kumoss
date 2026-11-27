@@ -50,7 +50,6 @@ func NewInitCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false,
 		"ask everything, write nothing: print the files a real run would write")
 	root.AddCommand(cmd)
-	flags.RegisterHome(cmd)
 	flags.RegisterInit(cmd)
 	return cmd
 }

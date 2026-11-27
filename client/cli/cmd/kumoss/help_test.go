@@ -104,3 +104,20 @@ func TestHelpAllReflectsNewCommands(t *testing.T) {
 		t.Errorf("new command's flag missing:\n%s", got)
 	}
 }
+
+// --certs is the short spelling; --host-certs is kept so a script that already
+// uses it keeps working. Both must set the same flag.
+func TestInitCertsFlagAndItsOldName(t *testing.T) {
+	for _, spelling := range []string{"--certs", "--host-certs"} {
+		var flags cli.Flags
+		root := &cobra.Command{Use: "kumoss"}
+		cmd := NewInitCmd(root, &flags)
+
+		if err := cmd.Flags().Parse([]string{spelling}); err != nil {
+			t.Fatalf("%s: %v", spelling, err)
+		}
+		if !flags.HostCerts {
+			t.Errorf("%s did not set HostCerts", spelling)
+		}
+	}
+}

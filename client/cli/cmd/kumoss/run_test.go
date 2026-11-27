@@ -19,7 +19,8 @@ func TestRunCmdRegistersItsOwnFlags(t *testing.T) {
 	var flags cli.Flags
 	cmd := NewRunCmd(&cobra.Command{Use: "kumoss"}, &flags)
 
-	for _, name := range []string{"home", "foreground"} {
+	// No --home: kept in the code, registered nowhere.
+	for _, name := range []string{"foreground"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Errorf("run does not register --%s", name)
 		}

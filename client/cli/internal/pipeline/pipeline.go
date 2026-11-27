@@ -203,6 +203,12 @@ func RunPipeline(ctx context.Context, opts Options) error {
 				return err
 			}
 		}
+		// Same for langfuse-web's key pair, which its override block names.
+		if s.Secrets.LangfusePublicKey != "" {
+			if err := render.WriteLangfuseEnv(opts.Home.LangfuseEnv(), s); err != nil {
+				return err
+			}
+		}
 	}
 
 	// Pull and start. The recreate is what makes a reconfigure take effect:
@@ -437,6 +443,7 @@ func renderCompose(h home.Home, s *state.State, hostCerts bool) ([]byte, error) 
 		HostCerts:  hostCerts,
 		Mounts:     iacMounts(h, s),
 		Console:    s.Storage.ConsoleEnabled,
+		Langfuse:   s.Secrets.LangfusePublicKey != "",
 	}).Render()
 }
 
@@ -446,6 +453,7 @@ func envPaths(h home.Home) render.EnvPaths {
 		Core:          h.CoreEnv(),
 		IAC:           h.ServiceEnv("iac"),
 		Notifications: h.ServiceEnv("notifications"),
+		Mapping:       h.ServiceEnv("mapping"),
 	}
 }
 

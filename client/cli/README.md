@@ -221,10 +221,9 @@ Install or reconfigure the stack. See [How it works](#how-it-works).
 
 | Flag             | Default      | Effect                                                                 |
 | ---------------- | ------------ | ---------------------------------------------------------------------- |
-| `--home <dir>`   | `~/.kumoss`  | Managed home; persisted for later runs                                 |
 | `--dry-run`      | off          | Ask everything, write nothing; print the files a real run would write  |
 | `--foreground`   | off          | Stream logs instead of detaching; Ctrl-C also stops the stack          |
-| `--host-certs`   | off          | Trust this host's CA roots in `core` and `searxng`, behind a TLS proxy |
+| `--certs`         | off          | Trust this host's CA roots in `core` and `searxng`, behind a TLS proxy |
 
 Once the stack is up it prints the app, RustFS API and Phoenix addresses. With
 `--foreground` the logs own the terminal, so the list is not printed.
@@ -464,22 +463,21 @@ so do not paste its output into a ticket or a CI log.
 **Install into a non-default home.**
 
 ```bash
-kumoss init --home ~/kumoss-lab
-kumoss home                       # Kumoss home is set to: /home/me/kumoss-lab
-kumoss home --reset               # back to ~/.kumoss
+KUMOSS_HOME=~/kumoss-lab kumoss init   # every command needs it set
+kumoss home                            # Kumoss home is set to: /home/me/kumoss-lab
 ```
 
 **Start a stack you already configured.**
 
 ```bash
-kumoss run                        # check the files, then up -d
-kumoss run --home ~/kumoss-lab    # a second stack, its own answers
+kumoss run                                    # check the files, then up -d
+KUMOSS_HOME=~/kumoss-lab kumoss run           # a second stack, its own answers
 ```
 
 **Behind a TLS-inspecting proxy.**
 
 ```bash
-kumoss init --host-certs
+kumoss init --certs
 ```
 
 **Watch the stack start.**
