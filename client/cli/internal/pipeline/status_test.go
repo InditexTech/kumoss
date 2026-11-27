@@ -79,11 +79,15 @@ func TestProbeURLsStayInsideTheStack(t *testing.T) {
 	if strings.Contains(coreConfigURL, "localhost") {
 		t.Errorf("coreConfigURL = %q, must not go through the host", coreConfigURL)
 	}
-	// Each sidecar listens on its own port: iac is 8082, the rest 8080. A
-	// shared port made iac read unreachable while it was serving.
+	// Each service listens on its own port: iac is 8082, mapping 8081, the
+	// rest 8080. A shared port made iac read unreachable while it was serving.
+	// langfuse-web serves no /healthz, so it is probed where its own compose
+	// healthcheck looks.
 	for service, want := range map[string]string{
 		"iac":           "http://iac:8082/healthz",
+		"mapping":       "http://mapping:8081/healthz",
 		"notifications": "http://notifications:8080/healthz",
+		"langfuse-web":  "http://langfuse-web:3000/api/public/health",
 	} {
 		url := healthzURL(service)
 		if url != want {

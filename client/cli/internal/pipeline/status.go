@@ -34,23 +34,29 @@ type StatusOptions struct {
 // are fetched from inside the stack.
 const coreConfigURL = "http://core:8000/api/v1/auth/config"
 
-// sidecarPort is the port each sidecar listens on, from its Dockerfile's
-// EXPOSE and the compose file's expose. iac is 8082, not the 8080 the others
-// use, so a single shared port made its probe read unreachable while it was
-// serving.
-var sidecarPort = map[string]int{
-	"iac":           8082,
-	"notifications": 8080,
+// probeTarget is where each service answers, from its Dockerfile's EXPOSE and
+// the compose file's expose. The ports differ — iac 8082, mapping 8081, the
+// rest 8080 — so a single shared port made a probe read unreachable while the
+// service was serving. langfuse-web is not a Kumoss sidecar and serves no
+// /healthz: its path is the one its own compose healthcheck uses.
+var probeTarget = map[string]struct {
+	port int
+	path string
+}{
+	"iac":           {8082, "/healthz"},
+	"mapping":       {8081, "/healthz"},
+	"notifications": {8080, "/healthz"},
+	"langfuse-web":  {3000, "/api/public/health"},
 }
 
-// healthzURL is the probe for one sidecar, or "" for a service that serves no
-// /healthz.
+// healthzURL is the probe for one service, or "" for a service with no health
+// endpoint worth asking.
 func healthzURL(service string) string {
-	port, ok := sidecarPort[service]
+	t, ok := probeTarget[service]
 	if !ok {
 		return ""
 	}
-	return fmt.Sprintf("http://%s:%d/healthz", service, port)
+	return fmt.Sprintf("http://%s:%d%s", service, t.port, t.path)
 }
 
 // RunStatus prints the stack table, the probes, the Kumoss tag and whether a
@@ -171,6 +177,9 @@ func printSkipped(w io.Writer, h home.Home, s *state.State) {
 	var skipped []string
 	if !s.Notifications.Enabled {
 		skipped = append(skipped, "notifications disabled")
+	}
+	if !s.Mapping.Enabled {
+		skipped = append(skipped, "repository mapping disabled: type the full https:// repository URL")
 	}
 	core := render.ReadEnv(h.CoreEnv())
 	for _, key := range tui.RequiredEnvKeys(s) {
