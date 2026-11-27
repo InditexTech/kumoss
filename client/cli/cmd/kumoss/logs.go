@@ -33,6 +33,5 @@ func NewLogsCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 	cmd.Flags().BoolVarP(&follow, "follow", "f", false, "follow the log output")
 	cmd.Flags().StringVar(&since, "since", "", "only logs since this time (30m, 2h, a timestamp)")
 	root.AddCommand(cmd)
-	flags.RegisterHome(cmd)
 	return cmd
 }

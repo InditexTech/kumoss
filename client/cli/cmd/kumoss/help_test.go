@@ -51,20 +51,20 @@ func TestHelpAllGroupsFlagsByCommand(t *testing.T) {
 		"Flags by command:",
 		"\ninit\n",
 		"--foreground",
-		"--host-certs",
-		"--home string",
-		"\nhome\n",
-		"--reset",
-		"\nconfig\n",
-		"\ndoctor\n",
+		"--certs",
 		"\nlogs\n",
 		"--since string",
-		"\nstatus\n",
-		"self-install, version",
+		"config, doctor, home, self-install, status, version",
 		"(no flags)",
 	} {
 		if !strings.Contains(got, want) {
 			t.Errorf("output missing %q:\n%s", want, got)
+		}
+	}
+	// --home and --reset are gone: one home per user is the supported setup.
+	for _, gone := range []string{"--home", "--reset"} {
+		if strings.Contains(got, gone) {
+			t.Errorf("output advertises %s:\n%s", gone, got)
 		}
 	}
 	// cobra's own commands are not ours to advertise.

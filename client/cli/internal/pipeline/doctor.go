@@ -99,14 +99,14 @@ func RunDoctor(ctx context.Context, opts DoctorOptions) error {
 	return failed(checks)
 }
 
-// initHint is the command that creates the missing home. Only the default root
-// needs no flag: every other source was chosen explicitly, and init would
-// otherwise write ~/.kumoss instead of the home doctor just checked.
+// initHint is the command that creates the missing home. The default root needs
+// no flag. --home is hidden, so the hint names KUMOSS_HOME instead: it is the
+// supported way to pick another home, and it still works with the flag hidden.
 func initHint(h home.Home, src home.Source) string {
 	if src == home.SourceDefault {
 		return "Run kumoss init."
 	}
-	return "Run kumoss init --home " + h.Root + " to install into this home."
+	return "Run KUMOSS_HOME=" + h.Root + " kumoss init to install into this home."
 }
 
 // failed returns an error naming how many required checks failed, so the exit

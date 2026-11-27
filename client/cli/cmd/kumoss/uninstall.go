@@ -84,7 +84,6 @@ func NewUninstallCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&purge, "purge", false, "do not ask for confirmation")
 	root.AddCommand(cmd)
-	flags.RegisterHome(cmd)
 	return cmd
 }
 

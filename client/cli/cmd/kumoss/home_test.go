@@ -6,6 +6,7 @@ package cmd
 
 import (
 	"bytes"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -16,15 +17,17 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// runHome mirrors NewRootCmd's PersistentPreRunE, which resolves --home after
-// parsing; without it the command prints an empty path.
+// runHome mirrors NewRootCmd's PersistentPreRunE, which resolves the home after
+// parsing; without it the command prints an empty path. KUMOSS_HOME is how a
+// test picks another home: no command registers --home.
 func runHome(t *testing.T, args ...string) string {
 	t.Helper()
 	var flags cli.Flags
 	root := &cobra.Command{
 		Use: "kumoss",
 		PersistentPreRunE: func(*cobra.Command, []string) error {
-			flags.Home = home.FromFlag(flags.HomeOverride)
+			// No --home on the command, so only KUMOSS_HOME can set this.
+			flags.Home = home.FromFlag(os.Getenv("KUMOSS_HOME"))
 			return nil
 		},
 	}
@@ -59,44 +62,48 @@ func TestHomeDefaults(t *testing.T) {
 	}
 }
 
-// --home is persisted, so a later run without it still finds the choice.
+// A chosen home is remembered, so a later run without KUMOSS_HOME still finds
+// it. --home is not registered, so the pointer is what carries the choice.
 func TestHomePersistsTheChoice(t *testing.T) {
 	isolateHome(t)
 	chosen := filepath.Join(t.TempDir(), "elsewhere")
-
-	if got := runHome(t, "--home", chosen); !strings.Contains(got, "Kumoss home persisted to: "+chosen) {
-		t.Errorf("persist output = %q", got)
+	if err := home.SetPointer(chosen); err != nil {
+		t.Fatalf("SetPointer: %v", err)
 	}
-	// A second run with no flag resolves through the pointer.
+
+	if got := runHome(t); !strings.Contains(got, "Kumoss home is set to: "+chosen) {
+		t.Errorf("first run = %q, want %s", got, chosen)
+	}
+	// KUMOSS_HOME unset: the pointer is the only source left.
 	if got := runHome(t); !strings.Contains(got, "Kumoss home is set to: "+chosen) {
 		t.Errorf("second run = %q, want the persisted %s", got, chosen)
 	}
 }
 
-// --reset drops the pointer and reports the restored default.
-func TestHomeReset(t *testing.T) {
-	dir := isolateHome(t)
-	runHome(t, "--home", filepath.Join(t.TempDir(), "elsewhere"))
+// --reset is gone with --home: nothing writes the pointer any more, and
+// uninstall clears it. The command must reject it rather than ignore it.
+func TestHomeHasNoFlags(t *testing.T) {
+	isolateHome(t)
+	t.Setenv("KUMOSS_HOME", filepath.Join(t.TempDir(), "elsewhere"))
 
-	got := runHome(t, "--reset")
-	if want := "Kumoss home is reset to: " + filepath.Join(dir, ".kumoss"); !strings.Contains(got, want) {
-		t.Errorf("reset output = %q, want %q", got, want)
-	}
-	// The pointer must be gone: a plain run no longer finds the old choice.
-	if got := runHome(t); !strings.Contains(got, filepath.Join(dir, ".kumoss")) {
-		t.Errorf("after reset = %q", got)
+	var flags cli.Flags
+	root := &cobra.Command{Use: "kumoss"}
+	NewHomeCmd(root, &flags)
+	root.SetArgs([]string{"home", "--reset"})
+	root.SetOut(&strings.Builder{})
+	root.SetErr(&strings.Builder{})
+	if err := root.Execute(); err == nil || !strings.Contains(err.Error(), "unknown flag") {
+		t.Errorf("home --reset was accepted: %v", err)
 	}
 }
 
-// KUMOSS_HOME outranks the default, and --home outranks KUMOSS_HOME.
+// KUMOSS_HOME outranks the default. --home still outranks it, but no command
+// registers the flag, so it cannot be passed.
 func TestHomePrecedence(t *testing.T) {
 	isolateHome(t)
 	t.Setenv("KUMOSS_HOME", "/from/env")
 	if got := runHome(t); !strings.Contains(got, "/from/env") {
 		t.Errorf("KUMOSS_HOME ignored: %q", got)
-	}
-	if got := runHome(t, "--home", "/from/flag"); !strings.Contains(got, "/from/flag") {
-		t.Errorf("--home ignored: %q", got)
 	}
 }
 
@@ -108,7 +115,9 @@ func TestHomeRegistersOnlyItsFlags(t *testing.T) {
 
 	names := []string{}
 	c.Flags().VisitAll(func(f *pflag.Flag) { names = append(names, f.Name) })
-	if strings.Join(names, ",") != "home,reset" {
-		t.Errorf("flags = %v, want [home reset]", names)
+	// Neither --home nor --reset: home is fixed per user, and uninstall
+	// clears the pointer.
+	if len(names) != 0 {
+		t.Errorf("flags = %v, want none", names)
 	}
 }

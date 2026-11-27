@@ -28,8 +28,7 @@ Three ideas explain almost everything the CLI does.
 answers, their own `.env` files, their own volumes. Each home runs under its own
 Compose project — `kumoss` for the default directory, `kumoss-<hash>` anywhere
 else — which is what keeps their containers and volumes apart. Point at another
-with `--home <dir>`, `KUMOSS_HOME=<dir>`, or by persisting the choice with
-`kumoss init --home <new_file_path>` or with `kumoss home --home <new_file_path>`.
+with `KUMOSS_HOME=<dir>`.
 
 *The answers are stored in a file as the source of truth.* `kumoss.yaml` records what you told
 the wizard. Every generated file is derived from it, and every command that
@@ -95,15 +94,12 @@ world-readable and the `.env` files are not.
 
 The root resolves in this order, first match wins:
 
-. `--home <dir>` on the command line.
 . `KUMOSS_HOME` in the environment.
-. The persisted pointer, written by `kumoss init --home`.
+. The persisted pointer, written by a previous `init` that was pointed elsewhere.
 . `~/.kumoss`.
 
-Only `init` and `home` write the pointer. That matters for `doctor`: it reports
-a missing install with the `--home` flag it was given, because a plain
-`kumoss init` would otherwise create `~/.kumoss` while `doctor` had just checked
-a different directory.
+No command takes a `--home` flag: one home per user is the supported setup.
+`KUMOSS_HOME` is how you pick another, and `kumoss uninstall` clears the pointer.
 
 == The commands
 
@@ -244,7 +240,8 @@ configured provider and clouds need must be filled in. Skipped when there is no
 install yet.
 |===
 
-`doctor` only reads. It creates nothing, so a typo'd `--home` leaves no empty
+`doctor` only reads. It creates nothing, so a home that does not exist yet
+leaves no empty
 directory behind. Writability is read from permission bits rather than tested
 with a probe write, which means a read-only mount or an ACL that denies the
 write is only discovered by `init`.
@@ -260,8 +257,8 @@ to show only the logs for this container.
 
 === kumoss home
 
-Shows the resolved root and why it resolved that way. `--reset` forgets the
-persisted pointer and falls back to the default.
+Shows the resolved root and why it resolved that way. It takes no flags:
+`kumoss uninstall` clears the persisted pointer and falls back to the default.
 
 === kumoss uninstall
 
@@ -447,7 +444,7 @@ Then, in order:
 
 . *Which binary ran?* `which kumoss && kumoss version` - a source build reports
   `dev`.
-. *Which home?* `kumoss home` - `KUMOSS_HOME` outranks a persisted `--home`.
+. *Which home?* `kumoss home` - `KUMOSS_HOME` outranks a persisted pointer.
 . *Do the files agree?* `kumoss run` names the drift without writing or
   starting anything.
 . *What would it write?* `kumoss init --dry-run` - no side effects.

@@ -46,18 +46,19 @@ func doctorHome(t *testing.T) home.Home {
 	return home.Home{Root: filepath.Join(t.TempDir(), "kumoss")}
 }
 
-// A missing home names the flag that creates it, but only when the root was
-// chosen: the default needs none.
-func TestInitHintNamesTheFlagUnlessDefault(t *testing.T) {
+// A missing home names the command that creates it, but only when the root
+// was chosen: the default needs none. The flag is hidden, so the hint uses
+// KUMOSS_HOME, the supported way to pick another home.
+func TestInitHintNamesTheEnvVarUnlessDefault(t *testing.T) {
 	h := home.Home{Root: "/home/me/.kumoss_copy_2"}
 	cases := []struct {
 		src  home.Source
 		want string
 	}{
 		{home.SourceDefault, "Run kumoss init."},
-		{home.SourceFlag, "Run kumoss init --home /home/me/.kumoss_copy_2 to install into this home."},
-		{home.SourceEnv, "Run kumoss init --home /home/me/.kumoss_copy_2 to install into this home."},
-		{home.SourcePointer, "Run kumoss init --home /home/me/.kumoss_copy_2 to install into this home."},
+		{home.SourceFlag, "Run KUMOSS_HOME=/home/me/.kumoss_copy_2 kumoss init to install into this home."},
+		{home.SourceEnv, "Run KUMOSS_HOME=/home/me/.kumoss_copy_2 kumoss init to install into this home."},
+		{home.SourcePointer, "Run KUMOSS_HOME=/home/me/.kumoss_copy_2 kumoss init to install into this home."},
 	}
 	for _, c := range cases {
 		if got := initHint(h, c.src); got != c.want {
@@ -67,7 +68,7 @@ func TestInitHintNamesTheFlagUnlessDefault(t *testing.T) {
 }
 
 // The hint reaches the report, not just the helper.
-func TestDoctorPointsAtInitWithTheHomeFlag(t *testing.T) {
+func TestDoctorPointsAtInitWithTheHomeEnvVar(t *testing.T) {
 	h := doctorHome(t)
 	lookPath, output := fakeTooling(nil, map[string]string{
 		"docker --version":                        "Docker version 27.1.1\n",
@@ -78,8 +79,8 @@ func TestDoctorPointsAtInitWithTheHomeFlag(t *testing.T) {
 	_ = RunDoctor(t.Context(), DoctorOptions{
 		Home: h, Source: home.SourceFlag, LookPath: lookPath, Output: output, Out: &b,
 	})
-	if !strings.Contains(b.String(), "kumoss init --home "+h.Root) {
-		t.Errorf("report does not name --home:\n%s", b.String())
+	if !strings.Contains(b.String(), "KUMOSS_HOME="+h.Root) {
+		t.Errorf("report does not name KUMOSS_HOME:\n%s", b.String())
 	}
 }
 

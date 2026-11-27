@@ -64,6 +64,5 @@ func NewConfigCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 		},
 	}
 	root.AddCommand(cmd)
-	flags.RegisterHome(cmd)
 	return cmd
 }

@@ -249,7 +249,6 @@ plain `up` would keep the old values.
 
 | Flag             | Default      | Effect                                                                 |
 | ---------------- | ------------ | ---------------------------------------------------------------------- |
-| `--home <dir>`   | `~/.kumoss`  | Start the stack in this root                                           |
 | `--foreground`   | off          | Stream logs instead of detaching; Ctrl-C also stops the stack          |
 
 ```console
@@ -264,10 +263,9 @@ kumoss: 2 problems found; the stack was not started
 
 ### `kumoss home`
 
-| Flag             | Effect                                              |
-| ---------------- | --------------------------------------------------- |
-| `--home <dir>`   | Resolve, print and persist this root                |
-| `--reset`        | Forget the persisted root and restore the default   |
+Prints the resolved root and why it resolved that way. It takes no flags:
+`kumoss uninstall` clears the persisted pointer, and `KUMOSS_HOME` is how you
+choose another root.
 
 ### `kumoss uninstall`
 
@@ -275,7 +273,6 @@ Stops the stack and deletes the managed home. See [Uninstalling](#uninstalling).
 
 | Flag             | Effect                                              |
 | ---------------- | --------------------------------------------------- |
-| `--home <dir>`   | Uninstall this root instead of the resolved one     |
 | `--purge`        | Do not ask for confirmation                         |
 
 ### `kumoss version`
@@ -369,10 +366,8 @@ reads: doctor writes nothing, and never creates the managed home.
   found by `init`.
 - **The generated files** still agreeing with `kumoss.yaml`, the same checks
   `run` makes. A home with no `kumoss.yaml` yet is not an error — the line is
-  skipped and the command tells you how to install there: plain `kumoss init`
-  for the default root, `kumoss init --home <dir>` when the root came from
-  `--home`, `KUMOSS_HOME` or a persisted pointer. Without the flag, `init` would
-  write `~/.kumoss` instead of the home doctor just checked.
+  skipped and the command tells you how to install there, naming
+  `KUMOSS_HOME` when the root was not the default.
 
 Every check is printed, so one failure does not hide the rest, and the command
 exits non-zero if any failed.
@@ -394,7 +389,7 @@ differ.
 A machine with no install yet, and a Compose that is too old:
 
 ```console
-$ kumoss doctor --home /tmp/lab
+$ KUMOSS_HOME=/tmp/lab kumoss doctor
 Kumoss 1.2.0 (stack main)
 
 ok   docker           /usr/bin/docker (Docker version 27.1.1, build abc)
@@ -402,7 +397,7 @@ FAIL docker compose   v1 found; v2 or newer is required
 ok   docker daemon    server 27.1.1
 ok   home             /tmp/lab does not exist yet; init will create it
 
-No /tmp/lab/kumoss.yaml yet. Run kumoss init --home /tmp/lab to install into this home.
+No /tmp/lab/kumoss.yaml yet. Run KUMOSS_HOME=/tmp/lab kumoss init to install into this home.
 ```
 
 See also [Day-2 operations](#day-2-operations).
@@ -427,8 +422,8 @@ Everything lives under one directory, `~/.kumoss` by default.
 └── compose.override.yml   # generated
 ```
 
-Choose another root with `--home <dir>` (persisted), `KUMOSS_HOME=<dir>`, or by
-leaving the default. `kumoss home` prints which one is in use.
+Choose another root with `KUMOSS_HOME=<dir>`, or leave the default. `kumoss home`
+prints which one is in use.
 
 ### What each file is
 
@@ -510,7 +505,7 @@ kumoss uninstall --purge    # no question, for a script
 
 It runs `docker compose down -v` against the managed home, which stops the
 containers and **deletes the four data volumes**, then removes the home
-directory and the persisted `--home` pointer. The next `kumoss init` therefore
+directory and the persisted home pointer. The next `kumoss init` therefore
 starts from an empty database, not from the old one.
 
 Each volume name is the home's Compose project name plus the volume name. On
@@ -551,7 +546,7 @@ dc config                         # the fully merged stack
 ### A failing run, in order
 
 1. **Which binary ran?** `which kumoss && kumoss version` — a source build reports `dev`.
-2. **Which home?** `kumoss home` — `KUMOSS_HOME` outranks a persisted `--home`, which surprises people.
+2. **Which home?** `kumoss home` — `KUMOSS_HOME` outranks a persisted pointer, which surprises people.
 3. **Does the machine have what it needs?** `kumoss doctor` — docker, Compose v2 or newer, the daemon and the home in one pass, plus the same file checks `run` makes. It writes nothing.
 4. **Do the files still agree?** `kumoss run` — it reconciles `kumoss.yaml` against `config/config.yaml` and the `.env` files and names what drifted, without writing or starting anything.
 5. **What would it write?** `kumoss init --dry-run` — no side effects.
@@ -565,7 +560,7 @@ dc config                         # the fully merged stack
 | ------------------------------------------ | ------------------------------------------------------------------- |
 | `Cannot connect to the Docker daemon`      | Start Docker; on WSL2 enable the integration for the distribution   |
 | `docker compose` line reads `FAIL`         | v1 found or Compose missing: install Compose v2 or newer            |
-| `home` line says not writable              | `--home` points somewhere you cannot write; pick another root       |
+| `home` line says not writable              | The home points somewhere you cannot write; set `KUMOSS_HOME` to another root |
 | Port 80 or 9000 in use                     | `ss -lntp` or `lsof -i :80` / `-i :9000`; stop the process, run `kumoss init` again |
 | The core exits right after start           | `dc logs core`; the first error line names the cause                |
 | Notifications container shows `Exited`     | Webhook missing or empty: re-run and paste one, or answer No        |

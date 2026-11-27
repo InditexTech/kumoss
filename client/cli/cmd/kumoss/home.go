@@ -13,26 +13,16 @@ import (
 )
 
 func NewHomeCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
-	var reset bool
 	cmd := &cobra.Command{
-		Use:   "home [--home <dir> | --reset]",
+		Use:   "home",
 		Short: "Print the resolved Kumoss home directory",
 		Long: "Print the resolved Kumoss home directory.\n\n" +
-			"The path is taken from the first of: the --home flag, KUMOSS_HOME, the\n" +
-			"pointer file written by a previous --home, then ~/.kumoss.\n\n" +
-			"With --home <dir> the given directory is resolved, printed, and the\n" +
-			"choice is persisted for later invocations.\n\n" +
-			"With --reset the persisted pointer is removed, restoring the default\n" +
-			"resolution (KUMOSS_HOME, then ~/.kumoss).",
+			"The path is taken from the first of: KUMOSS_HOME, the pointer file\n" +
+			"written by a previous choice, then ~/.kumoss. Uninstall clears the\n" +
+			"pointer itself, so there is no --reset to run.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			if reset {
-				if err := home.ClearPointer(); err != nil {
-					return err
-				}
-				// Resolved before the pointer was cleared, so re-resolve.
-				return printHome(cmd, home.FromFlag(flags.HomeOverride), "Kumoss home is reset to")
-			}
-			// Only an explicit --home is worth remembering.
+			// Only an explicitly chosen home is worth remembering. HomeOverride
+			// stays in the code for when --home is registered again.
 			if flags.HomeOverride != "" {
 				if err := home.SetPointer(flags.Home.Root); err != nil {
 					return err
@@ -42,9 +32,7 @@ func NewHomeCmd(root *cobra.Command, flags *cli.Flags) *cobra.Command {
 			return printHome(cmd, flags.Home, "Kumoss home is set to")
 		},
 	}
-	cmd.Flags().BoolVar(&reset, "reset", false, "forget the persisted --home and restore the default")
 	root.AddCommand(cmd)
-	flags.RegisterHome(cmd)
 	return cmd
 }
 
