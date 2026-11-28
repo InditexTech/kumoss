@@ -39,6 +39,7 @@ jobs:
             .github/workflows/push-verify.yml
             .github/workflows/release-please.yml
             .github/workflows/publish-images.yml
+            .github/workflows/publish-chart.yml
             .github/workflows/scorecard-analysis.yml
             .github/workflows/codeql.yml
             .github/workflows/security-scans.yml
