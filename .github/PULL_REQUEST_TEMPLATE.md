@@ -8,6 +8,8 @@ SPDX-License-Identifier: Apache-2.0
 
 Briefly describe the purpose of this PR and what changes it introduces.
 
+Closes #
+
 ## Checklist
 
 - [ ] Commits are **signed** (`git commit -S`)
