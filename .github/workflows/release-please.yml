@@ -42,8 +42,37 @@ jobs:
           permission-issues: write
 
       - name: Release Please
+        id: release
         uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         with:
           token: ${{ steps.app-token.outputs.token }}
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      # release-please writes the Release body from the release PR body, which
+      # does not pick up notes committed to CHANGELOG.md on the release branch
+      # (highlights, upgrade notes). Copy the released CHANGELOG section over
+      # it so the GitHub Release and CHANGELOG.md say the same thing.
+      - name: Sync the Release notes with CHANGELOG.md
+        if: steps.release.outputs.release_created == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: ${{ steps.release.outputs.tag_name }}
+          # The release commit: reading by SHA doesn't depend on the new tag
+          # being visible through the API yet.
+          SHA: ${{ steps.release.outputs.sha }}
+          VERSION: ${{ steps.release.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh api "repos/${GITHUB_REPOSITORY}/contents/CHANGELOG.md?ref=${SHA}" \
+            -H 'Accept: application/vnd.github.raw' > "${RUNNER_TEMP}/CHANGELOG.md"
+          awk -v heading="## [${VERSION}]" '
+            index($0, heading) == 1 { found = 1; print; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' "${RUNNER_TEMP}/CHANGELOG.md" > "${RUNNER_TEMP}/notes.md"
+          if [ ! -s "${RUNNER_TEMP}/notes.md" ]; then
+            echo "::error::CHANGELOG.md at ${TAG} has no ${VERSION} section; see CONTRIBUTING.md (Releases) to sync the Release by hand"
+            exit 1
+          fi
+          gh release edit "${TAG}" --repo "${GITHUB_REPOSITORY}" --notes-file "${RUNNER_TEMP}/notes.md"
