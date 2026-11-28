@@ -22,7 +22,7 @@
 ### Before you upgrade
 
 - **Custom sidecars** must be upgraded together with the core.
-- **Phoenix prompts** customoized prompts have to be migrated to Langfuse.
+- **Phoenix prompts** customized prompts have to be migrated to Langfuse.
 - **`forbidden_actions` prompts** are no longer enforced, required ones must be migrated to OPA REGO rules.
 - **Kumoss-managed Terraform state** must be copied to its new keys.
 
